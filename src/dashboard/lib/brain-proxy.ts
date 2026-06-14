@@ -443,6 +443,7 @@ export async function streamBrainChat(
 
             case "text":
               if (typeof ev.text === "string" && ev.text.length > 0) {
+                inFlightTool = false;
                 assistantBuffer += ev.text;
                 emit({
                   type: "chat.message",
@@ -457,7 +458,10 @@ export async function streamBrainChat(
               // Structured tool event so the client can render a consolidated
               // "thinking" panel rather than polluting prose with inline tool
               // markers. Brain doesn't stream tool results separately — the
-              // narrated output arrives in the next `text` chunk.
+              // narrated output arrives in the next `text` chunk. Mark the
+              // stream as alive so the idle-timeout window widens to
+              // IDLE_TIMEOUT_DURING_TOOL_MS for the duration of the call.
+              inFlightTool = true;
               emit({
                 type: "chat.tool_use",
                 id: crypto.randomUUID(),
@@ -468,10 +472,12 @@ export async function streamBrainChat(
               break;
 
             case "done":
+              inFlightTool = false;
               emit({ type: "chat.done" });
               break;
 
             case "error":
+              inFlightTool = false;
               emit({ type: "chat.error", error: ev.error ?? "Brain error" });
               break;
           }
@@ -483,17 +489,27 @@ export async function streamBrainChat(
       // surface an error instead of holding the spinner open indefinitely.
       // Reset every time a chunk lands, so a long healthy response is fine —
       // only true silence trips it.
-      const IDLE_TIMEOUT_MS = 120_000;
-      const readWithIdleTimeout = () =>
-        Promise.race([
+      //
+      // Brain is allowed to be silent for longer while a tool call is in
+      // flight — `tool_use` is proof of life even though no text/done chunk
+      // arrives until the tool returns (which can be many minutes for a big
+      // build, test run, or git operation). We bump the idle budget for the
+      // duration of an in-flight tool and revert to the default once text or a
+      // terminal event resumes the stream.
+      const IDLE_TIMEOUT_DEFAULT_MS = 120_000;
+      const IDLE_TIMEOUT_DURING_TOOL_MS = 600_000;
+      let inFlightTool = false;
+      const readWithIdleTimeout = () => {
+        const idleMs = inFlightTool
+          ? IDLE_TIMEOUT_DURING_TOOL_MS
+          : IDLE_TIMEOUT_DEFAULT_MS;
+        return Promise.race([
           reader.read(),
           new Promise<never>((_, reject) =>
-            setTimeout(
-              () => reject(new Error("brain-idle-timeout")),
-              IDLE_TIMEOUT_MS,
-            ),
+            setTimeout(() => reject(new Error("brain-idle-timeout")), idleMs),
           ),
         ]);
+      };
 
       try {
         while (true) {

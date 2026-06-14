@@ -102,6 +102,18 @@ export interface SessionMeta {
   messageCount: number;
   /** Whether this session is pinned */
   pinned?: boolean;
+  /**
+   * The chat entry key (from `buildAgentList` — e.g. `"brain"`,
+   * `"kody:claude-sonnet"`, `"kody-live"`) the user picked for THIS
+   * session. Per-session so switching conversations remembers each
+   * thread's chosen assistant instead of a single global default.
+   *
+   * `undefined` for legacy sessions created before this field existed —
+   * render-time fallback to the global `defaultChatEntryKey` (then the
+   * brain auto-default, then `kody-live`) applies. The next time the
+   * user picks an agent in that session, the field is populated.
+   */
+  agentKey?: string;
   /** Ephemeral UI status derived from the stored messages */
   status?: "idle" | "running";
 }

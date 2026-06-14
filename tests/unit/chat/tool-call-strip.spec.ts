@@ -208,6 +208,65 @@ describe("parseAssistantContent", () => {
     expect(answer).toBe(raw);
   });
 
+  it("strips multiple thinking paragraphs that alternate with answer paragraphs", () => {
+    const raw = [
+      "Let me think about question 1.",
+      "",
+      "Answer for Q1: X.",
+      "",
+      "Now let me think about question 2.",
+      "",
+      "Answer for Q2: Y.",
+    ].join("\n");
+    const { reasoning, answer } = parseAssistantContent(raw);
+
+    expect(answer).toBe("Answer for Q1: X.\n\nAnswer for Q2: Y.");
+    expect(reasoning).toContain("Let me think about question 1.");
+    expect(reasoning).toContain("Now let me think about question 2.");
+  });
+
+  it("strips a thinking paragraph that appears in the middle of the answer", () => {
+    const raw = [
+      "The install command is npm install kody.",
+      "",
+      "Let me check the config.",
+      "",
+      "The config goes in /docs/setup.md.",
+    ].join("\n");
+    const { reasoning, answer } = parseAssistantContent(raw);
+
+    expect(answer).toBe(
+      "The install command is npm install kody.\n\nThe config goes in /docs/setup.md.",
+    );
+    expect(reasoning).toBe("Let me check the config.");
+  });
+
+  it("strips consecutive thinking paragraphs and leaves only the answer", () => {
+    const raw = [
+      "First, let me consider the input.",
+      "Next, I should check the schema.",
+      "Now, the output format is JSON.",
+    ].join("\n\n");
+    const { reasoning, answer } = parseAssistantContent(raw);
+
+    expect(answer).toBe("Now, the output format is JSON.");
+    expect(reasoning).toContain("First, let me consider the input.");
+    expect(reasoning).toContain("Next, I should check the schema.");
+  });
+
+  it("does not strip every paragraph when the entire reply is thinking", () => {
+    // Guard: if EVERY paragraph matches, leave the content visible so the
+    // user always sees something rather than an empty bubble.
+    const raw = [
+      "Let me think about this.",
+      "I should check the docs.",
+    ].join("\n\n");
+    const { answer, reasoning } = parseAssistantContent(raw);
+
+    expect(answer).toBe(raw);
+    expect(reasoning).toBe("");
+  });
+
   it("returns empty answer for empty input", () => {
     expect(parseAssistantContent("")).toEqual({ reasoning: "", answer: "" });
   });

@@ -246,8 +246,15 @@ export interface UseChatSessionsResult {
   ) => void;
   /** Read messages for a specific session */
   getSessionMessages: (sessionId: string) => ChatMessage[];
-  /** Create a new session */
-  createSession: () => string;
+  /**
+   * Create a new session. Optionally seeds the per-session agent pick
+   * (the entry key from `buildAgentList` — e.g. `"brain"`,
+   * `"kody:claude-x"`, `"kody-live"`). When omitted, the session is
+   * created without an agent pick and the chat falls back to the
+   * global default at render time; the next time the user picks an
+   * agent in that session the field is populated.
+   */
+  createSession: (opts?: { agentKey?: string }) => string;
   /** Switch to a different session */
   switchSession: (sessionId: string) => void;
   /** Rename a session */
@@ -258,6 +265,13 @@ export interface UseChatSessionsResult {
   pinSession: (sessionId: string) => void;
   /** Clear messages in the active session */
   clearActiveSession: () => void;
+  /**
+   * Set the chat entry (agent + optional model) for a specific session.
+   * No-op if the session no longer exists. Each session remembers its
+   * own pick — switching sessions restores the agent that was active
+   * for that conversation.
+   */
+  setSessionAgent: (sessionId: string, agentKey: string) => void;
 }
 
 /**
@@ -332,64 +346,74 @@ export function useChatSessions(
   }, [store, activeSession]);
 
   // Create a new session
-  const createSession = useCallback(() => {
-    const now = new Date().toISOString();
-    const sessionId = generateSessionId();
-    const newSession: SessionMeta = {
-      id: sessionId,
-      title: "New conversation",
-      createdAt: now,
-      updatedAt: now,
-      messageCount: 0,
-      pinned: false,
-    };
-
-    setStore((prev) => {
-      if (!prev) return prev;
-
-      // Enforce session limit - delete oldest non-pinned session
-      if (prev.sessions.length >= MAX_SESSIONS) {
-        const nonPinned = prev.sessions
-          .filter((s) => !s.pinned)
-          .sort(
-            (a, b) =>
-              new Date(a.updatedAt).getTime() - new Date(b.updatedAt).getTime(),
-          );
-
-        if (nonPinned.length > 0) {
-          const oldestId = nonPinned[0].id;
-          const updatedSessions = prev.sessions.filter(
-            (s) => s.id !== oldestId,
-          );
-          const { [oldestId]: _, ...restMessages } = prev.messages;
-          const newStore: GlobalChatStore = {
-            ...prev,
-            sessions: updatedSessions,
-            messages: restMessages,
-            activeSessionId: sessionId,
-          };
-          const withNew = {
-            ...newStore,
-            sessions: [...newStore.sessions, newSession],
-            messages: { ...newStore.messages, [sessionId]: [] },
-          };
-          saveStore(withNew, storageKey);
-          return withNew;
-        }
-      }
-
-      const newStore: GlobalChatStore = {
-        ...prev,
-        sessions: [...prev.sessions, newSession],
-        messages: { ...prev.messages, [sessionId]: [] },
-        activeSessionId: sessionId,
+  const createSession = useCallback(
+    (opts?: { agentKey?: string }) => {
+      const now = new Date().toISOString();
+      const sessionId = generateSessionId();
+      const newSession: SessionMeta = {
+        id: sessionId,
+        title: "New conversation",
+        createdAt: now,
+        updatedAt: now,
+        messageCount: 0,
+        pinned: false,
+        // Seed the per-session agent pick when the caller has an opinion
+        // (the chat passes its current effective entry so a new
+        // conversation inherits the same agent instead of resetting to
+        // the global default). Omit when the caller has no agent in
+        // scope yet (e.g. the auto-create in `setMessages`).
+        ...(opts?.agentKey ? { agentKey: opts.agentKey } : {}),
       };
-      saveStore(newStore, storageKey);
-      return newStore;
-    });
 
-    return sessionId;
-  }, [storageKey]);
+      setStore((prev) => {
+        if (!prev) return prev;
+
+        // Enforce session limit - delete oldest non-pinned session
+        if (prev.sessions.length >= MAX_SESSIONS) {
+          const nonPinned = prev.sessions
+            .filter((s) => !s.pinned)
+            .sort(
+              (a, b) =>
+                new Date(a.updatedAt).getTime() -
+                new Date(b.updatedAt).getTime(),
+            );
+
+          if (nonPinned.length > 0) {
+            const oldestId = nonPinned[0].id;
+            const updatedSessions = prev.sessions.filter(
+              (s) => s.id !== oldestId,
+            );
+            const { [oldestId]: _, ...restMessages } = prev.messages;
+            const newStore: GlobalChatStore = {
+              ...prev,
+              sessions: updatedSessions,
+              messages: restMessages,
+              activeSessionId: sessionId,
+            };
+            const withNew = {
+              ...newStore,
+              sessions: [...newStore.sessions, newSession],
+              messages: { ...newStore.messages, [sessionId]: [] },
+            };
+            saveStore(withNew, storageKey);
+            return withNew;
+          }
+        }
+
+        const newStore: GlobalChatStore = {
+          ...prev,
+          sessions: [...prev.sessions, newSession],
+          messages: { ...prev.messages, [sessionId]: [] },
+          activeSessionId: sessionId,
+        };
+        saveStore(newStore, storageKey);
+        return newStore;
+      });
+
+      return sessionId;
+    },
+    [storageKey],
+  );
 
   // Switch to a different session
   const switchSession = useCallback(
@@ -470,6 +494,29 @@ export function useChatSessions(
             s.id === sessionId
               ? { ...s, pinned: !s.pinned, updatedAt: new Date().toISOString() }
               : s,
+          ),
+        };
+        saveStore(newStore, storageKey);
+        return newStore;
+      });
+    },
+    [storageKey],
+  );
+
+  // Set the per-session agent pick. No-op if the session is unknown
+  // (deleted between read and write, or the auto-create path created
+  // a phantom that never landed in `sessions`). Updates the session
+  // entry in place; `updatedAt` is intentionally NOT bumped so a
+  // simple agent toggle doesn't reshuffle the sidebar.
+  const setSessionAgent = useCallback(
+    (sessionId: string, agentKey: string) => {
+      setStore((prev) => {
+        if (!prev) return prev;
+        if (!prev.sessions.some((s) => s.id === sessionId)) return prev;
+        const newStore: GlobalChatStore = {
+          ...prev,
+          sessions: prev.sessions.map((s) =>
+            s.id === sessionId ? { ...s, agentKey } : s,
           ),
         };
         saveStore(newStore, storageKey);
@@ -641,5 +688,6 @@ export function useChatSessions(
     deleteSession,
     pinSession,
     clearActiveSession,
+    setSessionAgent,
   };
 }

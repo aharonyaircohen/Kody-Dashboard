@@ -21,7 +21,13 @@
 
 import { randomBytes } from "node:crypto";
 import { NextRequest, NextResponse } from "next/server";
-import { streamText, stepCountIs, type ModelMessage } from "ai";
+import {
+  streamText,
+  stepCountIs,
+  createUIMessageStream,
+  createUIMessageStreamResponse,
+  type ModelMessage,
+} from "ai";
 import {
   AGENT_KODY,
   getAgent,
@@ -49,6 +55,11 @@ import {
   type DutyContext,
   type TaskContext,
 } from "./system-prompt";
+import {
+  loadChatDefaults,
+  composeBasePrompt,
+  filterToolsByAllowlist,
+} from "@dashboard/lib/chat-defaults";
 import { createGitHubTools } from "../tools/github-tools";
 import { createPipelineTools } from "../tools/pipeline-tools";
 import { createRemoteTools } from "../tools/remote-tools";
@@ -571,8 +582,13 @@ export async function POST(req: NextRequest) {
     }
   }
 
+  // Load the chat defaults bundle — persona + executable + duties + skills.
+  // The bundle is the source of truth for the chat's prompt base + tool
+  // allowlist. Repo-stored with a TS fallback; step 1 returns TS defaults.
+  const chatBundle = await loadChatDefaults(repo?.owner, repo?.repo);
+
   const assembledPrompt = buildSystemPrompt(
-    agent.systemPrompt,
+    composeBasePrompt(chatBundle),
     repo ? { owner: repo.owner, repo: repo.repo } : null,
     body.task,
     {
@@ -786,7 +802,35 @@ export async function POST(req: NextRequest) {
     { ...baseTools, ...extraTools },
     { vibeMode, hasCurrentTask: body.task?.issueNumber != null },
   );
-  const tools = mergedTools as Parameters<typeof streamText>[0]["tools"];
+  // Bundle allowlist — the executable's `tools` field is the single source
+  // of truth for which tools the chat exposes. Empty list = expose all
+  // (preserves current behavior when the bundle is unconfigured).
+  const allowlistedTools = filterToolsByAllowlist(
+    mergedTools,
+    chatBundle.executable.tools,
+  );
+  const tools = allowlistedTools as Parameters<typeof streamText>[0]["tools"];
+
+  // Build a tool-name → description map from the merged tool set. Every
+  // tool in this repo calls `tool({ description, inputSchema, execute })`
+  // from the AI SDK, which returns a runtime object with `description` as
+  // a first-class field. We ship the map to the client as a single
+  // `data-tools-index` event at the start of the stream so the thinking
+  // panel can render the tool description (the same string the model uses
+  // to decide whether to call a tool) as a muted one-liner under the tool
+  // name. One event for the whole turn, not one per call — see issue #321.
+  // Brain/Engine chats don't populate this; the client field is optional
+  // and the card gracefully omits the line when missing.
+  const toolDescriptionByName: Record<string, string> = {};
+  for (const [name, t] of Object.entries(tools ?? {})) {
+    const desc =
+      t && typeof t === "object" && "description" in t
+        ? (t as { description?: unknown }).description
+        : undefined;
+    if (typeof desc === "string" && desc.trim().length > 0) {
+      toolDescriptionByName[name] = desc;
+    }
+  }
 
   let stepNum = 0;
 
@@ -929,12 +973,21 @@ export async function POST(req: NextRequest) {
         );
       },
     });
-    return result.toUIMessageStreamResponse({
-      sendReasoning: true,
-      // Without this the SDK ships a generic "An error occurred." string.
-      // Returning the real message turns silent hangs into visible failures
-      // (rate limits, quota, bad tool args, etc.) — both for the user and
-      // for support sessions where they paste the message back to us.
+    // Prepend a single `data-tools-index` event to the UI stream so the
+    // client can hydrate a name→description lookup for the thinking panel.
+    // One event for the whole turn (not one per tool call) — see the
+    // `toolDescriptionByName` build above for the why. We do this through
+    // `createUIMessageStream` so the description map is the first chunk the
+    // client sees; the rest of the stream is the same `result.toUIMessageStream`
+    // the SDK would have produced on its own.
+    const uiStream = createUIMessageStream({
+      execute: ({ writer }) => {
+        writer.write({
+          type: "data-tools-index",
+          data: toolDescriptionByName,
+        });
+        writer.merge(result.toUIMessageStream({ sendReasoning: true }));
+      },
       onError: (error) => {
         clearHeartbeats();
         const msg = formatProviderError(error);
@@ -945,6 +998,7 @@ export async function POST(req: NextRequest) {
         return `[trace ${traceId}] ${msg}`;
       },
     });
+    return createUIMessageStreamResponse({ stream: uiStream });
   } catch (err) {
     clearHeartbeats();
     clearGitHubContext();

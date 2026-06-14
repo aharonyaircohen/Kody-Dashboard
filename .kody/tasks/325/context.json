@@ -1,0 +1,17 @@
+{
+  "taskId": "325",
+  "taskType": "pr",
+  "target": "325",
+  "outcome": "success",
+  "exitCode": 0,
+  "reason": "Resolved 3 KodyChat.tsx conflicts and 1 duty-creation-guide.spec.ts conflict by taking origin/main content — the PR's only unique change is a docs formatting commit, while main brought in 3 substantial refactors (per-session agent selection, chat-defaults bundle, tool descriptions).",
+  "prUrl": null,
+  "runUrl": null,
+  "filesTouched": [
+    "src/dashboard/lib/components/KodyChat.tsx",
+    "tests/unit/duty-creation-guide.spec.ts"
+  ],
+  "sessionLog": ".kody/sessions/325.jsonl",
+  "startedAt": "2026-06-14T19:06:00.000Z",
+  "finishedAt": "2026-06-14T19:10:30.000Z"
+}

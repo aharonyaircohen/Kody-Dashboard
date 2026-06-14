@@ -42,11 +42,8 @@ import {
   Unplug,
 } from "lucide-react";
 import { AGENT_KODY, AGENTS, type AgentId } from "../agents";
-import { buildAgentList, type ChatModelEntry } from "../chat/agent-entries";
-import {
-  readDefaultChatEntry,
-  writeDefaultChatEntry,
-} from "../chat/default-entry";
+import { buildAgentList, type ChatDropdownEntry, type ChatModelEntry } from "../chat/agent-entries";
+import { readDefaultChatEntry } from "../chat/default-entry";
 import {
   readReasoningEffort,
   writeReasoningEffort,
@@ -325,7 +322,7 @@ export function KodyChat({
   // useAuth this stayed stale because KodyChat lives in the persistent rail
   // and never remounts after Settings saves a Brain config — the dropdown
   // entry wouldn't appear until a full page reload.
-  const { auth, loading: authLoading } = useAuth();
+  const { auth } = useAuth();
   // Slash command list (builtins + repo `.kody/commands/*.md`).
   // Stale-while-revalidate keeps autocomplete instant; the API itself
   // is cached on the server side via the GitHub client.
@@ -358,10 +355,6 @@ export function KodyChat({
   const [defaultChatEntryKey] = useState<string | null>(() =>
     readDefaultChatEntry(),
   );
-  // localStorage is synchronous, so the key is known on first render — the
-  // apply-on-load effect can run immediately. The flag stays only to keep the
-  // Brain auto-default effect's existing gating contract intact.
-  const [defaultChatEntryLoaded, setDefaultChatEntryLoaded] = useState(true);
   const brainAbortRef = useRef<AbortController | null>(null);
   const brainAbortBySessionRef = useRef(new Map<string, AbortController>());
   // AbortController for the in-process chat path (`/api/kody/chat/kody`).
@@ -522,41 +515,6 @@ export function KodyChat({
     return currentReasoning.default;
   }, [currentReasoning, selectedModelId, reasoningEffort]);
 
-  // Auto-default to Brain on first load when it's already configured. Runs
-  // once after auth hydrates so we don't preempt the user's later picks.
-  // Skipped when the parent locks a specific agent (Vibe page).
-  const initialBrainDefaultRef = useRef(false);
-  useEffect(() => {
-    if (initialBrainDefaultRef.current) return;
-    if (lockedAgentId) {
-      initialBrainDefaultRef.current = true;
-      return;
-    }
-    if (authLoading) return;
-    // Yield to an explicit saved default. The dashboard-config fetch and the
-    // auth fetch race; if config resolves first and applies the user's saved
-    // entry, this effect must not then stomp it back to Brain when auth
-    // settles. Wait for the config load, and once it's known, defer entirely
-    // to the explicit-default effect when a key is set (it resolves to
-    // "brain" itself if that's the saved choice).
-    if (!defaultChatEntryLoaded) return;
-    if (defaultChatEntryKey) {
-      initialBrainDefaultRef.current = true;
-      return;
-    }
-    if (brainConfigured) {
-      setSelectedAgentId("brain");
-      setSelectedModelId(null);
-    }
-    initialBrainDefaultRef.current = true;
-  }, [
-    authLoading,
-    brainConfigured,
-    lockedAgentId,
-    defaultChatEntryLoaded,
-    defaultChatEntryKey,
-  ]);
-
   // Load the user-managed model list once on mount. The dropdown stays in
   // Kody Live-only mode until this resolves; failures are silent — chat
   // still works through the engine path.
@@ -601,104 +559,77 @@ export function KodyChat({
     };
   }, []);
 
-  // Apply the user-chosen default dropdown entry on first load. Beats
-  // both Kody Live (the unconditional fallback) and the Brain
-  // auto-default — an explicit pick wins over any heuristic. Runs at most
-  // once per chat mount; later dropdown picks aren't overridden.
+  // Resolve the global default agent entry — the value a session with
+  // no per-session pick falls back to. Used as the catch-all when
+  // a session's `agentKey` is missing (legacy sessions created
+  // before this field existed) or points at an entry that has
+  // since been removed from the list.
   //
-  // Resolution order:
-  //   1. The persisted `defaultChatEntryKey` (any entry: Brain, Brain-Fly,
-  //      or a Kody model) — matched against the live agentList by key.
-  //   2. Legacy fallback: a Kody model still flagged `default` in the
-  //      Models page, for users who set a default before this existed.
-  const initialDefaultAppliedRef = useRef(false);
-  useEffect(() => {
-    if (lockedAgentId) return;
-    if (initialDefaultAppliedRef.current) return;
-    if (!defaultChatEntryLoaded) return;
-
+  // Resolution order matches the previous auto-default behavior:
+  //   1. `defaultChatEntryKey` — Settings → "Default chat" pick.
+  //   2. Legacy: a Kody model with `default: true` on the Models page.
+  //   3. Brain if configured.
+  //   4. First valid Live entry (Kody Live, or Live-Fly when on Fly).
+  const defaultAgentEntry = useMemo<ChatDropdownEntry | null>(() => {
     if (defaultChatEntryKey) {
       const entry = agentList.find((e) => e.key === defaultChatEntryKey);
-      if (!entry) {
-        // The entry isn't in the list yet — Brain visibility (auth) and
-        // Brain-Fly status probe hydrate after models. KEEP WAITING; the
-        // effect re-runs as agentList changes. An explicit choice must
-        // never be silently overridden by the legacy model.default
-        // fallback (that bug landed users on a model after picking Brain).
-        // If the entry never appears (Brain unconfigured / model deleted)
-        // we simply never apply here and the visible-entry effect settles
-        // on Kody Live — correct, since the pick is unavailable anyway.
-        return;
-      }
-      setSelectedAgentId(entry.agentId);
-      setSelectedModelId(entry.modelId);
-      initialDefaultAppliedRef.current = true;
-      return;
+      if (entry) return entry;
     }
-
-    // No explicit key — legacy fallback to a Models-page default model.
-    if (chatModels.length === 0) return;
-    const def = chatModels.find(
+    const defModel = chatModels.find(
       (m) => m.default === true && m.enabled !== false,
     );
-    if (def) {
-      setSelectedAgentId("kody");
-      setSelectedModelId(def.id);
+    if (defModel) {
+      const entry = agentList.find((e) => e.key === `kody:${defModel.id}`);
+      if (entry) return entry;
     }
-    initialDefaultAppliedRef.current = true;
-  }, [
-    agentList,
-    defaultChatEntryKey,
-    defaultChatEntryLoaded,
-    chatModels,
-    lockedAgentId,
-  ]);
+    if (brainConfigured) {
+      const entry = agentList.find(
+        (e) => e.key === "brain" || e.key === "brain-fly",
+      );
+      if (entry) return entry;
+    }
+    return (
+      agentList.find((e) => e.key === "kody-live-fly" || e.key === "kody-live") ??
+      agentList[0] ??
+      null
+    );
+  }, [defaultChatEntryKey, chatModels, brainConfigured, agentList]);
 
-  // Keep the selection on a visible dropdown entry. Live and Live (Fly)
-  // share one slot in the dropdown; same for Brain and Brain (Fly). When
-  // a probe flips availability, snap the selection to the visible row of
-  // the same family — Live↔Live (Fly), Brain↔Brain (Fly) — or to the
-  // visible Live row when neither Brain variant is available.
-  useEffect(() => {
-    if (lockedAgentId) return;
-    // Gateway models are policed by a separate effect below.
-    if (selectedAgentId === "kody" && selectedModelId) return;
-    const liveTarget: AgentId = flyConfigured ? "kody-live-fly" : "kody-live";
-    if (
-      selectedAgentId === "kody-live" ||
-      selectedAgentId === "kody-live-fly"
-    ) {
-      if (selectedAgentId !== liveTarget) {
-        setSelectedAgentId(liveTarget);
-        setSelectedModelId(null);
+  // Family snap. When a probe flips availability (Fly token added/removed,
+  // Brain Fly toggle flipped), a session's `agentKey` may point at a
+  // dropdown row that's no longer in the list. The same agent is still
+  // available under a sibling key (Live ↔ Live-Fly, Brain ↔ Brain-Fly);
+  // use that instead of bouncing the user back to a different family.
+  // For removed gateway models, fall back to any other Kody row, then
+  // Live if no Kody rows exist.
+  const familySnap = useCallback(
+    (key: string): ChatDropdownEntry | null => {
+      if (key === "kody-live" || key === "kody-live-fly") {
+        return (
+          agentList.find(
+            (e) => e.key === "kody-live-fly" || e.key === "kody-live",
+          ) ?? null
+        );
       }
-      return;
-    }
-    if (selectedAgentId === "brain" || selectedAgentId === "brain-fly") {
-      const brainTarget: AgentId | null =
-        flyConfigured && brainFlyChatEnabled
-          ? "brain-fly"
-          : brainConfigured
-            ? "brain"
-            : null;
-      if (brainTarget === null) {
-        setSelectedAgentId(liveTarget);
-        setSelectedModelId(null);
-        return;
+      if (key === "brain" || key === "brain-fly") {
+        return (
+          agentList.find((e) => e.key === "brain-fly" || e.key === "brain") ??
+          null
+        );
       }
-      if (selectedAgentId !== brainTarget) {
-        setSelectedAgentId(brainTarget);
-        setSelectedModelId(null);
+      if (key.startsWith("kody:")) {
+        return (
+          agentList.find((e) => e.agentId === "kody") ??
+          agentList.find(
+            (e) => e.key === "kody-live-fly" || e.key === "kody-live",
+          ) ??
+          null
+        );
       }
-    }
-  }, [
-    flyConfigured,
-    brainFlyChatEnabled,
-    brainConfigured,
-    selectedAgentId,
-    selectedModelId,
-    lockedAgentId,
-  ]);
+      return null;
+    },
+    [agentList],
+  );
 
   // Probe the per-repo vault for FLY_API_TOKEN so the dropdown can hide the
   // Fly row when no token is configured. Silent on any error — the row just
@@ -727,20 +658,6 @@ export function KodyChat({
       cancelled = true;
     };
   }, []);
-
-  // If the user had a gateway model selected but it was removed from the
-  // list (or disabled), fall back to Kody Live so the chat keeps working.
-  useEffect(() => {
-    if (lockedAgentId) return;
-    if (selectedAgentId !== "kody" || selectedModelId === null) return;
-    const stillThere = chatModels.some(
-      (m) => m.id === selectedModelId && m.enabled !== false,
-    );
-    if (!stillThere) {
-      setSelectedAgentId("kody-live");
-      setSelectedModelId(null);
-    }
-  }, [chatModels, selectedAgentId, selectedModelId, lockedAgentId]);
 
   // When a parent toggles `lockedAgentId` on/off (route change), keep state in sync.
   useEffect(() => {
@@ -942,6 +859,69 @@ export function KodyChat({
     );
   const sessionHook = useChatSessions(sessionStoreScope);
   const createChatSession = sessionHook.createSession;
+
+  // Per-session agent sync. The active session's `agentKey` is the
+  // source of truth for the visible agent — switching sessions
+  // restores the agent that was active for that thread, and the
+  // user's picker write is captured on the session.
+  //
+  // Three flows collapse into one effect:
+  //   1. Session has a valid `agentKey` → adopt it. (Covers session
+  //      switches, where the active session changes underneath us.)
+  //   2. Session's `agentKey` points at an entry that's no longer
+  //      in the list (e.g. FLY_API_TOKEN probe flipped, or the user
+  //      removed the model on the Models page) → family snap to
+  //      a sibling entry, then default chain.
+  //   3. Session has no `agentKey` (legacy session) → use the
+  //      default chain and write it back so the next switch
+  //      restores it directly. Also covers the "no active session"
+  //      case, where the local state is just seeded with the default
+  //      (the first send then auto-creates a session and the sync
+  //      effect will re-run to capture the pick).
+  useEffect(() => {
+    if (lockedAgentId) return; // Vibe page owns the agent
+    if (agentList.length === 0) return; // Wait for the list to load.
+
+    const session = sessionHook.activeSession;
+    let targetEntry: ChatDropdownEntry | null = null;
+    if (session?.agentKey) {
+      targetEntry =
+        agentList.find((e) => e.key === session.agentKey) ?? null;
+      if (!targetEntry) {
+        targetEntry = familySnap(session.agentKey);
+      }
+    }
+    if (!targetEntry) {
+      targetEntry = defaultAgentEntry;
+    }
+    if (!targetEntry) return;
+
+    if (
+      targetEntry.agentId !== selectedAgentId ||
+      (targetEntry.modelId ?? null) !== selectedModelId
+    ) {
+      setSelectedAgentId(targetEntry.agentId);
+      setSelectedModelId(targetEntry.modelId);
+    }
+
+    // Persist the resolved pick on the active session so future
+    // switches restore it directly without re-running the fallback
+    // chain. Skipped when there's no session (local-state-only
+    // adjustment) or when the session already has this key.
+    if (session && session.agentKey !== targetEntry.key) {
+      sessionHook.setSessionAgent(session.id, targetEntry.key);
+    }
+  }, [
+    sessionHook.activeSession?.id,
+    sessionHook.activeSession?.agentKey,
+    agentList,
+    defaultAgentEntry,
+    familySnap,
+    lockedAgentId,
+    selectedAgentId,
+    selectedModelId,
+    sessionHook.setSessionAgent,
+  ]);
 
   // Reset the visible stream state on agent switch. Session switches are
   // intentionally allowed while a reply is running; each send now writes
@@ -2902,6 +2882,13 @@ export function KodyChat({
           // chunks so we can identify the source tool when its
           // `tool-output-available` arrives (the output chunk omits the name).
           const toolNameById = new Map<string, string>();
+          // Map of toolName → human-readable description, hydrated from the
+          // `data-tools-index` event the route emits at the start of the
+          // stream (issue #321). One event per turn — not one per call —
+          // so this map is small and stable for the lifetime of the turn.
+          // Each new `tool-input-available` chip looks its name up here to
+          // attach the description the model saw when picking the tool.
+          const toolDescriptionByName = new Map<string, string>();
           // Pending UI directives surfaced by tools. Applied AFTER the stream
           // closes so the assistant bubble settles before the agent flips —
           // otherwise the in-flight message would be re-routed mid-render.
@@ -2942,6 +2929,10 @@ export function KodyChat({
                   | { type: "reasoning-delta"; delta: string }
                   | { type: "error"; errorText: string }
                   | {
+                      type: "data-tools-index";
+                      data: Record<string, string>;
+                    }
+                  | {
                       type: "tool-input-start";
                       toolCallId: string;
                       toolName: string;
@@ -2980,6 +2971,24 @@ export function KodyChat({
                 } else if (chunk.type === "error" && "errorText" in chunk) {
                   textBuf += `\n\n[Error] ${chunk.errorText}`;
                 } else if (
+                  chunk.type === "data-tools-index" &&
+                  "data" in chunk &&
+                  chunk.data &&
+                  typeof chunk.data === "object"
+                ) {
+                  // The route ships one `data-tools-index` event at the
+                  // start of the stream with a name→description map for
+                  // every tool in the merged tool set (issue #321). The
+                  // thinking panel reads this back as a muted one-liner
+                  // under each tool name. Brain/Engine chats never emit
+                  // it — the map stays empty and the card omits the line.
+                  toolDescriptionByName.clear();
+                  for (const [name, desc] of Object.entries(chunk.data)) {
+                    if (typeof desc === "string" && desc.length > 0) {
+                      toolDescriptionByName.set(name, desc);
+                    }
+                  }
+                } else if (
                   // The AI SDK emits `tool-input-start` *before* it
                   // streams the input deltas, and `tool-input-available`
                   // once the full input has been parsed. Both carry the
@@ -3011,6 +3020,10 @@ export function KodyChat({
                     typeof chunk.input === "object"
                       ? (chunk.input as Record<string, unknown>)
                       : {};
+                  // Look up the tool's description from the index event
+                  // emitted at the start of the stream. Absent for
+                  // Brain/Engine chats; the card omits the line gracefully.
+                  const description = toolDescriptionByName.get(chunk.toolName);
                   setMessages((prev) => {
                     const copy = [...prev];
                     let idx = copy.findIndex(
@@ -3036,6 +3049,7 @@ export function KodyChat({
                           name: chunk.toolName,
                           arguments: toolInput,
                           status: "running",
+                          ...(description ? { description } : {}),
                         },
                       ],
                     };
@@ -3177,6 +3191,21 @@ export function KodyChat({
           ) {
             const target = pendingSwitchAgent;
             setSelectedAgentId(target.agentId);
+            // Mirror the model-emitted switch onto the active session so
+            // a refresh / session re-open keeps the same agent. The
+            // directive carries only `agentId` (no modelId) so we match
+            // the dropdown row by agentId and forward its entry key —
+            // for `kody` rows we keep the previously-selected modelId
+            // (the directive didn't ask to change it).
+            const targetEntry = agentList.find(
+              (e) =>
+                e.agentId === target.agentId &&
+                (e.agentId !== "kody" || e.modelId === selectedModelId),
+            );
+            const activeId = sessionHook.activeSession?.id;
+            if (activeId && targetEntry) {
+              sessionHook.setSessionAgent(activeId, targetEntry.key);
+            }
             // If voice is active and the new agent isn't backed by the
             // in-process chat path, close the overlay. The overlay is
             // appended server-side on /api/kody/chat/kody only — engine
@@ -3767,6 +3796,17 @@ export function KodyChat({
         runUrl: saved.runUrl ?? null,
       });
       setSelectedAgentId("kody-live");
+      // Mirror the rehydrated runner agent onto the active session so
+      // a refresh / re-open lands back on Kody Live. The Fly variant
+      // is also valid here — the entry list is the source of truth
+      // for which one is available.
+      const rehydrateEntry = agentList.find(
+        (e) => e.key === "kody-live-fly" || e.key === "kody-live",
+      );
+      const rehydrateId = sessionHook.activeSession?.id;
+      if (rehydrateId && rehydrateEntry) {
+        sessionHook.setSessionAgent(rehydrateId, rehydrateEntry.key);
+      }
       startInteractivePoll(saved.sessionId);
     },
     [startInteractivePoll, stopInteractivePoll, dispatchLive],
@@ -4673,10 +4713,23 @@ export function KodyChat({
                           onClick={() => {
                             setSelectedAgentId(a.agentId);
                             setSelectedModelId(a.modelId);
-                            // Persist the pick so it loads again on refresh —
-                            // same per-user, repo-scoped store as Settings →
-                            // "Default chat". The picker is now the default.
-                            writeDefaultChatEntry(a.key);
+                            // Per-session pick: the same agent stays
+                            // active when the user comes back to THIS
+                            // conversation. Each session remembers its
+                            // own choice — switching to another chat and
+                            // back restores the agent that was active
+                            // for that thread, not whichever one the
+                            // user just clicked.
+                            //
+                            // The global `defaultChatEntryKey` is
+                            // intentionally NOT touched here. Settings →
+                            // "Default chat" is the single owner of the
+                            // default for new sessions; the chat picker
+                            // only mutates the active session.
+                            const activeId = sessionHook.activeSession?.id;
+                            if (activeId) {
+                              sessionHook.setSessionAgent(activeId, a.key);
+                            }
                             setAgentMenuOpen(false);
                           }}
                           className={`w-full text-left px-3 py-2 hover:bg-accent text-sm flex items-start gap-2 ${
@@ -4744,7 +4797,16 @@ export function KodyChat({
                 <button
                   type="button"
                   onClick={() => {
-                    sessionHook.createSession();
+                    // Seed the new session with the current effective
+                    // agent so a fresh conversation inherits the agent
+                    // the user is currently on. Without this, the new
+                    // session would have no agentKey and fall back to
+                    // the global default on first render — which is
+                    // fine for the very first session but surprises
+                    // users who expect a "new chat" to start where the
+                    // last one left off.
+                    const seed = currentEntry?.key;
+                    sessionHook.createSession(seed ? { agentKey: seed } : undefined);
                     setToolCalls([]);
                   }}
                   disabled={activeLoading}
@@ -5255,6 +5317,7 @@ export function KodyChat({
                   status: tc.status,
                   startedAt: tc.startedAt,
                   durationMs: tc.durationMs,
+                  description: tc.description,
                 }))}
               />
             </div>

@@ -18,6 +18,14 @@ interface ToolCall {
   status: "running" | "success" | "error";
   startedAt?: number;
   durationMs?: number;
+  /**
+   * Human-readable description of the tool (the same string the model uses
+   * to decide whether to call it). Shown as a muted one-liner under the
+   * tool name in the collapsed header so users can audit "why did the
+   * model pick this" without expanding the card. Optional — Brain/Engine
+   * chats don't populate it yet.
+   */
+  description?: string;
 }
 
 interface ToolCallCardProps {
@@ -31,6 +39,17 @@ interface ToolCallCardProps {
  */
 function formatToolName(name: string): string {
   return name.replace(/_/g, " ").replace(/^./, (c) => c.toUpperCase());
+}
+
+/**
+ * Clip a tool description to a single-line length with an ellipsis.
+ * 140 chars is the cap from the issue spec; the wrapper span also has
+ * `truncate` so very long unbroken strings (e.g. URLs) stay on one line.
+ */
+const TOOL_DESCRIPTION_CLIP = 140;
+function clipDescription(description: string): string {
+  if (description.length <= TOOL_DESCRIPTION_CLIP) return description;
+  return `${description.slice(0, TOOL_DESCRIPTION_CLIP).trimEnd()}…`;
 }
 
 /**
@@ -85,8 +104,15 @@ export function ToolCallCard({ toolCall, className }: ToolCallCardProps) {
         className="w-full px-3 py-2 flex items-center gap-2 text-left hover:bg-black/5 dark:hover:bg-white/5"
       >
         <span className="text-sm">{status.icon}</span>
-        <span className="font-medium text-sm flex-1">
-          {formatToolName(toolCall.name)}
+        <span className="flex-1 min-w-0">
+          <span className="font-medium text-sm block truncate">
+            {formatToolName(toolCall.name)}
+          </span>
+          {toolCall.description && (
+            <span className="text-xs text-muted-foreground italic block truncate">
+              {clipDescription(toolCall.description)}
+            </span>
+          )}
         </span>
         {toolCall.durationMs !== undefined && (
           <span className="text-xs text-muted-foreground">
