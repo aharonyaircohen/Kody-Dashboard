@@ -1,28 +1,16 @@
 # Release
 
 ## Job
+Run the single branch-aware `release` executable.
 
-Trigger the four-stage release container. Chains release-prepare, release-merge, release-tag, release-promote in order via the engine's task-jobs mechanism.
-
-## Executables
-
-This duty runs the following executables in order:
-
-- `release-prepare`
-- `release-merge`
-- `release-tag`
-- `release-promote`
-
-Each executable's skills and scripts own its implementation details.
+The executable reads `.kody/variables.json` `RELEASE_FLOW`:
+- single-main repos open the version PR to `main`
+- dev/main repos open the version PR to `dev`, then a promotion PR to `main`
 
 ## Allowed Commands
-
-- Run the `release-prepare` executable.
-- Run the `release-merge` executable.
-- Run the `release-tag` executable.
-- Run the `release-promote` executable.
+- Run `release` executable.
 
 ## Restrictions
-
-- Stay within the duty's purpose and the per-executable rules.
-- Do not perform actions outside the contract defined by this duty.
+- Manual only.
+- Do not tag before the version PR is merged.
+- Do not merge production PRs automatically.
