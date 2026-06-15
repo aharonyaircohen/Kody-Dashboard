@@ -1,21 +1,23 @@
 ---
 name: publish-release
-description: Create a release-request issue and dispatch the release orchestrator on demand.
+description: Create a release-request issue and dispatch the release executable on demand.
 ---
 
 # Publish Release Skill
 
 Use this skill when the `publish-release` executable runs from the matching duty.
 
-Runtime state is owned by the engine. Do not ask the duty author to configure raw state keys.
-
-## Method
-
 ## Job
 
-On demand, cut a new release. Open a release-request issue titled `Release: <UTC date>` (body: who triggered it and the date), then post `@kody release` on that issue so the release orchestrator runs **prepare → merge PR → publish → deploy**.
+On demand, cut a new release. Open a release-request issue titled `Release: <UTC date>` with who triggered it and why, then post `@kody release` on the issue.
 
-This job is **manual** — it never fires on a tick. Trigger it from the Jobs page ("Run now") when you want to ship. It replaces the old dashboard-header "Publish a release" button, which did exactly this (create a `Release: <date>` issue, then comment `@kody release`).
+The release executable reads `.kody/variables.json` `RELEASE_FLOW`:
+- single-main repos open the version PR to `main`
+- dev/main repos open the version PR to `dev`, then a promotion PR to `main`
+
+It never tags before the version PR is merged.
+
+This job is manual. Never run it from a tick.
 
 ## Allowed Commands
 
@@ -23,7 +25,7 @@ This job is **manual** — it never fires on a tick. Trigger it from the Jobs pa
 
 ## Restrictions
 
-- Run only when explicitly triggered. Never self-schedule (`every: manual` enforces this; do not change it without intent).
-- Do not open a new release issue if a `Release: <today>` issue is already open or its release task is still running — comment `release already in progress for <date>` and stop.
-- The bare `@kody` tag routes to `classify`/`fix`; you MUST post the explicit `@kody release` so the release orchestrator picks it up.
-- Do not modify code, PR bodies, PR titles, or labels beyond creating the release-request issue (label `release`) and posting the trigger comment.
+- Run only when explicitly triggered.
+- Do not open a new release issue if today's release issue is already open or running.
+- The bare `@kody` tag routes to classify/fix; always post explicit `@kody release`.
+- Do not modify code, PR bodies, PR titles, or labels beyond creating the release-request issue and posting the trigger comment.
