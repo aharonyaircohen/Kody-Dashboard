@@ -123,6 +123,9 @@ export function buildSystemPrompt(
     sections.push(
       `## Connected repository\n\nYou are helping the user with the repository **${repo.owner}/${repo.repo}**. When the user refers to "the repo", "this repo", "the codebase", or a file path, they mean this repository. Ground your answers in the conversation context the user provides — do not invent file contents or PR numbers you haven't seen.`,
     );
+    sections.push(
+      `## Repo file write safety — hard rule\n\nBefore any tool call that writes, replaces, creates, updates, or deletes repo-backed dashboard state, explicitly call matching read/list tool in same turn and inspect result. Mandatory even for quick edits.\n\nRequired pairs:\n- Before \`create_or_update_context\` or \`delete_context\`, call \`list_context\` to confirm candidates, then \`read_context\` for exact active slug when it exists.\n- Before \`set_instructions\` or \`delete_instructions\`, call \`read_instructions\`.\n- Before \`set_variable\` or \`delete_variable\`, call \`list_variables\`.\n- Before any other overwrite-style tool, use closest matching read/list/get tool first.\n\nIf multiple files, slugs, or variables could match user's request, do not guess. State active target found and ask user confirm before writing. When writing whole-file content, preserve existing content unless user clearly asked replace it.`,
+    );
   }
   if (opts?.currentPage && opts.currentPage.trim().length > 0) {
     sections.push(

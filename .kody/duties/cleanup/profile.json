@@ -1,0 +1,8 @@
+{
+  "name": "cleanup",
+  "describe": "Cleanup - branches, empty goals, dependency nudges, and dead-code signals",
+  "every": "1d",
+  "runner": "coo",
+  "executable": "cleanup",
+  "disabled": true
+}

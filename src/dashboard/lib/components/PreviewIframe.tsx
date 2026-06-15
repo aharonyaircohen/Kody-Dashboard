@@ -22,6 +22,9 @@ export const DEVICE_WIDTHS: Record<PreviewDevice, number | undefined> = {
   desktop: undefined,
 };
 
+const DEFAULT_IFRAME_SANDBOX =
+  "allow-scripts allow-same-origin allow-forms allow-popups";
+
 interface PreviewIframeProps {
   src: string | undefined;
   title: string;
@@ -33,6 +36,7 @@ interface PreviewIframeProps {
    * layout; unset = fill the pane (desktop).
    */
   maxWidthPx?: number;
+  sandbox?: string | null;
 }
 
 export function PreviewIframe({
@@ -40,6 +44,7 @@ export function PreviewIframe({
   title,
   reloadKey,
   maxWidthPx,
+  sandbox = DEFAULT_IFRAME_SANDBOX,
 }: PreviewIframeProps) {
   const [loaded, setLoaded] = useState(false);
 
@@ -48,6 +53,9 @@ export function PreviewIframe({
   useEffect(() => {
     setLoaded(false);
   }, [src, reloadKey]);
+
+  const sandboxProps =
+    sandbox === null ? {} : ({ sandbox } satisfies { sandbox: string });
 
   return (
     <div className="relative w-full h-full flex justify-center bg-zinc-900">
@@ -58,7 +66,7 @@ export function PreviewIframe({
         onLoad={() => setLoaded(true)}
         style={maxWidthPx ? { maxWidth: `${maxWidthPx}px` } : undefined}
         className="w-full h-full border-0 bg-white"
-        sandbox="allow-scripts allow-same-origin allow-forms allow-popups"
+        {...sandboxProps}
       />
       {!loaded && (
         <div className="absolute inset-0 flex items-center justify-center bg-zinc-950">

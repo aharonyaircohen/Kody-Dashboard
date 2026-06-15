@@ -14,6 +14,7 @@ import {
   Boxes,
   Brain,
   Building2,
+  CheckCircle2,
   Cpu,
   FileText,
   FolderOpen,
@@ -124,6 +125,15 @@ export const PRIMARY_VIEW_ITEMS: readonly SettingsNavItem[] = [
 export const PRIMARY_NAV_TITLE = "Workspace" as const;
 
 export const PRIMARY_NAV_ITEMS: readonly SettingsNavItem[] = [
+  {
+    href: "/todos",
+    label: "Todos",
+    icon: CheckCircle2,
+    description:
+      "Repo worklist — lightweight action items Kody should keep visible.",
+    tint: "text-emerald-300 bg-emerald-500/10",
+  },
+
   {
     href: "/messages",
     label: "Messages",
@@ -253,16 +263,21 @@ export const SETTINGS_NAV_SECTIONS: readonly SettingsNavSection[] = [
     ],
   },
   {
-    title: "Company",
+    title: "Engine",
     items: [
       {
         href: "/config",
-        label: "Config",
+        label: "Engine config",
         icon: SlidersHorizontal,
         description:
-          "Repo-wide engine settings: operators, quality commands, the @kody access gate, default branch, and aliases.",
+          "Repo-wide engine settings: reasoning effort, operators, quality commands, the @kody access gate, default branch, and aliases.",
         tint: "text-emerald-300 bg-emerald-500/10",
       },
+    ],
+  },
+  {
+    title: "Company",
+    items: [
       {
         href: "/company",
         label: "Import / Export",

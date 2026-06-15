@@ -147,11 +147,10 @@ describe("KodyChat — writes per-session agent on every change path", () => {
     // createSession() now takes an agentKey seeded from the active
     // dropdown row so a fresh thread inherits the agent the user is
     // on — without this, a new chat would reset to the global default.
-    // The trailing comma in the multi-line source is tolerated (`?` makes
-    // it optional) so prettier's "trailing comma" config doesn't flake this
-    // regex — the source-level check is purely about the call shape.
+    // Match across prettier's multi-line wrap: the trailing `)` may
+    // land on its own line with a trailing comma in between.
     expect(KODY_CHAT_SOURCE).toMatch(
-      /createSession\(\s*seed\s*\?\s*\{\s*agentKey:\s*seed\s*\}\s*:\s*undefined,?\s*\)/,
+      /createSession\(\s*seed\s*\?\s*\{\s*agentKey:\s*seed\s*\}\s*:\s*undefined\s*,?\s*\)/,
     );
   });
 

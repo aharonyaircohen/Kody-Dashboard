@@ -1,0 +1,71 @@
+{
+  "name": "release",
+  "role": "primitive",
+  "describe": "Branch-aware release flow. Opens the version PR into the configured integration branch, tags the merged commit, creates the GitHub Release, and opens a promotion PR only when integration and production branches differ.",
+  "inputs": [
+    {
+      "name": "issue",
+      "flag": "--issue",
+      "type": "int",
+      "required": true,
+      "describe": "GitHub release-request issue number to work on."
+    },
+    {
+      "name": "bump",
+      "flag": "--bump",
+      "type": "enum",
+      "values": ["patch", "minor", "major"],
+      "required": false,
+      "describe": "Version bump increment. Default patch."
+    },
+    {
+      "name": "dry-run",
+      "flag": "--dry-run",
+      "type": "bool",
+      "required": false,
+      "describe": "Print plan without writing files, committing, or opening a PR."
+    },
+    {
+      "name": "prefer",
+      "flag": "--prefer",
+      "type": "enum",
+      "values": ["ours", "theirs"],
+      "required": false,
+      "describe": "On release branch collision: 'ours' recreates the branch; 'theirs' reuses the existing PR."
+    }
+  ],
+  "claudeCode": {
+    "model": "inherit",
+    "permissionMode": "acceptEdits",
+    "maxTurns": null,
+    "maxTurnTimeoutSec": 1200,
+    "systemPromptAppend": null,
+    "cacheable": true,
+    "enableVerifyTool": false,
+    "verifyAttempts": 4,
+    "tools": ["Read", "Write", "Edit", "Bash", "Grep", "Glob"],
+    "hooks": [],
+    "skills": [
+      "release-prepare",
+      "release-merge",
+      "release-tag",
+      "release-promote"
+    ],
+    "commands": [],
+    "subagents": [],
+    "plugins": [],
+    "mcpServers": []
+  },
+  "cliTools": [],
+  "scripts": {
+    "preflight": [
+      { "script": "buildSyntheticPlugin" },
+      { "script": "loadIssueContext" },
+      { "script": "composePrompt" }
+    ],
+    "postflight": [
+      { "script": "parseAgentResult" },
+      { "script": "postAgentComment" }
+    ]
+  }
+}

@@ -21,7 +21,10 @@ import {
  * Invalidate the per-repo cache for the chat defaults bundle. Wired up
  * when the write path is added in step 2.
  */
-export function invalidateChatDefaultsCache(_owner: string, _repo: string): void {
+export function invalidateChatDefaultsCache(
+  _owner: string,
+  _repo: string,
+): void {
   // No-op until the repo read is wired up.
 }
 

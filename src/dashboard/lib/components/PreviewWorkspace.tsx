@@ -23,17 +23,19 @@ import { PreviewEnvSwitcher } from "./PreviewEnvSwitcher";
 import { PreviewEnvForm } from "./PreviewEnvForm";
 import {
   addEnvironment,
-  addUploadedEnvironment,
+  addRepoViewEnvironment,
   expiredUploads,
   resolveEnvironments,
   setEnvExpiry,
   STATIC_PREVIEW_TTL_MS,
   type PreviewEnvironment,
 } from "../preview-environments";
+import { destroyStaticPreview } from "../previews/static-preview-client";
 import {
-  destroyStaticPreview,
-  uploadStaticPreview,
-} from "../previews/static-preview-client";
+  mintRepoViewTicket,
+  tokenizeRepoViewUrl,
+  uploadRepoView,
+} from "../previews/repo-view-client";
 import { createUploadContext } from "../previews/upload-context";
 import {
   fetchDashboardConfig,
@@ -49,6 +51,21 @@ import {
 
 function selectionKey(owner: string, repo: string): string {
   return `kody.previewEnv.${owner}/${repo}`;
+}
+
+function repoViewIdFromPath(path: string | undefined): string | null {
+  const match = /^\.kody\/views\/([a-z0-9][a-z0-9-]{0,63})$/.exec(path ?? "");
+  return match?.[1] ?? null;
+}
+
+function repoViewUrlLooksLikePdf(url: string | undefined): boolean {
+  if (!url) return false;
+  try {
+    const parsed = new URL(url, "http://kody.local");
+    return parsed.pathname.toLowerCase().endsWith(".pdf");
+  } catch {
+    return /\.pdf(?:[?#]|$)/i.test(url);
+  }
 }
 
 export function PreviewWorkspace() {
@@ -109,12 +126,37 @@ export function PreviewWorkspace() {
 
   const selectedEnv =
     environments.find((e) => e.id === selectedId) ?? environments[0] ?? null;
-  const baseUrl = selectedEnv?.url ?? null;
+  const repoViewId = repoViewIdFromPath(selectedEnv?.repoViewPath);
+  const isRepoViewPdf =
+    !!repoViewId && repoViewUrlLooksLikePdf(selectedEnv?.url);
+  const viewTicketQuery = useQuery({
+    queryKey: ["kody-repo-view-ticket", owner, repo, repoViewId],
+    queryFn: () => mintRepoViewTicket(repoViewId!),
+    enabled: !!repoViewId && !!owner && !!repo,
+    staleTime: 15 * 60 * 1000,
+    retry: false,
+  });
+  const baseUrl =
+    selectedEnv?.url && repoViewId
+      ? viewTicketQuery.data
+        ? tokenizeRepoViewUrl(selectedEnv.url, viewTicketQuery.data.token)
+        : null
+      : (selectedEnv?.url ?? null);
 
   useEffect(() => {
     setPreviewContext(previewChatContextBlock(selectedEnv));
     return () => setPreviewContext(null);
   }, [selectedEnv, setPreviewContext]);
+
+  useEffect(() => {
+    if (viewTicketQuery.error) {
+      toast.error(
+        viewTicketQuery.error instanceof Error
+          ? viewTicketQuery.error.message
+          : "Failed to open repo-backed view",
+      );
+    }
+  }, [viewTicketQuery.error]);
 
   const saveMutation = useMutation({
     mutationFn: (next: PreviewEnvironment[]) =>
@@ -143,22 +185,19 @@ export function PreviewWorkspace() {
     if (created) selectEnv(created);
   };
 
-  // Upload file(s) → boot a Fly static preview → add it as an environment and
-  // select it. The environment carries the staticId so removal tears the Fly
-  // app down (see removeStatic + PreviewEnvSwitcher.handleRemove), and an
-  // expiresAt so it auto-reaps after the TTL even if nobody deletes it.
+  // Upload file(s) into the connected repo under .kody/views/<id> and
+  // add the dashboard-served URL as a named preview environment.
   const uploadFiles = async (files: File[]): Promise<void> => {
     if (files.length === 0) return;
     try {
       const uploadContext =
         files.length === 1 ? await createUploadContext(files[0]!) : undefined;
-      const res = await uploadStaticPreview(files);
-      const next = addUploadedEnvironment(
+      const res = await uploadRepoView(files);
+      const next = addRepoViewEnvironment(
         environments,
         res.name,
         res.url,
-        res.id,
-        Date.now() + STATIC_PREVIEW_TTL_MS,
+        res.repoPath,
         uploadContext,
       );
       await persist(next);
@@ -166,8 +205,8 @@ export function PreviewWorkspace() {
       if (created) selectEnv(created);
       toast.success(
         files.length === 1
-          ? `Serving "${res.name}" — ready in a few seconds`
-          : `Serving ${files.length} files — ready in a few seconds`,
+          ? `Saved "${res.name}" to ${res.repoPath}`
+          : `Saved ${files.length} files to ${res.repoPath}`,
       );
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Upload failed");
@@ -225,9 +264,17 @@ export function PreviewWorkspace() {
     <section className="relative flex-1 min-w-0 min-h-0 flex flex-col">
       <PreviewPane
         baseUrl={baseUrl}
-        isResolving={false}
+        isResolving={!!repoViewId && viewTicketQuery.isLoading}
         owner={owner}
         repo={repo}
+        hideViewSwitcher={!!repoViewId}
+        iframeSandbox={
+          isRepoViewPdf
+            ? null
+            : repoViewId
+              ? "allow-scripts allow-forms allow-popups allow-downloads"
+              : undefined
+        }
         onComposerInjection={setComposerInjection}
         onAttachmentInjection={setAttachmentInjection}
         leadingToolbar={
@@ -295,7 +342,7 @@ export function PreviewWorkspace() {
                   className="inline-flex items-center justify-center gap-2 rounded-md border border-zinc-700 bg-zinc-800/40 px-3 py-1.5 text-xs font-medium text-zinc-200 hover:bg-zinc-800 transition"
                 >
                   <Upload className="w-3.5 h-3.5" />
-                  Upload a file (HTML, PDF, image…)
+                  Upload view files
                 </button>
               </div>
             </div>

@@ -400,7 +400,27 @@ function VariableEditor({
             for non-sensitive config only.
           </DialogDescription>
         </DialogHeader>
-        <div className="space-y-3 mt-2">
+        <div className="rounded-md border border-white/[0.08] bg-white/[0.03] p-3 text-xs">
+          <div className="flex items-center justify-between gap-3">
+            <span className="font-medium text-white/70">Active file</span>
+            <code className="font-mono text-sky-200">.kody/variables.json</code>
+          </div>
+          <div className="mt-2 flex items-center justify-between gap-3">
+            <span className="font-medium text-white/70">Active variable</span>
+            <code className="font-mono text-white/70">
+              {isUpdate ? initialName : name || "New variable"}
+            </code>
+          </div>
+          {isUpdate ? (
+            <div className="mt-3 space-y-1.5">
+              <p className="font-medium text-white/70">Current saved value</p>
+              <pre className="max-h-32 overflow-auto whitespace-pre-wrap rounded border border-white/[0.06] bg-black/30 p-2 font-mono text-[11px] leading-relaxed text-white/65">
+                {initialValue}
+              </pre>
+            </div>
+          ) : null}
+        </div>
+        <div className="space-y-3 mt-3">
           <div>
             <Label htmlFor="var-name" className="text-xs">
               Name

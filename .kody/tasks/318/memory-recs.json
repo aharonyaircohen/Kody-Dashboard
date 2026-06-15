@@ -1,0 +1,10 @@
+[
+  {
+    "type": "lesson",
+    "name": "config-patch-omitted-vs-null",
+    "hook": "writeConfigPatch distinguishes undefined (don't touch) from null (clear) — routes must pass the value through unchanged",
+    "body": "The engine-config `ConfigPatch` contract treats `undefined` as 'leave the field alone' and `null` as 'clear it'. A route that destructures an optional field from a request body and coalesces (`?? null`) it before calling `writeConfigPatch` will turn every unrelated PATCH (e.g. quality-only) into a clear of that field. The fix is to pass the value through unchanged — let the underlying function interpret `undefined` vs `null` per its own contract.\n\n**Why:** The PR #318 route bug (`reasoningEffort: reasoningEffort ?? null`) silently cleared `agent.reasoningEffort` whenever any other config section was saved. The engine keeps the prior value via the undefined-skip branch, so coalescing to null breaks the merge-not-overwrite invariant that all engine-config writers rely on.\n\n**How to apply:** When adding a new optional field to a PATCH route, forward it as-is in the patch object — do NOT coalesce omitted to null. Verify the test with the original `?? null` code to confirm the test fails; otherwise the regression can sneak back in unnoticed.",
+    "why": "The function's undefined-vs-null contract is load-bearing and easy to break at the route layer. The regression test is the only thing that catches it.",
+    "confidence": 0.9
+  }
+]

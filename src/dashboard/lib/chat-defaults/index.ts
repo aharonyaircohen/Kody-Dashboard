@@ -68,13 +68,25 @@ export async function loadChatDefaults(
 
 /**
  * Compose only the bundle portion of the prompt: persona + workflows +
- * skills. This is the `base` arg passed into the existing
- * `buildSystemPrompt`, which then layers the runtime-mode blocks
- * (Connected repository, Current page, Context, Memory, Current task,
- * Current duty, Current report, Goal planning, Vibe mode, User
+ * skills (+ optional tool index). This is the `base` arg passed into
+ * the existing `buildSystemPrompt`, which then layers the runtime-mode
+ * blocks (Connected repository, Current page, Context, Memory, Current
+ * task, Current duty, Current report, Goal planning, Vibe mode, User
  * instructions) on top.
  */
-export function composeBasePrompt(bundle: ChatDefaults): string {
+export function composeBasePrompt(
+  bundle: ChatDefaults,
+  opts?: {
+    /**
+     * Pre-formatted `## Tool index` block — every callable tool's
+     * name + description, one per line. Injected between the Skills
+     * section and the runtime blocks so the model can see what each
+     * tool does before it gets the per-turn context. Pass the output
+     * of `buildToolIndex(allowlistedTools)`.
+     */
+    toolIndex?: string | null;
+  },
+): string {
   const parts: string[] = [];
 
   // 1. Persona — who the agent is (hard rules + tool policy).
@@ -92,8 +104,71 @@ export function composeBasePrompt(bundle: ChatDefaults): string {
     parts.push(`### ${skill.title}\n\n${skill.body.trim()}`);
   }
 
+  // 4. Tool index (optional) — name + description of every callable.
+  // Drastically improves tool selection accuracy. The model has 90+
+  // tools to pick from; without descriptions it guesses by name and
+  // often picks the wrong one (or claims a tool doesn't exist).
+  if (opts?.toolIndex && opts.toolIndex.trim().length > 0) {
+    parts.push(
+      `## Tool index\n\nThe block below lists every callable tool the chat can invoke right now, one per line, with a one-sentence description of what each does. Use it to pick the right tool for the question. If none fits, say so — do not call a tool whose description doesn't match the question.\n\n${opts.toolIndex.trim()}`,
+    );
+  }
+
   return parts.join("\n\n");
 }
+
+/**
+ * Build a `## Tool index` block from the allowlisted tool set. Each
+ * tool's `description` field (set by the author via the AI SDK's
+ * `tool({...})` call) is the single source of truth for what the
+ * tool does. The route already builds this map for the thinking-panel
+ * UI; this helper produces the prompt-formatted version.
+ */
+export function buildToolIndex(tools: Record<string, unknown>): string {
+  const lines: string[] = [];
+  for (const [name, t] of Object.entries(tools)) {
+    const desc =
+      t && typeof t === "object" && "description" in t
+        ? (t as { description?: unknown }).description
+        : undefined;
+    if (typeof desc === "string" && desc.trim().length > 0) {
+      // Trim to the first sentence or first ~240 chars (whichever is
+      // shorter) — full descriptions can run 1-2KB each; the model
+      // only needs the first line to pick the right tool.
+      const trimmed = truncateToFirstSentence(desc.trim(), 240);
+      lines.push(`- \`${name}\` — ${trimmed}`);
+    } else {
+      lines.push(`- \`${name}\``);
+    }
+  }
+  return lines.join("\n");
+}
+
+function truncateToFirstSentence(text: string, maxLen: number): string {
+  // Find the first sentence boundary (., !, ?, or newline) followed by
+  // whitespace or end-of-string.
+  const match = text.match(/^[\s\S]*?[.!?](?:\s|$)/);
+  const first = match ? match[0].trim() : text;
+  if (first.length <= maxLen) return first;
+  return `${first.slice(0, maxLen).trimEnd()}…`;
+}
+
+/**
+ * The end-of-prompt reminder block. Appended after `buildSystemPrompt`
+ * returns and before the voice overlay so the model sees it last among
+ * the static rules (recency bias). Re-states the critical rules in
+ * compact form so the model holds them through the runtime blocks.
+ */
+export const CRITICAL_REMINDERS_MD = `## Critical reminders
+
+These apply to EVERY turn, including trivial ones. Re-state them as the last thing you read so they govern your reply.
+
+- **Read the repo before answering.** Any question that touches the repo (what/where/why/how something works, "does X exist", "is this good", "review this", "should we", "can we", "analyze", "audit", "find bugs", "investigate", "scan", "where is Y used", "why was X written", "what changed", "create/file/open an issue") → call a read tool FIRST. Never answer from training or conversation alone.
+- **Verify before claiming.** Before stating that something exists in the repo (a label, file path, function, env var, workflow, config key — anything factual), call a read tool to confirm. If you can't verify, say so. Inventing facts is worse than admitting uncertainty.
+- **No fabrication.** Never invent file paths, file contents, issue/PR numbers, SHAs, or tool results.
+- **Cite your evidence.** Every claim about the repo gets a \`file:line\` citation from a tool result THIS turn. "No matches for X" is a valid finding — say so explicitly.
+- **End with a forward-driving question.** Every reply ends with one short question that pushes the next step: "Want me to look at the diff?", "Approve this and I'll create the issue?", "Which of these should I dig into?". The only exception is when the user has clearly closed the loop.
+- **No sycophantic openers.** Start with the answer. "Great question", "Sure!", "Of course", "Absolutely", "Happy to help", "Certainly" — all banned.`;
 
 /**
  * Filter a tool set down to the names declared in the bundle's

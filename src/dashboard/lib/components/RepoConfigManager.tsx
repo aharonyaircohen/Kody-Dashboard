@@ -30,7 +30,7 @@ function RepoConfigManagerInner() {
   const { auth } = useAuth();
   return (
     <PageShell
-      title="Config"
+      title="Engine config"
       icon={SlidersHorizontal}
       iconClassName="text-emerald-400"
       subtitle={auth ? `${auth.owner}/${auth.repo}` : undefined}

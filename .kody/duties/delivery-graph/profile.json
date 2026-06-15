@@ -1,0 +1,15 @@
+{
+  "name": "delivery-graph",
+  "describe": "Delivery Graph - refresh CI and PR flow reports",
+  "every": "1h",
+  "runner": "coo",
+  "executable": "delivery-graph",
+  "readsFrom": [
+    "ci-health-graph",
+    "pr-graph"
+  ],
+  "writesTo": [
+    "ci-health-graph",
+    "pr-graph"
+  ]
+}

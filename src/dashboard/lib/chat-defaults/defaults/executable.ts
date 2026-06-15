@@ -18,17 +18,20 @@ export const DEFAULT_EXECUTABLE: ExecutableEntry = {
     "In-process dashboard chat — research, planning, and creation flows wired against the connected repo.",
   tools: [
     // ── GitHub primitives (repo-gated) ─────────────────────────────────────
+    // Names MUST match the registry in app/api/kody/chat/tools/*.ts. The
+    // filterToolsByAllowlist call in the route drops any name in this list
+    // that isn't in the registry's merged tools — phantom names here do
+    // nothing, but phantom names in the persona mislead the model into
+    // calling tools that don't exist, which is how the chat ends up
+    // "hallucinating" file contents.
     "github_get_issue",
     "github_get_pull_request",
-    "github_get_pull_request_files",
     "github_list_issues",
     "github_search_code",
     "github_get_file",
-    "github_get_tree",
+    "github_list_tree",
     "github_blame",
     "github_commits_for_path",
-    "github_list_branches",
-    "github_get_commit",
     "github_comment_on_issue",
     "github_close_issue",
     "merge_pr",

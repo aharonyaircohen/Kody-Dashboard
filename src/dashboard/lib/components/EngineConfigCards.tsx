@@ -14,6 +14,7 @@
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
 import {
+  Brain,
   Loader2,
   Plus,
   X,
@@ -58,6 +59,7 @@ export function EngineConfigCards() {
   const cfg = useEngineConfig();
   return (
     <>
+      <ReasoningEffortCard cfg={cfg} />
       <QualityCommandsCard cfg={cfg} />
       <AccessGateCard cfg={cfg} />
       <DefaultBranchCard cfg={cfg} />
@@ -425,6 +427,93 @@ function AliasesCard({ cfg }: { cfg: UseEngineConfig }) {
                 apply.
               </p>
             )}
+          </>
+        )}
+      </CardContent>
+    </Card>
+  );
+}
+
+/** Canonical thinking vocabulary (matches the chat dropdown + engine). */
+const REASONING_OPTIONS: Array<{ value: string; label: string; hint: string }> =
+  [
+    { value: "off", label: "Off", hint: "No thinking block — cheapest path" },
+    { value: "low", label: "Low", hint: "~2k thinking tokens" },
+    { value: "medium", label: "Medium", hint: "~10k thinking tokens" },
+    { value: "high", label: "High", hint: "~32k thinking tokens" },
+  ];
+
+function ReasoningEffortCard({ cfg }: { cfg: UseEngineConfig }) {
+  const { config, loading, saving, save } = cfg;
+  // Loose string here — the select deals in canonical values from
+  // REASONING_OPTIONS but the server's reasoningEffort type is the
+  // narrower `ReasoningEffort` union, so we cast at the save boundary.
+  const [draft, setDraft] = useState<string | null>(null);
+
+  // Mirror the server value into local state once it lands; user picks
+  // are pure local state until Save.
+  useEffect(() => {
+    if (config) setDraft(config.reasoningEffort);
+  }, [config]);
+
+  const dirty = !!config && draft !== config.reasoningEffort;
+
+  async function handleSave() {
+    try {
+      await save({ reasoningEffort: draft });
+      toast.success("Reasoning effort saved");
+    } catch {
+      toast.error("Couldn't save reasoning effort");
+    }
+  }
+
+  return (
+    <Card className="border-white/[0.08] bg-white/[0.03]">
+      <CardContent className="p-4 space-y-3">
+        <CardHeader
+          icon={Brain}
+          iconClass="text-amber-400"
+          title="Reasoning effort"
+        >
+          Default thinking level for engine runs in this repo. Maps to the
+          Claude Agent SDK's{" "}
+          <code className="text-white/70">maxThinkingTokens</code>.{" "}
+          <span className="text-amber-300/90">Off</span> is the cheapest path
+          (no reasoning preamble, no extra tokens).
+        </CardHeader>
+        {loading ? (
+          <Loading />
+        ) : (
+          <>
+            <div className="flex items-center gap-2">
+              <select
+                value={draft ?? "off"}
+                onChange={(e) => setDraft(e.target.value)}
+                disabled={saving}
+                className="h-8 text-sm rounded-md border border-white/[0.12] bg-white/[0.04] px-2 text-white/90 focus:outline-none focus:ring-2 focus:ring-ring"
+              >
+                {REASONING_OPTIONS.map((o) => (
+                  <option key={o.value} value={o.value}>
+                    {o.label} — {o.hint}
+                  </option>
+                ))}
+              </select>
+              <Button
+                size="sm"
+                disabled={saving || !dirty}
+                onClick={() => void handleSave()}
+              >
+                {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : "Save"}
+              </Button>
+            </div>
+            <p className="text-[11px] text-white/40">
+              Currently:{" "}
+              <span className="text-white/70 font-mono">
+                {String(config?.reasoningEffort ?? "unset (engine default)")}
+              </span>
+              . Per-dispatch overrides flow through the{" "}
+              <code className="text-white/60">REASONING_EFFORT</code> env var.
+            </p>
           </>
         )}
       </CardContent>

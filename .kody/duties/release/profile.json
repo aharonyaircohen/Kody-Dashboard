@@ -1,15 +1,1 @@
-{
-  "name": "release",
-  "describe": "Release",
-  "action": "release",
-  "executable": "release-prepare",
-  "every": "manual",
-  "staff": "kody",
-  "runner": "kody",
-  "executables": [
-    "release-prepare",
-    "release-merge",
-    "release-tag",
-    "release-promote"
-  ]
-}
+{"name":"release","describe":"Release","action":"release","executable":"release","every":"manual","staff":"kody","runner":"kody"}

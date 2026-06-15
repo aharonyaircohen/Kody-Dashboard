@@ -308,7 +308,7 @@ export function PreviewEnvSwitcher({
                 type="button"
                 onClick={() => fileInputRef.current?.click()}
                 disabled={uploading}
-                title="Upload a file (HTML, PDF, image…) — served live, no build"
+                title="Upload static files to .kody/views"
                 className="flex items-center gap-2 px-3 py-1.5 text-xs font-medium text-sky-300 hover:bg-zinc-800/70 border-l border-zinc-800 disabled:opacity-60"
               >
                 {uploading ? (
@@ -316,7 +316,7 @@ export function PreviewEnvSwitcher({
                 ) : (
                   <Upload className="w-3.5 h-3.5" />
                 )}
-                {uploading ? "Uploading…" : "Upload file"}
+                {uploading ? "Uploading…" : "Upload view files"}
               </button>
             </div>
           )}

@@ -251,6 +251,7 @@ export function getPreviewBypassUrl(
   previewUrl: string | undefined | null,
 ): string | null {
   if (!previewUrl) return null;
+  if (previewUrl.startsWith("/")) return previewUrl;
   if (typeof window === "undefined") return previewUrl;
 
   let bypassSecret: string | undefined;

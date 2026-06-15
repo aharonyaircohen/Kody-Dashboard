@@ -54,6 +54,10 @@ interface PreviewPaneProps {
   onAttachmentInjection: (att: AttachmentInjection | null) => void;
   /** Slot rendered at the far left of the toolbar (e.g. the environment switcher). */
   leadingToolbar?: ReactNode;
+  /** Static file environments should load exact URL, not append Web/Admin. */
+  hideViewSwitcher?: boolean;
+  /** Override iframe sandbox. Pass null to omit it for native file viewers. */
+  iframeSandbox?: string | null;
   /** Shown in the pane when there's no baseUrl and nothing is resolving. */
   emptyState?: ReactNode;
 }
@@ -66,6 +70,8 @@ export function PreviewPane({
   onComposerInjection,
   onAttachmentInjection,
   leadingToolbar,
+  hideViewSwitcher = false,
+  iframeSandbox,
   emptyState,
 }: PreviewPaneProps) {
   // The preview area element — the inspector crops screenshots to it.
@@ -85,8 +91,9 @@ export function PreviewPane({
   // /admin, or whatever the user added) under the active base URL.
   const previewUrl = useMemo(() => {
     if (!baseUrl) return null;
+    if (hideViewSwitcher) return baseUrl;
     return joinPreviewUrl(baseUrl, selectedView.path);
-  }, [baseUrl, selectedView.path]);
+  }, [baseUrl, hideViewSwitcher, selectedView.path]);
   const bypassedUrl = useMemo(
     () => getPreviewBypassUrl(previewUrl),
     [previewUrl],
@@ -98,7 +105,7 @@ export function PreviewPane({
       <div className="shrink-0 flex items-center justify-between gap-2 px-4 py-2.5 border-b border-white/[0.06] bg-black/20">
         <div className="flex items-center gap-3 min-w-0">
           {leadingToolbar}
-          {baseUrl && (
+          {baseUrl && !hideViewSwitcher && (
             <PreviewViewsBar
               owner={owner}
               repo={repo}
@@ -181,6 +188,7 @@ export function PreviewPane({
             title="Preview deployment"
             reloadKey={`${previewUrl}-${iframeKey}`}
             maxWidthPx={DEVICE_WIDTHS[previewDevice]}
+            sandbox={iframeSandbox}
           />
         ) : isResolving ? (
           <div className="h-full flex flex-col items-center justify-center gap-3 text-center px-6">

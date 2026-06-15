@@ -27,6 +27,13 @@ export interface KodyConfig {
   agent?: {
     model?: string;
     perExecutable?: Record<string, string>;
+    /**
+     * Thinking level for the engine. Written by the dashboard's
+     * `/engine` page and read by the engine's chat turn as the
+     * canonical default when no `REASONING_EFFORT` env override is
+     * present. Off / unset = no thinking block (cheapest).
+     */
+    reasoningEffort?: string;
   };
   executables: {
     default: string;
@@ -555,6 +562,12 @@ export interface ConfigPatch {
    * partial object merges field-by-field over what's stored; `null` clears
    * the whole `fly.previews` block (reverts to {@link DEFAULT_FLY_PREVIEWS}). */
   flyPreviews?: Partial<KodyFlyPreviews> | null;
+  /**
+   * Thinking level for the engine (off|low|medium|high). Written to
+   * `agent.reasoningEffort`. Null clears the field — engine falls back
+   * to its own default (off = no thinking = cheapest path).
+   */
+  reasoningEffort?: string | null;
 }
 
 /**
@@ -671,6 +684,26 @@ export async function writeConfigPatch(
           next.fly = flyRest;
         } else {
           delete next.fly;
+        }
+      }
+
+      if (patch.reasoningEffort !== undefined) {
+        const effort = patch.reasoningEffort?.trim().toLowerCase() ?? "";
+        const prevAgent =
+          typeof existing.agent === "object" && existing.agent !== null
+            ? (existing.agent as Record<string, unknown>)
+            : {};
+        // Off / empty → remove the field so the engine falls back to its
+        // own default. Anything else (low/medium/high, or a typo that
+        // survived validation) → store the canonical value the engine
+        // parser will accept.
+        const VALID = ["off", "low", "medium", "high"];
+        if (effort && VALID.includes(effort)) {
+          next.agent = { ...prevAgent, reasoningEffort: effort };
+        } else {
+          const { reasoningEffort: _drop, ...rest } = prevAgent;
+          if (Object.keys(rest).length > 0) next.agent = rest;
+          else delete next.agent;
         }
       }
 

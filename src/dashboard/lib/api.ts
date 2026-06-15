@@ -1205,6 +1205,98 @@ export const contextApi = {
   },
 };
 
+// ============ Todos API ============
+export interface TodoEntry {
+  /** Filename without `.md` stable identity. */
+  slug: string;
+  title: string;
+  items: TodoItem[];
+  createdAt: string;
+  /** Git blob sha. */
+  sha: string;
+  /** Last commit timestamp affecting file (ISO8601). */
+  updatedAt: string;
+  /** Convenience link to file on github.com. */
+  htmlUrl: string;
+}
+
+export interface TodoItem {
+  id: string;
+  title: string;
+  /** Markdown note body for this list item. */
+  body: string;
+  completed: boolean;
+  createdAt: string;
+  completedAt: string | null;
+}
+
+export const todosApi = {
+  list: async (): Promise<TodoEntry[]> => {
+    const res = await fetch(`${API_BASE}/todos`, {
+      headers: buildHeaders(),
+      cache: "no-store",
+    });
+    const data = await handleResponse<{ todos: TodoEntry[] }>(res);
+    return data.todos ?? [];
+  },
+  get: async (slug: string): Promise<TodoEntry> => {
+    const res = await fetch(`${API_BASE}/todos/${encodeURIComponent(slug)}`, {
+      headers: buildHeaders(),
+    });
+    const data = await handleResponse<{ todo: TodoEntry }>(res);
+    return data.todo;
+  },
+  create: async (data: {
+    title: string;
+    items?: Array<{
+      id?: string;
+      title: string;
+      body?: string;
+      completed?: boolean;
+      createdAt?: string;
+      completedAt?: string | null;
+    }>;
+    actorLogin?: string;
+  }): Promise<TodoEntry> => {
+    const res = await fetch(`${API_BASE}/todos`, {
+      method: "POST",
+      headers: buildHeaders(),
+      body: JSON.stringify(data),
+    });
+    const payload = await handleResponse<{ todo: TodoEntry }>(res);
+    return payload.todo;
+  },
+  update: async (
+    slug: string,
+    data: {
+      title?: string;
+      items?: TodoItem[];
+      actorLogin?: string;
+    },
+  ): Promise<TodoEntry> => {
+    const res = await fetch(`${API_BASE}/todos/${encodeURIComponent(slug)}`, {
+      method: "PATCH",
+      headers: buildHeaders(),
+      body: JSON.stringify(data),
+    });
+    const payload = await handleResponse<{ todo: TodoEntry }>(res);
+    return payload.todo;
+  },
+  remove: async (slug: string, actorLogin?: string): Promise<void> => {
+    const params = new URLSearchParams();
+    if (actorLogin) params.set("actorLogin", actorLogin);
+    const suffix = params.toString() ? `?${params}` : "";
+    const res = await fetch(
+      `${API_BASE}/todos/${encodeURIComponent(slug)}${suffix}`,
+      {
+        method: "DELETE",
+        headers: buildHeaders(),
+      },
+    );
+    await handleResponse<{ success: boolean }>(res);
+  },
+};
+
 // ============ Memory API ============
 
 export type MemoryType = "user" | "feedback" | "project" | "reference";
@@ -2172,8 +2264,8 @@ export const companyApi = {
   },
 };
 
-/** The dashboard-editable slice of kody.config.json (see /company/config).
- * `perExecutable` (model routing) is edited on /models, the rest on /company. */
+/** The dashboard-editable slice of kody.config.json (see /engine).
+ * `perExecutable` (model routing) is edited on /models, the rest here. */
 export interface EngineEditableConfig {
   quality: {
     typecheck?: string;
@@ -2185,6 +2277,10 @@ export interface EngineEditableConfig {
   allowedAssociations: string[];
   defaultBranch: string;
   perExecutable: Record<string, string>;
+  /** Thinking level for the engine (off|low|medium|high). Null = unset.
+   * Loose string here — the route validates the canonical vocabulary
+   * via Zod, so the client only needs the string channel. */
+  reasoningEffort: string | null;
 }
 
 // ============ Jobs API ============
@@ -2225,6 +2321,7 @@ export const kodyApi = {
   duties: dutiesApi,
   staff: staffApi,
   context: contextApi,
+  todos: todosApi,
   memory: memoryApi,
   company: companyApi,
   reports: reportsApi,

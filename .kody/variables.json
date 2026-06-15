@@ -1,10 +1,1 @@
-{
-  "version": 1,
-  "variables": {
-    "LLM_MODELS": {
-      "value": "[{\"id\":\"minimax/MiniMax-M3\",\"label\":\"MiniMax\",\"provider\":\"custom\",\"protocol\":\"openai\",\"baseURL\":\"https://api.minimax.io/v1\",\"modelName\":\"MiniMax-M3\",\"apiKeySecret\":\"MINIMAX_API_KEY\",\"enabled\":true,\"default\":true,\"maxSteps\":200}]",
-      "updatedAt": "2026-06-07T19:54:23.724Z",
-      "updatedBy": "aharonyaircohen"
-    }
-  }
-}
+{"version":1,"variables":{"LLM_MODELS":{"value":"[{\"id\":\"minimax/MiniMax-M3\",\"label\":\"MiniMax\",\"provider\":\"custom\",\"protocol\":\"openai\",\"baseURL\":\"https://api.minimax.io/v1\",\"modelName\":\"MiniMax-M3\",\"apiKeySecret\":\"MINIMAX_API_KEY\",\"enabled\":true,\"default\":true,\"maxSteps\":200}]","updatedAt":"2026-06-07T19:54:23.724Z","updatedBy":"aharonyaircohen"},"RELEASE_FLOW":{"value":"{\"integrationBranch\":\"main\",\"productionBranch\":\"main\"}","updatedAt":"2026-06-15T00:00:00.000Z","updatedBy":"codex"}}}

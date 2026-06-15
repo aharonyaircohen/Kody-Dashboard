@@ -522,6 +522,12 @@ function EntryDetail({
                   GitHub
                 </a>
               </div>
+              <div className="rounded-md border border-white/[0.08] bg-white/[0.03] px-3 py-2 text-xs">
+                <span className="text-white/50">Active file </span>
+                <code className="font-mono text-teal-200">
+                  {`.kody/context/${entry.slug}.md`}
+                </code>
+              </div>
             </div>
             <div className="flex items-center gap-2 shrink-0">
               <Button
@@ -549,6 +555,9 @@ function EntryDetail({
 
           {hasBody ? (
             <div className="rounded-xl border border-white/[0.08] bg-white/[0.02] p-4 md:p-5">
+              <p className="mb-3 text-xs font-medium uppercase tracking-wide text-white/45">
+                Current saved content
+              </p>
               <div className="prose prose-sm dark:prose-invert max-w-none">
                 <ReactMarkdown>{entry.body}</ReactMarkdown>
               </div>
@@ -887,6 +896,22 @@ function EditEntryDialog({
         </DialogHeader>
 
         <div className="space-y-4 mt-2">
+          <div className="rounded-md border border-white/[0.08] bg-white/[0.03] p-3">
+            <div className="flex items-center justify-between gap-3 text-xs">
+              <span className="font-medium text-white/70">Active file</span>
+              <code className="font-mono text-teal-200">
+                {`.kody/context/${entry.slug}.md`}
+              </code>
+            </div>
+            <div className="mt-3 space-y-1.5">
+              <p className="text-xs font-medium text-white/70">
+                Current saved content
+              </p>
+              <pre className="max-h-40 overflow-auto whitespace-pre-wrap rounded border border-white/[0.06] bg-black/30 p-3 font-mono text-xs leading-relaxed text-white/65">
+                {entry.body}
+              </pre>
+            </div>
+          </div>
           <div className="space-y-1.5 max-w-[280px]">
             <Label>Staff</Label>
             <StaffSelect

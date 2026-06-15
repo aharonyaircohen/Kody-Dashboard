@@ -95,6 +95,7 @@ const VIBE_MODE_SECTIONS: Array<{ title: string; items: readonly NavItem[] }> =
     {
       title: PRIMARY_NAV_TITLE,
       items: [
+        sidebarItem("/todos"),
         sidebarItem("/messages"),
         sidebarItem("/reports"),
         sidebarItem("/docs"),
@@ -114,6 +115,7 @@ const ENGINEER_MODE_SECTIONS: Array<{
   {
     title: PRIMARY_NAV_TITLE,
     items: [
+      sidebarItem("/todos"),
       sidebarItem("/messages"),
       sidebarItem("/reports"),
       sidebarItem("/files"),
