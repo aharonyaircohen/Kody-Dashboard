@@ -23,15 +23,42 @@ import {
 } from "@dashboard/lib/dashboard-config/store";
 import { logger } from "@dashboard/lib/logger";
 
+const PreviewUrlSchema = z
+  .string()
+  .max(2048)
+  .refine(
+    (value) => {
+      if (
+        /^\/api\/kody\/views\/(?!_t\/)[A-Za-z0-9][A-Za-z0-9-]{0,63}(?:\/[^\s?#]*)?(?:\?[^#\s]*)?(?:#[^\s]*)?$/.test(
+          value,
+        )
+      ) {
+        return true;
+      }
+      try {
+        const parsed = new URL(value);
+        return parsed.protocol === "http:" || parsed.protocol === "https:";
+      } catch {
+        return false;
+      }
+    },
+    { message: "Must be a valid URL" },
+  );
+
 const PreviewEnvironmentSchema = z.object({
   id: z.string().min(1).max(64),
   label: z.string().min(1).max(48),
-  url: z.string().url({ message: "Must be a valid URL" }).max(2048),
+ url: PreviewUrlSchema,
   // Present only for uploaded-file environments — keys the Fly static
   // preview so removal can also tear it down.
   staticId: z.string().min(1).max(64).optional(),
   // Absolute expiry (ms epoch) for uploaded previews; reaped past this.
   expiresAt: z.number().int().nonnegative().optional(),
+  // Present only repo-backed views stored under .kody/views/<id>.
+  repoViewPath: z
+    .string()
+    .regex(/^\.kody\/views\/[a-z0-9][a-z0-9-]{0,63}$/)
+    .optional(),
   // Small, non-secret summary of uploaded files so chat can understand the
   // preview even before the inspector extension can read the iframe.
   uploadContext: z

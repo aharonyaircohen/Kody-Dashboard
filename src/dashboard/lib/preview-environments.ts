@@ -36,6 +36,12 @@ export interface PreviewEnvironment {
    * cannot read the iframe yet.
    */
   uploadContext?: PreviewUploadContext;
+  /**
+   * Set for static resources stored in the consumer repo under
+   * `.kody/views/<id>`. These are served by dashboard API with a short-lived
+   * ticket instead of Fly.
+   */
+  repoViewPath?: string;
 }
 
 export interface PreviewUploadContext {
@@ -94,6 +100,13 @@ export function makeEnvId(label: string): string {
 export function normalizeEnvUrl(input: string): string | null {
   const trimmed = (input || "").trim();
   if (!trimmed) return null;
+  if (
+    /^\/api\/kody\/views\/(?!_t\/)[A-Za-z0-9][A-Za-z0-9-]{0,63}(?:\/[^\s?#]*)?(?:\?[^#\s]*)?(?:#[^\s]*)?$/.test(
+      trimmed,
+    )
+  ) {
+    return trimmed;
+  }
   try {
     const u = new URL(trimmed);
     if (u.protocol !== "http:" && u.protocol !== "https:") return null;
@@ -182,6 +195,36 @@ export function addUploadedEnvironment(
       url: cleanUrl,
       staticId,
       expiresAt,
+      ...(uploadContext ? { uploadContext } : {}),
+    },
+  ];
+}
+
+/** Append a repo-backed static view environment. */
+export function addRepoViewEnvironment(
+  list: PreviewEnvironment[],
+  label: string,
+  url: string,
+  repoViewPath: string,
+  uploadContext?: PreviewUploadContext,
+): PreviewEnvironment[] {
+  const cleanLabel = label.trim().slice(0, MAX_LABEL);
+  const cleanUrl = normalizeEnvUrl(url);
+  const cleanRepoPath = repoViewPath.trim();
+  if (
+    !cleanLabel ||
+    !cleanUrl ||
+    !/^\.kody\/views\/[a-z0-9][a-z0-9-]{0,63}$/.test(cleanRepoPath)
+  ) {
+    return list;
+  }
+  return [
+    ...list,
+    {
+      id: makeEnvId(cleanLabel),
+      label: cleanLabel,
+      url: cleanUrl,
+      repoViewPath: cleanRepoPath,
       ...(uploadContext ? { uploadContext } : {}),
     },
   ];
