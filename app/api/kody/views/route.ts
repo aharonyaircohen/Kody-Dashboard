@@ -7,7 +7,11 @@
  */
 import { randomUUID } from "node:crypto";
 import { NextRequest, NextResponse } from "next/server";
-import { getRequestAuth, getUserOctokit, requireKodyAuth } from "@dashboard/lib/auth";
+import {
+  getRequestAuth,
+  getUserOctokit,
+  requireKodyAuth,
+} from "@dashboard/lib/auth";
 import { logger } from "@dashboard/lib/logger";
 
 export const runtime = "nodejs";
@@ -174,7 +178,9 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
     return NextResponse.json({ error: "invalid_form" }, { status: 400 });
   }
 
-  const files = form.getAll("file").filter((entry): entry is File => entry instanceof File);
+  const files = form
+    .getAll("file")
+    .filter((entry): entry is File => entry instanceof File);
   if (files.length === 0) {
     return NextResponse.json({ error: "no_file" }, { status: 400 });
   }
@@ -222,10 +228,16 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
       { status: 413 },
     );
   }
-  const totalBytes = rawUploads.reduce((sum, upload) => sum + upload.raw.length, 0);
+  const totalBytes = rawUploads.reduce(
+    (sum, upload) => sum + upload.raw.length,
+    0,
+  );
   if (totalBytes > MAX_TOTAL_BYTES) {
     return NextResponse.json(
-      { error: "files_too_large", message: "Files are too large together (10 MB max)" },
+      {
+        error: "files_too_large",
+        message: "Files are too large together (10 MB max)",
+      },
       { status: 413 },
     );
   }
@@ -238,7 +250,9 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
       (isHtmlName(upload.originalName) ||
         mime.startsWith("text/html") ||
         looksLikeHtml(upload.raw));
-    const safePath = isSingleHtml ? "index.html" : sanitizeRelativePath(upload.originalName);
+    const safePath = isSingleHtml
+      ? "index.html"
+      : sanitizeRelativePath(upload.originalName);
     return {
       ...upload,
       path: uniquePath(safePath, used),
@@ -273,7 +287,10 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
       { status: 201 },
     );
   } catch (err) {
-    logger.error({ err, owner: auth.owner, repo: auth.repo, viewId }, "views: upload failed");
+    logger.error(
+      { err, owner: auth.owner, repo: auth.repo, viewId },
+      "views: upload failed",
+    );
     return NextResponse.json(
       { error: "view_upload_failed", message: (err as Error).message },
       { status: 500 },

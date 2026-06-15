@@ -48,7 +48,7 @@ const PreviewUrlSchema = z
 const PreviewEnvironmentSchema = z.object({
   id: z.string().min(1).max(64),
   label: z.string().min(1).max(48),
- url: PreviewUrlSchema,
+  url: PreviewUrlSchema,
   // Present only for uploaded-file environments — keys the Fly static
   // preview so removal can also tear it down.
   staticId: z.string().min(1).max(64).optional(),

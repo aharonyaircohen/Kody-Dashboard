@@ -230,9 +230,10 @@ function stripLeakedReasoning(
   return { text: trimmed, leaked };
 }
 
-function stripAllLeakedParagraphs(
-  text: string,
-): { text: string; leaked: string } {
+function stripAllLeakedParagraphs(text: string): {
+  text: string;
+  leaked: string;
+} {
   const paragraphs = text.split(/\n\s*\n/);
   if (paragraphs.length < 2) return { text, leaked: "" };
 

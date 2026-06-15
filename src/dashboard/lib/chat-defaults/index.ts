@@ -124,9 +124,7 @@ export function composeBasePrompt(
  * tool does. The route already builds this map for the thinking-panel
  * UI; this helper produces the prompt-formatted version.
  */
-export function buildToolIndex(
-  tools: Record<string, unknown>,
-): string {
+export function buildToolIndex(tools: Record<string, unknown>): string {
   const lines: string[] = [];
   for (const [name, t] of Object.entries(tools)) {
     const desc =
@@ -171,7 +169,6 @@ These apply to EVERY turn, including trivial ones. Re-state them as the last thi
 - **Cite your evidence.** Every claim about the repo gets a \`file:line\` citation from a tool result THIS turn. "No matches for X" is a valid finding — say so explicitly.
 - **End with a forward-driving question.** Every reply ends with one short question that pushes the next step: "Want me to look at the diff?", "Approve this and I'll create the issue?", "Which of these should I dig into?". The only exception is when the user has clearly closed the loop.
 - **No sycophantic openers.** Start with the answer. "Great question", "Sure!", "Of course", "Absolutely", "Happy to help", "Certainly" — all banned.`;
-
 
 /**
  * Filter a tool set down to the names declared in the bundle's

@@ -79,9 +79,10 @@ function timingSafeEqualString(a: string, b: string): boolean {
   return crypto.timingSafeEqual(ab, bb);
 }
 
-export function mintRepoViewToken(
-  input: MintRepoViewTokenInput,
-): { token: string; expiresAt: number } {
+export function mintRepoViewToken(input: MintRepoViewTokenInput): {
+  token: string;
+  expiresAt: number;
+} {
   const secret = getSecret(input.secret);
   const now = input.now ?? Math.floor(Date.now() / 1000);
   const exp = now + (input.ttlSeconds ?? DEFAULT_TTL_SECONDS);

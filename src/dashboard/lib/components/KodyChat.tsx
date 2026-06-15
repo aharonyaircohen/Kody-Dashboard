@@ -42,7 +42,11 @@ import {
   Unplug,
 } from "lucide-react";
 import { AGENT_KODY, AGENTS, type AgentId } from "../agents";
-import { buildAgentList, type ChatDropdownEntry, type ChatModelEntry } from "../chat/agent-entries";
+import {
+  buildAgentList,
+  type ChatDropdownEntry,
+  type ChatModelEntry,
+} from "../chat/agent-entries";
 import { readDefaultChatEntry } from "../chat/default-entry";
 import {
   readReasoningEffort,
@@ -589,7 +593,9 @@ export function KodyChat({
       if (entry) return entry;
     }
     return (
-      agentList.find((e) => e.key === "kody-live-fly" || e.key === "kody-live") ??
+      agentList.find(
+        (e) => e.key === "kody-live-fly" || e.key === "kody-live",
+      ) ??
       agentList[0] ??
       null
     );
@@ -885,8 +891,7 @@ export function KodyChat({
     const session = sessionHook.activeSession;
     let targetEntry: ChatDropdownEntry | null = null;
     if (session?.agentKey) {
-      targetEntry =
-        agentList.find((e) => e.key === session.agentKey) ?? null;
+      targetEntry = agentList.find((e) => e.key === session.agentKey) ?? null;
       if (!targetEntry) {
         targetEntry = familySnap(session.agentKey);
       }
@@ -4806,7 +4811,9 @@ export function KodyChat({
                     // users who expect a "new chat" to start where the
                     // last one left off.
                     const seed = currentEntry?.key;
-                    sessionHook.createSession(seed ? { agentKey: seed } : undefined);
+                    sessionHook.createSession(
+                      seed ? { agentKey: seed } : undefined,
+                    );
                     setToolCalls([]);
                   }}
                   disabled={activeLoading}

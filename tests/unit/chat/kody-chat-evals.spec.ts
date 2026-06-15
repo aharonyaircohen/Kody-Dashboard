@@ -7,13 +7,14 @@
  */
 import { describe, expect, it } from "vitest";
 import { buildSystemPrompt } from "../../../app/api/kody/chat/kody/system-prompt";
-import { loadChatDefaults, composeBasePrompt } from "@dashboard/lib/chat-defaults";
+import {
+  loadChatDefaults,
+  composeBasePrompt,
+} from "@dashboard/lib/chat-defaults";
 import { getCreatedIssueNumberFromToolOutput } from "@dashboard/lib/components/kody-chat-types";
 
 const prompt = buildSystemPrompt(
-  composeBasePrompt(
-    await loadChatDefaults("acme", "repo"),
-  ),
+  composeBasePrompt(await loadChatDefaults("acme", "repo")),
   { owner: "acme", repo: "repo" },
   undefined,
   { vibeMode: true, flyConfigured: false },

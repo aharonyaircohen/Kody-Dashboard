@@ -257,10 +257,9 @@ describe("parseAssistantContent", () => {
   it("does not strip every paragraph when the entire reply is thinking", () => {
     // Guard: if EVERY paragraph matches, leave the content visible so the
     // user always sees something rather than an empty bubble.
-    const raw = [
-      "Let me think about this.",
-      "I should check the docs.",
-    ].join("\n\n");
+    const raw = ["Let me think about this.", "I should check the docs."].join(
+      "\n\n",
+    );
     const { answer, reasoning } = parseAssistantContent(raw);
 
     expect(answer).toBe(raw);

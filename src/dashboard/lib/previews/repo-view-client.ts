@@ -85,7 +85,9 @@ export async function mintRepoViewTicket(
 
 export function tokenizeRepoViewUrl(url: string, token: string): string {
   const base =
-    typeof window === "undefined" ? "http://kody.local" : window.location.origin;
+    typeof window === "undefined"
+      ? "http://kody.local"
+      : window.location.origin;
   const parsed = new URL(url, base);
   const parts = parsed.pathname.split("/").filter(Boolean);
   const prefix = ["api", "kody", "views"];

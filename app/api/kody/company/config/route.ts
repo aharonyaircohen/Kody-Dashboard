@@ -155,6 +155,12 @@ export async function PATCH(req: NextRequest) {
   } = parsed.data;
 
   try {
+    // Pass reasoningEffort through unchanged: an omitted field stays
+    // `undefined` (writeConfigPatch treats that as "don't touch"), an
+    // explicit `null` clears `agent.reasoningEffort`, and a valid enum
+    // value writes the new level. Coalescing omitted → null here would
+    // have every unrelated PATCH (e.g. quality-only) silently clear
+    // `agent.reasoningEffort`.
     await writeConfigPatch(
       octokit,
       auth.owner,
@@ -165,7 +171,7 @@ export async function PATCH(req: NextRequest) {
         allowedAssociations,
         defaultBranch,
         perExecutable,
-        reasoningEffort: reasoningEffort ?? null,
+        reasoningEffort,
       },
       `chore(kody): update config (${actorLogin})`,
     );

@@ -1,8 +1,6 @@
 import { readFileSync } from "fs";
 import { describe, expect, it } from "vitest";
-import {
-  loadChatDefaults,
-} from "../../src/dashboard/lib/chat-defaults";
+import { loadChatDefaults } from "../../src/dashboard/lib/chat-defaults";
 import { DEFAULT_EXECUTABLE } from "../../src/dashboard/lib/chat-defaults/defaults";
 
 const DUTY_GUIDE = readFileSync("docs/duties.md", "utf8");
@@ -96,9 +94,7 @@ describe("duty creation guide wiring", () => {
     // readers that look for `runner` still work.
     expect(DUTY_FILES_SOURCE).toContain("profile.staff = staffSlug");
     expect(DUTY_FILES_SOURCE).toContain("profile.runner = staffSlug");
-    expect(DUTY_FILES_SOURCE).toMatch(
-      /opts\.staff\s*\?\?\s*opts\.runner/,
-    );
+    expect(DUTY_FILES_SOURCE).toMatch(/opts\.staff\s*\?\?\s*opts\.runner/);
     // The chat-defaults bundle's `create-duty` skill teaches the model
     // the new field name.
     const bundle = await loadChatDefaults("acme", "repo");

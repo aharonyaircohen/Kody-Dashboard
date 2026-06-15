@@ -337,9 +337,7 @@ function InstructionsManagerInner() {
           <div className="space-y-3">
             <div className="rounded-md border border-white/[0.08] bg-white/[0.03] p-3">
               <div className="flex items-center justify-between gap-3">
-                <p className="text-xs font-medium text-white/70">
-                  Active file
-                </p>
+                <p className="text-xs font-medium text-white/70">Active file</p>
                 <code className="font-mono text-[11px] text-cyan-200">
                   .kody/instructions.md
                 </code>

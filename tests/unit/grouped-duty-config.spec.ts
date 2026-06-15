@@ -29,10 +29,7 @@ describe("grouped duty config", () => {
     expect(duty.executables).toBeUndefined();
     expect(duty.every).toBe("1h");
     expect(duty.writesTo).toEqual(["ci-health-graph", "pr-graph"]);
-    expect(profile.claudeCode.skills).toEqual([
-      "ci-health-graph",
-      "pr-graph",
-    ]);
+    expect(profile.claudeCode.skills).toEqual(["ci-health-graph", "pr-graph"]);
     expect(profile.scripts.preflight).toEqual([
       { script: "buildSyntheticPlugin" },
       { shell: "refresh-delivery-graphs.sh" },
@@ -213,9 +210,9 @@ describe("grouped duty config", () => {
       "clear-empty-goals",
       "repo-maintenance",
     ]) {
-      expect(existsSync(join(root, `.kody/executables/${slug}/profile.json`))).toBe(
-        false,
-      );
+      expect(
+        existsSync(join(root, `.kody/executables/${slug}/profile.json`)),
+      ).toBe(false);
     }
 
     const publishCommand = readText(".kody/commands/publish.md");

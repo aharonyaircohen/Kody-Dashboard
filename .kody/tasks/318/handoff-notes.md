@@ -1,0 +1,5 @@
+PR #318 review-feedback round. The route-level coalesce (`reasoningEffort: reasoningEffort ?? null`) was the original regression; the route already passes the value through unchanged, and 8 regression tests in `tests/unit/company-config-route.spec.ts` (5) and `tests/unit/engine/config-patch.spec.ts` (3) pin the three required scenarios — quality-only preserves, null clears only reasoning, valid value writes.
+
+This run was a verify pass, not a logic change. The format gate had 16 pre-existing prettier drift files blocking the verify. I ran prettier --write on those 16 (plus .serena/project.yml) so the format check passes; none of those files are in the PR's diff. One downstream test in `kody-chat-per-session-agent.spec.ts` was anchored to a now-multi-line call site after prettier reformatted KodyChat.tsx; relaxed the regex to accept the formatted form. The test still asserts the same intent (new-conversation button seeds the session with the current effective agent).
+
+Final verify: ok=true (typecheck, lint, format:check, all 1555 tests). 8 new targeted tests all pass.

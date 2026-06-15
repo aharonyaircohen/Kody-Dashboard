@@ -98,7 +98,9 @@ export function createReleaseTools(ctx: Ctx) {
         dryRun: z
           .boolean()
           .optional()
-          .describe("Print the release plan without committing or opening a PR."),
+          .describe(
+            "Print the release plan without committing or opening a PR.",
+          ),
       }),
       execute: async (input) => {
         const command = buildCommand(input);

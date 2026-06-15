@@ -435,12 +435,13 @@ function AliasesCard({ cfg }: { cfg: UseEngineConfig }) {
 }
 
 /** Canonical thinking vocabulary (matches the chat dropdown + engine). */
-const REASONING_OPTIONS: Array<{ value: string; label: string; hint: string }> = [
-  { value: "off", label: "Off", hint: "No thinking block — cheapest path" },
-  { value: "low", label: "Low", hint: "~2k thinking tokens" },
-  { value: "medium", label: "Medium", hint: "~10k thinking tokens" },
-  { value: "high", label: "High", hint: "~32k thinking tokens" },
-];
+const REASONING_OPTIONS: Array<{ value: string; label: string; hint: string }> =
+  [
+    { value: "off", label: "Off", hint: "No thinking block — cheapest path" },
+    { value: "low", label: "Low", hint: "~2k thinking tokens" },
+    { value: "medium", label: "Medium", hint: "~10k thinking tokens" },
+    { value: "high", label: "High", hint: "~32k thinking tokens" },
+  ];
 
 function ReasoningEffortCard({ cfg }: { cfg: UseEngineConfig }) {
   const { config, loading, saving, save } = cfg;
@@ -474,11 +475,11 @@ function ReasoningEffortCard({ cfg }: { cfg: UseEngineConfig }) {
           iconClass="text-amber-400"
           title="Reasoning effort"
         >
-          Default thinking level for engine runs in this repo. Maps to
-          the Claude Agent SDK's{" "}
+          Default thinking level for engine runs in this repo. Maps to the
+          Claude Agent SDK's{" "}
           <code className="text-white/70">maxThinkingTokens</code>.{" "}
-          <span className="text-amber-300/90">Off</span> is the cheapest
-          path (no reasoning preamble, no extra tokens).
+          <span className="text-amber-300/90">Off</span> is the cheapest path
+          (no reasoning preamble, no extra tokens).
         </CardHeader>
         {loading ? (
           <Loading />
@@ -511,8 +512,7 @@ function ReasoningEffortCard({ cfg }: { cfg: UseEngineConfig }) {
                 {String(config?.reasoningEffort ?? "unset (engine default)")}
               </span>
               . Per-dispatch overrides flow through the{" "}
-              <code className="text-white/60">REASONING_EFFORT</code> env
-              var.
+              <code className="text-white/60">REASONING_EFFORT</code> env var.
             </p>
           </>
         )}

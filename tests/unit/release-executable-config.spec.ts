@@ -34,7 +34,11 @@ describe("release executable config", () => {
     expect(profile.name).toBe("release");
     expect(profile.inputs).toEqual(
       expect.arrayContaining([
-        expect.objectContaining({ name: "issue", flag: "--issue", type: "int" }),
+        expect.objectContaining({
+          name: "issue",
+          flag: "--issue",
+          type: "int",
+        }),
         expect.objectContaining({ name: "bump", flag: "--bump", type: "enum" }),
         expect.objectContaining({
           name: "dry-run",
@@ -70,8 +74,12 @@ describe("release executable config", () => {
     expect(prompt).toContain("RELEASE_FLOW");
     expect(prompt).toContain("integrationBranch equals productionBranch");
     expect(prompt).toContain("create the version PR into that same branch");
-    expect(prompt).toContain("create a promotion PR from integration to production");
-    expect(prepareSkill).toContain("version PR target is the integration branch");
+    expect(prompt).toContain(
+      "create a promotion PR from integration to production",
+    );
+    expect(prepareSkill).toContain(
+      "version PR target is the integration branch",
+    );
   });
 
   it("sets this repo to the single-main release flow", () => {
