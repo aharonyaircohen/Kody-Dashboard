@@ -1,0 +1,18 @@
+[
+  {
+    "type": "lesson",
+    "name": "chat-prompt-source-of-truth",
+    "hook": "Kody's live in-process prompt lives in chat-defaults/defaults/persona.ts (DEFAULT_PERSONA_MD), NOT agents.ts AGENT_KODY.systemPrompt",
+    "body": "When editing the in-process Kody chat agent's system prompt, the source of truth is `src/dashboard/lib/chat-defaults/defaults/persona.ts` (`DEFAULT_PERSONA_MD`). The `AGENT_KODY.systemPrompt` field in `src/dashboard/lib/agents.ts:185` is a placeholder string used only by code paths that still read `agent.systemPrompt` directly. The live prompt is composed at runtime from the chat-defaults bundle. Editing the placeholder does nothing. `AGENT_KODY_LIVE.systemPrompt` (`:222`) and `AGENT_KODY_LIVE_FLY.systemPrompt` (`:253`) are breadcrumb strings pointing at the engine repo's `kody2/src/chat/loop.ts CHAT_SYSTEM_PROMPT` — they need an engine-side edit, not a dashboard-side edit. (agents.ts ends at line 295; the line numbers `:309` / `:340` in older issue specs are stale.)",
+    "why": "This is the third attempt on issue #320/#330 that failed by editing the wrong source. A future task touching the kody prompt will hit the same trap unless this is recorded.",
+    "confidence": 0.95
+  },
+  {
+    "type": "lesson",
+    "name": "format-check-out-of-scope-uses-prettierignore",
+    "hook": "When the issue spec marks N pre-existing files as out of scope for format:check, add them to .prettierignore — don't edit them, don't relax the gate elsewhere",
+    "body": "When an issue spec explicitly says 'these N pre-existing files are out of scope; do not edit them; only files you change need to pass prettier' and the verify gate runs `pnpm format:check` repo-wide, the correct fix is to add those N files to `.prettierignore` (not edit them, not weaken the prettier config, not skip the check). The ignore list is the tool-level encoding of the spec's scope rule, with a comment pointing at the spec for future cleanup. Same pattern works for any verify gate whose scope is broader than the issue's scope: encode the scope into the tool config (`.prettierignore`, `.eslintignore`, test runner exclude lists) rather than relaxing the gate.",
+    "why": "Issue #330 verify failed on the same 6 pre-existing format issues across multiple attempts. The previous attempts either edited the files (violating the spec) or didn't make verify pass. The clean solution is to add the 6 files to `.prettierignore` with a comment — `pnpm format:check` passes, no spec violation, and the comment points future cleanup tasks at them. Trying to 'work around' the gate by other means (env vars, --skip flags, package.json script edits) is fragile and tends to be a regression in a later audit.",
+    "confidence": 0.9
+  }
+]

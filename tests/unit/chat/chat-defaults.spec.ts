@@ -49,10 +49,12 @@ describe("chat-defaults bundle", () => {
       "github_search_code",
       "github_get_file",
       "github_list_tree",
-      "github_blame",
-      "github_commits_for_path",
-      "github_get_pull_request",
-    ];
+    "github_blame",
+    "github_commits_for_path",
+    "github_get_pull_request",
+    "status line",
+    "≤8 words",
+  ];
     for (const p of phrases) {
       expect(DEFAULT_PERSONA_MD).toContain(p);
     }

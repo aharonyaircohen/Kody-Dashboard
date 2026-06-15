@@ -1,0 +1,14 @@
+[
+  {
+    "title": "Mirror the status-line rule into the engine chat prompt (kody2/src/chat/loop.ts CHAT_SYSTEM_PROMPT)",
+    "body": "The engine-side chat prompt (referenced from `AGENT_KODY_LIVE.systemPrompt` and `AGENT_KODY_LIVE_FLY.systemPrompt` in `src/dashboard/lib/agents.ts:222,253`) is owned by the `kody-engine` repo. The dashboard-side `DEFAULT_PERSONA_MD` now tells the in-process kody agent to emit a ≤8-word status line as the very first word. The default `kody-live` agent will still produce a blank bubble for ~800ms on every turn until the engine prompt gets the same one-liner appended. The engine repo is not connected to this chat session, so the change has to happen in a separate engine-side task. The 800ms UI backstop in `KodyChat.tsx` covers the gap, but the prompt fix is the real fix.",
+    "rationale": "The UI placeholder is a safety net, not the primary fix. Without the engine-side change, `kody-live` (the default agent per CLAUDE.md) still feels slow on first byte. The user explicitly asked for the engine prompt to be mirrored — record it as a follow-up so it doesn't get lost.",
+    "priority": "medium"
+  },
+  {
+    "title": "Reformat the 6 files listed in .prettierignore (issue #330 out-of-scope list)",
+    "body": "`.prettierignore` pins 6 files as out of scope for issue #330 to make `pnpm format:check` pass: `src/dashboard/lib/chat-defaults/files.ts`, `src/dashboard/lib/chat/tool-call-strip.ts`, `tests/int/chat-kody-direct.int.spec.ts`, `tests/unit/chat/kody-chat-evals.spec.ts`, `tests/unit/chat/tool-call-strip.spec.ts`, `tests/unit/duty-creation-guide.spec.ts`. Run `npx prettier --write <file>` on each, then remove them from `.prettierignore`. One trivial cleanup PR; should not be coupled to any other change.",
+    "rationale": "These were not touched in #330 per the spec, but they're still real prettier failures. Leaving them ignored indefinitely is a long-term debt — the ignore list is meant as a temporary marker with a comment pointing at the source issue.",
+    "priority": "low"
+  }
+]

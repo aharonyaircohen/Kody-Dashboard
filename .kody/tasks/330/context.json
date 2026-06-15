@@ -1,0 +1,20 @@
+{
+  "taskId": "330",
+  "taskType": "issue",
+  "target": 330,
+  "outcome": "success",
+  "exitCode": 0,
+  "reason": "Verify passes. persona.ts has the ≤8-word status-line rule (rule #6 in DEFAULT_PERSONA_MD), KodyChat.tsx gates <TypingIndicator> on an 800ms grace timer at both render sites, regression test pins the rule, and .prettierignore marks the 6 pre-existing format-failing files as out of scope per the issue spec.",
+  "prUrl": null,
+  "runUrl": null,
+  "filesTouched": [
+    "src/dashboard/lib/chat-defaults/defaults/persona.ts",
+    "src/dashboard/lib/components/KodyChat.tsx",
+    "tests/unit/chat/chat-defaults.spec.ts",
+    "tests/unit/chat/kody-chat-per-session-agent.spec.ts",
+    ".prettierignore"
+  ],
+  "sessionLog": ".kody/sessions/330.jsonl",
+  "startedAt": "2026-06-14T20:50:00.000Z",
+  "finishedAt": "2026-06-14T20:52:43.000Z"
+}
