@@ -15,6 +15,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import {
   BookOpen,
+  Copy,
   Eye,
   EyeOff,
   KeyRound,
@@ -248,6 +249,16 @@ function SecretsManagerInner() {
   const [unlockError, setUnlockError] = useState<string | null>(null);
   const [showKey, setShowKey] = useState(false);
   const [isUnlocking, setIsUnlocking] = useState(false);
+  const [viewingSecret, setViewingSecret] = useState<SecretValue | null>(null);
+
+  async function copySecretValue(secret: SecretValue) {
+    try {
+      await navigator.clipboard.writeText(secret.value);
+      toast.success(`${secret.name} copied`);
+    } catch {
+      toast.error("Failed to copy secret");
+    }
+  }
 
   return (
     <PageShell
@@ -380,17 +391,20 @@ function SecretsManagerInner() {
         )}
 
         <ul className="space-y-2">
-          {(unlocked ? unlockedSecrets : secrets).map((s) => (
+          {(unlocked ? unlockedSecrets : secrets).map((s) => {
+            const unlockedSecret = unlocked ? (s as SecretValue) : null;
+
+            return (
             <li key={s.name}>
               <Card className="border-white/[0.08] bg-white/[0.03]">
-                <CardContent className="p-3 flex items-center justify-between gap-3">
-                  <div className="min-w-0">
+                <CardContent className="p-3 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                  <div className="min-w-0 w-full">
                     <p className="font-mono text-sm text-white/90 truncate">
                       {s.name}
                     </p>
-                    {unlocked ? (
-                      <p className="font-mono text-[11px] text-emerald-300 mt-0.5 truncate">
-                        {(s as SecretValue).value}
+                    {unlockedSecret ? (
+                      <p className="font-mono text-[11px] text-emerald-300 mt-0.5 max-h-8 overflow-hidden break-all">
+                        {unlockedSecret.value}
                       </p>
                     ) : (
                       <p className="text-[11px] text-white/40 mt-0.5">
@@ -399,43 +413,66 @@ function SecretsManagerInner() {
                       </p>
                     )}
                   </div>
-                  <div className="flex items-center gap-1">
-                    {unlocked ? (
-                      <Button
-                        size="sm"
-                        variant="ghost"
-                        className="gap-1 text-amber-300"
-                        onClick={() => {
-                          setUnlocked(false);
-                          setUnlockedSecrets([]);
-                          setUnlockKey("");
-                          setUnlockError(null);
-                        }}
-                      >
-                        <EyeOff className="w-3.5 h-3.5" />
-                        Lock
-                      </Button>
+                  <div className="flex flex-wrap items-center gap-1 sm:justify-end">
+                    {unlockedSecret ? (
+                      <>
+                        <Button
+                          size="icon"
+                          variant="ghost"
+                          aria-label={`View ${unlockedSecret.name}`}
+                          title="View"
+                          onClick={() => setViewingSecret(unlockedSecret)}
+                        >
+                          <Eye className="w-3.5 h-3.5" />
+                        </Button>
+                        <Button
+                          size="icon"
+                          variant="ghost"
+                          aria-label={`Copy ${unlockedSecret.name}`}
+                          title="Copy"
+                          onClick={() => copySecretValue(unlockedSecret)}
+                        >
+                          <Copy className="w-3.5 h-3.5" />
+                        </Button>
+                        <Button
+                          size="icon"
+                          variant="ghost"
+                          aria-label="Lock vault"
+                          title="Lock"
+                          className="text-amber-300"
+                          onClick={() => {
+                            setUnlocked(false);
+                            setUnlockedSecrets([]);
+                            setUnlockKey("");
+                            setUnlockError(null);
+                            setViewingSecret(null);
+                          }}
+                        >
+                          <EyeOff className="w-3.5 h-3.5" />
+                        </Button>
+                      </>
                     ) : (
                       <>
                         <Button
-                          size="sm"
+                          size="icon"
                           variant="ghost"
-                          className="gap-1"
+                          aria-label={`Edit ${s.name}`}
+                          title="Edit"
                           onClick={() =>
                             setEditing({ name: s.name, existing: true })
                           }
                         >
                           <Pencil className="w-3.5 h-3.5" />
-                          Edit
                         </Button>
                         <Button
-                          size="sm"
+                          size="icon"
                           variant="ghost"
-                          className="gap-1 text-rose-300 hover:text-rose-200"
+                          aria-label={`Delete ${s.name}`}
+                          title="Delete"
+                          className="text-rose-300 hover:text-rose-200"
                           onClick={() => setDeleting(s.name)}
                         >
                           <Trash2 className="w-3.5 h-3.5" />
-                          Delete
                         </Button>
                       </>
                     )}
@@ -443,7 +480,8 @@ function SecretsManagerInner() {
                 </CardContent>
               </Card>
             </li>
-          ))}
+            );
+          })}
         </ul>
 
         <p className="text-[11px] text-white/30 pt-4">
@@ -465,6 +503,40 @@ function SecretsManagerInner() {
           saving={upsert.isPending}
         />
       )}
+
+      <Dialog
+        open={viewingSecret !== null}
+        onOpenChange={(open) => {
+          if (!open) setViewingSecret(null);
+        }}
+      >
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>{viewingSecret?.name}</DialogTitle>
+            <DialogDescription>
+              Secret value is visible until the vault is locked.
+            </DialogDescription>
+          </DialogHeader>
+          <Textarea
+            readOnly
+            value={viewingSecret?.value ?? ""}
+            className="min-h-32 resize-y font-mono text-xs break-all"
+          />
+          <div className="flex justify-end gap-2">
+            <Button
+              variant="outline"
+              size="icon"
+              aria-label={`Copy ${viewingSecret?.name ?? "secret"}`}
+              title="Copy"
+              onClick={() => viewingSecret && copySecretValue(viewingSecret)}
+              disabled={!viewingSecret}
+            >
+              <Copy className="w-3.5 h-3.5" />
+            </Button>
+            <Button onClick={() => setViewingSecret(null)}>Close</Button>
+          </div>
+        </DialogContent>
+      </Dialog>
 
       <ConfirmDialog
         open={deleting !== null}

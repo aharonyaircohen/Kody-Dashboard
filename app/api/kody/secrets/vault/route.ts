@@ -3,9 +3,9 @@
  * @domain vault
  * @pattern secrets-api
  * @ai-summary POST — verify a master key and return decrypted secret values.
- *   Used by the Secrets page unlock flow. The vault must have been initialised
- *   by a prior write (so keyCheck is set). Returns 400 if the key is wrong or
- *   the vault has no keyCheck yet.
+ *   Used by the Secrets page unlock flow. Modern vaults verify against the
+ *   stored keyCheck; legacy vaults without keyCheck fall back to the configured
+ *   server key. Returns 400 if the key is wrong.
  */
 
 import { NextRequest, NextResponse } from "next/server";
@@ -16,7 +16,11 @@ import {
   getRequestAuth,
 } from "@dashboard/lib/auth";
 import { readVault } from "@dashboard/lib/vault/store";
-import { isVaultConfigured, verifyKey } from "@dashboard/lib/vault/crypto";
+import {
+  deriveKeyCheck,
+  isVaultConfigured,
+  verifyKey,
+} from "@dashboard/lib/vault/crypto";
 import { logger } from "@dashboard/lib/logger";
 
 const UnlockSchema = z.object({
@@ -68,20 +72,12 @@ export async function POST(req: NextRequest) {
       force: true,
     });
 
-    // keyCheck is set on the first write; if absent the vault was created via
-    // a legacy path and is not yet usable with the unlock flow.
-    if (!doc.keyCheck) {
-      return NextResponse.json(
-        {
-          error: "vault_not_initialized",
-          message:
-            "This vault has no stored key check. Add or update a secret via the form first.",
-        },
-        { status: 400 },
-      );
-    }
+    // Legacy vaults may predate keyCheck. In that case, validate against the
+    // configured server key instead of blocking unlock entirely.
+    const keyCheck =
+      doc.keyCheck ?? deriveKeyCheck(process.env.KODY_MASTER_KEY ?? "");
 
-    if (!verifyKey(parsed.data.key, doc.keyCheck)) {
+    if (!verifyKey(parsed.data.key, keyCheck)) {
       return NextResponse.json(
         { error: "wrong_key", message: "The master key is incorrect." },
         { status: 400 },

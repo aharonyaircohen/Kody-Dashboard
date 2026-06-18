@@ -10,7 +10,7 @@
  */
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { randomBytes } from "crypto";
-import { encrypt } from "@dashboard/lib/vault/crypto";
+import { deriveKeyCheck, encrypt } from "@dashboard/lib/vault/crypto";
 import {
   readVault,
   writeVault,
@@ -164,6 +164,7 @@ describe("writeVault", () => {
       "widgets",
     );
     expect(doc.secrets.OPENAI_API_KEY.value).toBe("sk-1");
+    expect(doc.keyCheck).toBe(deriveKeyCheck(KEY));
     expect(getContent).not.toHaveBeenCalled();
   });
 

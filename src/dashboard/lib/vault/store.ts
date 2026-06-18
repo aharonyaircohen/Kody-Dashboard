@@ -164,7 +164,7 @@ export async function writeVault(
   });
   const newSha = res.data.content?.sha ?? null;
   CACHE.set(cacheKey(owner, repo), {
-    doc,
+    doc: docToWrite,
     sha: newSha,
     expiresAt: Date.now() + TTL_MS,
   });
