@@ -39,6 +39,22 @@ interface OrgReposResponse {
   message?: string;
 }
 
+interface AttachRepoResponse {
+  ok: boolean;
+  owner: string;
+  repo: string;
+  repository: {
+    fullName: string;
+    private: boolean;
+    defaultBranch: string;
+    htmlUrl: string;
+  };
+  user: { login: string; avatar_url: string; id: number };
+  webhook: { ok: boolean; created?: boolean; error?: string };
+  error?: string;
+  message?: string;
+}
+
 interface CreateRepoResponse {
   ok: boolean;
   repository: OrgRepository;
@@ -172,16 +188,22 @@ export function OrgManager({ org }: { org: string }) {
           token: auth.token,
         }),
       });
-      const data = (await res.json().catch(() => ({}))) as CreateRepoResponse;
+      const data = (await res.json().catch(() => ({}))) as AttachRepoResponse;
       if (!res.ok || !data.ok) {
         toast.error(data.message || data.error || `Failed (${res.status})`);
+        return;
+      }
+      const owner = data.owner || data.repository.fullName.split("/")[0];
+      const repoName = data.repo || data.repository.fullName.split("/")[1];
+      if (!owner || !repoName) {
+        toast.error("GitHub response did not include repository owner/name.");
         return;
       }
       addRepo(
         {
           repoUrl: data.repository.htmlUrl,
-          owner: data.repository.owner,
-          repo: data.repository.name,
+          owner,
+          repo: repoName,
           token: auth.token,
         },
         data.user,

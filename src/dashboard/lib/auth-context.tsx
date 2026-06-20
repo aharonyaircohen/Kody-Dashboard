@@ -215,6 +215,26 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       entry: Omit<KodyRepoEntry, "addedAt" | "isLogin">,
       user?: KodyAuth["user"],
     ) => {
+      const owner = entry.owner?.trim() ?? "";
+      const repo = entry.repo?.trim() ?? "";
+      const token = entry.token?.trim() ?? "";
+      const nextEntry: Omit<KodyRepoEntry, "addedAt" | "isLogin"> = {
+        ...entry,
+        repoUrl:
+          entry.repoUrl ||
+          (owner && repo ? `https://github.com/${owner}/${repo}` : ""),
+        owner,
+        repo,
+        token,
+      };
+      if (!nextEntry.owner || !nextEntry.repo || !nextEntry.token) {
+        console.warn("Skipping malformed repository entry", {
+          owner: nextEntry.owner,
+          repo: nextEntry.repo,
+          hasToken: Boolean(nextEntry.token),
+        });
+        return;
+      }
       setAuth((prev) => {
         // Bootstrap: empty store, this is the first repo. Requires user info.
         if (!prev) {
@@ -225,7 +245,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           }
           const now = Date.now();
           const loginEntry: KodyRepoEntry = {
-            ...entry,
+            ...nextEntry,
             addedAt: now,
             isLogin: true,
           };
@@ -242,25 +262,25 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           persist(next);
           return next;
         }
-        const ownerLc = entry.owner.toLowerCase();
-        const repoLc = entry.repo.toLowerCase();
+        const ownerLc = nextEntry.owner.toLowerCase();
+        const repoLc = nextEntry.repo.toLowerCase();
         // Dedupe: if the same owner/repo already exists, replace its token instead.
         const existingIdx = prev.repos.findIndex(
           (r) =>
-            r.owner.toLowerCase() === ownerLc &&
-            r.repo.toLowerCase() === repoLc,
+            r.owner?.toLowerCase() === ownerLc &&
+            r.repo?.toLowerCase() === repoLc,
         );
         let nextRepos: KodyRepoEntry[];
         if (existingIdx >= 0) {
           nextRepos = prev.repos.map((r, i) =>
             i === existingIdx
-              ? { ...r, token: entry.token, repoUrl: entry.repoUrl }
+              ? { ...r, token: nextEntry.token, repoUrl: nextEntry.repoUrl }
               : r,
           );
         } else {
           nextRepos = [
             ...prev.repos,
-            { ...entry, addedAt: Date.now(), isLogin: false },
+            { ...nextEntry, addedAt: Date.now(), isLogin: false },
           ];
         }
         const next: KodyAuth = { ...prev, repos: nextRepos };
