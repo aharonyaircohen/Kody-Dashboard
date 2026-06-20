@@ -9,7 +9,7 @@
 
 import type { Octokit } from "@octokit/rest";
 
-export type StoreAssetKind = "duties" | "executables";
+export type StoreAssetKind = "duties" | "executables" | "staff";
 export type AssetSource = "local" | "store";
 
 export interface CompanyStoreTarget {
@@ -79,6 +79,11 @@ export function buildCompanyStoreHtmlUrl(
   return `https://github.com/${store.owner}/${store.repo}/tree/${store.ref}/.kody/${kind}/${slug}`;
 }
 
+export function buildCompanyStoreBlobUrl(path: string): string {
+  const store = getCompanyStoreTarget();
+  return `https://github.com/${store.owner}/${store.repo}/blob/${store.ref}/${path}`;
+}
+
 export async function readCompanyStoreDirectory(
   octokit: Octokit,
   path: string,
@@ -129,6 +134,25 @@ export async function listCompanyStoreAssetSlugs(
   } catch (error: unknown) {
     if ((error as { status?: number })?.status === 404) return [];
     console.warn("[company-store] failed to list store assets", error);
+    return [];
+  }
+}
+
+export async function listCompanyStoreMarkdownAssetSlugs(
+  octokit: Octokit,
+  kind: StoreAssetKind,
+  isValidSlug: (slug: string) => boolean,
+): Promise<string[]> {
+  try {
+    const entries = await readCompanyStoreDirectory(octokit, `.kody/${kind}`);
+    return entries
+      .filter((entry) => entry.type === "file" && entry.name.endsWith(".md"))
+      .map((entry) => entry.name.slice(0, -".md".length))
+      .filter(isValidSlug)
+      .sort((a, b) => a.localeCompare(b));
+  } catch (error: unknown) {
+    if ((error as { status?: number })?.status === 404) return [];
+    console.warn("[company-store] failed to list store markdown assets", error);
     return [];
   }
 }

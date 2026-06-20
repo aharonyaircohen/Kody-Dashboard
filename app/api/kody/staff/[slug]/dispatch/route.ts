@@ -28,7 +28,7 @@ import {
   getRequestAuth,
   verifyActorLogin,
 } from "@dashboard/lib/auth";
-import { isValidSlug } from "@dashboard/lib/staff-files";
+import { isValidSlug, readResolvedStaffFile } from "@dashboard/lib/staff-files";
 import {
   findOrCreateControlIssue,
   dispatchWorkerAsk,
@@ -89,6 +89,11 @@ export async function POST(
   }
 
   try {
+    const staffMember = await readResolvedStaffFile(slug, octokit);
+    if (!staffMember) {
+      return NextResponse.json({ error: "not_found" }, { status: 404 });
+    }
+
     // Reply lands on the control issue. Idempotent — dispatchWorkerAsk
     // resolves the same issue internally to post the directive.
     const issueNumber = await findOrCreateControlIssue(octokit, owner, repo);

@@ -22,6 +22,7 @@ import {
 } from "@dashboard/lib/github-client";
 import {
   readStaffFile,
+  readResolvedStaffFile,
   writeStaffFile,
   deleteStaffFile,
   isValidSlug,
@@ -44,7 +45,7 @@ export async function GET(
     if (!isValidSlug(slug)) {
       return NextResponse.json({ error: "invalid_slug" }, { status: 400 });
     }
-    const staffMember = await readStaffFile(slug);
+    const staffMember = await readResolvedStaffFile(slug);
     if (!staffMember) {
       return NextResponse.json({ error: "not_found" }, { status: 404 });
     }

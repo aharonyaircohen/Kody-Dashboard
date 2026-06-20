@@ -282,6 +282,11 @@ export function StaffControlInner({
                           <span className="font-medium text-sm truncate flex-1">
                             {member.title}
                           </span>
+                          {member.source === "store" ? (
+                            <span className="shrink-0 inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-medium uppercase tracking-wide bg-emerald-500/10 text-emerald-300 border border-emerald-500/20">
+                              Store
+                            </span>
+                          ) : null}
                         </div>
                         <div className="text-xs text-muted-foreground mt-1 flex items-center gap-2 flex-wrap">
                           <span className="font-mono opacity-80">
@@ -316,8 +321,14 @@ export function StaffControlInner({
               <StaffDetail
                 member={selectedMember}
                 onBack={() => setSelectedSlug(null)}
-                onEdit={() => setEditingMember(selectedMember)}
-                onDelete={() => setPendingDelete(selectedMember)}
+                onEdit={() => {
+                  if (!selectedMember.readOnly)
+                    setEditingMember(selectedMember);
+                }}
+                onDelete={() => {
+                  if (!selectedMember.readOnly)
+                    setPendingDelete(selectedMember);
+                }}
                 onSendTask={() => setTaskMember(selectedMember)}
               />
             ) : (
@@ -420,6 +431,14 @@ function StaffDetail({
               </h1>
               <div className="text-xs text-muted-foreground flex items-center gap-3 flex-wrap">
                 <span className="font-mono opacity-80">{member.slug}</span>
+                {member.source === "store" ? (
+                  <>
+                    <span>·</span>
+                    <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[11px] font-medium uppercase tracking-wide bg-emerald-500/10 text-emerald-300 border border-emerald-500/20">
+                      Store
+                    </span>
+                  </>
+                ) : null}
                 {isBuiltin ? (
                   <>
                     <span>·</span>
@@ -466,8 +485,13 @@ function StaffDetail({
                   variant="outline"
                   size="sm"
                   onClick={onEdit}
+                  disabled={member.readOnly}
                   className="w-9 px-0"
-                  title="Edit staff member"
+                  title={
+                    member.readOnly
+                      ? "Store-linked staff are read-only"
+                      : "Edit staff member"
+                  }
                   aria-label="Edit staff member"
                 >
                   <Pencil className="w-3.5 h-3.5" />
@@ -476,8 +500,13 @@ function StaffDetail({
                   variant="outline"
                   size="sm"
                   onClick={onDelete}
+                  disabled={member.readOnly}
                   className="w-9 px-0 text-red-400"
-                  title="Delete staff member"
+                  title={
+                    member.readOnly
+                      ? "Store-linked staff are read-only"
+                      : "Delete staff member"
+                  }
                   aria-label="Delete staff member"
                 >
                   <Trash2 className="w-3.5 h-3.5" />
@@ -518,7 +547,13 @@ function StaffDetail({
               size="sm"
               variant="outline"
               onClick={onEdit}
+              disabled={member.readOnly}
               className="gap-1.5 mt-1"
+              title={
+                member.readOnly
+                  ? "Store-linked staff are read-only"
+                  : "Edit staff member"
+              }
             >
               <Pencil className="w-3.5 h-3.5" />
               Edit staff member

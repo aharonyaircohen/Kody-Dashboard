@@ -1035,6 +1035,10 @@ export interface Staff {
   updatedAt: string;
   /** Convenience link to the file on github.com. */
   htmlUrl: string;
+  /** Runtime resolution source. Local repo staff win over store staff. */
+  source?: "local" | "store";
+  /** Store-linked staff are visible and dispatchable, but not editable locally. */
+  readOnly?: boolean;
 }
 
 export const staffApi = {

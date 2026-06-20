@@ -21,10 +21,10 @@ import {
   clearGitHubContext,
 } from "@dashboard/lib/github-client";
 import {
-  listStaffFiles,
-  readStaffFile,
+  listResolvedStaffFiles,
   writeStaffFile,
   isValidSlug,
+  readStaffFile,
 } from "@dashboard/lib/staff-files";
 import { recordAudit } from "@dashboard/lib/activity/audit";
 
@@ -42,7 +42,7 @@ export async function GET(req: NextRequest) {
     setGitHubContext(headerAuth.owner, headerAuth.repo, headerAuth.token);
 
   try {
-    const staff = await listStaffFiles();
+    const staff = await listResolvedStaffFiles();
     return NextResponse.json({ staff }, { headers: NO_STORE_HEADERS });
   } catch (error: any) {
     console.error("[Staff] Error fetching staff:", error);
