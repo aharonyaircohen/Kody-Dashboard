@@ -38,7 +38,13 @@ export async function GET(
 
   const headerAuth = getRequestAuth(req);
   if (headerAuth)
-    setGitHubContext(headerAuth.owner, headerAuth.repo, headerAuth.token);
+    setGitHubContext(
+      headerAuth.owner,
+      headerAuth.repo,
+      headerAuth.token,
+      headerAuth.storeRepoUrl,
+      headerAuth.storeRef,
+    );
 
   try {
     const { slug } = await params;
@@ -79,7 +85,13 @@ export async function PATCH(
 
   const headerAuth = getRequestAuth(req);
   if (headerAuth)
-    setGitHubContext(headerAuth.owner, headerAuth.repo, headerAuth.token);
+    setGitHubContext(
+      headerAuth.owner,
+      headerAuth.repo,
+      headerAuth.token,
+      headerAuth.storeRepoUrl,
+      headerAuth.storeRef,
+    );
 
   try {
     const { slug } = await params;
@@ -162,7 +174,13 @@ export async function DELETE(
 
   const headerAuth = getRequestAuth(req);
   if (headerAuth)
-    setGitHubContext(headerAuth.owner, headerAuth.repo, headerAuth.token);
+    setGitHubContext(
+      headerAuth.owner,
+      headerAuth.repo,
+      headerAuth.token,
+      headerAuth.storeRepoUrl,
+      headerAuth.storeRef,
+    );
 
   try {
     const { slug } = await params;

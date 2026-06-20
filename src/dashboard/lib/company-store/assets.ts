@@ -8,6 +8,7 @@
  */
 
 import type { Octokit } from "@octokit/rest";
+import { getStoreRef, getStoreRepoUrl } from "../github-client";
 
 export type StoreAssetKind = "duties" | "executables" | "staff";
 export type AssetSource = "local" | "store";
@@ -41,23 +42,52 @@ interface StoreManifest {
 const DEFAULT_COMPANY_STORE = "aharonyaircohen/kody-company-store";
 const DEFAULT_COMPANY_STORE_REF = "stable";
 
-let manifestMemo: Promise<StoreManifest | null> | null = null;
+let manifestMemo: { key: string; value: Promise<StoreManifest | null> } | null =
+  null;
+
+function getCompanyStoreRef(): string {
+  return (
+    getStoreRef()?.trim() ||
+    process.env.KODY_COMPANY_STORE_REF?.trim() ||
+    DEFAULT_COMPANY_STORE_REF
+  );
+}
+
+function parseStoreReference(
+  raw: string,
+): { owner: string; repo: string } | null {
+  const trimmed = raw
+    .trim()
+    .replace(/\/$/, "")
+    .replace(/\.git$/, "");
+  if (trimmed.startsWith("https://github.com/")) {
+    const path = trimmed.slice("https://github.com/".length);
+    const [owner, repo] = path.split("/", 2);
+    if (!owner || !repo) return null;
+    return { owner, repo };
+  }
+  const [owner, repo] = trimmed.split("/", 2);
+  if (!owner || !repo) return null;
+  return { owner, repo };
+}
 
 export function getCompanyStoreTarget(): CompanyStoreTarget {
-  const raw = process.env.KODY_COMPANY_STORE?.trim() || DEFAULT_COMPANY_STORE;
-  const [owner, repo] = raw.split("/", 2);
-  if (!owner || !repo) {
+  const raw =
+    getStoreRepoUrl()?.trim() ||
+    process.env.KODY_COMPANY_STORE?.trim() ||
+    DEFAULT_COMPANY_STORE;
+  const parsed = parseStoreReference(raw);
+  if (!parsed) {
     return {
       owner: "aharonyaircohen",
       repo: "kody-company-store",
-      ref: DEFAULT_COMPANY_STORE_REF,
+      ref: getCompanyStoreRef(),
     };
   }
   return {
-    owner,
-    repo,
-    ref:
-      process.env.KODY_COMPANY_STORE_REF?.trim() || DEFAULT_COMPANY_STORE_REF,
+    owner: parsed.owner,
+    repo: parsed.repo,
+    ref: getCompanyStoreRef(),
   };
 }
 
@@ -184,8 +214,10 @@ export async function companyStoreUpdatedAt(
 async function readCompanyStoreManifest(
   octokit: Octokit,
 ): Promise<StoreManifest | null> {
-  if (manifestMemo) return manifestMemo;
-  manifestMemo = (async () => {
+  const store = getCompanyStoreTarget();
+  const key = `${store.owner}/${store.repo}@${store.ref}`;
+  if (manifestMemo?.key === key) return manifestMemo.value;
+  const value = (async () => {
     const raw = await readCompanyStoreText(
       octokit,
       ".kody/store-manifest.json",
@@ -197,5 +229,6 @@ async function readCompanyStoreManifest(
       return null;
     }
   })();
-  return manifestMemo;
+  manifestMemo = { key, value };
+  return value;
 }

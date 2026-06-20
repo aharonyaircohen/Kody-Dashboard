@@ -25,10 +25,7 @@ import {
   sortActivityNewestFirst,
   type CompanyActivityRecord,
 } from "./activity/company";
-import {
-  parseKodyRunLogZip,
-  type KodyRunLogsRun,
-} from "./activity/run-logs";
+import { parseKodyRunLogZip, type KodyRunLogsRun } from "./activity/run-logs";
 import type {
   KodyPipelineStatus,
   GitHubIssue,
@@ -295,6 +292,8 @@ interface GitHubContext {
   owner: string;
   repo: string;
   octokit: Octokit | null;
+  storeRepoUrl?: string;
+  storeRef?: string;
 }
 
 // Lazy AsyncLocalStorage — keeps the `async_hooks` Node builtin out of client
@@ -335,6 +334,14 @@ export function getRepo(): string {
   return requestContext()?.getStore()?.repo ?? GITHUB_REPO;
 }
 
+export function getStoreRef(): string | undefined {
+  return requestContext()?.getStore()?.storeRef;
+}
+
+export function getStoreRepoUrl(): string | undefined {
+  return requestContext()?.getStore()?.storeRepoUrl;
+}
+
 /**
  * Set the repo context for the current request.
  * API routes MUST call this before any github-client calls and
@@ -351,6 +358,8 @@ export function setGitHubContext(
   owner: string,
   repo: string,
   token?: string,
+  storeRepoUrl?: string,
+  storeRef?: string,
 ): void {
   const authToken =
     token ??
@@ -392,7 +401,13 @@ export function setGitHubContext(
     },
   });
 
-  requestContext()?.enterWith({ owner, repo, octokit });
+  requestContext()?.enterWith({
+    owner,
+    repo,
+    octokit,
+    storeRepoUrl: storeRepoUrl?.trim() || undefined,
+    storeRef: storeRef?.trim() || undefined,
+  });
 }
 
 export function clearGitHubContext(): void {

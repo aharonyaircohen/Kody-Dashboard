@@ -27,6 +27,8 @@ export function getStoredAuth(): {
   token: string;
   owner: string;
   repo: string;
+  storeRepoUrl?: string;
+  storeRef?: string;
 } | null {
   if (typeof window === "undefined") return null;
   try {
@@ -36,9 +38,20 @@ export function getStoredAuth(): {
       token?: string;
       owner?: string;
       repo?: string;
+      storeRepoUrl?: string;
+      storeRepo?: string;
+      storeRef?: string;
     };
     if (!auth.token || !auth.owner || !auth.repo) return null;
-    return { token: auth.token, owner: auth.owner, repo: auth.repo };
+    return {
+      token: auth.token,
+      owner: auth.owner,
+      repo: auth.repo,
+      storeRepoUrl:
+        auth.storeRepoUrl ??
+        (auth.storeRepo ? `https://github.com/${auth.storeRepo}` : undefined),
+      storeRef: auth.storeRef,
+    };
   } catch {
     return null;
   }

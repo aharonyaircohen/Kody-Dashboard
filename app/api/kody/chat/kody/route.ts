@@ -533,7 +533,13 @@ export async function POST(req: NextRequest) {
   let userInstructions: string | null = null;
   let context: string | null = null;
   if (repo) {
-    setGitHubContext(repo.owner, repo.repo, repo.token);
+    setGitHubContext(
+      repo.owner,
+      repo.repo,
+      repo.token,
+      repo.storeRepoUrl,
+      repo.storeRef,
+    );
     try {
       memoryIndex = await loadMemoryIndexForPrompt();
     } catch (err) {

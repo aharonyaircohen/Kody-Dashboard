@@ -23,6 +23,10 @@ export function authHeaders(): Record<string, string> {
         "x-kody-token": auth.token,
         "x-kody-owner": auth.owner,
         "x-kody-repo": auth.repo,
+        ...(auth.storeRepoUrl
+          ? { "x-kody-store-repo-url": auth.storeRepoUrl }
+          : {}),
+        ...(auth.storeRef ? { "x-kody-store-ref": auth.storeRef } : {}),
       }
     : {};
 }
@@ -267,14 +271,24 @@ function findLiveSessionTarget(
  * Use this for /events/poll, /events/stream, and /interactive/append —
  * never for the initial /interactive/start (that defines the target).
  */
-export function liveAuthFor(
-  sessionId: string,
-): { token: string; owner: string; repo: string } | null {
+export function liveAuthFor(sessionId: string): {
+  token: string;
+  owner: string;
+  repo: string;
+  storeRepoUrl?: string;
+  storeRef?: string;
+} | null {
   const auth = getStoredAuth();
   if (!auth) return null;
   const target = findLiveSessionTarget(sessionId);
   if (target)
-    return { token: auth.token, owner: target.owner, repo: target.repo };
+    return {
+      token: auth.token,
+      owner: target.owner,
+      repo: target.repo,
+      storeRepoUrl: auth.storeRepoUrl,
+      storeRef: auth.storeRef,
+    };
   return auth;
 }
 
@@ -285,6 +299,8 @@ export function liveAuthHeaders(sessionId: string): Record<string, string> {
         "x-kody-token": a.token,
         "x-kody-owner": a.owner,
         "x-kody-repo": a.repo,
+        ...(a.storeRepoUrl ? { "x-kody-store-repo-url": a.storeRepoUrl } : {}),
+        ...(a.storeRef ? { "x-kody-store-ref": a.storeRef } : {}),
       }
     : {};
 }
