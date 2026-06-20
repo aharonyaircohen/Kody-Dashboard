@@ -1,5 +1,9 @@
 # Kody Dashboard — Agent Reference
 
+## Response Style
+
+- Think more before replying; say less unless detail is needed to make the next action clear.
+
 ## Architecture
 
 Next.js App Router application with:
@@ -47,6 +51,15 @@ src/dashboard/
 | `KODY_MASTER_KEY`                 | Single master secret — vault AES, session JWT, ingest HMAC.                        |
 | `GITHUB_TOKEN` / `KODY_BOT_TOKEN` | GitHub API access for server-side flows.                                           |
 | `NEXT_PUBLIC_SERVER_URL`          | Public URL for redirects/callbacks (set in dev; in prod, Vercel headers are used). |
+
+## Kody Clean Boundary
+
+Hard constraints:
+
+- **Engine**: runs the requested executable and reports success/failure.
+- **Preview executable/tool**: owns preview behavior and preview-provider details.
+- **Task-leader/release policy**: decides whether a preview result is required for a given PR type.
+- **`.github/workflows/kody.yml`**: immutable launcher only; never change this file.
 
 <!-- headroom:rtk-instructions -->
 
