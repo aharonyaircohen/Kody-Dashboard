@@ -11,8 +11,6 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
-import ReactMarkdown from "react-markdown";
-import remarkGfm from "remark-gfm";
 import {
   Bold,
   ChevronDown,
@@ -54,6 +52,7 @@ import { useChannelsUnread } from "../hooks/useChannelsUnread";
 import { useGitHubIdentity } from "../hooks/useGitHubIdentity";
 import { useCommentAttachments } from "../hooks/useCommentAttachments";
 import { AttachmentBar } from "./AttachmentBar";
+import { MarkdownPreview } from "./MarkdownPreview";
 import { DiscussionsDisabledBadge } from "./GoalDiscussion";
 import { type GoalDiscussionComment } from "../api";
 import { useMentionRoster } from "../hooks/useMentionRoster";
@@ -93,78 +92,21 @@ function MessageMarkdown({
   onPrimary,
 }: {
   body: string;
-  /** Rendered inside a primary-colored "my message" bubble — flip
-   *  link/code colors so they stay legible on the dark fill. */
+  /** Rendered inside primary-colored "my message" bubble — flip
+   * link/code colors so they stay legible on dark fill. */
   onPrimary?: boolean;
 }) {
   return (
-    <div
+    <MarkdownPreview
       dir="auto"
+      content={body}
+      variant="compact"
       className={cn(
-        "prose prose-sm max-w-none text-[15px] leading-relaxed break-words",
-        onPrimary
-          ? "prose-invert prose-p:text-primary-foreground"
-          : "dark:prose-invert",
+        "text-[15px] leading-relaxed break-words",
+        onPrimary &&
+          "prose-invert prose-p:text-primary-foreground prose-a:text-primary-foreground prose-a:underline prose-code:bg-primary-foreground/20 prose-pre:bg-primary-foreground/15",
       )}
-    >
-      <ReactMarkdown
-        remarkPlugins={[remarkGfm]}
-        components={{
-          code({ className, children, ...props }) {
-            const match = /language-(\w+)/.exec(className || "");
-            if (!match) {
-              return (
-                <code
-                  className={cn(
-                    "px-1 py-0.5 rounded text-xs",
-                    onPrimary ? "bg-primary-foreground/20" : "bg-muted",
-                  )}
-                  {...props}
-                >
-                  {children}
-                </code>
-              );
-            }
-            return (
-              <pre
-                className={cn(
-                  "p-2 rounded-md overflow-x-auto",
-                  onPrimary ? "bg-primary-foreground/15" : "bg-muted",
-                )}
-              >
-                <code className={className} {...props}>
-                  {children}
-                </code>
-              </pre>
-            );
-          },
-          a({ href, children, ...props }) {
-            return (
-              <a
-                href={href}
-                target="_blank"
-                rel="noopener noreferrer"
-                className={cn(
-                  "hover:underline break-all",
-                  onPrimary
-                    ? "text-primary-foreground underline"
-                    : "text-primary",
-                )}
-                {...props}
-              >
-                {children}
-              </a>
-            );
-          },
-          img: (props) => (
-            // eslint-disable-next-line @next/next/no-img-element, jsx-a11y/alt-text
-            <img {...props} className="max-w-full h-auto rounded-md" />
-          ),
-        }}
-      >
-        {body}
-      </ReactMarkdown>
-    </div>
+    />
   );
 }
 
@@ -337,7 +279,6 @@ function MessageList({
     </div>
   );
 }
-
 function MessageComposer({
   channelNumber,
   channelName,
@@ -547,13 +488,12 @@ function MessageComposer({
       ) : null}
 
       {showPreview ? (
-        <div
-          dir="auto"
-          className="mb-2 min-h-[44px] p-3 rounded-2xl bg-muted/50 text-sm prose prose-sm dark:prose-invert max-w-none"
-        >
-          <ReactMarkdown remarkPlugins={[remarkGfm]}>
-            {body || "*Nothing to preview*"}
-          </ReactMarkdown>
+        <div className="mb-2 min-h-[44px] p-3 rounded-2xl bg-muted/50 text-sm">
+          <MarkdownPreview
+            content={body || "*Nothing to preview*"}
+            dir="auto"
+            variant="compact"
+          />
         </div>
       ) : null}
 

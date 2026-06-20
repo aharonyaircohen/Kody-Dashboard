@@ -34,7 +34,6 @@ import {
   User,
   UserCheck,
 } from "lucide-react";
-import ReactMarkdown from "react-markdown";
 import { Button } from "@dashboard/ui/button";
 import { Input } from "@dashboard/ui/input";
 import { Label } from "@dashboard/ui/label";
@@ -89,6 +88,7 @@ import { ConfirmDialog } from "./ConfirmDialog";
 import { EmptyState } from "./EmptyState";
 import { MasterDetailShell } from "./MasterDetailShell";
 import { MarkdownEditor } from "./MarkdownEditor";
+import { MarkdownPreview } from "./MarkdownPreview";
 import {
   SearchableSelect,
   type SearchableSelectOption,
@@ -749,9 +749,7 @@ function DutyDetail({
           {/* Description card inside the hero when present */}
           {hasBody ? (
             <div className="rounded-xl border border-white/[0.08] bg-white/[0.02] p-4 md:p-5">
-              <div className="prose prose-sm dark:prose-invert max-w-none">
-                <ReactMarkdown>{duty.body}</ReactMarkdown>
-              </div>
+              <MarkdownPreview content={duty.body} variant="compact" />
             </div>
           ) : null}
         </div>

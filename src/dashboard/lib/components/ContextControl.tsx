@@ -14,7 +14,7 @@
  *   `qa-engineer` entries feed the engine QA preflight. An empty list means
  *   the entry is unassigned (loaded by nobody).
  *
- *   Mirrors StaffControl's layout/UX (ListSearch + inline ReactMarkdown
+ *   Mirrors StaffControl's layout/UX (ListSearch + shared MarkdownPreview
  *   view + MarkdownEditor dialogs), minus any schedule UI — entries are not
  *   scheduled — plus a per-entry staff multi-select and badges.
  */
@@ -33,7 +33,6 @@ import {
   Sparkles,
   Trash2,
 } from "lucide-react";
-import ReactMarkdown from "react-markdown";
 import { Button } from "@dashboard/ui/button";
 import { Input } from "@dashboard/ui/input";
 import { Label } from "@dashboard/ui/label";
@@ -73,6 +72,7 @@ import { KODY_CHAT_STAFF, QA_STAFF, ALL_STAFF } from "../context/frontmatter";
 import { ConfirmDialog } from "./ConfirmDialog";
 import { ListSearch } from "./ListSearch";
 import { MarkdownEditor } from "./MarkdownEditor";
+import { MarkdownPreview } from "./MarkdownPreview";
 import { PageHeader } from "./PageShell";
 
 const SLUG_RE = /^[a-z0-9][a-z0-9_-]{0,63}$/;
@@ -558,9 +558,7 @@ function EntryDetail({
               <p className="mb-3 text-xs font-medium uppercase tracking-wide text-white/45">
                 Current saved content
               </p>
-              <div className="prose prose-sm dark:prose-invert max-w-none">
-                <ReactMarkdown>{entry.body}</ReactMarkdown>
-              </div>
+              <MarkdownPreview content={entry.body} variant="compact" />
             </div>
           ) : null}
         </div>

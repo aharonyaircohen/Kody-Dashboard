@@ -8,8 +8,6 @@
  */
 "use client";
 
-import ReactMarkdown from "react-markdown";
-import remarkGfm from "remark-gfm";
 import { toast } from "sonner";
 import {
   BookOpen,
@@ -46,6 +44,7 @@ import {
 } from "../hooks/useDocs";
 import { PageHeader } from "./PageShell";
 import { ConfirmDialog } from "./ConfirmDialog";
+import { MarkdownPreview } from "./MarkdownPreview";
 import type { DocManifestEntry } from "../api";
 
 interface DocsViewProps {
@@ -379,11 +378,10 @@ function DocsViewInner({ embedded = false }: DocsViewProps) {
               </p>
             </div>
           ) : hasContent ? (
-            <div className="prose prose-sm md:prose-base dark:prose-invert max-w-none break-words">
-              <ReactMarkdown remarkPlugins={[remarkGfm]}>
-                {content}
-              </ReactMarkdown>
-            </div>
+            <MarkdownPreview
+              content={content}
+              className="md:prose-base break-words"
+            />
           ) : (
             <div className="rounded-xl border border-dashed border-white/[0.1] bg-white/[0.02] py-12 text-center space-y-2">
               <p className="text-sm font-medium text-foreground">Empty doc</p>

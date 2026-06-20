@@ -23,7 +23,6 @@ import {
   Trash2,
   X,
 } from "lucide-react";
-import ReactMarkdown from "react-markdown";
 import { Button } from "@dashboard/ui/button";
 import {
   Dialog,
@@ -47,6 +46,7 @@ import { cn } from "../utils";
 import { ConfirmDialog } from "./ConfirmDialog";
 import { ListSearch } from "./ListSearch";
 import { MarkdownEditor } from "./MarkdownEditor";
+import { MarkdownPreview } from "./MarkdownPreview";
 import { PageHeader } from "./PageShell";
 
 type ItemEditorState =
@@ -650,9 +650,11 @@ function TodoItemCard({
           </div>
 
           {item.body.trim() ? (
-            <div className="prose prose-sm dark:prose-invert max-w-none border-t border-white/[0.06] pt-3">
-              <ReactMarkdown>{item.body}</ReactMarkdown>
-            </div>
+            <MarkdownPreview
+              content={item.body}
+              variant="compact"
+              className="border-t border-white/[0.06] pt-3"
+            />
           ) : null}
         </div>
       </div>

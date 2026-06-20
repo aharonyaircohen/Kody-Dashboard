@@ -11,8 +11,6 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import ReactMarkdown from "react-markdown";
-import remarkGfm from "remark-gfm";
 import {
   Bold,
   Code,
@@ -38,6 +36,7 @@ import {
 import { useGitHubIdentity } from "../hooks/useGitHubIdentity";
 import { useCommentAttachments } from "../hooks/useCommentAttachments";
 import { AttachmentBar } from "./AttachmentBar";
+import { MarkdownPreview } from "./MarkdownPreview";
 import type { DiscussionDisabledReason, GoalDiscussionComment } from "../api";
 import { useMentionRoster, type MentionEntry } from "../hooks/useMentionRoster";
 
@@ -207,52 +206,12 @@ function DiscussionCommentItem({
         </a>
       </div>
 
-      <div
+      <MarkdownPreview
+        content={comment.body}
         dir="auto"
-        className="prose prose-sm dark:prose-invert max-w-none text-sm"
-      >
-        <ReactMarkdown
-          remarkPlugins={[remarkGfm]}
-          components={{
-            code({ className, children, ...props }) {
-              const match = /language-(\w+)/.exec(className || "");
-              const isInline = !match;
-              if (isInline) {
-                return (
-                  <code
-                    className="bg-muted px-1 py-0.5 rounded text-xs"
-                    {...props}
-                  >
-                    {children}
-                  </code>
-                );
-              }
-              return (
-                <pre className="bg-muted p-2 rounded-md overflow-x-auto">
-                  <code className={className} {...props}>
-                    {children}
-                  </code>
-                </pre>
-              );
-            },
-            a({ href, children, ...props }) {
-              return (
-                <a
-                  href={href}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="text-primary hover:underline"
-                  {...props}
-                >
-                  {children}
-                </a>
-              );
-            },
-          }}
-        >
-          {comment.body}
-        </ReactMarkdown>
-      </div>
+        variant="compact"
+        className="text-sm"
+      />
     </div>
   );
 }
@@ -480,13 +439,12 @@ function DiscussionCommentEditor({ goalId }: { goalId: string }) {
         {...att.dropzoneProps}
       >
         {showPreview ? (
-          <div
-            dir="auto"
-            className="min-h-[60px] p-2 border border-border rounded-md bg-background text-xs prose prose-sm dark:prose-invert max-w-none"
-          >
-            <ReactMarkdown remarkPlugins={[remarkGfm]}>
-              {body || "*Nothing to preview*"}
-            </ReactMarkdown>
+          <div className="min-h-[60px] p-2 border border-border rounded-md bg-background text-xs">
+            <MarkdownPreview
+              content={body || "*Nothing to preview*"}
+              dir="auto"
+              variant="compact"
+            />
           </div>
         ) : (
           <div className="relative">

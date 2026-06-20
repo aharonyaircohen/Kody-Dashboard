@@ -28,7 +28,6 @@ import { Textarea } from "@dashboard/ui/textarea";
 import { Avatar, AvatarFallback, AvatarImage } from "@dashboard/ui/avatar";
 import { useUpdateTask, useKodyBoards, useCollaborators } from "../hooks";
 import { useGitHubIdentity } from "../hooks/useGitHubIdentity";
-import ReactMarkdown from "react-markdown";
 import {
   Bold,
   Italic,
@@ -45,6 +44,7 @@ import {
 import { cn } from "../utils";
 import { autoDirProps, rtlAwareMarkdownClassName } from "../text-direction";
 import type { KodyTask } from "../types";
+import { MarkdownPreview } from "./MarkdownPreview";
 
 interface EditTaskDialogProps {
   open: boolean;
@@ -315,7 +315,10 @@ export function EditTaskDialog({
                   rtlAwareMarkdownClassName,
                 )}
               >
-                <ReactMarkdown>{body || "*No description*"}</ReactMarkdown>
+                <MarkdownPreview
+                  content={body || "*No description*"}
+                  variant="compact"
+                />
               </div>
             ) : (
               <Textarea

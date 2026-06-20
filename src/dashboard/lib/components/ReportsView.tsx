@@ -23,8 +23,6 @@ import {
   Target,
   XCircle,
 } from "lucide-react";
-import ReactMarkdown from "react-markdown";
-import remarkGfm from "remark-gfm";
 import { toast } from "sonner";
 import { Button } from "@dashboard/ui/button";
 import { AuthGuard } from "../auth-guard";
@@ -37,6 +35,7 @@ import type { ReportSuggestedAction } from "../report-suggested-actions";
 import { CreateTaskDialog } from "./CreateTaskDialog";
 import { CreateGoalDialog } from "./GoalControl";
 import { useChatScope } from "./ChatRailShell";
+import { MarkdownPreview } from "./MarkdownPreview";
 import { PageHeader } from "./PageShell";
 
 const DISMISSED_REPORT_ACTIONS_KEY = "kody.report-actions.dismissed";
@@ -544,11 +543,10 @@ function ReportDetail({
           ) : null}
 
           {hasBody ? (
-            <div className="prose prose-sm md:prose-base dark:prose-invert max-w-none break-words">
-              <ReactMarkdown remarkPlugins={[remarkGfm]}>
-                {report.body}
-              </ReactMarkdown>
-            </div>
+            <MarkdownPreview
+              content={report.body}
+              className="md:prose-base break-words"
+            />
           ) : (
             <div className="rounded-xl border border-dashed border-white/[0.1] bg-white/[0.02] py-12 text-center space-y-2">
               <p className="text-sm font-medium text-foreground">

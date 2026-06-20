@@ -11,8 +11,7 @@ import {
   type LiveAction,
   type LiveSessionState,
 } from "./kody-chat-reducer";
-import ReactMarkdown from "react-markdown";
-import remarkGfm from "remark-gfm";
+import { MarkdownPreview } from "./MarkdownPreview";
 import {
   Brain,
   Globe,
@@ -5264,29 +5263,11 @@ export function KodyChat({
                                 />
                               )}
                               {hasAnswer && (
-                                <div
+                                <MarkdownPreview
+                                  content={answer}
                                   dir={messageDirection}
-                                  className="chat-message-text prose prose-base dark:prose-invert max-w-none break-words [&_pre]:max-w-full [&_pre]:overflow-x-auto [&_code]:break-words"
-                                >
-                                  <ReactMarkdown
-                                    remarkPlugins={[remarkGfm]}
-                                    components={{
-                                      a: ({ href, children, ...props }) => (
-                                        <a
-                                          href={href}
-                                          target="_blank"
-                                          rel="noopener noreferrer"
-                                          className="text-primary hover:underline break-all"
-                                          {...props}
-                                        >
-                                          {children}
-                                        </a>
-                                      ),
-                                    }}
-                                  >
-                                    {answer}
-                                  </ReactMarkdown>
-                                </div>
+                                  className="chat-message-text prose-base break-words [&_pre]:max-w-full [&_pre]:overflow-x-auto [&_code]:break-words"
+                                />
                               )}
                               {/* Never a blank bubble: while the turn is in flight and
                             no visible answer text has arrived yet, show the

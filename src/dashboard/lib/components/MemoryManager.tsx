@@ -9,7 +9,6 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import ReactMarkdown from "react-markdown";
 import {
   ArrowLeft,
   Brain,
@@ -43,6 +42,7 @@ import type { MemoryFile, MemoryType } from "../api";
 import { ConfirmDialog } from "./ConfirmDialog";
 import { ListSearch } from "./ListSearch";
 import { MarkdownEditor } from "./MarkdownEditor";
+import { MarkdownPreview } from "./MarkdownPreview";
 import { PageHeader } from "./PageShell";
 
 const MEMORY_TYPES: MemoryType[] = ["user", "feedback", "project", "reference"];
@@ -456,9 +456,7 @@ function MemoryDetail({
           </header>
 
           <div className="rounded-lg border border-white/[0.08] bg-white/[0.02] p-4 md:p-5">
-            <div className="prose prose-sm dark:prose-invert max-w-none">
-              <ReactMarkdown>{memory.body}</ReactMarkdown>
-            </div>
+            <MarkdownPreview content={memory.body} variant="compact" />
           </div>
         </div>
       </div>

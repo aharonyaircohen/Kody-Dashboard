@@ -26,7 +26,6 @@ import {
   Target,
   Trash2,
 } from "lucide-react";
-import ReactMarkdown from "react-markdown";
 import { Button } from "@dashboard/ui/button";
 import { Input } from "@dashboard/ui/input";
 import { Label } from "@dashboard/ui/label";
@@ -53,6 +52,7 @@ import { STAFF_TEMPLATE } from "../staff-template";
 import { ConfirmDialog } from "./ConfirmDialog";
 import { ListSearch } from "./ListSearch";
 import { MarkdownEditor } from "./MarkdownEditor";
+import { MarkdownPreview } from "./MarkdownPreview";
 import { PageHeader } from "./PageShell";
 import { useChatScope } from "./ChatRailShell";
 
@@ -518,9 +518,7 @@ function StaffDetail({
           {/* Description card inside the hero when present */}
           {hasBody ? (
             <div className="rounded-xl border border-white/[0.08] bg-white/[0.02] p-4 md:p-5">
-              <div className="prose prose-sm dark:prose-invert max-w-none">
-                <ReactMarkdown>{member.body}</ReactMarkdown>
-              </div>
+              <MarkdownPreview content={member.body} variant="compact" />
             </div>
           ) : null}
         </div>

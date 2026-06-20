@@ -16,10 +16,9 @@ import {
   DialogDescription,
 } from "@dashboard/ui/dialog";
 import { Wrench, Loader2, Eye, Edit } from "lucide-react";
-import ReactMarkdown from "react-markdown";
-import remarkGfm from "remark-gfm";
 import { cn } from "@dashboard/lib/utils/ui";
-import { autoDirProps, rtlAwareMarkdownClassName } from "../text-direction";
+import { rtlAwareMarkdownClassName } from "../text-direction";
+import { MarkdownPreview } from "./MarkdownPreview";
 
 interface FixRequestDialogProps {
   isOpen: boolean;
@@ -105,17 +104,12 @@ export function FixRequestDialog({
           ) : (
             <div className="min-h-[160px] px-3 py-2 bg-zinc-900 border border-zinc-800 rounded-lg overflow-y-auto">
               {description.trim() ? (
-                <div
-                  {...autoDirProps}
-                  className={cn(
-                    "prose prose-invert prose-sm max-w-none text-start",
-                    rtlAwareMarkdownClassName,
-                  )}
-                >
-                  <ReactMarkdown remarkPlugins={[remarkGfm]}>
-                    {description}
-                  </ReactMarkdown>
-                </div>
+                <MarkdownPreview
+                  content={description}
+                  dir="auto"
+                  variant="compact"
+                  className={cn("text-start", rtlAwareMarkdownClassName)}
+                />
               ) : (
                 <p className="text-zinc-600 text-sm italic">
                   Nothing to preview

@@ -45,7 +45,6 @@ import {
   verticalListSortingStrategy,
 } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
-import ReactMarkdown from "react-markdown";
 import { useQueryClient } from "@tanstack/react-query";
 import { Button } from "@dashboard/ui/button";
 import { Input } from "@dashboard/ui/input";
@@ -75,6 +74,7 @@ import { GOAL_LABEL_PREFIX } from "../goals";
 import { getGitHubIssueUrl } from "../constants";
 import { ConfirmDialog } from "./ConfirmDialog";
 import { MarkdownEditor } from "./MarkdownEditor";
+import { MarkdownPreview } from "./MarkdownPreview";
 import { TaskList } from "./TaskList";
 import { GoalDiscussion } from "./GoalDiscussion";
 import { GoalAssigneePicker } from "./GoalAssigneePicker";
@@ -498,9 +498,7 @@ function GoalDetail({
 
           {/* Description */}
           {goal.description?.trim() ? (
-            <section className="prose prose-sm dark:prose-invert max-w-none">
-              <ReactMarkdown>{goal.description}</ReactMarkdown>
-            </section>
+            <MarkdownPreview content={goal.description} variant="compact" />
           ) : null}
         </div>
       </div>

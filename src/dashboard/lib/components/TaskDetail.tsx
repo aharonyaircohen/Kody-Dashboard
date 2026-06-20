@@ -7,8 +7,6 @@
 "use client";
 
 import { useState, useEffect, useCallback, useRef } from "react";
-import ReactMarkdown from "react-markdown";
-import remarkGfm from "remark-gfm";
 import { formatRelativeTime, cn } from "../utils";
 import { getGitHubIssueUrl, HIDDEN_TASK_LABEL } from "../constants";
 import type {
@@ -28,6 +26,7 @@ import { TaskRunsList } from "./TaskRunsList";
 import { ConfirmDialog } from "./ConfirmDialog";
 import { CommentEditor } from "./CommentEditor";
 import { CommentList } from "./CommentList";
+import { MarkdownPreview } from "./MarkdownPreview";
 import { IssueAttachmentButton } from "./IssueAttachmentButton";
 import { AssigneePicker, type AssigneeChangeEvent } from "./AssigneePicker";
 import { GoalPicker } from "./GoalPicker";
@@ -837,147 +836,6 @@ export function TaskDetail({
     onShowTask,
   );
 
-  // --- Shared markdown components ---
-  const markdownComponents = {
-    p: ({ children }: { children?: React.ReactNode }) => (
-      <p
-        {...autoDirProps}
-        className="mb-3 last:mb-0 text-base text-muted-foreground leading-relaxed break-words text-start"
-      >
-        {children}
-      </p>
-    ),
-    a: ({ href, children }: { href?: string; children?: React.ReactNode }) => (
-      <a
-        href={href}
-        target="_blank"
-        rel="noopener noreferrer"
-        className="text-blue-400 hover:underline"
-      >
-        {children}
-      </a>
-    ),
-    code: ({
-      className,
-      children,
-      ...props
-    }: {
-      className?: string;
-      children?: React.ReactNode;
-    }) => {
-      const isBlock = className?.includes("language-");
-      if (isBlock) {
-        return (
-          <code className={className} {...props}>
-            {children}
-          </code>
-        );
-      }
-      return (
-        <code
-          className="bg-muted/50 px-1.5 py-0.5 rounded text-sm text-foreground"
-          {...props}
-        >
-          {children}
-        </code>
-      );
-    },
-    pre: ({ children }: { children?: React.ReactNode }) => (
-      <pre className="bg-muted/50 p-3 rounded-md text-sm overflow-x-auto my-3 max-w-full">
-        {children}
-      </pre>
-    ),
-    ul: ({ children }: { children?: React.ReactNode }) => (
-      <ul className="list-disc ps-6 space-y-1 text-base text-muted-foreground my-2">
-        {children}
-      </ul>
-    ),
-    ol: ({ children }: { children?: React.ReactNode }) => (
-      <ol className="list-decimal ps-6 space-y-1 text-base text-muted-foreground my-2">
-        {children}
-      </ol>
-    ),
-    li: ({ children }: { children?: React.ReactNode }) => (
-      <li
-        {...autoDirProps}
-        className="text-base text-muted-foreground leading-relaxed break-words text-start"
-      >
-        {children}
-      </li>
-    ),
-    h1: ({ children }: { children?: React.ReactNode }) => (
-      <h1
-        {...autoDirProps}
-        className="text-xl font-bold text-foreground mt-6 mb-2 first:mt-0 border-b border-border pb-1 text-start"
-      >
-        {children}
-      </h1>
-    ),
-    h2: ({ children }: { children?: React.ReactNode }) => (
-      <h2
-        {...autoDirProps}
-        className="text-lg font-bold text-foreground mt-5 mb-2 first:mt-0 text-start"
-      >
-        {children}
-      </h2>
-    ),
-    h3: ({ children }: { children?: React.ReactNode }) => (
-      <h3
-        {...autoDirProps}
-        className="text-base font-semibold text-foreground mt-4 mb-1.5 text-start"
-      >
-        {children}
-      </h3>
-    ),
-    h4: ({ children }: { children?: React.ReactNode }) => (
-      <h4
-        {...autoDirProps}
-        className="text-base font-medium text-foreground mt-3 mb-1 text-start"
-      >
-        {children}
-      </h4>
-    ),
-    blockquote: ({ children }: { children?: React.ReactNode }) => (
-      <blockquote
-        {...autoDirProps}
-        className="border-s-3 border-blue-500/40 ps-4 my-3 text-base italic text-muted-foreground bg-muted/20 py-2 rounded-e-md text-start"
-      >
-        {children}
-      </blockquote>
-    ),
-    hr: () => <hr className="border-border my-4" />,
-    table: ({ children }: { children?: React.ReactNode }) => (
-      <div className="overflow-x-auto my-3 rounded-md border border-border">
-        <table className="text-xs border-collapse w-full">{children}</table>
-      </div>
-    ),
-    thead: ({ children }: { children?: React.ReactNode }) => (
-      <thead className="bg-muted/40">{children}</thead>
-    ),
-    th: ({ children }: { children?: React.ReactNode }) => (
-      <th
-        {...autoDirProps}
-        className="border-b border-border px-3 py-2 text-start font-semibold text-foreground text-xs"
-      >
-        {children}
-      </th>
-    ),
-    td: ({ children }: { children?: React.ReactNode }) => (
-      <td
-        {...autoDirProps}
-        className="border-b border-border/50 px-3 py-2 text-muted-foreground text-xs text-start"
-      >
-        {children}
-      </td>
-    ),
-    strong: ({ children }: { children?: React.ReactNode }) => (
-      <strong className="font-semibold text-foreground">{children}</strong>
-    ),
-    em: ({ children }: { children?: React.ReactNode }) => (
-      <em className="italic text-muted-foreground">{children}</em>
-    ),
-  };
-
   // --- Retry With Context Block ---
   const retryWithContextBlock = task.column === "failed" && (
     <div className="border-t border-orange-500/20 bg-orange-500/5 mt-2">
@@ -1115,20 +973,14 @@ export function TaskDetail({
           aria-labelledby="task-tab-description"
           className="p-5 md:p-6 overflow-y-auto overflow-x-hidden h-full bg-white/[0.03]"
         >
-          <div
-            {...autoDirProps}
+          <MarkdownPreview
+            content={task.body!}
+            dir="auto"
             className={cn(
               "max-w-3xl min-w-0 text-start",
               rtlAwareMarkdownClassName,
             )}
-          >
-            <ReactMarkdown
-              remarkPlugins={[remarkGfm]}
-              components={markdownComponents}
-            >
-              {task.body!}
-            </ReactMarkdown>
-          </div>
+          />
         </div>
       )}
       {effectiveTab === "comments" && (
