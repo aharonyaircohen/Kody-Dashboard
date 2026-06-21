@@ -19,7 +19,9 @@
     "releasePrExists": true,
     "mergeCommit": "d68e55279e77ac97307acaf938b94995aa57cda4",
     "mainMerged": true,
-    "pendingEvidence": "productionDeployed"
+    "productionDeploymentUrl": "https://kody-dashboard-qytcfbi3g-aharon-yair-cohens-projects.vercel.app",
+    "productionBranch": "main",
+    "productionDeployed": true
   },
   "blockers": [],
   "duties": [
@@ -73,5 +75,5 @@
   ],
   "stage": "publish",
   "state": "active",
-  "updatedAt": "2026-06-21T16:07:56Z"
+  "updatedAt": "2026-06-21T16:11:05Z"
 }
