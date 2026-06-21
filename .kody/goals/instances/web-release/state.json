@@ -13,7 +13,10 @@
   "schedule": "manual",
   "facts": {
     "issue": 335,
-    "pendingEvidence": "releasePrExists"
+    "version": "0.1.1142",
+    "releasePrUrl": "https://github.com/aharonyaircohen/Kody-Dashboard/pull/336",
+    "releasePr": 336,
+    "releasePrExists": true
   },
   "blockers": [],
   "duties": [
@@ -67,5 +70,5 @@
   ],
   "stage": "release",
   "state": "active",
-  "updatedAt": "2026-06-21T15:55:14Z"
+  "updatedAt": "2026-06-21T15:55:20Z"
 }
