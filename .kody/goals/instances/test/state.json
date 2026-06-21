@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "state": "active",
+  "state": "inactive",
   "type": "general",
   "destination": {
     "outcome": "test",
