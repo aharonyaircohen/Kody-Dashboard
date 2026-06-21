@@ -91,6 +91,7 @@ describe("POST /api/kody/duties/[slug]/run", () => {
       lastOutcome: null,
       lastDurationMs: null,
       schedule: null,
+      capabilityKind: null,
       disabled: false,
       runner: null,
       reviewer: null,

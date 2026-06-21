@@ -78,6 +78,7 @@ const updateDutySchema = z.object({
     .nullable()
     .optional(),
   disabled: z.boolean().optional(),
+  capabilityKind: z.enum(["observe", "act", "verify"]).nullable().optional(),
   runner: z.string().min(1).nullable().optional(),
   reviewer: z.string().min(1).nullable().optional(),
   action: z.string().min(1).max(64).nullable().optional(),
@@ -176,9 +177,10 @@ export async function PATCH(
     const {
       title,
       body,
-      schedule,
-      disabled,
-      runner,
+    schedule,
+    disabled,
+    capabilityKind,
+    runner,
       reviewer,
       action,
       mentions,
@@ -252,9 +254,11 @@ export async function PATCH(
       slug,
       title: title ?? existing.title,
       body: body ?? existing.body,
-      schedule: schedule === undefined ? existing.schedule : schedule,
-      disabled: disabled === undefined ? existing.disabled : disabled,
-      runner: nextRunner,
+    schedule: schedule === undefined ? existing.schedule : schedule,
+    disabled: disabled === undefined ? existing.disabled : disabled,
+    capabilityKind:
+      capabilityKind === undefined ? existing.capabilityKind : capabilityKind,
+    runner: nextRunner,
       reviewer: nextReviewer,
       action: nextAction,
       // Read-merge: omitting `mentions` preserves the existing list rather

@@ -73,17 +73,14 @@ import {
   ALL_SCHEDULE_EVERY_OPTIONS,
 } from "../duties-frontmatter";
 import {
-  buildDefaultDutyBody,
   buildDutyWritesTo,
   defaultReportSlug,
   dutyOutputFromWritesTo,
-  DEFAULT_DUTY_OUTPUT_KIND,
   FALLBACK_REPORT_SLUG,
   normalizeReportSlug,
   type DutyOutputKind,
 } from "../duties/output";
-import { type Duty, type DutySchedule } from "../api";
-import { DUTY_TEMPLATE } from "../duty-template";
+import { type Duty, type DutyCapabilityKind, type DutySchedule } from "../api";
 import { ConfirmDialog } from "./ConfirmDialog";
 import { EmptyState } from "./EmptyState";
 import { MasterDetailShell } from "./MasterDetailShell";
@@ -628,10 +625,10 @@ function DutyDetail({
                 ) : (
                   <span
                     className="inline-flex items-center gap-1 text-amber-400"
-                    title="No runner assigned — the engine scheduler skips this duty"
+                    title="No staff assigned — the engine scheduler skips this duty"
                   >
                     <User className="w-3 h-3" />
-                    no runner
+                    no staff
                   </span>
                 )}
                 {duty.mentions && duty.mentions.length > 0 ? (
@@ -809,6 +806,7 @@ function CreateDutyDialog({
         title: values.title,
         body: values.body,
         schedule: values.schedule,
+        capabilityKind: values.capabilityKind,
         disabled: false,
         runner: values.runner,
         reviewer: values.reviewer,
@@ -840,6 +838,7 @@ function CreateDutyDialog({
           initialValues={initialValues}
           titleId="duty-title"
           actionId="duty-action"
+          simpleCreate
           autoBuildBody
           isPending={createMutation.isPending}
           submitLabel="Create duty"
@@ -870,17 +869,21 @@ function EditDutyDialog({
     if (updateMutation.isPending) return;
     const patch: {
       title?: string;
-      body?: string;
-      schedule?: DutySchedule | null;
-      runner?: string | null;
+    body?: string;
+    schedule?: DutySchedule | null;
+    capabilityKind?: DutyCapabilityKind | null;
+    runner?: string | null;
       reviewer?: string | null;
       action?: string | null;
       executable?: string | null;
       writesTo?: string[];
     } = {};
     if (values.title !== duty.title) patch.title = values.title;
-    if (values.body !== duty.body) patch.body = values.body;
-    if (values.schedule !== duty.schedule) patch.schedule = values.schedule;
+  if (values.body !== duty.body) patch.body = values.body;
+  if (values.schedule !== duty.schedule) patch.schedule = values.schedule;
+  if (values.capabilityKind !== duty.capabilityKind) {
+    patch.capabilityKind = values.capabilityKind;
+  }
     if (values.runner !== duty.runner) patch.runner = values.runner;
     if (values.reviewer !== duty.reviewer) patch.reviewer = values.reviewer;
     if (values.action !== duty.action) patch.action = values.action;
@@ -943,7 +946,7 @@ function EditDutyDialog({
  * Row pill that escalates a duty's raw timestamps into an actionable
  * warning: amber "Overdue" (next-eligible passed beyond the cron window),
  * red "Never run" (scheduled, old enough to have run, no proof yet), or
- * gray "No runner" (the scheduler skips it).
+ * gray "No staff" (the scheduler skips it).
  * Renders nothing for healthy/manual duties.
  */
 function DutyHealthBadge({ duty }: { duty: Duty }) {
@@ -975,10 +978,10 @@ function DutyHealthBadge({ duty }: { duty: Duty }) {
     return (
       <span
         className="shrink-0 inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-medium uppercase tracking-wide bg-white/[0.06] text-muted-foreground border border-white/[0.08]"
-        title="No runner assigned — the engine scheduler skips this duty."
+        title="No staff assigned — the engine scheduler skips this duty."
       >
         <User className="w-2.5 h-2.5" />
-        No runner
+        No staff
       </span>
     );
   }
@@ -1016,10 +1019,10 @@ function DutyHealthSummaryBar({ duties }: { duties: Duty[] }) {
       {skipped > 0 ? (
         <span
           className="inline-flex items-center gap-1 text-muted-foreground"
-          title="Scheduled duties skipped because no runner is assigned"
+          title="Scheduled duties skipped because no staff is assigned"
         >
           <User className="w-3 h-3" />
-          {skipped} no runner
+          {skipped} no staff
         </span>
       ) : null}
     </div>
@@ -1079,9 +1082,9 @@ function DutyRunnerFilter({
   hasDutiesWithoutRunner: boolean;
 }) {
   const options: SearchableSelectOption[] = [
-    { value: ALL_RUNNER_FILTER, label: "All runners" },
+    { value: ALL_RUNNER_FILTER, label: "All staff" },
     ...(hasDutiesWithoutRunner
-      ? [{ value: NO_RUNNER_FILTER, label: "No runner" }]
+      ? [{ value: NO_RUNNER_FILTER, label: "No staff" }]
       : []),
     ...staffSlugs.map((slug) => {
       const title = staffTitleBySlug.get(slug);
@@ -1097,9 +1100,9 @@ function DutyRunnerFilter({
       value={value}
       onChange={(next) => onChange(next ?? ALL_RUNNER_FILTER)}
       options={options}
-      placeholder="All runners"
-      searchPlaceholder="Search runners…"
-      emptyLabel="No runners found"
+      placeholder="All staff"
+      searchPlaceholder="Search staff…"
+      emptyLabel="No staff found"
     />
   );
 }
@@ -1258,10 +1261,60 @@ function LastTickDetail({
   );
 }
 
+const DUTY_CAPABILITY_KIND_OPTIONS: Array<{
+  value: DutyCapabilityKind;
+  label: string;
+  summary: string;
+}> = [
+  {
+    value: "observe",
+    label: "Observe",
+    summary: "Inspect and report facts.",
+  },
+  {
+    value: "act",
+    label: "Act",
+    summary: "Make one change or trigger one operation.",
+  },
+  {
+    value: "verify",
+    label: "Verify",
+    summary: "Confirm a specific claim with evidence.",
+  },
+];
+
+function defaultOutputKindForCapabilityKind(
+  capabilityKind: DutyCapabilityKind | null,
+): DutyOutputKind {
+  return capabilityKind === "act" ? "run" : "report";
+}
+
+function buildDutyBodyForCapabilityKind(
+  capabilityKind: DutyCapabilityKind | null,
+  outputKind: DutyOutputKind,
+  reportSlug: string,
+): string {
+  const output =
+    outputKind === "report"
+      ? `\n## Output\n\nRefresh \`.kody/reports/${normalizeReportSlug(reportSlug)}.md\` with factual evidence.\n`
+      : "\n## Output\n\nReturn the changed resources, status, and evidence.\n";
+
+  if (capabilityKind === "act") {
+    return `## Job\n\nPerform one requested change or trigger one operation.\n${output}\n## Allowed Commands\n\n- Run the selected executable.\n\n## Restrictions\n\n- Do not decide whether a larger goal is complete.\n- Report factual evidence only.\n`;
+  }
+
+  if (capabilityKind === "verify") {
+    return `## Job\n\nConfirm whether one specific claim passed or failed.\n${output}\n## Allowed Commands\n\n- Inspect the relevant files, GitHub state, logs, reports, or preview.\n\n## Restrictions\n\n- Do not fix failures from this duty.\n- Return blockers and evidence when verification fails.\n`;
+  }
+
+  return `## Job\n\nInspect the target and report what is true.\n${output}\n## Allowed Commands\n\n- Read relevant files, GitHub state, logs, reports, or runtime output.\n\n## Restrictions\n\n- Do not make changes or dispatch repairs.\n- Keep findings factual and evidence-based.\n`;
+}
+
 interface DutyFormValues {
   title: string;
   body: string;
   schedule: DutySchedule | null;
+  capabilityKind: DutyCapabilityKind | null;
   runner: string | null;
   reviewer: string | null;
   action: string;
@@ -1274,6 +1327,7 @@ interface DutyFormSubmitValues {
   title: string;
   body: string;
   schedule: DutySchedule | null;
+  capabilityKind: DutyCapabilityKind | null;
   runner: string | null;
   reviewer: string | null;
   action: string | null;
@@ -1284,15 +1338,22 @@ interface DutyFormSubmitValues {
 }
 
 function buildNewDutyFormValues(): DutyFormValues {
+  const capabilityKind: DutyCapabilityKind = "observe";
+  const outputKind = defaultOutputKindForCapabilityKind(capabilityKind);
   return {
     title: "",
-    body: DUTY_TEMPLATE,
+    body: buildDutyBodyForCapabilityKind(
+      capabilityKind,
+      outputKind,
+      FALLBACK_REPORT_SLUG,
+    ),
     schedule: "manual",
+    capabilityKind,
     runner: null,
     reviewer: null,
     action: "",
     executable: null,
-    outputKind: DEFAULT_DUTY_OUTPUT_KIND,
+    outputKind,
     reportSlug: FALLBACK_REPORT_SLUG,
   };
 }
@@ -1303,6 +1364,7 @@ function buildDutyFormValues(duty: Duty): DutyFormValues {
     title: duty.title,
     body: duty.body || "",
     schedule: duty.schedule,
+    capabilityKind: duty.capabilityKind,
     runner: duty.runner,
     reviewer: duty.reviewer,
     action: duty.action,
@@ -1316,6 +1378,7 @@ function DutyForm({
   initialValues,
   titleId,
   actionId,
+  simpleCreate = false,
   autoBuildBody = false,
   isPending,
   submitLabel,
@@ -1327,6 +1390,7 @@ function DutyForm({
   initialValues: DutyFormValues;
   titleId: string;
   actionId: string;
+  simpleCreate?: boolean;
   autoBuildBody?: boolean;
   isPending: boolean;
   submitLabel: string;
@@ -1338,6 +1402,8 @@ function DutyForm({
   const [title, setTitle] = useState(initialValues.title);
   const [body, setBody] = useState(initialValues.body);
   const [bodyTouched, setBodyTouched] = useState(false);
+  const [capabilityKind, setCapabilityKind] =
+    useState<DutyCapabilityKind | null>(initialValues.capabilityKind);
   const [runner, setRunner] = useState<string | null>(initialValues.runner);
   const [reviewer, setReviewer] = useState<string | null>(
     initialValues.reviewer,
@@ -1360,6 +1426,7 @@ function DutyForm({
     setTitle(initialValues.title);
     setBody(initialValues.body);
     setBodyTouched(false);
+    setCapabilityKind(initialValues.capabilityKind);
     setRunner(initialValues.runner);
     setReviewer(initialValues.reviewer);
     setAction(initialValues.action);
@@ -1380,7 +1447,13 @@ function DutyForm({
       const nextReportSlug = defaultReportSlug(nextAction, next);
       setReportSlug(nextReportSlug);
       if (!bodyTouched) {
-        setBody(buildDefaultDutyBody(outputKind, nextReportSlug));
+        setBody(
+          buildDutyBodyForCapabilityKind(
+            capabilityKind,
+            outputKind,
+            nextReportSlug,
+          ),
+        );
       }
     }
   };
@@ -1393,14 +1466,35 @@ function DutyForm({
     const nextReportSlug = defaultReportSlug(nextAction, title);
     setReportSlug(nextReportSlug);
     if (!bodyTouched) {
-      setBody(buildDefaultDutyBody(outputKind, nextReportSlug));
+      setBody(
+        buildDutyBodyForCapabilityKind(
+          capabilityKind,
+          outputKind,
+          nextReportSlug,
+        ),
+      );
+    }
+  };
+
+  const updateCapabilityKind = (next: DutyCapabilityKind | null) => {
+    setCapabilityKind(next);
+    const nextOutputKind = defaultOutputKindForCapabilityKind(next);
+    if (simpleCreate) setOutputKind(nextOutputKind);
+    if (autoBuildBody && !bodyTouched) {
+      setBody(
+        buildDutyBodyForCapabilityKind(
+          next,
+          simpleCreate ? nextOutputKind : outputKind,
+          reportSlug,
+        ),
+      );
     }
   };
 
   const updateOutputKind = (next: DutyOutputKind) => {
     setOutputKind(next);
     if (autoBuildBody && !bodyTouched) {
-      setBody(buildDefaultDutyBody(next, reportSlug));
+      setBody(buildDutyBodyForCapabilityKind(capabilityKind, next, reportSlug));
     }
   };
 
@@ -1408,7 +1502,13 @@ function DutyForm({
     setReportSlugTouched(true);
     setReportSlug(next);
     if (autoBuildBody && !bodyTouched) {
-      setBody(buildDefaultDutyBody(outputKind, normalizeReportSlug(next)));
+      setBody(
+        buildDutyBodyForCapabilityKind(
+          capabilityKind,
+          outputKind,
+          normalizeReportSlug(next),
+        ),
+      );
     }
   };
 
@@ -1418,6 +1518,7 @@ function DutyForm({
       title: title.trim(),
       body,
       schedule,
+      capabilityKind,
       runner,
       reviewer,
       action: action.trim() || null,
@@ -1441,20 +1542,34 @@ function DutyForm({
             autoFocus
           />
         </div>
-        <DutyActionScheduleRow
-          actionId={actionId}
-          action={action}
-          onActionChange={updateAction}
-          schedule={schedule}
-          onScheduleChange={setSchedule}
-        />
-        <DutyExecutableOutputRow
-          executable={executable}
-          onExecutableChange={setExecutable}
-          outputKind={outputKind}
-          onOutputKindChange={updateOutputKind}
-        />
-        {outputKind === "report" ? (
+      <DutyCapabilityKindSelect
+        value={capabilityKind}
+        onChange={updateCapabilityKind}
+        allowUnset={!simpleCreate}
+      />
+      {simpleCreate ? (
+        <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+          <ScheduleSelect value={schedule} onChange={setSchedule} />
+          <ExecutableSelect value={executable} onChange={setExecutable} />
+        </div>
+      ) : (
+        <>
+          <DutyActionScheduleRow
+            actionId={actionId}
+            action={action}
+            onActionChange={updateAction}
+            schedule={schedule}
+            onScheduleChange={setSchedule}
+          />
+          <DutyExecutableOutputRow
+            executable={executable}
+            onExecutableChange={setExecutable}
+            outputKind={outputKind}
+            onOutputKindChange={updateOutputKind}
+          />
+        </>
+      )}
+      {!simpleCreate && outputKind === "report" ? (
           <div className="space-y-1.5">
             <Label htmlFor="duty-report-target">Report target</Label>
             <Input
@@ -1472,12 +1587,13 @@ function DutyForm({
             </p>
           </div>
         ) : null}
-        <DutyStaffRoleRow
-          runner={runner}
-          onRunnerChange={setRunner}
-          reviewer={reviewer}
-          onReviewerChange={setReviewer}
-        />
+      <DutyStaffRoleRow
+        runner={runner}
+        onRunnerChange={setRunner}
+        reviewer={reviewer}
+        onReviewerChange={setReviewer}
+        hideReviewer={simpleCreate}
+      />
         {timing}
         <div className="space-y-1.5">
           <Label>Body</Label>
@@ -1523,6 +1639,61 @@ function DutyExecutableOutputRow({
     <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
       <ExecutableSelect value={executable} onChange={onExecutableChange} />
       <OutputSelect value={outputKind} onChange={onOutputKindChange} />
+    </div>
+  );
+}
+
+function DutyCapabilityKindSelect({
+  value,
+  onChange,
+  allowUnset,
+}: {
+  value: DutyCapabilityKind | null;
+  onChange: (next: DutyCapabilityKind | null) => void;
+  allowUnset: boolean;
+}) {
+  const options = allowUnset
+    ? [
+        {
+          value: null,
+          label: "Unset",
+          summary: "Leave existing profile without a kind.",
+        },
+        ...DUTY_CAPABILITY_KIND_OPTIONS,
+      ]
+    : DUTY_CAPABILITY_KIND_OPTIONS;
+
+  return (
+    <div className="space-y-1.5">
+      <Label>Kind</Label>
+      <div
+        className="grid gap-2 md:grid-cols-3"
+        role="group"
+        aria-label="Duty kind"
+      >
+        {options.map((option) => {
+          const active = value === option.value;
+          return (
+            <button
+              key={option.value ?? "unset"}
+              type="button"
+              aria-pressed={active}
+              onClick={() => onChange(option.value)}
+              className={cn(
+                "min-h-16 rounded-md border px-3 py-2 text-left transition-colors",
+                active
+                  ? "border-emerald-400/50 bg-emerald-500/10 text-foreground"
+                  : "border-border bg-background/40 text-muted-foreground hover:bg-white/[0.06] hover:text-foreground",
+              )}
+            >
+              <span className="block text-sm font-medium">{option.label}</span>
+              <span className="mt-1 block text-xs leading-4">
+                {option.summary}
+              </span>
+            </button>
+          );
+        })}
+      </div>
     </div>
   );
 }
@@ -1619,7 +1790,7 @@ function ScheduleSelect({
   const AUTO = "__auto__";
   return (
     <div className="space-y-1.5">
-      <Label htmlFor="duty-schedule">Schedule</Label>
+      <Label htmlFor="duty-schedule">Cadence</Label>
       <Select
         value={value ?? AUTO}
         onValueChange={(v) => onChange(v === AUTO ? null : (v as DutySchedule))}
@@ -1656,16 +1827,20 @@ function DutyStaffRoleRow({
   onRunnerChange,
   reviewer,
   onReviewerChange,
+  hideReviewer = false,
 }: {
   runner: string | null;
   onRunnerChange: (next: string | null) => void;
   reviewer: string | null;
   onReviewerChange: (next: string | null) => void;
+  hideReviewer?: boolean;
 }) {
   return (
     <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
       <RunnerSelect value={runner} onChange={onRunnerChange} />
-      <ReviewerSelect value={reviewer} onChange={onReviewerChange} />
+      {hideReviewer ? null : (
+        <ReviewerSelect value={reviewer} onChange={onReviewerChange} />
+      )}
     </div>
   );
 }
@@ -1688,13 +1863,13 @@ function RunnerSelect({
   ];
   return (
     <div className="space-y-1.5">
-      <Label htmlFor="duty-runner">Runner</Label>
+<Label htmlFor="duty-runner">Staff</Label>
       <SearchableSelect
         id="duty-runner"
         value={value}
         onChange={onChange}
         options={options}
-        placeholder={isLoading ? "Loading staff…" : "Select a runner"}
+placeholder={isLoading ? "Loading staff…" : "Select staff"}
         searchPlaceholder="Search staff…"
         emptyLabel="No staff found"
         disabled={isLoading}
@@ -1706,7 +1881,7 @@ function RunnerSelect({
           </>
         ) : (
           <span className="text-amber-400">
-            No runner assigned — the engine scheduler will skip this duty until
+            No staff assigned — the engine scheduler will skip this duty until
             you pick one.
           </span>
         )}

@@ -24,6 +24,7 @@ import {
 import { isScheduleEvery, type ScheduleEvery } from "./ticked/frontmatter";
 import {
   parseTickedMarkdown,
+  type DutyCapabilityKind,
   type TickFile,
   type TickWriteOptions,
 } from "./ticked/files";
@@ -43,6 +44,7 @@ interface DutyProfile {
   name: string;
   action?: string;
   executable?: string;
+  capabilityKind?: DutyCapabilityKind;
   every?: ScheduleEvery;
   disabled?: boolean;
   runner?: string;
@@ -82,6 +84,7 @@ export function buildDutyProfile(opts: TickWriteOptions): DutyProfile {
   };
   if (opts.action?.trim()) profile.action = opts.action.trim();
   if (opts.executable?.trim()) profile.executable = opts.executable.trim();
+  if (opts.capabilityKind) profile.capabilityKind = opts.capabilityKind;
   if (opts.schedule) profile.every = opts.schedule;
   if (opts.disabled === true) profile.disabled = true;
   // The engine reads `config.staff`; mirror the typed value to BOTH
@@ -127,6 +130,7 @@ const MANAGED_PROFILE_KEYS: ReadonlySet<string> = new Set([
   "describe",
   "action",
   "executable",
+  "capabilityKind",
   "every",
   "disabled",
   "staff",
@@ -147,6 +151,7 @@ function parseDutyProfile(raw: unknown, slug: string): DutyProfile {
     name: stringField(r.name) ?? slug,
     action: stringField(r.action),
     executable: stringField(r.executable),
+    capabilityKind: dutyCapabilityKindField(r.capabilityKind),
     every: isScheduleEvery(r.every) ? r.every : undefined,
     disabled: typeof r.disabled === "boolean" ? r.disabled : undefined,
     runner: stringField(r.runner ?? r.staff),
@@ -423,7 +428,8 @@ export async function readDutyFile(
       lastDurationMs: useActivity
         ? activity.durationMs
         : tickState.lastDurationMs,
-      schedule: profile.every ?? null,
+schedule: profile.every ?? null,
+capabilityKind: profile.capabilityKind ?? null,
       disabled: profile.disabled === true,
       runner: profile.runner ?? null,
       reviewer: profile.reviewer ?? null,
@@ -473,7 +479,8 @@ async function readStoreDutyFile(
     nextEligibleAt: null,
     lastOutcome: null,
     lastDurationMs: null,
-    schedule: profile.every ?? null,
+schedule: profile.every ?? null,
+capabilityKind: profile.capabilityKind ?? null,
     disabled: profile.disabled === true,
     runner: profile.runner ?? null,
     reviewer: profile.reviewer ?? null,
@@ -644,6 +651,14 @@ function stripLeadingH1(body: string): string {
 function stringField(value: unknown): string | undefined {
   return typeof value === "string" && value.trim().length > 0
     ? value.trim()
+    : undefined;
+}
+
+function dutyCapabilityKindField(
+  value: unknown,
+): DutyCapabilityKind | undefined {
+  return value === "observe" || value === "act" || value === "verify"
+    ? value
     : undefined;
 }
 

@@ -849,7 +849,9 @@ export type DutySchedule =
   | "3d"
   | "7d"
   /** Sentinel: scheduler never auto-fires; only the dashboard "Run now" button executes it. */
-  | "manual";
+| "manual";
+
+export type DutyCapabilityKind = "observe" | "act" | "verify";
 
 export interface Duty {
   /** Duty folder name under `.kody/duties/`; stable identity. */
@@ -880,7 +882,8 @@ export interface Duty {
    * Per-duty cadence parsed from `profile.json`. `null` = global cron wake
    * (every 15 min). Engine-side gating ships separately.
    */
-  schedule: DutySchedule | null;
+schedule: DutySchedule | null;
+capabilityKind: DutyCapabilityKind | null;
   /**
    * Mirrors `disabled: true` in `profile.json`. When `true` the engine
    * scheduler skips this duty; manual "Run now" still fires.
@@ -946,7 +949,8 @@ export const dutiesApi = {
     slug?: string;
     title: string;
     body: string;
-    schedule?: DutySchedule | null;
+schedule?: DutySchedule | null;
+capabilityKind?: DutyCapabilityKind | null;
     disabled?: boolean;
     runner?: string | null;
     reviewer?: string | null;
@@ -974,7 +978,8 @@ export const dutiesApi = {
     data: {
       title?: string;
       body?: string;
-      schedule?: DutySchedule | null;
+schedule?: DutySchedule | null;
+capabilityKind?: DutyCapabilityKind | null;
       disabled?: boolean;
       runner?: string | null;
       reviewer?: string | null;

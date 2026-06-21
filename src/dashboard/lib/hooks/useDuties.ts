@@ -13,6 +13,7 @@ import { toast } from "sonner";
 import {
   kodyApi,
   type Duty,
+  type DutyCapabilityKind,
   type DutySchedule,
   NoTokenError,
   SessionExpiredError,
@@ -88,6 +89,7 @@ export function useCreateDuty(actorLogin?: string) {
       title: string;
       body: string;
       schedule?: DutySchedule | null;
+      capabilityKind?: DutyCapabilityKind | null;
       disabled?: boolean;
       runner?: string | null;
       reviewer?: string | null;
@@ -128,6 +130,7 @@ export function useUpdateDuty(slug: string, actorLogin?: string) {
       title?: string;
       body?: string;
       schedule?: DutySchedule | null;
+      capabilityKind?: DutyCapabilityKind | null;
       disabled?: boolean;
       runner?: string | null;
       reviewer?: string | null;

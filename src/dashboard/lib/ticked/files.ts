@@ -31,6 +31,8 @@ import {
   type ScheduleEvery,
 } from "./frontmatter";
 
+export type DutyCapabilityKind = "observe" | "act" | "verify";
+
 export interface TickFile {
   /** Stable identity slug. */
   slug: string;
@@ -67,6 +69,7 @@ export interface TickFile {
    * whatever the file declares.
    */
   schedule: ScheduleEvery | null;
+  capabilityKind: DutyCapabilityKind | null;
   /**
    * Mirrors `disabled: true` in metadata. When `true` the engine
    * skips this file on every cron wake; manual triggers still fire. The
@@ -129,6 +132,7 @@ export interface TickWriteOptions {
    * on every cron wake. Absent or `false` keeps it active.
    */
   disabled?: boolean;
+  capabilityKind?: DutyCapabilityKind | null;
   /**
    * Staff member (persona) slug. `null`/absent writes no runner assignment.
    * Aliased to `runner` in the input; the engine reads `config.staff` from
@@ -555,7 +559,7 @@ export function createTickedFiles(config: TickedFilesConfig): TickedFilesApi {
         : new Map<string, CompanyActivityRecord>();
 
     const files = await Promise.all(
-      slugs.map(async ({ slug, sha, name }) => {
+  slugs.map(async ({ slug, sha, name }): Promise<TickFile | null> => {
         try {
           const filePath = `${dir}/${name}`;
           const { data } = await octokit.repos.getContent({
@@ -598,7 +602,8 @@ export function createTickedFiles(config: TickedFilesConfig): TickedFilesApi {
             lastDurationMs: useActivity
               ? activity.durationMs
               : tickState.lastDurationMs,
-            schedule: frontmatter.every ?? null,
+schedule: frontmatter.every ?? null,
+capabilityKind: null,
             disabled: frontmatter.disabled === true,
             runner: frontmatter.runner ?? null,
             reviewer: frontmatter.reviewer ?? null,
@@ -683,7 +688,8 @@ export function createTickedFiles(config: TickedFilesConfig): TickedFilesApi {
         lastDurationMs: useActivity
           ? activity.durationMs
           : tickState.lastDurationMs,
-        schedule: frontmatter.every ?? null,
+schedule: frontmatter.every ?? null,
+capabilityKind: null,
         disabled: frontmatter.disabled === true,
         runner: frontmatter.runner ?? null,
         reviewer: frontmatter.reviewer ?? null,
