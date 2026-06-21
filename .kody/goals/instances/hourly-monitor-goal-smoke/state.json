@@ -2,27 +2,25 @@
   "version": 1,
   "type": "monitor",
   "destination": {
-    "outcome": "Every hour, refresh delivery graph reports so there is visible output for schedule verification.",
+    "outcome": "Every hour, refresh the company graph report so there is visible output for schedule verification.",
     "evidence": [
-      "deliveryGraphRefreshed"
+      "companyGraphRefreshed"
     ]
   },
   "schedule": "1h",
   "duties": [
-    "delivery-graph"
+    "company-graph"
   ],
   "route": [
     {
-      "evidence": "deliveryGraphRefreshed",
-      "stage": "refresh-delivery-graph",
-      "duty": "delivery-graph",
-      "executable": "delivery-graph"
+      "stage": "refresh-company-graph",
+      "evidence": "companyGraphRefreshed",
+      "duty": "company-graph",
+      "executable": "company-graph"
     }
   ],
-  "stage": "refresh-delivery-graph",
-  "facts": {
-    "pendingEvidence": "deliveryGraphRefreshed"
-  },
+  "stage": "refresh-company-graph",
+  "facts": {},
   "blockers": [],
   "state": "active",
   "updatedAt": "2026-06-21T06:01:53Z"
