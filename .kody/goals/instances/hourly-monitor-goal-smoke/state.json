@@ -22,11 +22,11 @@
       }
     }
   ],
-  "stage": "refresh-company-graph",
+  "stage": "done",
   "facts": {
     "companyGraphRefreshed": true
   },
   "blockers": [],
-  "state": "active",
-  "updatedAt": "2026-06-21T06:53:54Z"
+  "state": "done",
+  "updatedAt": "2026-06-21T07:06:35Z"
 }
