@@ -18,7 +18,8 @@
     "releasePr": 336,
     "releasePrExists": true,
     "mergeCommit": "d68e55279e77ac97307acaf938b94995aa57cda4",
-    "mainMerged": true
+    "mainMerged": true,
+    "pendingEvidence": "productionDeployed"
   },
   "blockers": [],
   "duties": [
@@ -72,5 +73,5 @@
   ],
   "stage": "publish",
   "state": "active",
-  "updatedAt": "2026-06-21T16:05:16Z"
+  "updatedAt": "2026-06-21T16:07:56Z"
 }
