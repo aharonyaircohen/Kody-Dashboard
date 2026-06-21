@@ -20,8 +20,10 @@
     }
   ],
   "stage": "refresh-company-graph",
-  "facts": {},
+  "facts": {
+    "pendingEvidence": "companyGraphRefreshed"
+  },
   "blockers": [],
   "state": "active",
-  "updatedAt": "2026-06-21T06:34:18.066Z"
+  "updatedAt": "2026-06-21T06:35:27Z"
 }
