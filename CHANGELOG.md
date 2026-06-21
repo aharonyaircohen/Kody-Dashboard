@@ -1,5 +1,8 @@
 # Changelog
 
+## v0.1.1142 — 2026-06-21
+
+_No notable commits since the last release._
 All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
