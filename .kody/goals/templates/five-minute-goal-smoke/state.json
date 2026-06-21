@@ -1,0 +1,26 @@
+{
+  "version": 1,
+  "kind": "template",
+  "templateId": "five-minute-goal-smoke",
+  "state": "inactive",
+  "type": "monitor",
+  "destination": {
+    "outcome": "Every 5 minutes, refresh company graph report so recurring goal scheduling can be verified quickly.",
+    "evidence": ["companyGraphRefreshed"]
+  },
+  "duties": ["company-graph"],
+  "route": [
+    {
+      "stage": "refresh-company-graph",
+      "evidence": "companyGraphRefreshed",
+      "duty": "company-graph",
+      "executable": "company-graph",
+      "args": {
+        "goal": "five-minute-goal-smoke"
+      }
+    }
+  ],
+  "stage": "refresh-company-graph",
+  "facts": {},
+  "blockers": []
+}
