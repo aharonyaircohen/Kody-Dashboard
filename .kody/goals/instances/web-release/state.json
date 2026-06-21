@@ -1,12 +1,71 @@
 {
   "version": 1,
-  "state": "active",
   "type": "release",
   "description": "Publish Kody Dashboard using the web-release goal flow.",
   "destination": {
-    "outcome": "Publish Kody Dashboard to production safely."
+    "outcome": "Publish Kody Dashboard to production safely.",
+    "evidence": [
+      "releasePrExists",
+      "mainMerged",
+      "productionDeployed"
+    ]
   },
   "schedule": "manual",
-  "facts": {},
-  "blockers": []
+  "facts": {
+    "issue": 335,
+    "pendingEvidence": "releasePrExists"
+  },
+  "blockers": [],
+  "duties": [
+    "release",
+    "release-merge",
+    "vercel-production-deploy"
+  ],
+  "route": [
+    {
+      "evidence": "releasePrExists",
+      "stage": "release",
+      "duty": "release",
+      "executable": "release-prepare",
+      "args": {
+        "issue": {
+          "fact": "issue"
+        },
+        "goal": {
+          "fact": "goalId"
+        }
+      }
+    },
+    {
+      "evidence": "mainMerged",
+      "stage": "merge",
+      "duty": "release-merge",
+      "executable": "release-merge",
+      "args": {
+        "pr": {
+          "fact": "releasePr"
+        },
+        "issue": {
+          "fact": "issue"
+        },
+        "goal": {
+          "fact": "goalId"
+        }
+      }
+    },
+    {
+      "evidence": "productionDeployed",
+      "stage": "publish",
+      "duty": "vercel-production-deploy",
+      "executable": "vercel-production-deploy",
+      "args": {
+        "goal": {
+          "fact": "goalId"
+        }
+      }
+    }
+  ],
+  "stage": "release",
+  "state": "active",
+  "updatedAt": "2026-06-21T15:55:14Z"
 }
