@@ -16,7 +16,8 @@
     "version": "0.1.1142",
     "releasePrUrl": "https://github.com/aharonyaircohen/Kody-Dashboard/pull/336",
     "releasePr": 336,
-    "releasePrExists": true
+    "releasePrExists": true,
+    "pendingEvidence": "mainMerged"
   },
   "blockers": [],
   "duties": [
@@ -68,7 +69,7 @@
       }
     }
   ],
-  "stage": "release",
+  "stage": "merge",
   "state": "active",
-  "updatedAt": "2026-06-21T15:55:20Z"
+  "updatedAt": "2026-06-21T15:58:36Z"
 }
