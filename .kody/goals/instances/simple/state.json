@@ -1,0 +1,27 @@
+{
+  "version": 1,
+  "kind": "template",
+  "template": true,
+  "templateId": "simple",
+  "state": "active",
+  "type": "simple",
+  "description": "Shared simple goal template for legacy dashboard goals: tasks are grouped by a goal label and the existing goal runner finishes when the labelled tasks are done.",
+  "destination": {
+    "outcome": "All tasks labelled with the instantiated goal are complete.",
+    "evidence": [
+      "labelledTasksComplete"
+    ]
+  },
+  "duties": [],
+  "route": [],
+  "stage": "waiting",
+  "facts": {
+    "simpleAttachedTaskCount": 0,
+    "simpleOpenTaskCount": 0,
+    "labelledTasksComplete": false
+  },
+  "blockers": [
+    "Instantiate this template in a consumer repo as .kody/goals/instances/<goal-id>/state.json with state active, sourceTemplate simple, and a concrete goal label."
+  ],
+  "sourceTemplate": "simple"
+}
