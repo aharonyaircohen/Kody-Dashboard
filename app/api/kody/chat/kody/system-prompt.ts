@@ -426,12 +426,12 @@ When they ask you to interact with or verify something in that preview
 - If the user does not have the Kody Preview Inspector extension installed
   the call surfaces an error — tell them and stop instead of retrying.
 
-### Runner availability (read before \`switch_agent\`)
+### Runner availability (read before \`vibe_start_execution\`)
 
 ${
   opts.flyConfigured
-    ? "- **Fly is configured** for this user (`FLY_API_TOKEN` is present in the secrets vault). On auto-handoff, use `switch_agent('kody-live-fly')`."
-    : "- **Fly is NOT configured** for this user (no `FLY_API_TOKEN` in the secrets vault). Fly cannot boot. On auto-handoff, use `switch_agent('kody-live')` (GitHub Actions runner, ~90s warm-up). In your handoff reply, briefly note that Fly isn't configured and point them to Settings → Fly Runner if they want sub-second boots next time."
+    ? "- **Fly is configured** for this user (`FLY_API_TOKEN` is present in the secrets vault). On auto-handoff, pass `targetAgent: 'kody-live-fly'` to `vibe_start_execution`."
+    : "- **Fly is NOT configured** for this user (no `FLY_API_TOKEN` in the secrets vault). Fly cannot boot. On auto-handoff, pass `targetAgent: 'kody-live'` to `vibe_start_execution` (GitHub Actions runner, ~90s warm-up). In your handoff reply, briefly note that Fly isn't configured and point them to Settings → Fly Runner if they want sub-second boots next time."
 }`);
   }
 

@@ -179,15 +179,15 @@ describe("POST /api/kody/chat/kody", () => {
     expect(prompt).toContain("my read:");
   });
 
-  it("base kody prompt always ends with a forward-driving question and bans sycophantic openers", async () => {
+  it("base kody prompt gives direction when useful and bans sycophantic openers", async () => {
     // Regression: model used to close replies with no follow-up and start
-    // with "Great question!" / "Sure!". Hard rule #5 now requires a
-    // forward-driving question on every reply and bans a specific list of
-    // sycophantic openers. Prompt lives in the chat-defaults bundle persona.
+    // with "Great question!" / "Sure!". The prompt now asks for direction
+    // on non-trivial replies while still banning sycophantic openers.
     const { loadChatDefaults } =
       await import("../../src/dashboard/lib/chat-defaults");
     const prompt = (await loadChatDefaults("acme", "repo")).persona;
-    expect(prompt).toMatch(/Always end with a forward-driving question/i);
+    expect(prompt).toMatch(/End with direction when useful/i);
+    expect(prompt).not.toMatch(/This applies to EVERY reply/i);
     for (const banned of [
       "Great question",
       "Sure!",
@@ -202,6 +202,44 @@ describe("POST /api/kody/chat/kody", () => {
       expect(prompt).toContain(banned);
     }
     expect(prompt).toMatch(/Never start with sycophancy/i);
+  });
+
+  it("fallback kody prompt mirrors the answer-first contract", async () => {
+    const { DEFAULT_PERSONA_MD } =
+      await import("../../src/dashboard/lib/chat-defaults/defaults");
+
+    expect(DEFAULT_PERSONA_MD).toMatch(/Kody reply contract/i);
+    expect(DEFAULT_PERSONA_MD).toMatch(/Final replies start with one plain/i);
+    expect(DEFAULT_PERSONA_MD).toMatch(/Progress lines are not final answers/i);
+    expect(DEFAULT_PERSONA_MD).not.toMatch(/Emit a status line/i);
+    expect(DEFAULT_PERSONA_MD).not.toMatch(/This applies to EVERY reply/i);
+  });
+
+  it("critical reminders preserve answer-first style while enforcing safety", async () => {
+    const { CRITICAL_REMINDERS_MD } =
+      await import("../../src/dashboard/lib/chat-defaults");
+
+    expect(CRITICAL_REMINDERS_MD).toMatch(/Start with the answer/i);
+    expect(CRITICAL_REMINDERS_MD).toMatch(/Verify before claiming/i);
+    expect(CRITICAL_REMINDERS_MD).toMatch(/End with direction when useful/i);
+    expect(CRITICAL_REMINDERS_MD).not.toMatch(/Re-state last thing you read/i);
+    expect(CRITICAL_REMINDERS_MD).not.toMatch(/Every reply ends/i);
+  });
+
+  it("vibe runner availability points at vibe_start_execution, not switch_agent", async () => {
+    const { buildSystemPrompt } =
+      await import("../../app/api/kody/chat/kody/system-prompt");
+
+    const prompt = buildSystemPrompt(
+      "base",
+      { owner: "acme", repo: "repo" },
+      undefined,
+      { vibeMode: true, flyConfigured: true },
+    );
+
+    expect(prompt).toMatch(/read before .*vibe_start_execution/i);
+    expect(prompt).toContain("targetAgent: 'kody-live-fly'");
+    expect(prompt).not.toContain("switch_agent('kody-live-fly')");
   });
 
   it("base kody prompt disambiguates dispatch from 'implement this' and enumerates the full read-tool catalog", async () => {
