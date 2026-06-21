@@ -10,7 +10,7 @@
     "company-graph"
   ],
   "facts": {
-    "pendingEvidence": "companyGraphRefreshed"
+    "companyGraphRefreshed": true
   },
   "kind": "instance",
   "route": [
@@ -34,5 +34,5 @@
   "version": 1,
   "state": "active",
   "createdAt": "2026-06-21T12:15:37.773377Z",
-  "updatedAt": "2026-06-21T12:15:40Z"
+  "updatedAt": "2026-06-21T12:15:53Z"
 }
