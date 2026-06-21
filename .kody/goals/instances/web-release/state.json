@@ -17,7 +17,8 @@
     "releasePrUrl": "https://github.com/aharonyaircohen/Kody-Dashboard/pull/336",
     "releasePr": 336,
     "releasePrExists": true,
-    "pendingEvidence": "mainMerged"
+    "mergeCommit": "d68e55279e77ac97307acaf938b94995aa57cda4",
+    "mainMerged": true
   },
   "blockers": [],
   "duties": [
@@ -71,5 +72,5 @@
   ],
   "stage": "merge",
   "state": "active",
-  "updatedAt": "2026-06-21T15:58:36Z"
+  "updatedAt": "2026-06-21T15:58:43Z"
 }
