@@ -27,12 +27,12 @@
     }
   ],
   "sourceTemplate": "hourly-monitor-goal-smoke",
-  "stage": "refresh-company-graph",
+  "stage": "done",
   "template": "hourly-monitor-goal-smoke",
   "templateId": "hourly-monitor-goal-smoke",
   "type": "monitor",
   "version": 1,
-  "state": "active",
+  "state": "done",
   "createdAt": "2026-06-21T13:49:14.815020Z",
-  "updatedAt": "2026-06-21T13:49:30Z"
+  "updatedAt": "2026-06-21T15:02:31Z"
 }
