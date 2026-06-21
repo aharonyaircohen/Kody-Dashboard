@@ -13,15 +13,17 @@
   ],
   "route": [
     {
-      "stage": "refresh-delivery-graph",
       "evidence": "deliveryGraphRefreshed",
+      "stage": "refresh-delivery-graph",
       "duty": "delivery-graph",
       "executable": "delivery-graph"
     }
   ],
   "stage": "refresh-delivery-graph",
-  "facts": {},
+  "facts": {
+    "pendingEvidence": "deliveryGraphRefreshed"
+  },
   "blockers": [],
   "state": "active",
-  "updatedAt": "2026-06-21T05:57:01Z"
+  "updatedAt": "2026-06-21T06:01:53Z"
 }
