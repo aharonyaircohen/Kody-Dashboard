@@ -3,7 +3,7 @@
   "version": "0.1.1143",
   "private": true,
   "license": "MIT",
-  "description": "Kody Dashboard \u2014 Operations dashboard for the Kody CI/CD pipeline",
+  "description": "Kody Dashboard — Operations dashboard for the Kody CI/CD pipeline",
   "scripts": {
     "dev": "next dev --turbopack -p 3333",
     "dev:webpack": "next dev --webpack -p 3333",

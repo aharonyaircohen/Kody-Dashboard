@@ -1,8 +1,0 @@
-{
-  "name": "research",
-  "describe": "Issue Research",
-  "action": "research",
-  "every": "manual",
-  "runner": "kody",
-  "executable": "research"
-}

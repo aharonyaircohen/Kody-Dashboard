@@ -1,8 +1,0 @@
-{
-  "name": "spec",
-  "describe": "Issue Specification",
-  "action": "spec",
-  "every": "manual",
-  "runner": "kody",
-  "executable": "spec"
-}

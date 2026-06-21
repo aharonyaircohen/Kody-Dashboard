@@ -1,9 +1,0 @@
-{
-  "name": "work-briefing",
-  "describe": "Work Briefing",
-  "every": "manual",
-  "runner": "coo",
-  "executables": [
-    "work-briefing"
-  ]
-}

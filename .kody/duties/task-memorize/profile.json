@@ -1,9 +1,0 @@
-{
-  "name": "task-memorize",
-  "describe": "Task Memorize",
-  "every": "30m",
-  "runner": "coo",
-  "executables": [
-    "task-memorize"
-  ]
-}

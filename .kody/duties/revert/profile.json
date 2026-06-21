@@ -1,8 +1,0 @@
-{
-  "name": "revert",
-  "describe": "PR Revert",
-  "action": "revert",
-  "every": "manual",
-  "runner": "kody",
-  "executable": "revert"
-}

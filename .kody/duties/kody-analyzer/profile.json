@@ -1,8 +1,0 @@
-{
-  "name": "kody-analyzer",
-  "describe": "kody-analyzer",
-  "action": "kody-analyzer",
-  "every": "manual",
-  "runner": "kody",
-  "executable": "kody-chat"
-}

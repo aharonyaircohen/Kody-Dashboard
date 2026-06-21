@@ -1,1 +1,0 @@
-`.kody/staff/<slug>.md` — a pure reusable PERSONA file (markdown body: intent, allowed commands, restrictions). Staff have no schedule, no state, no run/tick; they're personas referenced by other flows. Same gap loop and sufficiency bar as Create Kody duty. Show body, then call `create_kody_staff`.

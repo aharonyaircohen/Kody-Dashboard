@@ -1,8 +1,0 @@
-{
-  "name": "feature",
-  "describe": "Feature Implementation",
-  "action": "feature",
-  "every": "manual",
-  "runner": "kody",
-  "executable": "feature"
-}

@@ -1,8 +1,0 @@
-{
-  "name": "kody-vibe",
-  "describe": "kody-vibe",
-  "action": "kody-vibe",
-  "every": "manual",
-  "runner": "kody",
-  "executable": "kody-chat"
-}

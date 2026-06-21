@@ -1,8 +1,0 @@
-{
-  "name": "reproduce",
-  "describe": "Bug Reproduction",
-  "action": "reproduce",
-  "every": "manual",
-  "runner": "kody",
-  "executable": "reproduce"
-}

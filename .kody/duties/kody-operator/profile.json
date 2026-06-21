@@ -1,8 +1,0 @@
-{
-  "name": "kody-operator",
-  "describe": "kody-operator",
-  "action": "kody-operator",
-  "every": "manual",
-  "runner": "kody",
-  "executable": "kody-chat"
-}

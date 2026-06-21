@@ -1,8 +1,0 @@
-{
-  "name": "code-health",
-  "describe": "Code Health - architecture and type-debt signals",
-  "every": "7d",
-  "runner": "cto",
-  "executable": "code-health",
-  "disabled": true
-}

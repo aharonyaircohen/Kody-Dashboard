@@ -1,9 +1,0 @@
-{
-  "name": "dev-ci-health",
-  "describe": "Dev CI Health",
-  "every": "15m",
-  "runner": "cto",
-  "executables": [
-    "dev-ci-health"
-  ]
-}
