@@ -1,36 +1,38 @@
 {
   "blockers": [],
-  "createdAt": "2026-06-21T13:49:14.815020Z",
   "destination": {
+    "outcome": "Every hour, refresh the company graph report so there is visible output for schedule verification.",
     "evidence": [
       "companyGraphRefreshed"
-    ],
-    "outcome": "Every hour, refresh the company graph report so there is visible output for schedule verification."
+    ]
   },
   "duties": [
     "company-graph"
   ],
-  "facts": {},
+  "facts": {
+    "pendingEvidence": "companyGraphRefreshed"
+  },
   "kind": "instance",
   "route": [
     {
+      "evidence": "companyGraphRefreshed",
+      "stage": "refresh-company-graph",
+      "duty": "company-graph",
+      "executable": "company-graph",
       "args": {
         "goal": {
           "fact": "goalId"
         }
-      },
-      "duty": "company-graph",
-      "evidence": "companyGraphRefreshed",
-      "executable": "company-graph",
-      "stage": "refresh-company-graph"
+      }
     }
   ],
   "sourceTemplate": "hourly-monitor-goal-smoke",
   "stage": "refresh-company-graph",
-  "state": "active",
   "template": "hourly-monitor-goal-smoke",
   "templateId": "hourly-monitor-goal-smoke",
   "type": "monitor",
-  "updatedAt": "2026-06-21T13:49:14.815020Z",
-  "version": 1
+  "version": 1,
+  "state": "active",
+  "createdAt": "2026-06-21T13:49:14.815020Z",
+  "updatedAt": "2026-06-21T13:49:17Z"
 }
