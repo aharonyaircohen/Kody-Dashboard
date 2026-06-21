@@ -61,11 +61,14 @@ const routeStepSchema = z.object({
   args: z.record(z.string(), z.unknown()).optional(),
 });
 
+const managedGoalScheduleSchema = z.enum(["manual", "1h", "1d", "7d", "30d"]);
+
 const createManagedGoalSchema = z.object({
   id: z.string().min(1).max(80).optional(),
   templateId: z.string().min(1).max(80).optional(),
   type: z.string().min(1).max(80).default("general"),
   outcome: z.string().min(1).max(500),
+  schedule: managedGoalScheduleSchema.default("manual"),
   evidence: z.array(z.string().min(1).max(80)).default([]),
   route: z.array(routeStepSchema).default([]),
   actorLogin: z.string().optional(),

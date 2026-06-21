@@ -43,6 +43,7 @@ describe("managed goals API client", () => {
 
     await kodyApi.goals.createManaged({
       type: "general",
+      schedule: "1d",
       outcome: "Users can create goals from the dashboard.",
       evidence: ["goalVerified"],
       route: [
@@ -56,7 +57,9 @@ describe("managed goals API client", () => {
     });
 
     const [, init] = fetchMock.mock.calls[0]!;
-    expect(JSON.parse(String(init?.body))).not.toHaveProperty("actorLogin");
+    const body = JSON.parse(String(init?.body));
+    expect(body.schedule).toBe("1d");
+    expect(body).not.toHaveProperty("actorLogin");
   });
 
   it("can create a scheduled managed goal instance with an explicit id", async () => {
@@ -158,14 +161,15 @@ describe("managed goals API client", () => {
 
     await kodyApi.goals.updateManaged("verify-goal", {
       outcome: "Edited goal.",
+      schedule: "7d",
     });
     await kodyApi.goals.removeManaged("verify-goal");
 
     const [, updateInit] = fetchMock.mock.calls[0]!;
     const [deleteUrl, deleteInit] = fetchMock.mock.calls[1]!;
-    expect(JSON.parse(String(updateInit?.body))).not.toHaveProperty(
-      "actorLogin",
-    );
+    const updateBody = JSON.parse(String(updateInit?.body));
+    expect(updateBody.schedule).toBe("7d");
+    expect(updateBody).not.toHaveProperty("actorLogin");
     expect(String(deleteUrl)).toBe("/api/kody/goals/managed/verify-goal");
     expect(deleteInit?.body).toBeUndefined();
   });

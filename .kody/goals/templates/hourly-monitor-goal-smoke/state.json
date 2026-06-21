@@ -1,0 +1,23 @@
+{
+  "version": 1,
+  "kind": "template",
+  "templateId": "hourly-monitor-goal-smoke",
+  "state": "inactive",
+  "type": "monitor",
+  "destination": {
+    "outcome": "Every hour, refresh delivery graph reports so there is visible output for schedule verification.",
+    "evidence": ["deliveryGraphRefreshed"]
+  },
+  "duties": ["delivery-graph"],
+  "route": [
+    {
+      "stage": "refresh-delivery-graph",
+      "evidence": "deliveryGraphRefreshed",
+      "duty": "delivery-graph",
+      "executable": "delivery-graph"
+    }
+  ],
+  "stage": "refresh-delivery-graph",
+  "facts": {},
+  "blockers": []
+}

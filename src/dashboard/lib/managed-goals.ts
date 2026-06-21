@@ -7,6 +7,8 @@
  */
 
 export type ManagedGoalStateValue = "inactive" | "active" | "paused" | "done";
+export type ManagedGoalSchedule = "manual" | "1h" | "1d" | "7d" | "30d";
+
 export const SIMPLE_MANAGED_GOAL_TEMPLATE = "simple";
 export const SIMPLE_MANAGED_GOAL_EVIDENCE = "labelledTasksComplete";
 
@@ -30,6 +32,7 @@ export interface ManagedGoalState {
   destination: ManagedGoalDestination;
   duties: string[];
   route: ManagedGoalRouteStep[];
+  schedule?: ManagedGoalSchedule;
   stage?: string;
   facts: Record<string, unknown>;
   blockers: string[];
@@ -50,6 +53,7 @@ export interface CreateManagedGoalInput {
   templateId?: string;
   type: string;
   outcome: string;
+  schedule?: ManagedGoalSchedule;
   evidence?: string[];
   route?: ManagedGoalRouteStep[];
 }
@@ -57,6 +61,7 @@ export interface CreateManagedGoalInput {
 export interface UpdateManagedGoalInput {
   type?: string;
   outcome?: string;
+  schedule?: ManagedGoalSchedule;
   evidence?: string[];
   route?: ManagedGoalRouteStep[];
 }
@@ -119,6 +124,7 @@ export function buildManagedGoalState(
         outcome: input.outcome.trim(),
         evidence: [SIMPLE_MANAGED_GOAL_EVIDENCE],
       },
+      schedule: input.schedule ?? "manual",
       duties: [],
       route: [],
       stage: "waiting",
@@ -160,6 +166,7 @@ export function buildManagedGoalState(
       outcome: input.outcome.trim(),
       evidence,
     },
+    schedule: input.schedule ?? "manual",
     duties,
     route,
     stage: route[0]?.stage,

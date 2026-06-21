@@ -54,6 +54,7 @@ import {
 import type {
   CreateManagedGoalInput,
   ManagedGoalRecord,
+  ManagedGoalSchedule,
   UpdateManagedGoalInput,
 } from "../managed-goals";
 import { cn } from "../utils";
@@ -148,6 +149,21 @@ const goalPresets = [
 ] satisfies GoalPreset[];
 const defaultGoalPreset = goalPresets[0]!;
 
+const scheduleOptions = [
+  { value: "manual", label: "Manual" },
+  { value: "1h", label: "Every hour" },
+  { value: "1d", label: "Every day" },
+  { value: "7d", label: "Every week" },
+  { value: "30d", label: "Every month" },
+] satisfies { value: ManagedGoalSchedule; label: string }[];
+
+function scheduleLabel(schedule: unknown): string {
+  return (
+    scheduleOptions.find((option) => option.value === schedule)?.label ??
+    "Manual"
+  );
+}
+
 function cloneRows(rows: EvidenceRow[]): EvidenceRow[] {
   return rows.map((row) => ({ ...row, id: newRowId() }));
 }
@@ -222,6 +238,7 @@ function goalSearchText(goal: ManagedGoalRecord): string {
     goal.source ?? "",
     goal.recordType ?? "",
     goal.state.type,
+    scheduleLabel(goal.state.schedule),
     goal.state.state,
     goal.state.stage ?? "",
     goal.state.destination.outcome,
@@ -250,7 +267,7 @@ function NewGoalDialog({
 }) {
   const createGoal = useCreateManagedGoal();
   const [mode, setMode] = useState<"new" | "instance">("new");
-  const [timing, setTiming] = useState<"now">("now");
+  const [schedule, setSchedule] = useState<ManagedGoalSchedule>("manual");
   const [sourceId, setSourceId] = useState("");
   const [goalId, setGoalId] = useState("");
   const [presetId, setPresetId] = useState<GoalPresetId>("general");
@@ -276,7 +293,7 @@ function NewGoalDialog({
 
   const reset = () => {
     setMode("new");
-    setTiming("now");
+    setSchedule("manual");
     setSourceId("");
     setGoalId("");
     setPresetId("general");
@@ -302,6 +319,7 @@ function NewGoalDialog({
     if (!source) return;
     setGoalId(newInstanceId(source.id));
     setType(source.state.type || "general");
+    setSchedule("manual");
     setOutcome(source.state.destination.outcome);
     setRows(rowsFromGoal(source));
     setShowAdvanced(false);
@@ -324,6 +342,7 @@ function NewGoalDialog({
       ...(goalId.trim() ? { id: goalId.trim() } : {}),
       type: type.trim() || "general",
       outcome: outcome.trim(),
+      schedule,
       evidence: validRows.map((row) => row.evidence.trim()),
       route: validRows.map((row) => ({
         stage: row.stage.trim(),
@@ -396,15 +415,24 @@ function NewGoalDialog({
               </div>
             ) : null}
 
-            {mode === "instance" ? (
+            {mode === "new" ? (
               <div className="space-y-2">
-                <Label htmlFor="goal-instance-timing">Timing</Label>
-                <Select value={timing} onValueChange={() => setTiming("now")}>
-                  <SelectTrigger id="goal-instance-timing">
-                    <SelectValue placeholder="Choose timing" />
+                <Label htmlFor="goal-schedule">Schedule</Label>
+                <Select
+                  value={schedule}
+                  onValueChange={(value) =>
+                    setSchedule(value as ManagedGoalSchedule)
+                  }
+                >
+                  <SelectTrigger id="goal-schedule">
+                    <SelectValue placeholder="Choose schedule" />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="now">Run now</SelectItem>
+                    {scheduleOptions.map((option) => (
+                      <SelectItem key={option.value} value={option.value}>
+                        {option.label}
+                      </SelectItem>
+                    ))}
                   </SelectContent>
                 </Select>
               </div>
@@ -426,8 +454,8 @@ function NewGoalDialog({
           <div className="flex items-center justify-between gap-3 rounded-lg border border-white/[0.08] bg-white/[0.02] px-3 py-2 text-xs text-muted-foreground">
             <span>
               {mode === "instance" && selectedSource
-                ? `Instance from ${selectedSource.id} · Run now`
-                : `Defaults: ${selectedPreset.label.toLowerCase()}`}{" "}
+                ? `Instance from ${selectedSource.id}`
+                : `Defaults: ${selectedPreset.label.toLowerCase()} · ${scheduleLabel(schedule)}`}{" "}
               ·{" "}
               {validRows.length} proof step
               {validRows.length === 1 ? "" : "s"}
@@ -618,6 +646,7 @@ function EditManagedGoalDialog({
   const updateGoal = useUpdateManagedGoal(goal?.id ?? "");
   const [type, setType] = useState("");
   const [outcome, setOutcome] = useState("");
+  const [schedule, setSchedule] = useState<ManagedGoalSchedule>("manual");
   const [rows, setRows] = useState<EvidenceRow[]>([]);
   const [showAdvanced, setShowAdvanced] = useState(false);
 
@@ -625,6 +654,11 @@ function EditManagedGoalDialog({
     if (!goal || !open) return;
     setType(goal.state.type);
     setOutcome(goal.state.destination.outcome);
+    setSchedule(
+      scheduleOptions.some((option) => option.value === goal.state.schedule)
+        ? (goal.state.schedule as ManagedGoalSchedule)
+        : "manual",
+    );
     setRows(rowsFromGoal(goal));
     setShowAdvanced(false);
   }, [goal, open]);
@@ -655,6 +689,7 @@ function EditManagedGoalDialog({
     const payload: UpdateManagedGoalInput = {
       type: type.trim() || goal.state.type,
       outcome: outcome.trim(),
+      schedule,
       ...(validRows.length > 0
         ? {
             evidence: validRows.map((row) => row.evidence.trim()),
@@ -695,8 +730,31 @@ function EditManagedGoalDialog({
             />
           </div>
 
+          <div className="space-y-2">
+            <Label htmlFor="edit-goal-schedule">Schedule</Label>
+            <Select
+              value={schedule}
+              onValueChange={(value) =>
+                setSchedule(value as ManagedGoalSchedule)
+              }
+            >
+              <SelectTrigger id="edit-goal-schedule">
+                <SelectValue placeholder="Choose schedule" />
+              </SelectTrigger>
+              <SelectContent>
+                {scheduleOptions.map((option) => (
+                  <SelectItem key={option.value} value={option.value}>
+                    {option.label}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+
           <div className="flex items-center justify-between gap-3 rounded-lg border border-white/[0.08] bg-white/[0.02] px-3 py-2 text-xs text-muted-foreground">
-            <span>{goal?.id ?? "Goal"}</span>
+            <span>
+              {goal?.id ?? "Goal"} · {scheduleLabel(schedule)}
+            </span>
             <Button
               type="button"
               variant="ghost"
@@ -892,6 +950,8 @@ function GoalRow({
 
         <div className="text-xs text-muted-foreground mt-1 flex items-center gap-2 flex-wrap">
           <span>{goal.state.type}</span>
+          <span>·</span>
+          <span>{scheduleLabel(goal.state.schedule)}</span>
           {goal.state.state !== "active" ? (
             <>
               <span>·</span>
@@ -969,11 +1029,13 @@ function GoalDetail({
                 </span>
               </h1>
               <div className="text-xs text-muted-foreground flex items-center gap-3 flex-wrap">
-                <span className="inline-flex items-center gap-1">
-                  <CheckCircle2 className="w-3 h-3" />
-                  {done}/{total} evidence
-                </span>
-                {goal.state.state !== "active" ? (
+            <span className="inline-flex items-center gap-1">
+              <CheckCircle2 className="w-3 h-3" />
+              {done}/{total} evidence
+            </span>
+            <span>·</span>
+            <span>{scheduleLabel(goal.state.schedule)}</span>
+            {goal.state.state !== "active" ? (
                   <>
                     <span>·</span>
                     <GoalStateText state={goal.state.state} />

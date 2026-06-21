@@ -54,9 +54,12 @@ const routeStepSchema = z.object({
   args: z.record(z.string(), z.unknown()).optional(),
 });
 
+const managedGoalScheduleSchema = z.enum(["manual", "1h", "1d", "7d", "30d"]);
+
 const updateManagedGoalSchema = z.object({
   type: z.string().min(1).max(80).optional(),
   outcome: z.string().min(1).max(500).optional(),
+  schedule: managedGoalScheduleSchema.optional(),
   evidence: z.array(z.string().min(1).max(80)).optional(),
   route: z.array(routeStepSchema).optional(),
   actorLogin: z.string().optional(),
@@ -118,6 +121,7 @@ export async function PATCH(
     const rebuilt = buildManagedGoalState({
       type: parsed.data.type ?? existing.state.type,
       outcome: parsed.data.outcome ?? existing.state.destination.outcome,
+      schedule: parsed.data.schedule ?? existing.state.schedule ?? "manual",
       evidence: parsed.data.evidence ?? existing.state.destination.evidence,
       route: parsed.data.route ?? existing.state.route,
     });
@@ -126,6 +130,7 @@ export async function PATCH(
       ...existing.state,
       type: rebuilt.type,
       destination: rebuilt.destination,
+      schedule: rebuilt.schedule,
       duties: rebuilt.duties,
       route: rebuilt.route,
       stage: rebuilt.stage,

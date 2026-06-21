@@ -19,6 +19,15 @@
   "jobs": {
     "stateBackend": "local-file"
   },
+  "company": {
+    "activeGoals": [
+      {
+        "template": "hourly-monitor-goal-smoke",
+        "every": "1h",
+        "idPrefix": "hourly-monitor-goal-smoke"
+      }
+    ]
+  },
   "executables": {
     "default": "run"
   },
