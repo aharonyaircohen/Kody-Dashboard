@@ -1,0 +1,26 @@
+{
+  "version": 1,
+  "state": "active",
+  "type": "general",
+  "destination": {
+    "outcome": "test",
+    "evidence": [
+      "goalVerified"
+    ]
+  },
+  "schedule": "manual",
+  "duties": [
+    "research"
+  ],
+  "route": [
+    {
+      "stage": "verify",
+      "evidence": "goalVerified",
+      "duty": "research",
+      "executable": "research"
+    }
+  ],
+  "stage": "verify",
+  "facts": {},
+  "blockers": []
+}
