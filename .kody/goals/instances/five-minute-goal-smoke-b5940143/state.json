@@ -1,34 +1,36 @@
 {
   "blockers": [],
-  "createdAt": "2026-06-21T11:58:19.877707Z",
   "destination": {
+    "outcome": "Every 5 minutes, refresh company graph report so recurring goal scheduling can be verified quickly.",
     "evidence": [
       "companyGraphRefreshed"
-    ],
-    "outcome": "Every 5 minutes, refresh company graph report so recurring goal scheduling can be verified quickly."
+    ]
   },
   "duties": [
     "company-graph"
   ],
-  "facts": {},
+  "facts": {
+    "pendingEvidence": "companyGraphRefreshed"
+  },
   "kind": "instance",
   "route": [
     {
+      "evidence": "companyGraphRefreshed",
+      "stage": "refresh-company-graph",
+      "duty": "company-graph",
+      "executable": "company-graph",
       "args": {
         "goal": "five-minute-goal-smoke"
-      },
-      "duty": "company-graph",
-      "evidence": "companyGraphRefreshed",
-      "executable": "company-graph",
-      "stage": "refresh-company-graph"
+      }
     }
   ],
   "sourceTemplate": "five-minute-goal-smoke",
   "stage": "refresh-company-graph",
-  "state": "active",
   "template": "five-minute-goal-smoke",
   "templateId": "five-minute-goal-smoke",
   "type": "monitor",
-  "updatedAt": "2026-06-21T11:58:19.877707Z",
-  "version": 1
+  "version": 1,
+  "state": "active",
+  "createdAt": "2026-06-21T11:58:19.877707Z",
+  "updatedAt": "2026-06-21T11:58:23Z"
 }
