@@ -1,12 +1,12 @@
 ---
 slug: company-graph
 dutySlug: company-graph
-generatedAt: "2026-06-12T15:22:18Z"
+generatedAt: "2026-06-21T06:45:16Z"
 findings:
   - id: company-graph.snapshot
     severity: low
     title: "Graph snapshot emitted"
-    data: {"nodeCounts":{"context":11,"duties":36,"staff":7,"executables":49,"scripts":12,"skills":68,"reports":10,"goals":2,"issues":13},"graphHash":"4c7ec4af30efd8771d5eca7923caf4f84cdcd35442ad69ec69a3885c7f98ae32"}
+    data: {"nodeCounts":{"context":11,"duties":49,"staff":7,"executables":60,"scripts":16,"skills":85,"reports":10,"goals":1,"issues":7},"graphHash":"96b77a994ccf1b828a2277eaedfcaadc8ec68e171f8bb541c21334192d67d4f4"}
   - id: company-graph.stale-context.ai-company-orchestration-plan
     severity: low
     title: "ai-company-orchestration-plan - not declared as reads_from by any duty"
@@ -31,6 +31,10 @@ findings:
     severity: low
     title: "events - present in .kody/ but has no nodes"
     data: {"subfolder":".kody/events"}
+  - id: company-graph.coverage-gap.goals
+    severity: low
+    title: "goals - present in .kody/ but has no nodes"
+    data: {"subfolder":".kody/goals"}
   - id: company-graph.coverage-gap.memory
     severity: low
     title: "memory - present in .kody/ but has no nodes"
@@ -47,6 +51,10 @@ findings:
     severity: low
     title: "tasks - present in .kody/ but has no nodes"
     data: {"subfolder":".kody/tasks"}
+  - id: company-graph.coverage-gap.terminal
+    severity: low
+    title: "terminal - present in .kody/ but has no nodes"
+    data: {"subfolder":".kody/terminal"}
 ---
 
 # Company Graph
@@ -54,16 +62,16 @@ findings:
 | Node type | Count |
 |---|---:|
 | context | 11 |
-| duties | 36 |
+| duties | 49 |
 | staff | 7 |
-| executables | 49 |
-| scripts | 12 |
-| skills | 68 |
+| executables | 60 |
+| scripts | 16 |
+| skills | 85 |
 | reports | 10 |
-| goals | 2 |
-| issues | 13 |
+| goals | 1 |
+| issues | 7 |
 
-Graph hash: `4c7ec4af30efd8771d5eca7923caf4f84cdcd35442ad69ec69a3885c7f98ae32`
+Graph hash: `96b77a994ccf1b828a2277eaedfcaadc8ec68e171f8bb541c21334192d67d4f4`
 
 ## Graph
 ```json
@@ -173,7 +181,7 @@ Graph hash: `4c7ec4af30efd8771d5eca7923caf4f84cdcd35442ad69ec69a3885c7f98ae32`
       "id": "duty:approval-gate",
       "type": "duty",
       "slug": "approval-gate",
-      "staff": "cto",
+      "staff": "",
       "executables": [
         "approval-gate"
       ],
@@ -182,22 +190,22 @@ Graph hash: `4c7ec4af30efd8771d5eca7923caf4f84cdcd35442ad69ec69a3885c7f98ae32`
       "disabled": true
     },
     {
-      "id": "duty:architecture-audit",
+      "id": "duty:bug",
       "type": "duty",
-      "slug": "architecture-audit",
-      "staff": "cto",
+      "slug": "bug",
+      "staff": "",
       "executables": [
-        "architecture-audit"
+        "bug"
       ],
       "readsFrom": [],
       "writesTo": [],
-      "disabled": true
+      "disabled": false
     },
     {
       "id": "duty:ceo-performance-review",
       "type": "duty",
       "slug": "ceo-performance-review",
-      "staff": "ceo",
+      "staff": "",
       "executables": [
         "ceo-performance-review"
       ],
@@ -206,40 +214,48 @@ Graph hash: `4c7ec4af30efd8771d5eca7923caf4f84cdcd35442ad69ec69a3885c7f98ae32`
       "disabled": false
     },
     {
-      "id": "duty:ci-health-graph",
+      "id": "duty:chore",
       "type": "duty",
-      "slug": "ci-health-graph",
-      "staff": "qa",
+      "slug": "chore",
+      "staff": "",
       "executables": [
-        "ci-health-graph"
+        "chore"
       ],
-      "readsFrom": [
-        "ci-health-graph"
-      ],
-      "writesTo": [
-        "ci-health-graph"
-      ],
+      "readsFrom": [],
+      "writesTo": [],
       "disabled": false
     },
     {
-      "id": "duty:cleanup-branches",
+      "id": "duty:classify",
       "type": "duty",
-      "slug": "cleanup-branches",
-      "staff": "coo",
+      "slug": "classify",
+      "staff": "",
       "executables": [
-        "cleanup-branches"
+        "classify"
+      ],
+      "readsFrom": [],
+      "writesTo": [],
+      "disabled": false
+    },
+    {
+      "id": "duty:cleanup",
+      "type": "duty",
+      "slug": "cleanup",
+      "staff": "",
+      "executables": [
+        "cleanup"
       ],
       "readsFrom": [],
       "writesTo": [],
       "disabled": true
     },
     {
-      "id": "duty:clear-empty-goals",
+      "id": "duty:code-health",
       "type": "duty",
-      "slug": "clear-empty-goals",
-      "staff": "coo",
+      "slug": "code-health",
+      "staff": "",
       "executables": [
-        "clear-empty-goals"
+        "code-health"
       ],
       "readsFrom": [],
       "writesTo": [],
@@ -249,7 +265,7 @@ Graph hash: `4c7ec4af30efd8771d5eca7923caf4f84cdcd35442ad69ec69a3885c7f98ae32`
       "id": "duty:company-graph",
       "type": "duty",
       "slug": "company-graph",
-      "staff": "coo",
+      "staff": "",
       "executables": [
         "company-graph"
       ],
@@ -263,54 +279,20 @@ Graph hash: `4c7ec4af30efd8771d5eca7923caf4f84cdcd35442ad69ec69a3885c7f98ae32`
       "disabled": false
     },
     {
-      "id": "duty:coverage-floor",
+      "id": "duty:delivery-graph",
       "type": "duty",
-      "slug": "coverage-floor",
-      "staff": "cto",
+      "slug": "delivery-graph",
+      "staff": "",
       "executables": [
-        "coverage-floor"
-      ],
-      "readsFrom": [],
-      "writesTo": [],
-      "disabled": true
-    },
-    {
-      "id": "duty:dead-code-sweep",
-      "type": "duty",
-      "slug": "dead-code-sweep",
-      "staff": "coo",
-      "executables": [
-        "dead-code-sweep"
-      ],
-      "readsFrom": [],
-      "writesTo": [],
-      "disabled": true
-    },
-    {
-      "id": "duty:dependency-bump",
-      "type": "duty",
-      "slug": "dependency-bump",
-      "staff": "coo",
-      "executables": [
-        "dependency-bump"
-      ],
-      "readsFrom": [],
-      "writesTo": [],
-      "disabled": true
-    },
-    {
-      "id": "duty:dependency-graph",
-      "type": "duty",
-      "slug": "dependency-graph",
-      "staff": "cto",
-      "executables": [
-        "dependency-graph"
+        "delivery-graph"
       ],
       "readsFrom": [
-        "dependency-graph"
+        "ci-health-graph",
+        "pr-graph"
       ],
       "writesTo": [
-        "dependency-graph"
+        "ci-health-graph",
+        "pr-graph"
       ],
       "disabled": false
     },
@@ -318,7 +300,7 @@ Graph hash: `4c7ec4af30efd8771d5eca7923caf4f84cdcd35442ad69ec69a3885c7f98ae32`
       "id": "duty:design-review",
       "type": "duty",
       "slug": "design-review",
-      "staff": "ux-designer",
+      "staff": "",
       "executables": [
         "design-review"
       ],
@@ -330,7 +312,7 @@ Graph hash: `4c7ec4af30efd8771d5eca7923caf4f84cdcd35442ad69ec69a3885c7f98ae32`
       "id": "duty:dev-ci-health",
       "type": "duty",
       "slug": "dev-ci-health",
-      "staff": "cto",
+      "staff": "",
       "executables": [
         "dev-ci-health"
       ],
@@ -339,40 +321,12 @@ Graph hash: `4c7ec4af30efd8771d5eca7923caf4f84cdcd35442ad69ec69a3885c7f98ae32`
       "disabled": false
     },
     {
-      "id": "duty:docs-code",
+      "id": "duty:docs-health",
       "type": "duty",
-      "slug": "docs-code",
-      "staff": "tech-writer",
+      "slug": "docs-health",
+      "staff": "",
       "executables": [
-        "docs-code"
-      ],
-      "readsFrom": [],
-      "writesTo": [],
-      "disabled": false
-    },
-    {
-      "id": "duty:docs-graph",
-      "type": "duty",
-      "slug": "docs-graph",
-      "staff": "tech-writer",
-      "executables": [
-        "docs-graph"
-      ],
-      "readsFrom": [
-        "docs-graph"
-      ],
-      "writesTo": [
-        "docs-graph"
-      ],
-      "disabled": false
-    },
-    {
-      "id": "duty:docs-readme",
-      "type": "duty",
-      "slug": "docs-readme",
-      "staff": "tech-writer",
-      "executables": [
-        "docs-readme"
+        "docs-health"
       ],
       "readsFrom": [],
       "writesTo": [],
@@ -382,7 +336,7 @@ Graph hash: `4c7ec4af30efd8771d5eca7923caf4f84cdcd35442ad69ec69a3885c7f98ae32`
       "id": "duty:duty-call",
       "type": "duty",
       "slug": "duty-call",
-      "staff": "ceo",
+      "staff": "",
       "executables": [
         "duty-call"
       ],
@@ -394,7 +348,7 @@ Graph hash: `4c7ec4af30efd8771d5eca7923caf4f84cdcd35442ad69ec69a3885c7f98ae32`
       "id": "duty:duty-review",
       "type": "duty",
       "slug": "duty-review",
-      "staff": "coo",
+      "staff": "",
       "executables": [
         "duty-review"
       ],
@@ -403,22 +357,46 @@ Graph hash: `4c7ec4af30efd8771d5eca7923caf4f84cdcd35442ad69ec69a3885c7f98ae32`
       "disabled": true
     },
     {
-      "id": "duty:flaky-test-quarantine",
+      "id": "duty:feature",
       "type": "duty",
-      "slug": "flaky-test-quarantine",
-      "staff": "cto",
+      "slug": "feature",
+      "staff": "",
       "executables": [
-        "flaky-test-quarantine"
+        "feature"
       ],
       "readsFrom": [],
       "writesTo": [],
-      "disabled": true
+      "disabled": false
+    },
+    {
+      "id": "duty:fix",
+      "type": "duty",
+      "slug": "fix",
+      "staff": "",
+      "executables": [
+        "fix"
+      ],
+      "readsFrom": [],
+      "writesTo": [],
+      "disabled": false
+    },
+    {
+      "id": "duty:fix-ci",
+      "type": "duty",
+      "slug": "fix-ci",
+      "staff": "",
+      "executables": [
+        "fix-ci"
+      ],
+      "readsFrom": [],
+      "writesTo": [],
+      "disabled": false
     },
     {
       "id": "duty:health-check",
       "type": "duty",
       "slug": "health-check",
-      "staff": "coo",
+      "staff": "",
       "executables": [
         "health-check"
       ],
@@ -427,22 +405,58 @@ Graph hash: `4c7ec4af30efd8771d5eca7923caf4f84cdcd35442ad69ec69a3885c7f98ae32`
       "disabled": true
     },
     {
-      "id": "duty:inbox-ping",
+      "id": "duty:kody-analyzer",
       "type": "duty",
-      "slug": "inbox-ping",
-      "staff": "coo",
+      "slug": "kody-analyzer",
+      "staff": "",
       "executables": [
-        "inbox-ping"
+        "kody-chat"
       ],
       "readsFrom": [],
       "writesTo": [],
-      "disabled": true
+      "disabled": false
+    },
+    {
+      "id": "duty:kody-mem",
+      "type": "duty",
+      "slug": "kody-mem",
+      "staff": "",
+      "executables": [
+        "kody-chat"
+      ],
+      "readsFrom": [],
+      "writesTo": [],
+      "disabled": false
+    },
+    {
+      "id": "duty:kody-operator",
+      "type": "duty",
+      "slug": "kody-operator",
+      "staff": "",
+      "executables": [
+        "kody-chat"
+      ],
+      "readsFrom": [],
+      "writesTo": [],
+      "disabled": false
+    },
+    {
+      "id": "duty:kody-vibe",
+      "type": "duty",
+      "slug": "kody-vibe",
+      "staff": "",
+      "executables": [
+        "kody-chat"
+      ],
+      "readsFrom": [],
+      "writesTo": [],
+      "disabled": false
     },
     {
       "id": "duty:memory-compaction",
       "type": "duty",
       "slug": "memory-compaction",
-      "staff": "coo",
+      "staff": "",
       "executables": [
         "compact-memory"
       ],
@@ -456,40 +470,24 @@ Graph hash: `4c7ec4af30efd8771d5eca7923caf4f84cdcd35442ad69ec69a3885c7f98ae32`
       "disabled": false
     },
     {
-      "id": "duty:pr-graph",
+      "id": "duty:plan",
       "type": "duty",
-      "slug": "pr-graph",
-      "staff": "coo",
+      "slug": "plan",
+      "staff": "",
       "executables": [
-        "pr-graph"
+        "plan"
       ],
-      "readsFrom": [
-        "pr-graph"
-      ],
-      "writesTo": [
-        "pr-graph"
-      ],
+      "readsFrom": [],
+      "writesTo": [],
       "disabled": false
     },
     {
       "id": "duty:pr-health-triage",
       "type": "duty",
       "slug": "pr-health-triage",
-      "staff": "cto",
+      "staff": "",
       "executables": [
         "pr-health-triage"
-      ],
-      "readsFrom": [],
-      "writesTo": [],
-      "disabled": true
-    },
-    {
-      "id": "duty:publish-release",
-      "type": "duty",
-      "slug": "publish-release",
-      "staff": "coo",
-      "executables": [
-        "publish-release"
       ],
       "readsFrom": [],
       "writesTo": [],
@@ -499,7 +497,7 @@ Graph hash: `4c7ec4af30efd8771d5eca7923caf4f84cdcd35442ad69ec69a3885c7f98ae32`
       "id": "duty:qa",
       "type": "duty",
       "slug": "qa",
-      "staff": "qa",
+      "staff": "",
       "executables": [
         "qa"
       ],
@@ -508,10 +506,22 @@ Graph hash: `4c7ec4af30efd8771d5eca7923caf4f84cdcd35442ad69ec69a3885c7f98ae32`
       "disabled": true
     },
     {
+      "id": "duty:qa-engineer",
+      "type": "duty",
+      "slug": "qa-engineer",
+      "staff": "",
+      "executables": [
+        "qa-engineer"
+      ],
+      "readsFrom": [],
+      "writesTo": [],
+      "disabled": false
+    },
+    {
       "id": "duty:qa-sweep",
       "type": "duty",
       "slug": "qa-sweep",
-      "staff": "qa",
+      "staff": "",
       "executables": [
         "qa-sweep"
       ],
@@ -523,7 +533,7 @@ Graph hash: `4c7ec4af30efd8771d5eca7923caf4f84cdcd35442ad69ec69a3885c7f98ae32`
       "id": "duty:qa-verify",
       "type": "duty",
       "slug": "qa-verify",
-      "staff": "qa",
+      "staff": "",
       "executables": [
         "qa-verify"
       ],
@@ -532,10 +542,22 @@ Graph hash: `4c7ec4af30efd8771d5eca7923caf4f84cdcd35442ad69ec69a3885c7f98ae32`
       "disabled": false
     },
     {
+      "id": "duty:quality-watch",
+      "type": "duty",
+      "slug": "quality-watch",
+      "staff": "",
+      "executables": [
+        "quality-watch"
+      ],
+      "readsFrom": [],
+      "writesTo": [],
+      "disabled": true
+    },
+    {
       "id": "duty:redispatch",
       "type": "duty",
       "slug": "redispatch",
-      "staff": "coo",
+      "staff": "",
       "executables": [
         "redispatch"
       ],
@@ -544,24 +566,126 @@ Graph hash: `4c7ec4af30efd8771d5eca7923caf4f84cdcd35442ad69ec69a3885c7f98ae32`
       "disabled": true
     },
     {
-      "id": "duty:security-audit",
+      "id": "duty:release",
       "type": "duty",
-      "slug": "security-audit",
-      "staff": "cto",
+      "slug": "release",
+      "staff": "kody",
       "executables": [
-        "security-audit"
+        "release"
       ],
       "readsFrom": [],
       "writesTo": [],
-      "disabled": true
+      "disabled": false
+    },
+    {
+      "id": "duty:repo-graph",
+      "type": "duty",
+      "slug": "repo-graph",
+      "staff": "",
+      "executables": [
+        "repo-graph"
+      ],
+      "readsFrom": [
+        "dependency-graph",
+        "docs-graph"
+      ],
+      "writesTo": [
+        "dependency-graph",
+        "docs-graph"
+      ],
+      "disabled": false
+    },
+    {
+      "id": "duty:reproduce",
+      "type": "duty",
+      "slug": "reproduce",
+      "staff": "",
+      "executables": [
+        "reproduce"
+      ],
+      "readsFrom": [],
+      "writesTo": [],
+      "disabled": false
+    },
+    {
+      "id": "duty:research",
+      "type": "duty",
+      "slug": "research",
+      "staff": "",
+      "executables": [
+        "research"
+      ],
+      "readsFrom": [],
+      "writesTo": [],
+      "disabled": false
+    },
+    {
+      "id": "duty:resolve",
+      "type": "duty",
+      "slug": "resolve",
+      "staff": "",
+      "executables": [
+        "resolve"
+      ],
+      "readsFrom": [],
+      "writesTo": [],
+      "disabled": false
+    },
+    {
+      "id": "duty:revert",
+      "type": "duty",
+      "slug": "revert",
+      "staff": "",
+      "executables": [
+        "revert"
+      ],
+      "readsFrom": [],
+      "writesTo": [],
+      "disabled": false
+    },
+    {
+      "id": "duty:review",
+      "type": "duty",
+      "slug": "review",
+      "staff": "",
+      "executables": [
+        "review"
+      ],
+      "readsFrom": [],
+      "writesTo": [],
+      "disabled": false
     },
     {
       "id": "duty:skills-research",
       "type": "duty",
       "slug": "skills-research",
-      "staff": "cto",
+      "staff": "",
       "executables": [
         "skills-research"
+      ],
+      "readsFrom": [],
+      "writesTo": [],
+      "disabled": false
+    },
+    {
+      "id": "duty:spec",
+      "type": "duty",
+      "slug": "spec",
+      "staff": "",
+      "executables": [
+        "spec"
+      ],
+      "readsFrom": [],
+      "writesTo": [],
+      "disabled": false
+    },
+    {
+      "id": "duty:sync",
+      "type": "duty",
+      "slug": "sync",
+      "staff": "",
+      "executables": [
+        "sync"
       ],
       "readsFrom": [],
       "writesTo": [],
@@ -571,7 +695,7 @@ Graph hash: `4c7ec4af30efd8771d5eca7923caf4f84cdcd35442ad69ec69a3885c7f98ae32`
       "id": "duty:system-audit",
       "type": "duty",
       "slug": "system-audit",
-      "staff": "coo",
+      "staff": "",
       "executables": [
         "system-audit"
       ],
@@ -580,10 +704,22 @@ Graph hash: `4c7ec4af30efd8771d5eca7923caf4f84cdcd35442ad69ec69a3885c7f98ae32`
       "disabled": true
     },
     {
+      "id": "duty:task-leader",
+      "type": "duty",
+      "slug": "task-leader",
+      "staff": "kody",
+      "executables": [
+        "task-leader"
+      ],
+      "readsFrom": [],
+      "writesTo": [],
+      "disabled": false
+    },
+    {
       "id": "duty:task-memorize",
       "type": "duty",
       "slug": "task-memorize",
-      "staff": "coo",
+      "staff": "",
       "executables": [
         "task-memorize"
       ],
@@ -592,32 +728,58 @@ Graph hash: `4c7ec4af30efd8771d5eca7923caf4f84cdcd35442ad69ec69a3885c7f98ae32`
       "disabled": false
     },
     {
-      "id": "duty:test-ex",
+      "id": "duty:task-verifier",
       "type": "duty",
-      "slug": "test-ex",
-      "staff": "",
-      "executables": [],
+      "slug": "task-verifier",
+      "staff": "kody",
+      "executables": [
+        "task-verifier"
+      ],
       "readsFrom": [],
       "writesTo": [],
       "disabled": false
     },
     {
-      "id": "duty:type-debt",
+      "id": "duty:ui-review",
       "type": "duty",
-      "slug": "type-debt",
-      "staff": "cto",
+      "slug": "ui-review",
+      "staff": "",
       "executables": [
-        "type-debt"
+        "ui-review"
       ],
       "readsFrom": [],
       "writesTo": [],
-      "disabled": true
+      "disabled": false
+    },
+    {
+      "id": "duty:vercel-dev-deploy",
+      "type": "duty",
+      "slug": "vercel-dev-deploy",
+      "staff": "",
+      "executables": [
+        "vercel-dev-deploy"
+      ],
+      "readsFrom": [],
+      "writesTo": [],
+      "disabled": false
+    },
+    {
+      "id": "duty:vercel-production-deploy",
+      "type": "duty",
+      "slug": "vercel-production-deploy",
+      "staff": "",
+      "executables": [
+        "vercel-production-deploy"
+      ],
+      "readsFrom": [],
+      "writesTo": [],
+      "disabled": false
     },
     {
       "id": "duty:work-briefing",
       "type": "duty",
       "slug": "work-briefing",
-      "staff": "coo",
+      "staff": "",
       "executables": [
         "work-briefing"
       ],
@@ -721,28 +883,32 @@ Graph hash: `4c7ec4af30efd8771d5eca7923caf4f84cdcd35442ad69ec69a3885c7f98ae32`
       "shellScripts": []
     },
     {
-      "id": "executable:cleanup-branches",
+      "id": "executable:cleanup",
       "type": "executable",
-      "slug": "cleanup-branches",
+      "slug": "cleanup",
       "role": "primitive",
       "kind": "oneshot",
       "staff": "",
-      "describe": "Delete stale task branches whose linked task is closed, done, or failed.",
+      "describe": "Coordinate branches, empty goals, stale dependency nudges, and dead-code cleanup signals.",
       "skills": [
-        "cleanup-branches"
+        "clear-empty-goals",
+        "cleanup-branches",
+        "dependency-bump",
+        "dead-code-sweep"
       ],
       "shellScripts": []
     },
     {
-      "id": "executable:clear-empty-goals",
+      "id": "executable:code-health",
       "type": "executable",
-      "slug": "clear-empty-goals",
+      "slug": "code-health",
       "role": "primitive",
       "kind": "oneshot",
       "staff": "",
-      "describe": "Find goals that contain no tasks and remove or report them according to the executable method.",
+      "describe": "Coordinate architecture and TypeScript debt code-health signals.",
       "skills": [
-        "clear-empty-goals"
+        "architecture-audit",
+        "type-debt"
       ],
       "shellScripts": []
     },
@@ -801,6 +967,22 @@ Graph hash: `4c7ec4af30efd8771d5eca7923caf4f84cdcd35442ad69ec69a3885c7f98ae32`
         "dead-code-sweep"
       ],
       "shellScripts": []
+    },
+    {
+      "id": "executable:delivery-graph",
+      "type": "executable",
+      "slug": "delivery-graph",
+      "role": "primitive",
+      "kind": "oneshot",
+      "staff": "",
+      "describe": "Refresh delivery context by deriving CI health and pull request flow reports.",
+      "skills": [
+        "ci-health-graph",
+        "pr-graph"
+      ],
+      "shellScripts": [
+        "refresh-delivery-graphs.sh"
+      ]
     },
     {
       "id": "executable:dependency-bump",
@@ -884,6 +1066,20 @@ Graph hash: `4c7ec4af30efd8771d5eca7923caf4f84cdcd35442ad69ec69a3885c7f98ae32`
       "shellScripts": [
         "refresh-docs-graph.sh"
       ]
+    },
+    {
+      "id": "executable:docs-health",
+      "type": "executable",
+      "slug": "docs-health",
+      "role": "primitive",
+      "kind": "oneshot",
+      "staff": "",
+      "describe": "Catch documentation drift from merged PRs and broad in-code documentation coverage gaps.",
+      "skills": [
+        "docs-readme",
+        "docs-code"
+      ],
+      "shellScripts": []
     },
     {
       "id": "executable:docs-readme",
@@ -1011,16 +1207,14 @@ Graph hash: `4c7ec4af30efd8771d5eca7923caf4f84cdcd35442ad69ec69a3885c7f98ae32`
       "shellScripts": []
     },
     {
-      "id": "executable:inbox-ping",
+      "id": "executable:kody-chat",
       "type": "executable",
-      "slug": "inbox-ping",
-      "role": "primitive",
-      "kind": "oneshot",
+      "slug": "kody-chat",
+      "role": "chat",
+      "kind": "",
       "staff": "",
-      "describe": "Post a heartbeat recommendation proving that duty mentions reach the dashboard inbox.",
-      "skills": [
-        "inbox-ping"
-      ],
+      "describe": "In-process dashboard chat — research, planning, and creation flows wired against the connected repo.",
+      "skills": [],
       "shellScripts": []
     },
     {
@@ -1068,19 +1262,6 @@ Graph hash: `4c7ec4af30efd8771d5eca7923caf4f84cdcd35442ad69ec69a3885c7f98ae32`
       "describe": "Review open PRs for conflicts, failed CI, or stale branches, then recommend or dispatch the trusted repair.",
       "skills": [
         "pr-health-triage"
-      ],
-      "shellScripts": []
-    },
-    {
-      "id": "executable:publish-release",
-      "type": "executable",
-      "slug": "publish-release",
-      "role": "primitive",
-      "kind": "oneshot",
-      "staff": "",
-      "describe": "Create a release-request issue and dispatch the release orchestrator on demand.",
-      "skills": [
-        "publish-release"
       ],
       "shellScripts": []
     },
@@ -1138,6 +1319,21 @@ Graph hash: `4c7ec4af30efd8771d5eca7923caf4f84cdcd35442ad69ec69a3885c7f98ae32`
       "shellScripts": []
     },
     {
+      "id": "executable:quality-watch",
+      "type": "executable",
+      "slug": "quality-watch",
+      "role": "primitive",
+      "kind": "oneshot",
+      "staff": "",
+      "describe": "Coordinate security, coverage, and flaky-test quality signals.",
+      "skills": [
+        "security-audit",
+        "coverage-floor",
+        "flaky-test-quarantine"
+      ],
+      "shellScripts": []
+    },
+    {
       "id": "executable:redispatch",
       "type": "executable",
       "slug": "redispatch",
@@ -1149,6 +1345,38 @@ Graph hash: `4c7ec4af30efd8771d5eca7923caf4f84cdcd35442ad69ec69a3885c7f98ae32`
         "redispatch"
       ],
       "shellScripts": []
+    },
+    {
+      "id": "executable:release",
+      "type": "executable",
+      "slug": "release",
+      "role": "primitive",
+      "kind": "",
+      "staff": "",
+      "describe": "Branch-aware release flow. Opens the version PR into the configured integration branch, tags the merged commit, creates the GitHub Release, and opens a promotion PR only when integration and production branches differ.",
+      "skills": [
+        "release-prepare",
+        "release-merge",
+        "release-tag",
+        "release-promote"
+      ],
+      "shellScripts": []
+    },
+    {
+      "id": "executable:repo-graph",
+      "type": "executable",
+      "slug": "repo-graph",
+      "role": "primitive",
+      "kind": "oneshot",
+      "staff": "",
+      "describe": "Refresh repository topology by deriving dependency and documentation graph reports.",
+      "skills": [
+        "dependency-graph",
+        "docs-graph"
+      ],
+      "shellScripts": [
+        "refresh-repo-graphs.sh"
+      ]
     },
     {
       "id": "executable:reproduce",
@@ -1177,6 +1405,18 @@ Graph hash: `4c7ec4af30efd8771d5eca7923caf4f84cdcd35442ad69ec69a3885c7f98ae32`
       "shellScripts": [
         "install-codegraph.sh"
       ]
+    },
+    {
+      "id": "executable:resolve",
+      "type": "executable",
+      "slug": "resolve",
+      "missing": true
+    },
+    {
+      "id": "executable:revert",
+      "type": "executable",
+      "slug": "revert",
+      "missing": true
     },
     {
       "id": "executable:review",
@@ -1235,6 +1475,12 @@ Graph hash: `4c7ec4af30efd8771d5eca7923caf4f84cdcd35442ad69ec69a3885c7f98ae32`
       "shellScripts": []
     },
     {
+      "id": "executable:sync",
+      "type": "executable",
+      "slug": "sync",
+      "missing": true
+    },
+    {
       "id": "executable:system-audit",
       "type": "executable",
       "slug": "system-audit",
@@ -1248,6 +1494,19 @@ Graph hash: `4c7ec4af30efd8771d5eca7923caf4f84cdcd35442ad69ec69a3885c7f98ae32`
       "shellScripts": []
     },
     {
+      "id": "executable:task-leader",
+      "type": "executable",
+      "slug": "task-leader",
+      "role": "primitive",
+      "kind": "",
+      "staff": "",
+      "describe": "Task leader — orchestrates reviews, fixes, merges, and dispatches every 15 minutes.",
+      "skills": [
+        "task-leader-rules"
+      ],
+      "shellScripts": []
+    },
+    {
       "id": "executable:task-memorize",
       "type": "executable",
       "slug": "task-memorize",
@@ -1257,6 +1516,19 @@ Graph hash: `4c7ec4af30efd8771d5eca7923caf4f84cdcd35442ad69ec69a3885c7f98ae32`
       "describe": "Turn task and execution experience into durable `.kody/memory/` entries.",
       "skills": [
         "task-memorize"
+      ],
+      "shellScripts": []
+    },
+    {
+      "id": "executable:task-verifier",
+      "type": "executable",
+      "slug": "task-verifier",
+      "role": "primitive",
+      "kind": "",
+      "staff": "",
+      "describe": "Task verifier — deep analysis of backlog issues, verdict to verified or needs-human.",
+      "skills": [
+        "verifier-method"
       ],
       "shellScripts": []
     },
@@ -1290,6 +1562,32 @@ Graph hash: `4c7ec4af30efd8771d5eca7923caf4f84cdcd35442ad69ec69a3885c7f98ae32`
       "shellScripts": []
     },
     {
+      "id": "executable:vercel-dev-deploy",
+      "type": "executable",
+      "slug": "vercel-dev-deploy",
+      "role": "primitive",
+      "kind": "",
+      "staff": "",
+      "describe": "Deploy dev branch to Vercel Preview and move the stable dev preview alias.",
+      "skills": [],
+      "shellScripts": [
+        "vercel-dev-deploy.sh"
+      ]
+    },
+    {
+      "id": "executable:vercel-production-deploy",
+      "type": "executable",
+      "slug": "vercel-production-deploy",
+      "role": "primitive",
+      "kind": "",
+      "staff": "",
+      "describe": "Deploy main branch to Vercel Production.",
+      "skills": [],
+      "shellScripts": [
+        "vercel-production-deploy.sh"
+      ]
+    },
+    {
       "id": "executable:work-briefing",
       "type": "executable",
       "slug": "work-briefing",
@@ -1307,54 +1605,6 @@ Graph hash: `4c7ec4af30efd8771d5eca7923caf4f84cdcd35442ad69ec69a3885c7f98ae32`
       "type": "goal",
       "slug": "ai-company-orchestration-7-gap-plan",
       "label": "goal:ai-company-orchestration-7-gap-plan"
-    },
-    {
-      "id": "goal:kody-state-split",
-      "type": "goal",
-      "slug": "kody-state-split",
-      "label": "goal:kody-state-split"
-    },
-    {
-      "id": "issue:50",
-      "type": "issue",
-      "number": 50,
-      "title": "[kody-state-split] 1/5 — Engine: dual-write all state to .kody/state/** on kody-state",
-      "state": "OPEN"
-    },
-    {
-      "id": "issue:51",
-      "type": "issue",
-      "number": 51,
-      "title": "[kody-state-split] 2/5 — Migrate existing scattered state files to .kody/state/**",
-      "state": "OPEN"
-    },
-    {
-      "id": "issue:52",
-      "type": "issue",
-      "number": 52,
-      "title": "[kody-state-split] 3/5 — Flip readers (dashboard + engine) to new path/branch; unify accessor",
-      "state": "OPEN"
-    },
-    {
-      "id": "issue:53",
-      "type": "issue",
-      "number": 53,
-      "title": "[kody-state-split] 4/5 — Stop dual-write, delete stale state from default branch",
-      "state": "OPEN"
-    },
-    {
-      "id": "issue:54",
-      "type": "issue",
-      "number": 54,
-      "title": "[kody-state-split] 5/5 — CI path-filter + fix writers hardcoding default branch",
-      "state": "OPEN"
-    },
-    {
-      "id": "issue:90",
-      "type": "issue",
-      "number": 90,
-      "title": "[Orchestration] Done-claim protocol — `<!-- claim -->` / `<!-- done -->` markers on issues",
-      "state": "CLOSED"
     },
     {
       "id": "issue:91",
@@ -1489,6 +1739,13 @@ Graph hash: `4c7ec4af30efd8771d5eca7923caf4f84cdcd35442ad69ec69a3885c7f98ae32`
       "scope": "executable"
     },
     {
+      "id": "script:delivery-graph/refresh-delivery-graphs.sh",
+      "type": "script",
+      "slug": "delivery-graph/refresh-delivery-graphs.sh",
+      "path": ".kody/executables/delivery-graph/refresh-delivery-graphs.sh",
+      "scope": "executable"
+    },
+    {
       "id": "script:dependency-graph/refresh-dependency-graph.sh",
       "type": "script",
       "slug": "dependency-graph/refresh-dependency-graph.sh",
@@ -1524,6 +1781,13 @@ Graph hash: `4c7ec4af30efd8771d5eca7923caf4f84cdcd35442ad69ec69a3885c7f98ae32`
       "scope": "executable"
     },
     {
+      "id": "script:repo-graph/refresh-repo-graphs.sh",
+      "type": "script",
+      "slug": "repo-graph/refresh-repo-graphs.sh",
+      "path": ".kody/executables/repo-graph/refresh-repo-graphs.sh",
+      "scope": "executable"
+    },
+    {
       "id": "script:research/install-codegraph.sh",
       "type": "script",
       "slug": "research/install-codegraph.sh",
@@ -1543,6 +1807,20 @@ Graph hash: `4c7ec4af30efd8771d5eca7923caf4f84cdcd35442ad69ec69a3885c7f98ae32`
       "slug": "validate-reports",
       "path": ".kody/scripts/validate-reports.sh",
       "scope": "repo"
+    },
+    {
+      "id": "script:vercel-dev-deploy/vercel-dev-deploy.sh",
+      "type": "script",
+      "slug": "vercel-dev-deploy/vercel-dev-deploy.sh",
+      "path": ".kody/executables/vercel-dev-deploy/vercel-dev-deploy.sh",
+      "scope": "executable"
+    },
+    {
+      "id": "script:vercel-production-deploy/vercel-production-deploy.sh",
+      "type": "script",
+      "slug": "vercel-production-deploy/vercel-production-deploy.sh",
+      "path": ".kody/executables/vercel-production-deploy/vercel-production-deploy.sh",
+      "scope": "executable"
     },
     {
       "id": "skill:approval-gate/approval-gate",
@@ -1601,19 +1879,51 @@ Graph hash: `4c7ec4af30efd8771d5eca7923caf4f84cdcd35442ad69ec69a3885c7f98ae32`
       "scope": "executable"
     },
     {
-      "id": "skill:cleanup-branches/cleanup-branches",
+      "id": "skill:cleanup/cleanup-branches",
       "type": "skill",
-      "slug": "cleanup-branches/cleanup-branches",
+      "slug": "cleanup/cleanup-branches",
       "name": "cleanup-branches",
-      "path": ".kody/executables/cleanup-branches/skills/cleanup-branches/SKILL.md",
+      "path": ".kody/executables/cleanup/skills/cleanup-branches/SKILL.md",
       "scope": "executable"
     },
     {
-      "id": "skill:clear-empty-goals/clear-empty-goals",
+      "id": "skill:cleanup/clear-empty-goals",
       "type": "skill",
-      "slug": "clear-empty-goals/clear-empty-goals",
+      "slug": "cleanup/clear-empty-goals",
       "name": "clear-empty-goals",
-      "path": ".kody/executables/clear-empty-goals/skills/clear-empty-goals/SKILL.md",
+      "path": ".kody/executables/cleanup/skills/clear-empty-goals/SKILL.md",
+      "scope": "executable"
+    },
+    {
+      "id": "skill:cleanup/dead-code-sweep",
+      "type": "skill",
+      "slug": "cleanup/dead-code-sweep",
+      "name": "dead-code-sweep",
+      "path": ".kody/executables/cleanup/skills/dead-code-sweep/SKILL.md",
+      "scope": "executable"
+    },
+    {
+      "id": "skill:cleanup/dependency-bump",
+      "type": "skill",
+      "slug": "cleanup/dependency-bump",
+      "name": "dependency-bump",
+      "path": ".kody/executables/cleanup/skills/dependency-bump/SKILL.md",
+      "scope": "executable"
+    },
+    {
+      "id": "skill:code-health/architecture-audit",
+      "type": "skill",
+      "slug": "code-health/architecture-audit",
+      "name": "architecture-audit",
+      "path": ".kody/executables/code-health/skills/architecture-audit/SKILL.md",
+      "scope": "executable"
+    },
+    {
+      "id": "skill:code-health/type-debt",
+      "type": "skill",
+      "slug": "code-health/type-debt",
+      "name": "type-debt",
+      "path": ".kody/executables/code-health/skills/type-debt/SKILL.md",
       "scope": "executable"
     },
     {
@@ -1646,6 +1956,22 @@ Graph hash: `4c7ec4af30efd8771d5eca7923caf4f84cdcd35442ad69ec69a3885c7f98ae32`
       "slug": "dead-code-sweep/dead-code-sweep",
       "name": "dead-code-sweep",
       "path": ".kody/executables/dead-code-sweep/skills/dead-code-sweep/SKILL.md",
+      "scope": "executable"
+    },
+    {
+      "id": "skill:delivery-graph/ci-health-graph",
+      "type": "skill",
+      "slug": "delivery-graph/ci-health-graph",
+      "name": "ci-health-graph",
+      "path": ".kody/executables/delivery-graph/skills/ci-health-graph/SKILL.md",
+      "scope": "executable"
+    },
+    {
+      "id": "skill:delivery-graph/pr-graph",
+      "type": "skill",
+      "slug": "delivery-graph/pr-graph",
+      "name": "pr-graph",
+      "path": ".kody/executables/delivery-graph/skills/pr-graph/SKILL.md",
       "scope": "executable"
     },
     {
@@ -1702,6 +2028,22 @@ Graph hash: `4c7ec4af30efd8771d5eca7923caf4f84cdcd35442ad69ec69a3885c7f98ae32`
       "slug": "docs-graph/docs-graph",
       "name": "docs-graph",
       "path": ".kody/executables/docs-graph/skills/docs-graph/SKILL.md",
+      "scope": "executable"
+    },
+    {
+      "id": "skill:docs-health/docs-code",
+      "type": "skill",
+      "slug": "docs-health/docs-code",
+      "name": "docs-code",
+      "path": ".kody/executables/docs-health/skills/docs-code/SKILL.md",
+      "scope": "executable"
+    },
+    {
+      "id": "skill:docs-health/docs-readme",
+      "type": "skill",
+      "slug": "docs-health/docs-readme",
+      "name": "docs-readme",
+      "path": ".kody/executables/docs-health/skills/docs-readme/SKILL.md",
       "scope": "executable"
     },
     {
@@ -1825,14 +2167,6 @@ Graph hash: `4c7ec4af30efd8771d5eca7923caf4f84cdcd35442ad69ec69a3885c7f98ae32`
       "scope": "executable"
     },
     {
-      "id": "skill:inbox-ping/inbox-ping",
-      "type": "skill",
-      "slug": "inbox-ping/inbox-ping",
-      "name": "inbox-ping",
-      "path": ".kody/executables/inbox-ping/skills/inbox-ping/SKILL.md",
-      "scope": "executable"
-    },
-    {
       "id": "skill:plan/design-system",
       "type": "skill",
       "slug": "plan/design-system",
@@ -1897,14 +2231,6 @@ Graph hash: `4c7ec4af30efd8771d5eca7923caf4f84cdcd35442ad69ec69a3885c7f98ae32`
       "scope": "executable"
     },
     {
-      "id": "skill:publish-release/publish-release",
-      "type": "skill",
-      "slug": "publish-release/publish-release",
-      "name": "publish-release",
-      "path": ".kody/executables/publish-release/skills/publish-release/SKILL.md",
-      "scope": "executable"
-    },
-    {
       "id": "skill:qa-engineer/qa-session",
       "type": "skill",
       "slug": "qa-engineer/qa-session",
@@ -1945,11 +2271,83 @@ Graph hash: `4c7ec4af30efd8771d5eca7923caf4f84cdcd35442ad69ec69a3885c7f98ae32`
       "scope": "executable"
     },
     {
+      "id": "skill:quality-watch/coverage-floor",
+      "type": "skill",
+      "slug": "quality-watch/coverage-floor",
+      "name": "coverage-floor",
+      "path": ".kody/executables/quality-watch/skills/coverage-floor/SKILL.md",
+      "scope": "executable"
+    },
+    {
+      "id": "skill:quality-watch/flaky-test-quarantine",
+      "type": "skill",
+      "slug": "quality-watch/flaky-test-quarantine",
+      "name": "flaky-test-quarantine",
+      "path": ".kody/executables/quality-watch/skills/flaky-test-quarantine/SKILL.md",
+      "scope": "executable"
+    },
+    {
+      "id": "skill:quality-watch/security-audit",
+      "type": "skill",
+      "slug": "quality-watch/security-audit",
+      "name": "security-audit",
+      "path": ".kody/executables/quality-watch/skills/security-audit/SKILL.md",
+      "scope": "executable"
+    },
+    {
       "id": "skill:redispatch/redispatch",
       "type": "skill",
       "slug": "redispatch/redispatch",
       "name": "redispatch",
       "path": ".kody/executables/redispatch/skills/redispatch/SKILL.md",
+      "scope": "executable"
+    },
+    {
+      "id": "skill:release/release-merge",
+      "type": "skill",
+      "slug": "release/release-merge",
+      "name": "release-merge",
+      "path": ".kody/executables/release/skills/release-merge/SKILL.md",
+      "scope": "executable"
+    },
+    {
+      "id": "skill:release/release-prepare",
+      "type": "skill",
+      "slug": "release/release-prepare",
+      "name": "release-prepare",
+      "path": ".kody/executables/release/skills/release-prepare/SKILL.md",
+      "scope": "executable"
+    },
+    {
+      "id": "skill:release/release-promote",
+      "type": "skill",
+      "slug": "release/release-promote",
+      "name": "release-promote",
+      "path": ".kody/executables/release/skills/release-promote/SKILL.md",
+      "scope": "executable"
+    },
+    {
+      "id": "skill:release/release-tag",
+      "type": "skill",
+      "slug": "release/release-tag",
+      "name": "release-tag",
+      "path": ".kody/executables/release/skills/release-tag/SKILL.md",
+      "scope": "executable"
+    },
+    {
+      "id": "skill:repo-graph/dependency-graph",
+      "type": "skill",
+      "slug": "repo-graph/dependency-graph",
+      "name": "dependency-graph",
+      "path": ".kody/executables/repo-graph/skills/dependency-graph/SKILL.md",
+      "scope": "executable"
+    },
+    {
+      "id": "skill:repo-graph/docs-graph",
+      "type": "skill",
+      "slug": "repo-graph/docs-graph",
+      "name": "docs-graph",
+      "path": ".kody/executables/repo-graph/skills/docs-graph/SKILL.md",
       "scope": "executable"
     },
     {
@@ -2033,11 +2431,27 @@ Graph hash: `4c7ec4af30efd8771d5eca7923caf4f84cdcd35442ad69ec69a3885c7f98ae32`
       "scope": "executable"
     },
     {
+      "id": "skill:task-leader/task-leader-rules",
+      "type": "skill",
+      "slug": "task-leader/task-leader-rules",
+      "name": "task-leader-rules",
+      "path": ".kody/executables/task-leader/skills/task-leader-rules/SKILL.md",
+      "scope": "executable"
+    },
+    {
       "id": "skill:task-memorize/task-memorize",
       "type": "skill",
       "slug": "task-memorize/task-memorize",
       "name": "task-memorize",
       "path": ".kody/executables/task-memorize/skills/task-memorize/SKILL.md",
+      "scope": "executable"
+    },
+    {
+      "id": "skill:task-verifier/verifier-method",
+      "type": "skill",
+      "slug": "task-verifier/verifier-method",
+      "name": "verifier-method",
+      "path": ".kody/executables/task-verifier/skills/verifier-method/SKILL.md",
       "scope": "executable"
     },
     {
@@ -2487,34 +2901,16 @@ Graph hash: `4c7ec4af30efd8771d5eca7923caf4f84cdcd35442ad69ec69a3885c7f98ae32`
       "relation": "audience"
     },
     {
-      "id": "duty:approval-gate->assigned_to->staff:cto",
-      "from": "duty:approval-gate",
-      "to": "staff:cto",
-      "relation": "assigned_to"
-    },
-    {
       "id": "duty:approval-gate->runs->executable:approval-gate",
       "from": "duty:approval-gate",
       "to": "executable:approval-gate",
       "relation": "runs"
     },
     {
-      "id": "duty:architecture-audit->assigned_to->staff:cto",
-      "from": "duty:architecture-audit",
-      "to": "staff:cto",
-      "relation": "assigned_to"
-    },
-    {
-      "id": "duty:architecture-audit->runs->executable:architecture-audit",
-      "from": "duty:architecture-audit",
-      "to": "executable:architecture-audit",
+      "id": "duty:bug->runs->executable:bug",
+      "from": "duty:bug",
+      "to": "executable:bug",
       "relation": "runs"
-    },
-    {
-      "id": "duty:ceo-performance-review->assigned_to->staff:ceo",
-      "from": "duty:ceo-performance-review",
-      "to": "staff:ceo",
-      "relation": "assigned_to"
     },
     {
       "id": "duty:ceo-performance-review->runs->executable:ceo-performance-review",
@@ -2523,58 +2919,28 @@ Graph hash: `4c7ec4af30efd8771d5eca7923caf4f84cdcd35442ad69ec69a3885c7f98ae32`
       "relation": "runs"
     },
     {
-      "id": "duty:ci-health-graph->assigned_to->staff:qa",
-      "from": "duty:ci-health-graph",
-      "to": "staff:qa",
-      "relation": "assigned_to"
-    },
-    {
-      "id": "duty:ci-health-graph->reads_from->context:ci-health-graph",
-      "from": "duty:ci-health-graph",
-      "to": "context:ci-health-graph",
-      "relation": "reads_from"
-    },
-    {
-      "id": "duty:ci-health-graph->runs->executable:ci-health-graph",
-      "from": "duty:ci-health-graph",
-      "to": "executable:ci-health-graph",
+      "id": "duty:chore->runs->executable:chore",
+      "from": "duty:chore",
+      "to": "executable:chore",
       "relation": "runs"
     },
     {
-      "id": "duty:ci-health-graph->writes_to->report:ci-health-graph",
-      "from": "duty:ci-health-graph",
-      "to": "report:ci-health-graph",
-      "relation": "writes_to"
-    },
-    {
-      "id": "duty:cleanup-branches->assigned_to->staff:coo",
-      "from": "duty:cleanup-branches",
-      "to": "staff:coo",
-      "relation": "assigned_to"
-    },
-    {
-      "id": "duty:cleanup-branches->runs->executable:cleanup-branches",
-      "from": "duty:cleanup-branches",
-      "to": "executable:cleanup-branches",
+      "id": "duty:classify->runs->executable:classify",
+      "from": "duty:classify",
+      "to": "executable:classify",
       "relation": "runs"
     },
     {
-      "id": "duty:clear-empty-goals->assigned_to->staff:coo",
-      "from": "duty:clear-empty-goals",
-      "to": "staff:coo",
-      "relation": "assigned_to"
-    },
-    {
-      "id": "duty:clear-empty-goals->runs->executable:clear-empty-goals",
-      "from": "duty:clear-empty-goals",
-      "to": "executable:clear-empty-goals",
+      "id": "duty:cleanup->runs->executable:cleanup",
+      "from": "duty:cleanup",
+      "to": "executable:cleanup",
       "relation": "runs"
     },
     {
-      "id": "duty:company-graph->assigned_to->staff:coo",
-      "from": "duty:company-graph",
-      "to": "staff:coo",
-      "relation": "assigned_to"
+      "id": "duty:code-health->runs->executable:code-health",
+      "from": "duty:code-health",
+      "to": "executable:code-health",
+      "relation": "runs"
     },
     {
       "id": "duty:company-graph->reads_from->context:company-graph",
@@ -2601,70 +2967,34 @@ Graph hash: `4c7ec4af30efd8771d5eca7923caf4f84cdcd35442ad69ec69a3885c7f98ae32`
       "relation": "writes_to"
     },
     {
-      "id": "duty:coverage-floor->assigned_to->staff:cto",
-      "from": "duty:coverage-floor",
-      "to": "staff:cto",
-      "relation": "assigned_to"
-    },
-    {
-      "id": "duty:coverage-floor->runs->executable:coverage-floor",
-      "from": "duty:coverage-floor",
-      "to": "executable:coverage-floor",
-      "relation": "runs"
-    },
-    {
-      "id": "duty:dead-code-sweep->assigned_to->staff:coo",
-      "from": "duty:dead-code-sweep",
-      "to": "staff:coo",
-      "relation": "assigned_to"
-    },
-    {
-      "id": "duty:dead-code-sweep->runs->executable:dead-code-sweep",
-      "from": "duty:dead-code-sweep",
-      "to": "executable:dead-code-sweep",
-      "relation": "runs"
-    },
-    {
-      "id": "duty:dependency-bump->assigned_to->staff:coo",
-      "from": "duty:dependency-bump",
-      "to": "staff:coo",
-      "relation": "assigned_to"
-    },
-    {
-      "id": "duty:dependency-bump->runs->executable:dependency-bump",
-      "from": "duty:dependency-bump",
-      "to": "executable:dependency-bump",
-      "relation": "runs"
-    },
-    {
-      "id": "duty:dependency-graph->assigned_to->staff:cto",
-      "from": "duty:dependency-graph",
-      "to": "staff:cto",
-      "relation": "assigned_to"
-    },
-    {
-      "id": "duty:dependency-graph->reads_from->context:dependency-graph",
-      "from": "duty:dependency-graph",
-      "to": "context:dependency-graph",
+      "id": "duty:delivery-graph->reads_from->context:ci-health-graph",
+      "from": "duty:delivery-graph",
+      "to": "context:ci-health-graph",
       "relation": "reads_from"
     },
     {
-      "id": "duty:dependency-graph->runs->executable:dependency-graph",
-      "from": "duty:dependency-graph",
-      "to": "executable:dependency-graph",
+      "id": "duty:delivery-graph->reads_from->context:pr-graph",
+      "from": "duty:delivery-graph",
+      "to": "context:pr-graph",
+      "relation": "reads_from"
+    },
+    {
+      "id": "duty:delivery-graph->runs->executable:delivery-graph",
+      "from": "duty:delivery-graph",
+      "to": "executable:delivery-graph",
       "relation": "runs"
     },
     {
-      "id": "duty:dependency-graph->writes_to->report:dependency-graph",
-      "from": "duty:dependency-graph",
-      "to": "report:dependency-graph",
+      "id": "duty:delivery-graph->writes_to->report:ci-health-graph",
+      "from": "duty:delivery-graph",
+      "to": "report:ci-health-graph",
       "relation": "writes_to"
     },
     {
-      "id": "duty:design-review->assigned_to->staff:ux-designer",
-      "from": "duty:design-review",
-      "to": "staff:ux-designer",
-      "relation": "assigned_to"
+      "id": "duty:delivery-graph->writes_to->report:pr-graph",
+      "from": "duty:delivery-graph",
+      "to": "report:pr-graph",
+      "relation": "writes_to"
     },
     {
       "id": "duty:design-review->runs->executable:design-review",
@@ -2673,70 +3003,16 @@ Graph hash: `4c7ec4af30efd8771d5eca7923caf4f84cdcd35442ad69ec69a3885c7f98ae32`
       "relation": "runs"
     },
     {
-      "id": "duty:dev-ci-health->assigned_to->staff:cto",
-      "from": "duty:dev-ci-health",
-      "to": "staff:cto",
-      "relation": "assigned_to"
-    },
-    {
       "id": "duty:dev-ci-health->runs->executable:dev-ci-health",
       "from": "duty:dev-ci-health",
       "to": "executable:dev-ci-health",
       "relation": "runs"
     },
     {
-      "id": "duty:docs-code->assigned_to->staff:tech-writer",
-      "from": "duty:docs-code",
-      "to": "staff:tech-writer",
-      "relation": "assigned_to"
-    },
-    {
-      "id": "duty:docs-code->runs->executable:docs-code",
-      "from": "duty:docs-code",
-      "to": "executable:docs-code",
+      "id": "duty:docs-health->runs->executable:docs-health",
+      "from": "duty:docs-health",
+      "to": "executable:docs-health",
       "relation": "runs"
-    },
-    {
-      "id": "duty:docs-graph->assigned_to->staff:tech-writer",
-      "from": "duty:docs-graph",
-      "to": "staff:tech-writer",
-      "relation": "assigned_to"
-    },
-    {
-      "id": "duty:docs-graph->reads_from->context:docs-graph",
-      "from": "duty:docs-graph",
-      "to": "context:docs-graph",
-      "relation": "reads_from"
-    },
-    {
-      "id": "duty:docs-graph->runs->executable:docs-graph",
-      "from": "duty:docs-graph",
-      "to": "executable:docs-graph",
-      "relation": "runs"
-    },
-    {
-      "id": "duty:docs-graph->writes_to->report:docs-graph",
-      "from": "duty:docs-graph",
-      "to": "report:docs-graph",
-      "relation": "writes_to"
-    },
-    {
-      "id": "duty:docs-readme->assigned_to->staff:tech-writer",
-      "from": "duty:docs-readme",
-      "to": "staff:tech-writer",
-      "relation": "assigned_to"
-    },
-    {
-      "id": "duty:docs-readme->runs->executable:docs-readme",
-      "from": "duty:docs-readme",
-      "to": "executable:docs-readme",
-      "relation": "runs"
-    },
-    {
-      "id": "duty:duty-call->assigned_to->staff:ceo",
-      "from": "duty:duty-call",
-      "to": "staff:ceo",
-      "relation": "assigned_to"
     },
     {
       "id": "duty:duty-call->runs->executable:duty-call",
@@ -2745,34 +3021,28 @@ Graph hash: `4c7ec4af30efd8771d5eca7923caf4f84cdcd35442ad69ec69a3885c7f98ae32`
       "relation": "runs"
     },
     {
-      "id": "duty:duty-review->assigned_to->staff:coo",
-      "from": "duty:duty-review",
-      "to": "staff:coo",
-      "relation": "assigned_to"
-    },
-    {
       "id": "duty:duty-review->runs->executable:duty-review",
       "from": "duty:duty-review",
       "to": "executable:duty-review",
       "relation": "runs"
     },
     {
-      "id": "duty:flaky-test-quarantine->assigned_to->staff:cto",
-      "from": "duty:flaky-test-quarantine",
-      "to": "staff:cto",
-      "relation": "assigned_to"
-    },
-    {
-      "id": "duty:flaky-test-quarantine->runs->executable:flaky-test-quarantine",
-      "from": "duty:flaky-test-quarantine",
-      "to": "executable:flaky-test-quarantine",
+      "id": "duty:feature->runs->executable:feature",
+      "from": "duty:feature",
+      "to": "executable:feature",
       "relation": "runs"
     },
     {
-      "id": "duty:health-check->assigned_to->staff:coo",
-      "from": "duty:health-check",
-      "to": "staff:coo",
-      "relation": "assigned_to"
+      "id": "duty:fix->runs->executable:fix",
+      "from": "duty:fix",
+      "to": "executable:fix",
+      "relation": "runs"
+    },
+    {
+      "id": "duty:fix-ci->runs->executable:fix-ci",
+      "from": "duty:fix-ci",
+      "to": "executable:fix-ci",
+      "relation": "runs"
     },
     {
       "id": "duty:health-check->runs->executable:health-check",
@@ -2781,22 +3051,28 @@ Graph hash: `4c7ec4af30efd8771d5eca7923caf4f84cdcd35442ad69ec69a3885c7f98ae32`
       "relation": "runs"
     },
     {
-      "id": "duty:inbox-ping->assigned_to->staff:coo",
-      "from": "duty:inbox-ping",
-      "to": "staff:coo",
-      "relation": "assigned_to"
-    },
-    {
-      "id": "duty:inbox-ping->runs->executable:inbox-ping",
-      "from": "duty:inbox-ping",
-      "to": "executable:inbox-ping",
+      "id": "duty:kody-analyzer->runs->executable:kody-chat",
+      "from": "duty:kody-analyzer",
+      "to": "executable:kody-chat",
       "relation": "runs"
     },
     {
-      "id": "duty:memory-compaction->assigned_to->staff:coo",
-      "from": "duty:memory-compaction",
-      "to": "staff:coo",
-      "relation": "assigned_to"
+      "id": "duty:kody-mem->runs->executable:kody-chat",
+      "from": "duty:kody-mem",
+      "to": "executable:kody-chat",
+      "relation": "runs"
+    },
+    {
+      "id": "duty:kody-operator->runs->executable:kody-chat",
+      "from": "duty:kody-operator",
+      "to": "executable:kody-chat",
+      "relation": "runs"
+    },
+    {
+      "id": "duty:kody-vibe->runs->executable:kody-chat",
+      "from": "duty:kody-vibe",
+      "to": "executable:kody-chat",
+      "relation": "runs"
     },
     {
       "id": "duty:memory-compaction->reads_from->context:memory-compaction",
@@ -2823,34 +3099,10 @@ Graph hash: `4c7ec4af30efd8771d5eca7923caf4f84cdcd35442ad69ec69a3885c7f98ae32`
       "relation": "writes_to"
     },
     {
-      "id": "duty:pr-graph->assigned_to->staff:coo",
-      "from": "duty:pr-graph",
-      "to": "staff:coo",
-      "relation": "assigned_to"
-    },
-    {
-      "id": "duty:pr-graph->reads_from->context:pr-graph",
-      "from": "duty:pr-graph",
-      "to": "context:pr-graph",
-      "relation": "reads_from"
-    },
-    {
-      "id": "duty:pr-graph->runs->executable:pr-graph",
-      "from": "duty:pr-graph",
-      "to": "executable:pr-graph",
+      "id": "duty:plan->runs->executable:plan",
+      "from": "duty:plan",
+      "to": "executable:plan",
       "relation": "runs"
-    },
-    {
-      "id": "duty:pr-graph->writes_to->report:pr-graph",
-      "from": "duty:pr-graph",
-      "to": "report:pr-graph",
-      "relation": "writes_to"
-    },
-    {
-      "id": "duty:pr-health-triage->assigned_to->staff:cto",
-      "from": "duty:pr-health-triage",
-      "to": "staff:cto",
-      "relation": "assigned_to"
     },
     {
       "id": "duty:pr-health-triage->runs->executable:pr-health-triage",
@@ -2859,34 +3111,16 @@ Graph hash: `4c7ec4af30efd8771d5eca7923caf4f84cdcd35442ad69ec69a3885c7f98ae32`
       "relation": "runs"
     },
     {
-      "id": "duty:publish-release->assigned_to->staff:coo",
-      "from": "duty:publish-release",
-      "to": "staff:coo",
-      "relation": "assigned_to"
-    },
-    {
-      "id": "duty:publish-release->runs->executable:publish-release",
-      "from": "duty:publish-release",
-      "to": "executable:publish-release",
-      "relation": "runs"
-    },
-    {
-      "id": "duty:qa->assigned_to->staff:qa",
-      "from": "duty:qa",
-      "to": "staff:qa",
-      "relation": "assigned_to"
-    },
-    {
       "id": "duty:qa->runs->executable:qa",
       "from": "duty:qa",
       "to": "executable:qa",
       "relation": "runs"
     },
     {
-      "id": "duty:qa-sweep->assigned_to->staff:qa",
-      "from": "duty:qa-sweep",
-      "to": "staff:qa",
-      "relation": "assigned_to"
+      "id": "duty:qa-engineer->runs->executable:qa-engineer",
+      "from": "duty:qa-engineer",
+      "to": "executable:qa-engineer",
+      "relation": "runs"
     },
     {
       "id": "duty:qa-sweep->runs->executable:qa-sweep",
@@ -2895,22 +3129,16 @@ Graph hash: `4c7ec4af30efd8771d5eca7923caf4f84cdcd35442ad69ec69a3885c7f98ae32`
       "relation": "runs"
     },
     {
-      "id": "duty:qa-verify->assigned_to->staff:qa",
-      "from": "duty:qa-verify",
-      "to": "staff:qa",
-      "relation": "assigned_to"
-    },
-    {
       "id": "duty:qa-verify->runs->executable:qa-verify",
       "from": "duty:qa-verify",
       "to": "executable:qa-verify",
       "relation": "runs"
     },
     {
-      "id": "duty:redispatch->assigned_to->staff:coo",
-      "from": "duty:redispatch",
-      "to": "staff:coo",
-      "relation": "assigned_to"
+      "id": "duty:quality-watch->runs->executable:quality-watch",
+      "from": "duty:quality-watch",
+      "to": "executable:quality-watch",
+      "relation": "runs"
     },
     {
       "id": "duty:redispatch->runs->executable:redispatch",
@@ -2919,22 +3147,76 @@ Graph hash: `4c7ec4af30efd8771d5eca7923caf4f84cdcd35442ad69ec69a3885c7f98ae32`
       "relation": "runs"
     },
     {
-      "id": "duty:security-audit->assigned_to->staff:cto",
-      "from": "duty:security-audit",
-      "to": "staff:cto",
+      "id": "duty:release->assigned_to->staff:kody",
+      "from": "duty:release",
+      "to": "staff:kody",
       "relation": "assigned_to"
     },
     {
-      "id": "duty:security-audit->runs->executable:security-audit",
-      "from": "duty:security-audit",
-      "to": "executable:security-audit",
+      "id": "duty:release->runs->executable:release",
+      "from": "duty:release",
+      "to": "executable:release",
       "relation": "runs"
     },
     {
-      "id": "duty:skills-research->assigned_to->staff:cto",
-      "from": "duty:skills-research",
-      "to": "staff:cto",
-      "relation": "assigned_to"
+      "id": "duty:repo-graph->reads_from->context:dependency-graph",
+      "from": "duty:repo-graph",
+      "to": "context:dependency-graph",
+      "relation": "reads_from"
+    },
+    {
+      "id": "duty:repo-graph->reads_from->context:docs-graph",
+      "from": "duty:repo-graph",
+      "to": "context:docs-graph",
+      "relation": "reads_from"
+    },
+    {
+      "id": "duty:repo-graph->runs->executable:repo-graph",
+      "from": "duty:repo-graph",
+      "to": "executable:repo-graph",
+      "relation": "runs"
+    },
+    {
+      "id": "duty:repo-graph->writes_to->report:dependency-graph",
+      "from": "duty:repo-graph",
+      "to": "report:dependency-graph",
+      "relation": "writes_to"
+    },
+    {
+      "id": "duty:repo-graph->writes_to->report:docs-graph",
+      "from": "duty:repo-graph",
+      "to": "report:docs-graph",
+      "relation": "writes_to"
+    },
+    {
+      "id": "duty:reproduce->runs->executable:reproduce",
+      "from": "duty:reproduce",
+      "to": "executable:reproduce",
+      "relation": "runs"
+    },
+    {
+      "id": "duty:research->runs->executable:research",
+      "from": "duty:research",
+      "to": "executable:research",
+      "relation": "runs"
+    },
+    {
+      "id": "duty:resolve->runs->executable:resolve",
+      "from": "duty:resolve",
+      "to": "executable:resolve",
+      "relation": "runs"
+    },
+    {
+      "id": "duty:revert->runs->executable:revert",
+      "from": "duty:revert",
+      "to": "executable:revert",
+      "relation": "runs"
+    },
+    {
+      "id": "duty:review->runs->executable:review",
+      "from": "duty:review",
+      "to": "executable:review",
+      "relation": "runs"
     },
     {
       "id": "duty:skills-research->runs->executable:skills-research",
@@ -2943,10 +3225,16 @@ Graph hash: `4c7ec4af30efd8771d5eca7923caf4f84cdcd35442ad69ec69a3885c7f98ae32`
       "relation": "runs"
     },
     {
-      "id": "duty:system-audit->assigned_to->staff:coo",
-      "from": "duty:system-audit",
-      "to": "staff:coo",
-      "relation": "assigned_to"
+      "id": "duty:spec->runs->executable:spec",
+      "from": "duty:spec",
+      "to": "executable:spec",
+      "relation": "runs"
+    },
+    {
+      "id": "duty:sync->runs->executable:sync",
+      "from": "duty:sync",
+      "to": "executable:sync",
+      "relation": "runs"
     },
     {
       "id": "duty:system-audit->runs->executable:system-audit",
@@ -2955,10 +3243,16 @@ Graph hash: `4c7ec4af30efd8771d5eca7923caf4f84cdcd35442ad69ec69a3885c7f98ae32`
       "relation": "runs"
     },
     {
-      "id": "duty:task-memorize->assigned_to->staff:coo",
-      "from": "duty:task-memorize",
-      "to": "staff:coo",
+      "id": "duty:task-leader->assigned_to->staff:kody",
+      "from": "duty:task-leader",
+      "to": "staff:kody",
       "relation": "assigned_to"
+    },
+    {
+      "id": "duty:task-leader->runs->executable:task-leader",
+      "from": "duty:task-leader",
+      "to": "executable:task-leader",
+      "relation": "runs"
     },
     {
       "id": "duty:task-memorize->runs->executable:task-memorize",
@@ -2967,22 +3261,34 @@ Graph hash: `4c7ec4af30efd8771d5eca7923caf4f84cdcd35442ad69ec69a3885c7f98ae32`
       "relation": "runs"
     },
     {
-      "id": "duty:type-debt->assigned_to->staff:cto",
-      "from": "duty:type-debt",
-      "to": "staff:cto",
+      "id": "duty:task-verifier->assigned_to->staff:kody",
+      "from": "duty:task-verifier",
+      "to": "staff:kody",
       "relation": "assigned_to"
     },
     {
-      "id": "duty:type-debt->runs->executable:type-debt",
-      "from": "duty:type-debt",
-      "to": "executable:type-debt",
+      "id": "duty:task-verifier->runs->executable:task-verifier",
+      "from": "duty:task-verifier",
+      "to": "executable:task-verifier",
       "relation": "runs"
     },
     {
-      "id": "duty:work-briefing->assigned_to->staff:coo",
-      "from": "duty:work-briefing",
-      "to": "staff:coo",
-      "relation": "assigned_to"
+      "id": "duty:ui-review->runs->executable:ui-review",
+      "from": "duty:ui-review",
+      "to": "executable:ui-review",
+      "relation": "runs"
+    },
+    {
+      "id": "duty:vercel-dev-deploy->runs->executable:vercel-dev-deploy",
+      "from": "duty:vercel-dev-deploy",
+      "to": "executable:vercel-dev-deploy",
+      "relation": "runs"
+    },
+    {
+      "id": "duty:vercel-production-deploy->runs->executable:vercel-production-deploy",
+      "from": "duty:vercel-production-deploy",
+      "to": "executable:vercel-production-deploy",
+      "relation": "runs"
     },
     {
       "id": "duty:work-briefing->runs->executable:work-briefing",
@@ -3045,15 +3351,39 @@ Graph hash: `4c7ec4af30efd8771d5eca7923caf4f84cdcd35442ad69ec69a3885c7f98ae32`
       "relation": "uses_skill"
     },
     {
-      "id": "executable:cleanup-branches->uses_skill->skill:cleanup-branches/cleanup-branches",
-      "from": "executable:cleanup-branches",
-      "to": "skill:cleanup-branches/cleanup-branches",
+      "id": "executable:cleanup->uses_skill->skill:cleanup/cleanup-branches",
+      "from": "executable:cleanup",
+      "to": "skill:cleanup/cleanup-branches",
       "relation": "uses_skill"
     },
     {
-      "id": "executable:clear-empty-goals->uses_skill->skill:clear-empty-goals/clear-empty-goals",
-      "from": "executable:clear-empty-goals",
-      "to": "skill:clear-empty-goals/clear-empty-goals",
+      "id": "executable:cleanup->uses_skill->skill:cleanup/clear-empty-goals",
+      "from": "executable:cleanup",
+      "to": "skill:cleanup/clear-empty-goals",
+      "relation": "uses_skill"
+    },
+    {
+      "id": "executable:cleanup->uses_skill->skill:cleanup/dead-code-sweep",
+      "from": "executable:cleanup",
+      "to": "skill:cleanup/dead-code-sweep",
+      "relation": "uses_skill"
+    },
+    {
+      "id": "executable:cleanup->uses_skill->skill:cleanup/dependency-bump",
+      "from": "executable:cleanup",
+      "to": "skill:cleanup/dependency-bump",
+      "relation": "uses_skill"
+    },
+    {
+      "id": "executable:code-health->uses_skill->skill:code-health/architecture-audit",
+      "from": "executable:code-health",
+      "to": "skill:code-health/architecture-audit",
+      "relation": "uses_skill"
+    },
+    {
+      "id": "executable:code-health->uses_skill->skill:code-health/type-debt",
+      "from": "executable:code-health",
+      "to": "skill:code-health/type-debt",
       "relation": "uses_skill"
     },
     {
@@ -3090,6 +3420,24 @@ Graph hash: `4c7ec4af30efd8771d5eca7923caf4f84cdcd35442ad69ec69a3885c7f98ae32`
       "id": "executable:dead-code-sweep->uses_skill->skill:dead-code-sweep/dead-code-sweep",
       "from": "executable:dead-code-sweep",
       "to": "skill:dead-code-sweep/dead-code-sweep",
+      "relation": "uses_skill"
+    },
+    {
+      "id": "executable:delivery-graph->runs_preflight->script:delivery-graph/refresh-delivery-graphs.sh",
+      "from": "executable:delivery-graph",
+      "to": "script:delivery-graph/refresh-delivery-graphs.sh",
+      "relation": "runs_preflight"
+    },
+    {
+      "id": "executable:delivery-graph->uses_skill->skill:delivery-graph/ci-health-graph",
+      "from": "executable:delivery-graph",
+      "to": "skill:delivery-graph/ci-health-graph",
+      "relation": "uses_skill"
+    },
+    {
+      "id": "executable:delivery-graph->uses_skill->skill:delivery-graph/pr-graph",
+      "from": "executable:delivery-graph",
+      "to": "skill:delivery-graph/pr-graph",
       "relation": "uses_skill"
     },
     {
@@ -3144,6 +3492,18 @@ Graph hash: `4c7ec4af30efd8771d5eca7923caf4f84cdcd35442ad69ec69a3885c7f98ae32`
       "id": "executable:docs-graph->uses_skill->skill:docs-graph/docs-graph",
       "from": "executable:docs-graph",
       "to": "skill:docs-graph/docs-graph",
+      "relation": "uses_skill"
+    },
+    {
+      "id": "executable:docs-health->uses_skill->skill:docs-health/docs-code",
+      "from": "executable:docs-health",
+      "to": "skill:docs-health/docs-code",
+      "relation": "uses_skill"
+    },
+    {
+      "id": "executable:docs-health->uses_skill->skill:docs-health/docs-readme",
+      "from": "executable:docs-health",
+      "to": "skill:docs-health/docs-readme",
       "relation": "uses_skill"
     },
     {
@@ -3243,12 +3603,6 @@ Graph hash: `4c7ec4af30efd8771d5eca7923caf4f84cdcd35442ad69ec69a3885c7f98ae32`
       "relation": "uses_skill"
     },
     {
-      "id": "executable:inbox-ping->uses_skill->skill:inbox-ping/inbox-ping",
-      "from": "executable:inbox-ping",
-      "to": "skill:inbox-ping/inbox-ping",
-      "relation": "uses_skill"
-    },
-    {
       "id": "executable:plan->runs_preflight->script:plan/install-codegraph.sh",
       "from": "executable:plan",
       "to": "script:plan/install-codegraph.sh",
@@ -3309,12 +3663,6 @@ Graph hash: `4c7ec4af30efd8771d5eca7923caf4f84cdcd35442ad69ec69a3885c7f98ae32`
       "relation": "uses_skill"
     },
     {
-      "id": "executable:publish-release->uses_skill->skill:publish-release/publish-release",
-      "from": "executable:publish-release",
-      "to": "skill:publish-release/publish-release",
-      "relation": "uses_skill"
-    },
-    {
       "id": "executable:qa->uses_skill->skill:qa/qa",
       "from": "executable:qa",
       "to": "skill:qa/qa",
@@ -3345,9 +3693,69 @@ Graph hash: `4c7ec4af30efd8771d5eca7923caf4f84cdcd35442ad69ec69a3885c7f98ae32`
       "relation": "uses_skill"
     },
     {
+      "id": "executable:quality-watch->uses_skill->skill:quality-watch/coverage-floor",
+      "from": "executable:quality-watch",
+      "to": "skill:quality-watch/coverage-floor",
+      "relation": "uses_skill"
+    },
+    {
+      "id": "executable:quality-watch->uses_skill->skill:quality-watch/flaky-test-quarantine",
+      "from": "executable:quality-watch",
+      "to": "skill:quality-watch/flaky-test-quarantine",
+      "relation": "uses_skill"
+    },
+    {
+      "id": "executable:quality-watch->uses_skill->skill:quality-watch/security-audit",
+      "from": "executable:quality-watch",
+      "to": "skill:quality-watch/security-audit",
+      "relation": "uses_skill"
+    },
+    {
       "id": "executable:redispatch->uses_skill->skill:redispatch/redispatch",
       "from": "executable:redispatch",
       "to": "skill:redispatch/redispatch",
+      "relation": "uses_skill"
+    },
+    {
+      "id": "executable:release->uses_skill->skill:release/release-merge",
+      "from": "executable:release",
+      "to": "skill:release/release-merge",
+      "relation": "uses_skill"
+    },
+    {
+      "id": "executable:release->uses_skill->skill:release/release-prepare",
+      "from": "executable:release",
+      "to": "skill:release/release-prepare",
+      "relation": "uses_skill"
+    },
+    {
+      "id": "executable:release->uses_skill->skill:release/release-promote",
+      "from": "executable:release",
+      "to": "skill:release/release-promote",
+      "relation": "uses_skill"
+    },
+    {
+      "id": "executable:release->uses_skill->skill:release/release-tag",
+      "from": "executable:release",
+      "to": "skill:release/release-tag",
+      "relation": "uses_skill"
+    },
+    {
+      "id": "executable:repo-graph->runs_preflight->script:repo-graph/refresh-repo-graphs.sh",
+      "from": "executable:repo-graph",
+      "to": "script:repo-graph/refresh-repo-graphs.sh",
+      "relation": "runs_preflight"
+    },
+    {
+      "id": "executable:repo-graph->uses_skill->skill:repo-graph/dependency-graph",
+      "from": "executable:repo-graph",
+      "to": "skill:repo-graph/dependency-graph",
+      "relation": "uses_skill"
+    },
+    {
+      "id": "executable:repo-graph->uses_skill->skill:repo-graph/docs-graph",
+      "from": "executable:repo-graph",
+      "to": "skill:repo-graph/docs-graph",
       "relation": "uses_skill"
     },
     {
@@ -3423,9 +3831,21 @@ Graph hash: `4c7ec4af30efd8771d5eca7923caf4f84cdcd35442ad69ec69a3885c7f98ae32`
       "relation": "uses_skill"
     },
     {
+      "id": "executable:task-leader->uses_skill->skill:task-leader/task-leader-rules",
+      "from": "executable:task-leader",
+      "to": "skill:task-leader/task-leader-rules",
+      "relation": "uses_skill"
+    },
+    {
       "id": "executable:task-memorize->uses_skill->skill:task-memorize/task-memorize",
       "from": "executable:task-memorize",
       "to": "skill:task-memorize/task-memorize",
+      "relation": "uses_skill"
+    },
+    {
+      "id": "executable:task-verifier->uses_skill->skill:task-verifier/verifier-method",
+      "from": "executable:task-verifier",
+      "to": "skill:task-verifier/verifier-method",
       "relation": "uses_skill"
     },
     {
@@ -3459,46 +3879,22 @@ Graph hash: `4c7ec4af30efd8771d5eca7923caf4f84cdcd35442ad69ec69a3885c7f98ae32`
       "relation": "uses_skill"
     },
     {
+      "id": "executable:vercel-dev-deploy->runs_preflight->script:vercel-dev-deploy/vercel-dev-deploy.sh",
+      "from": "executable:vercel-dev-deploy",
+      "to": "script:vercel-dev-deploy/vercel-dev-deploy.sh",
+      "relation": "runs_preflight"
+    },
+    {
+      "id": "executable:vercel-production-deploy->runs_preflight->script:vercel-production-deploy/vercel-production-deploy.sh",
+      "from": "executable:vercel-production-deploy",
+      "to": "script:vercel-production-deploy/vercel-production-deploy.sh",
+      "relation": "runs_preflight"
+    },
+    {
       "id": "executable:work-briefing->uses_skill->skill:work-briefing/work-briefing",
       "from": "executable:work-briefing",
       "to": "skill:work-briefing/work-briefing",
       "relation": "uses_skill"
-    },
-    {
-      "id": "issue:50->labeled->goal:kody-state-split",
-      "from": "issue:50",
-      "to": "goal:kody-state-split",
-      "relation": "labeled"
-    },
-    {
-      "id": "issue:51->labeled->goal:kody-state-split",
-      "from": "issue:51",
-      "to": "goal:kody-state-split",
-      "relation": "labeled"
-    },
-    {
-      "id": "issue:52->labeled->goal:kody-state-split",
-      "from": "issue:52",
-      "to": "goal:kody-state-split",
-      "relation": "labeled"
-    },
-    {
-      "id": "issue:53->labeled->goal:kody-state-split",
-      "from": "issue:53",
-      "to": "goal:kody-state-split",
-      "relation": "labeled"
-    },
-    {
-      "id": "issue:54->labeled->goal:kody-state-split",
-      "from": "issue:54",
-      "to": "goal:kody-state-split",
-      "relation": "labeled"
-    },
-    {
-      "id": "issue:90->labeled->goal:ai-company-orchestration-7-gap-plan",
-      "from": "issue:90",
-      "to": "goal:ai-company-orchestration-7-gap-plan",
-      "relation": "labeled"
     },
     {
       "id": "issue:91->labeled->goal:ai-company-orchestration-7-gap-plan",
@@ -3547,10 +3943,12 @@ Graph hash: `4c7ec4af30efd8771d5eca7923caf4f84cdcd35442ad69ec69a3885c7f98ae32`
     "commands",
     "evals",
     "events",
+    "goals",
     "memory",
     "runs",
     "sessions",
-    "tasks"
+    "tasks",
+    "terminal"
   ]
 }
 ```
