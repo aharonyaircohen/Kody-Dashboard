@@ -1,0 +1,26 @@
+{
+  "version": 1,
+  "state": "active",
+  "type": "monitor",
+  "destination": {
+    "outcome": "Every hour, refresh delivery graph reports so there is visible output for schedule verification.",
+    "evidence": [
+      "deliveryGraphRefreshed"
+    ]
+  },
+  "schedule": "1h",
+  "duties": [
+    "delivery-graph"
+  ],
+  "route": [
+    {
+      "stage": "refresh-delivery-graph",
+      "evidence": "deliveryGraphRefreshed",
+      "duty": "delivery-graph",
+      "executable": "delivery-graph"
+    }
+  ],
+  "stage": "refresh-delivery-graph",
+  "facts": {},
+  "blockers": []
+}
