@@ -23,8 +23,31 @@
     "mcpServers": []
   },
   "cliTools": [
-    "gh",
-    "jq"
+    {
+      "name": "gh",
+      "install": {
+        "required": true,
+        "checkCommand": "gh --version"
+      },
+      "verify": "gh auth status",
+      "usage": "Read GitHub Actions and pull request data for delivery reports.",
+      "allowedUses": [
+        "read workflow runs",
+        "read pull requests"
+      ]
+    },
+    {
+      "name": "jq",
+      "install": {
+        "required": true,
+        "checkCommand": "jq --version"
+      },
+      "verify": "jq --version",
+      "usage": "Parse JSON data while refreshing delivery reports.",
+      "allowedUses": [
+        "parse local command output"
+      ]
+    }
   ],
   "scripts": {
     "preflight": [
