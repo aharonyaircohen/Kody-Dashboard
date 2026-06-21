@@ -73,8 +73,8 @@
       }
     }
   ],
-  "stage": "publish",
-  "state": "active",
+  "stage": "done",
+  "state": "done",
   "createdAt": "2026-06-21T19:29:56Z",
-  "updatedAt": "2026-06-21T19:37:20Z"
+  "updatedAt": "2026-06-21T19:38:49Z"
 }
