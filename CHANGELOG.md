@@ -1,5 +1,8 @@
 # Changelog
 
+## v0.1.1143 — 2026-06-21
+
+_No notable commits since the last release._
 ## v0.1.1142 — 2026-06-21
 
 _No notable commits since the last release._
