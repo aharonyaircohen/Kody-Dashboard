@@ -3,7 +3,15 @@
   "role": "primitive",
   "kind": "oneshot",
   "describe": "Derive the company orchestration graph from .kody files and refresh .kody/reports/company-graph.md.",
-  "inputs": [],
+  "inputs": [
+    {
+      "name": "goal",
+      "flag": "--goal",
+      "type": "string",
+      "required": false,
+      "describe": "Managed goal id to report companyGraphRefreshed evidence to."
+    }
+  ],
   "claudeCode": {
     "model": "inherit",
     "permissionMode": "default",
@@ -51,7 +59,9 @@
       { "shell": "refresh-company-graph.sh" },
       { "script": "skipAgent" }
     ],
-    "postflight": []
+    "postflight": [
+      { "script": "applyDutyReports" }
+    ]
   },
   "output": {
     "actionTypes": ["COMPANY_GRAPH_REFRESHED", "COMPANY_GRAPH_FAILED", "AGENT_NOT_RUN"]

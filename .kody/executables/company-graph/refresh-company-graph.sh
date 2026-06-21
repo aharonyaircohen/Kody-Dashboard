@@ -24,6 +24,14 @@ fail() {
   exit 1
 }
 
+emit_goal_report() {
+  local goal_id="${KODY_ARG_GOAL:-}"
+  [[ -n "$goal_id" ]] || return 0
+  jq -cn --arg id "$goal_id" \
+    '{"target":{"type":"goal","id":$id},"evidence":{"companyGraphRefreshed":true}}' \
+    | sed 's/^/KODY_DUTY_REPORT=/'
+}
+
 command -v jq >/dev/null 2>&1 || fail "jq is required"
 
 slug_of() {
@@ -409,6 +417,7 @@ previous_hash="$(current_report_hash)"
 
 if [[ "$previous_hash" == "$graph_hash" ]]; then
   printf 'DONE\nCOMMIT_MSG: chore(reports): refresh company-graph\nPR_SUMMARY:\n- No report write needed; company graph was unchanged.\n'
+  emit_goal_report
   exit 0
 fi
 
@@ -527,6 +536,7 @@ fi
 
 if [[ "$remote_hash" == "$graph_hash" ]]; then
   printf 'DONE\nCOMMIT_MSG: chore(reports): refresh company-graph\nPR_SUMMARY:\n- No report write needed; company graph was unchanged.\n'
+  emit_goal_report
   exit 0
 fi
 
@@ -568,3 +578,4 @@ if ! put_report "$remote_sha" 2>"$TMP_DIR/put.err"; then
 fi
 
 printf 'DONE\nCOMMIT_MSG: chore(reports): refresh company-graph\nPR_SUMMARY:\n- Refreshed .kody/reports/company-graph.md.\n- Findings: %s.\n' "$finding_count"
+emit_goal_report
