@@ -1,0 +1,12 @@
+{
+  "name": "test",
+  "describe": "test",
+  "action": "test",
+  "agentAction": "agent-ask",
+  "capabilityKind": "observe",
+  "every": "manual",
+  "agent": "ceo",
+  "writesTo": [
+    "test"
+  ]
+}
