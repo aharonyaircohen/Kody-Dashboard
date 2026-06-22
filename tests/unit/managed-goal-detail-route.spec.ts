@@ -39,7 +39,7 @@ vi.mock("@dashboard/lib/managed-goals-files", () => ({
   listCompanyStoreGoalTemplateFiles: h.listCompanyStoreGoalTemplateFiles,
 }));
 
-import { PATCH } from "../../app/api/kody/goals/managed/[id]/route";
+import { DELETE, PATCH } from "../../app/api/kody/goals/managed/[id]/route";
 
 function patchRequest(body: unknown) {
   return new NextRequest(
@@ -53,6 +53,20 @@ function patchRequest(body: unknown) {
         "x-kody-repo": "test-repo",
       },
       body: JSON.stringify(body),
+    },
+  );
+}
+
+function deleteRequest() {
+  return new NextRequest(
+    "https://dash.test/api/kody/goals/managed/codebase-health",
+    {
+      method: "DELETE",
+      headers: {
+        "x-kody-token": "ghp_test-token",
+        "x-kody-owner": "test-owner",
+        "x-kody-repo": "test-repo",
+      },
     },
   );
 }
@@ -273,5 +287,51 @@ describe("PATCH /api/kody/goals/managed/[id]", () => {
     expect(writtenState.template).toBeUndefined();
     expect(writtenState.templateId).toBeUndefined();
     expect(writtenState.blockers).toEqual([]);
+  });
+});
+
+describe("DELETE /api/kody/goals/managed/[id]", () => {
+  it("deletes Store-derived runtime instances from the repo", async () => {
+    h.getUserOctokit.mockResolvedValue({ rest: {} });
+    h.readManagedGoalFile.mockResolvedValue({
+      state: {
+        ...localGoalState(),
+        sourceTemplate: "codebase-health",
+      },
+      sha: "goal-sha",
+      path: ".kody/goals/instances/codebase-health/state.json",
+    });
+    h.deleteManagedGoalFile.mockResolvedValue(undefined);
+
+    const res = await DELETE(deleteRequest(), params());
+
+    expect(res.status).toBe(200);
+    expect(h.deleteManagedGoalFile).toHaveBeenCalledWith(
+      expect.objectContaining({
+        id: "codebase-health",
+        sha: "goal-sha",
+      }),
+    );
+  });
+
+  it("does not delete Store templates that have no repo instance", async () => {
+    h.getUserOctokit.mockResolvedValue({ rest: {} });
+    h.readManagedGoalFile.mockResolvedValue(null);
+    h.listCompanyStoreGoalTemplateFiles.mockResolvedValue([
+      {
+        id: "codebase-health",
+        path: ".kody/goals/templates/codebase-health/state.json",
+        source: "store",
+        recordType: "template",
+        state: localGoalState(),
+      },
+    ]);
+
+    const res = await DELETE(deleteRequest(), params());
+    const json = await res.json();
+
+    expect(res.status).toBe(409);
+    expect(json.error).toBe("store_goal_protected");
+    expect(h.deleteManagedGoalFile).not.toHaveBeenCalled();
   });
 });

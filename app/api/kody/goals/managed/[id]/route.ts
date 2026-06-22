@@ -355,16 +355,6 @@ export async function DELETE(
       }
       return NextResponse.json({ error: "not_found" }, { status: 404 });
     }
-    if (typeof existing.state.sourceTemplate === "string") {
-      return NextResponse.json(
-        {
-          error: "store_goal_protected",
-          message: "Store goals cannot be deleted from this repo.",
-        },
-        { status: 409 },
-      );
-    }
-
     await deleteManagedGoalFile({
       octokit: context.octokit,
       owner: context.headerAuth.owner,
