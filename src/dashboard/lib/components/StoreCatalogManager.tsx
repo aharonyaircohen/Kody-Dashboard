@@ -171,7 +171,6 @@ async function fetchCatalog(
 async function importCatalogItem(
   headers: Record<string, string>,
   item: StoreCatalogItem,
-  actorLogin?: string,
 ): Promise<{
   imported: boolean;
   status: "imported" | "already_local";
@@ -183,7 +182,6 @@ async function importCatalogItem(
     body: JSON.stringify({
       kind: item.kind,
       slug: item.slug,
-      actorLogin,
     }),
   });
   const json = (await res.json().catch(() => ({}))) as {
@@ -264,8 +262,7 @@ export function StoreCatalogManager() {
   }, [filtered, selectedSlug]);
 
   const importMutation = useMutation({
-    mutationFn: (item: StoreCatalogItem) =>
-      importCatalogItem(headers, item, auth?.user.login),
+    mutationFn: (item: StoreCatalogItem) => importCatalogItem(headers, item),
     onSuccess: async () => {
       await queryClient.invalidateQueries({ queryKey });
       await invalidateOperationsQueries(queryClient);

@@ -53,7 +53,6 @@ const importSchema = z.object({
     "agentLoop",
   ]),
   slug: z.string().min(1).max(128),
-  actorLogin: z.string().optional(),
 });
 
 function validSlug(kind: ImportKind, slug: string): boolean {
@@ -364,7 +363,7 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    const verify = await verifyActorLogin(req, parsed.data.actorLogin);
+    const verify = await verifyActorLogin(req, undefined);
     if ("status" in verify) return verify;
 
     const { kind, slug } = parsed.data;

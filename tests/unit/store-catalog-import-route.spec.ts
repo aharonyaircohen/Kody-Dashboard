@@ -199,6 +199,25 @@ describe("store catalog import route", () => {
     );
   });
 
+  it("uses the write token identity even when the browser sends an actor", async () => {
+    const octokit = makeOctokit();
+    auth.getUserOctokit.mockResolvedValue(octokit);
+
+    const res = await POST(
+      req({
+        kind: "agentAction",
+        slug: "ship-feature",
+        actorLogin: "browser-user",
+      }),
+    );
+
+    expect(res.status).toBe(200);
+    expect(auth.verifyActorLogin).toHaveBeenCalledWith(
+      expect.any(NextRequest),
+      undefined,
+    );
+  });
+
   it("instantiates a store goal template as a local managed goal file", async () => {
     const octokit = makeOctokit();
     auth.getUserOctokit.mockResolvedValue(octokit);

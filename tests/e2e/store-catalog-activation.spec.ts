@@ -132,7 +132,6 @@ async function mockStoreCatalog(page: Page): Promise<unknown[]> {
     const body = route.request().postDataJSON() as {
       kind: CatalogKind;
       slug: string;
-      actorLogin?: string;
     };
     imports.push(body);
     imported.add(`${body.kind}:${body.slug}`);
@@ -215,15 +214,11 @@ test.describe("Store Catalog import", () => {
     }
 
     expect(imports).toEqual([
-      { kind: "agent", slug: "atlas-agent", actorLogin: "e2e-test" },
-      { kind: "agentAction", slug: "ship-feature", actorLogin: "e2e-test" },
-      {
-        kind: "agentResponsibility",
-        slug: "release-watch",
-        actorLogin: "e2e-test",
-      },
-      { kind: "agentGoal", slug: "weekly-quality", actorLogin: "e2e-test" },
-      { kind: "agentLoop", slug: "daily-triage", actorLogin: "e2e-test" },
+      { kind: "agent", slug: "atlas-agent" },
+      { kind: "agentAction", slug: "ship-feature" },
+      { kind: "agentResponsibility", slug: "release-watch" },
+      { kind: "agentGoal", slug: "weekly-quality" },
+      { kind: "agentLoop", slug: "daily-triage" },
     ]);
   });
 });
