@@ -2,7 +2,7 @@
  * @fileType component
  * @domain kody
  * @pattern store-catalog
- * @ai-summary Browse shared Store assets and import them into the repo.
+ * @ai-summary Browse shared Store assets and add them by reference.
  */
 
 "use client";
@@ -26,11 +26,13 @@ import {
   Users,
   type LucideIcon,
 } from "lucide-react";
+
 import { Button } from "@dashboard/ui/button";
+
 import { buildAuthHeaders, useAuth } from "../auth-context";
 import { cn } from "../utils";
-import { MasterDetailShell } from "./MasterDetailShell";
 import { EmptyState } from "./EmptyState";
+import { MasterDetailShell } from "./MasterDetailShell";
 
 type CatalogKind =
   | "all"
@@ -156,9 +158,11 @@ async function fetchCatalog(
     error?: string;
     message?: string;
   };
+
   if (!res.ok) {
     throw new Error(json.message || json.error || `HTTP ${res.status}`);
   }
+
   return {
     items: json.items ?? [],
     activeAgents: json.activeAgents ?? [],
@@ -168,7 +172,7 @@ async function fetchCatalog(
   };
 }
 
-async function importCatalogItem(
+async function addCatalogStoreReference(
   headers: Record<string, string>,
   item: StoreCatalogItem,
 ): Promise<{
@@ -191,9 +195,11 @@ async function importCatalogItem(
     error?: string;
     message?: string;
   };
+
   if (!res.ok) {
     throw new Error(json.message || json.error || `HTTP ${res.status}`);
   }
+
   return {
     imported: json.imported === true,
     status: json.status ?? "imported",
@@ -242,7 +248,6 @@ export function StoreCatalogManager() {
       return !q || queryText(item).includes(q);
     });
   }, [items, kind, search]);
-
   const selected = useMemo(
     () => filtered.find((item) => itemKey(item) === selectedSlug) ?? null,
     [filtered, selectedSlug],
@@ -262,14 +267,15 @@ export function StoreCatalogManager() {
   }, [filtered, selectedSlug]);
 
   const importMutation = useMutation({
-    mutationFn: (item: StoreCatalogItem) => importCatalogItem(headers, item),
+    mutationFn: (item: StoreCatalogItem) =>
+      addCatalogStoreReference(headers, item),
     onSuccess: async () => {
       await queryClient.invalidateQueries({ queryKey });
       await invalidateOperationsQueries(queryClient);
-      toast.success("Imported to repo");
+      toast.success("Added from Store");
     },
     onError: (error: Error) => {
-      toast.error("Couldn't import store item", {
+      toast.error("Couldn't add store item", {
         description: error.message,
       });
     },
@@ -338,8 +344,8 @@ export function StoreCatalogManager() {
         ) : (
           <EmptyState
             icon={<Package />}
-            title="Select a catalog item"
-            hint="Store items appear here when a repo is connected."
+            title="Select catalog item"
+            hint="Store items appear here when repo is connected."
           />
         )
       }
@@ -430,7 +436,8 @@ function CatalogDetail({
 }) {
   const Icon =
     KIND_FILTERS.find((filter) => filter.id === item.kind)?.icon ?? Package;
-  const canImport = item.source === "store";
+  const canImport = item.source === "store" && !item.active;
+
   return (
     <article className="min-h-full">
       <div className="border-b border-white/[0.06] bg-gradient-to-b from-emerald-500/[0.06] via-emerald-500/[0.02] to-transparent">
@@ -444,6 +451,7 @@ function CatalogDetail({
             <ArrowLeft className="h-4 w-4" />
             Catalog
           </Button>
+
           <header className="flex flex-wrap items-start justify-between gap-4">
             <div className="min-w-0 space-y-2">
               <div className="flex min-w-0 items-center gap-2">
@@ -458,6 +466,7 @@ function CatalogDetail({
                 <StatusPill item={item} />
               </div>
             </div>
+
             <div className="flex flex-wrap items-center gap-2">
               {canImport ? (
                 <Button
@@ -472,9 +481,10 @@ function CatalogDetail({
                   ) : (
                     <Plus className="h-4 w-4" />
                   )}
-                  {importing ? "Importing..." : "Import to repo"}
+                  {importing ? "Adding..." : "Add from Store"}
                 </Button>
               ) : null}
+
               {item.htmlUrl ? (
                 <Button asChild size="sm" variant="outline" className="gap-1">
                   <a href={item.htmlUrl} target="_blank" rel="noreferrer">
@@ -485,6 +495,7 @@ function CatalogDetail({
               ) : null}
             </div>
           </header>
+
           {item.description ? (
             <p className="max-w-3xl text-sm leading-6 text-white/70">
               {item.description}
@@ -492,6 +503,7 @@ function CatalogDetail({
           ) : null}
         </div>
       </div>
+
       <div className="mx-auto max-w-4xl space-y-3 p-4 md:p-8">
         <InfoRow label="Type" value={KIND_LABEL[item.kind]} />
         <InfoRow label="Status" value={statusLabel(item)} />
@@ -513,6 +525,7 @@ function CatalogDetail({
 
 function StatusPill({ item }: { item: StoreCatalogItem }) {
   const Icon = item.status === "active" ? CheckCircle2 : CircleDot;
+
   return (
     <span
       className={cn(

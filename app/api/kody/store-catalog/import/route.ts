@@ -2,8 +2,9 @@
  * @fileType api-endpoint
  * @domain kody
  * @pattern store-catalog-import-api
- * @ai-summary Import one Store catalog asset into the connected repo.
+ * @ai-summary Add one Store catalog asset by reference.
  */
+
 import type { Octokit } from "@octokit/rest";
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
@@ -14,25 +15,20 @@ import {
   requireKodyAuth,
   verifyActorLogin,
 } from "@dashboard/lib/auth";
-import { getCompanyStoreTarget } from "@dashboard/lib/company-store/assets";
 import {
-  setGitHubContext,
+  listCompanyStoreAssetSlugs,
+  listCompanyStoreMarkdownAssetSlugs,
+} from "@dashboard/lib/company-store/assets";
+import {
   clearGitHubContext,
+  setGitHubContext,
 } from "@dashboard/lib/github-client";
 import {
-  listCompanyStoreGoalTemplateFiles,
-  readManagedGoalFile,
-  writeManagedGoalFile,
-} from "@dashboard/lib/managed-goals-files";
-import {
-  managedGoalPath,
-  type ManagedGoalState,
-} from "@dashboard/lib/managed-goals";
-import {
-  listStateDirectory,
-  readStateText,
-  writeStateText,
-} from "@dashboard/lib/state-repo";
+  getEngineConfig,
+  writeConfigPatch,
+  type ActiveGoalConfigEntry,
+} from "@dashboard/lib/engine/config";
+import { listCompanyStoreGoalTemplateFiles } from "@dashboard/lib/managed-goals-files";
 
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
@@ -44,9 +40,16 @@ type ImportKind =
   | "agentGoal"
   | "agentLoop";
 
-type RepoFile = {
+type ActiveConfigField =
+  | "activeAgents"
+  | "activeAgentActions"
+  | "activeAgentResponsibilities"
+  | "activeGoals";
+
+type ImportResult = {
+  imported: boolean;
+  status: "imported" | "already_local";
   path: string;
-  content: string;
 };
 
 const importSchema = z.object({
@@ -61,294 +64,82 @@ const importSchema = z.object({
 });
 
 function validSlug(kind: ImportKind, slug: string): boolean {
-  if (kind === "agent") return /^[a-z0-9][a-z0-9_-]{0,63}$/.test(slug);
-  if (kind === "agentAction") return /^[a-z0-9][a-z0-9_-]{0,63}$/.test(slug);
-  if (kind === "agentResponsibility")
-    return /^[a-z0-9][a-z0-9_-]{0,63}$/.test(slug);
-  return /^[a-z0-9][a-z0-9_-]{0,63}$/.test(slug);
-}
-
-function storePathFor(kind: ImportKind, slug: string): string {
-  if (kind === "agent") return `.kody/agents/${slug}.md`;
-  if (kind === "agentAction") return `.kody/agent-actions/${slug}`;
-  if (kind === "agentResponsibility") {
-    return `.kody/agent-responsibilities/${slug}`;
-  }
-  return `.kody/goals/templates/${slug}/state.json`;
-}
-
-function targetPathFor(kind: ImportKind, slug: string): string {
-  if (kind === "agent") return `.kody/agents/${slug}.md`;
-  if (kind === "agentAction") return `.kody/agent-actions/${slug}`;
-  if (kind === "agentResponsibility") {
-    return `.kody/agent-responsibilities/${slug}`;
-  }
-  return managedGoalPath(slug);
-}
-
-function stateTargetPathFor(kind: ImportKind, slug: string): string {
-  if (kind === "agent") return `agents/${slug}.md`;
-  if (kind === "agentResponsibility") return `agent-responsibilities/${slug}`;
-  return targetPathFor(kind, slug);
-}
-
-function instantiateStoreGoalState(
-  storeState: ManagedGoalState,
-  id: string,
-): ManagedGoalState {
-  return {
-    version: 1,
-    sourceTemplate:
-      typeof storeState.sourceTemplate === "string"
-        ? storeState.sourceTemplate
-        : id,
-    state: storeState.state === "done" ? "inactive" : storeState.state,
-    type: storeState.type,
-    destination: storeState.destination,
-    agentResponsibilities: storeState.agentResponsibilities,
-    route: storeState.route,
-    schedule: storeState.schedule ?? "manual",
-    ...(typeof storeState.stage === "string"
-      ? { stage: storeState.stage }
-      : {}),
-    facts: { ...storeState.facts },
-    blockers: [],
-  };
-}
-
-async function repoPathExists({
-  octokit,
-  owner,
-  repo,
-  path,
-}: {
-  octokit: Octokit;
-  owner: string;
-  repo: string;
-  path: string;
-}): Promise<boolean> {
-  try {
-    await octokit.repos.getContent({ owner, repo, path });
-    return true;
-  } catch (error: unknown) {
-    if ((error as { status?: number })?.status === 404) return false;
-    throw error;
+  switch (kind) {
+    case "agent":
+    case "agentAction":
+    case "agentResponsibility":
+    case "agentGoal":
+    case "agentLoop":
+      return /^[a-z0-9][a-z0-9_-]{0,63}$/.test(slug);
   }
 }
 
-async function readStoreFiles(
+function configFieldFor(kind: ImportKind): ActiveConfigField {
+  if (kind === "agent") return "activeAgents";
+  if (kind === "agentAction") return "activeAgentActions";
+  if (kind === "agentResponsibility") return "activeAgentResponsibilities";
+  return "activeGoals";
+}
+
+function configPathFor(kind: ImportKind): string {
+  return `company.${configFieldFor(kind)}`;
+}
+
+function activeGoalSlug(entry: ActiveGoalConfigEntry): string {
+  return typeof entry === "string" ? entry : entry.template;
+}
+
+function addSlug(entries: string[] | undefined, slug: string): string[] {
+  return [...new Set([...(entries ?? []), slug])];
+}
+
+function addGoal(
+  entries: ActiveGoalConfigEntry[] | undefined,
+  slug: string,
+): ActiveGoalConfigEntry[] {
+  const withoutExisting = (entries ?? []).filter(
+    (entry) => activeGoalSlug(entry) !== slug,
+  );
+  return [...withoutExisting, slug];
+}
+
+async function assertStoreItemExists(
   octokit: Octokit,
-  storePath: string,
-  targetPath: string,
-): Promise<RepoFile[]> {
-  const store = getCompanyStoreTarget();
-  const { data } = await octokit.repos.getContent({
-    owner: store.owner,
-    repo: store.repo,
-    path: storePath,
-    ref: store.ref,
-  });
-
-  if (Array.isArray(data)) {
-    const nested = await Promise.all(
-      data.map((entry) =>
-        readStoreFiles(octokit, entry.path, `${targetPath}/${entry.name}`),
-      ),
-    );
-    return nested.flat();
-  }
-
-  if (!("content" in data) || !data.content) {
-    return [];
-  }
-
-  return [
-    {
-      path: targetPath,
-      content: Buffer.from(data.content, "base64").toString("utf-8"),
-    },
-  ];
-}
-
-async function commitFiles({
-  octokit,
-  owner,
-  repo,
-  files,
-  message,
-}: {
-  octokit: Octokit;
-  owner: string;
-  repo: string;
-  files: RepoFile[];
-  message: string;
-}): Promise<void> {
-  const repoMeta = await octokit.repos.get({ owner, repo });
-  const branch = repoMeta.data.default_branch || "main";
-  const refName = `heads/${branch}`;
-  const { data: ref } = await octokit.git.getRef({
-    owner,
-    repo,
-    ref: refName,
-  });
-  const baseSha = ref.object.sha;
-  const { data: baseCommit } = await octokit.git.getCommit({
-    owner,
-    repo,
-    commit_sha: baseSha,
-  });
-  const tree = await Promise.all(
-    files.map(async (file) => {
-      const { data: blob } = await octokit.git.createBlob({
-        owner,
-        repo,
-        content: file.content,
-        encoding: "utf-8",
-      });
-      return {
-        path: file.path,
-        mode: "100644" as const,
-        type: "blob" as const,
-        sha: blob.sha,
-      };
-    }),
-  );
-  const { data: nextTree } = await octokit.git.createTree({
-    owner,
-    repo,
-    base_tree: baseCommit.tree.sha,
-    tree,
-  });
-  const { data: nextCommit } = await octokit.git.createCommit({
-    owner,
-    repo,
-    message,
-    tree: nextTree.sha,
-    parents: [baseSha],
-  });
-  await octokit.git.updateRef({
-    owner,
-    repo,
-    ref: refName,
-    sha: nextCommit.sha,
-  });
-}
-
-async function importGoal({
-  octokit,
-  owner,
-  repo,
-  slug,
-}: {
-  octokit: Octokit;
-  owner: string;
-  repo: string;
-  slug: string;
-}) {
-  const existing = await readManagedGoalFile(slug, octokit, owner, repo);
-  if (existing) {
-    return {
-      imported: false,
-      status: "already_local",
-      path: existing.path,
-    };
-  }
-
-  const storeGoals = await listCompanyStoreGoalTemplateFiles(octokit);
-  const storeGoal = storeGoals.find((goal) => goal.id === slug);
-  if (!storeGoal) {
-    throw Object.assign(new Error(`Store goal "${slug}" was not found.`), {
-      status: 404,
-    });
-  }
-
-  const state = instantiateStoreGoalState(storeGoal.state, slug);
-  await writeManagedGoalFile({
-    octokit,
-    owner,
-    repo,
-    id: slug,
-    state,
-    message: `feat(store): import ${slug}`,
-  });
-
-  return {
-    imported: true,
-    status: "imported",
-    path: managedGoalPath(slug),
-  };
-}
-
-async function importRawStoreAsset({
-  octokit,
-  owner,
-  repo,
-  kind,
-  slug,
-}: {
-  octokit: Octokit;
-  owner: string;
-  repo: string;
-  kind: ImportKind;
-  slug: string;
-}) {
-  const targetPath = targetPathFor(kind, slug);
-  if (await repoPathExists({ octokit, owner, repo, path: targetPath })) {
-    return {
-      imported: false,
-      status: "already_local",
-      path: targetPath,
-    };
-  }
-
-  const files = await readStoreFiles(
-    octokit,
-    storePathFor(kind, slug),
-    targetPath,
-  );
-  if (files.length === 0) {
-    throw Object.assign(new Error(`Store item "${slug}" was not found.`), {
-      status: 404,
-    });
-  }
-
-  await commitFiles({
-    octokit,
-    owner,
-    repo,
-    files,
-    message: `feat(store): import ${slug}`,
-  });
-
-  return {
-    imported: true,
-    status: "imported",
-    path: targetPath,
-  };
-}
-
-async function stateAssetExists({
-  octokit,
-  owner,
-  repo,
-  kind,
-  path,
-}: {
-  octokit: Octokit;
-  owner: string;
-  repo: string;
-  kind: ImportKind;
-  path: string;
-}): Promise<boolean> {
+  kind: ImportKind,
+  slug: string,
+): Promise<void> {
   if (kind === "agent") {
-    return (await readStateText(octokit, owner, repo, path)) !== null;
+    const slugs = await listCompanyStoreMarkdownAssetSlugs(
+      octokit,
+      "agents",
+      (candidate) => validSlug("agent", candidate),
+    );
+    if (slugs.includes(slug)) return;
+  } else if (kind === "agentAction") {
+    const slugs = await listCompanyStoreAssetSlugs(
+      octokit,
+      "agent-actions",
+      (candidate) => validSlug("agentAction", candidate),
+    );
+    if (slugs.includes(slug)) return;
+  } else if (kind === "agentResponsibility") {
+    const slugs = await listCompanyStoreAssetSlugs(
+      octokit,
+      "agent-responsibilities",
+      (candidate) => validSlug("agentResponsibility", candidate),
+    );
+    if (slugs.includes(slug)) return;
+  } else {
+    const goals = await listCompanyStoreGoalTemplateFiles(octokit);
+    if (goals.some((goal) => goal.id === slug)) return;
   }
 
-  const { entries } = await listStateDirectory(octokit, owner, repo, path);
-  return entries.length > 0;
+  throw Object.assign(new Error(`Store item "${slug}" was not found.`), {
+    status: 404,
+  });
 }
 
-async function importStateStoreAsset({
+async function addStoreReference({
   octokit,
   owner,
   repo,
@@ -360,44 +151,57 @@ async function importStateStoreAsset({
   repo: string;
   kind: ImportKind;
   slug: string;
-}) {
-  const targetPath = stateTargetPathFor(kind, slug);
-  if (
-    await stateAssetExists({ octokit, owner, repo, kind, path: targetPath })
-  ) {
+}): Promise<ImportResult> {
+  await assertStoreItemExists(octokit, kind, slug);
+
+  const { config } = await getEngineConfig(octokit, owner, repo, {
+    force: true,
+  });
+  const field = configFieldFor(kind);
+  const alreadyLinked =
+    field === "activeGoals"
+      ? (config.company?.activeGoals ?? []).some(
+          (entry) => activeGoalSlug(entry) === slug,
+        )
+      : (config.company?.[field] ?? []).includes(slug);
+
+  if (alreadyLinked) {
     return {
       imported: false,
       status: "already_local",
-      path: targetPath,
+      path: configPathFor(kind),
     };
   }
 
-  const files = await readStoreFiles(
+  await writeConfigPatch(
     octokit,
-    storePathFor(kind, slug),
-    targetPath,
+    owner,
+    repo,
+    {
+      activeAgents:
+        field === "activeAgents"
+          ? addSlug(config.company?.activeAgents, slug)
+          : undefined,
+      activeAgentActions:
+        field === "activeAgentActions"
+          ? addSlug(config.company?.activeAgentActions, slug)
+          : undefined,
+      activeAgentResponsibilities:
+        field === "activeAgentResponsibilities"
+          ? addSlug(config.company?.activeAgentResponsibilities, slug)
+          : undefined,
+      activeGoals:
+        field === "activeGoals"
+          ? addGoal(config.company?.activeGoals, slug)
+          : undefined,
+    },
+    `chore(kody): add store ${kind} ${slug}`,
   );
-  if (files.length === 0) {
-    throw Object.assign(new Error(`Store item "${slug}" was not found.`), {
-      status: 404,
-    });
-  }
-
-  for (const file of files) {
-    await writeStateText({
-      octokit,
-      owner,
-      repo,
-      path: file.path,
-      content: file.content,
-      message: `feat(store): import ${slug}`,
-    });
-  }
 
   return {
     imported: true,
     status: "imported",
-    path: targetPath,
+    path: configPathFor(kind),
   };
 }
 
@@ -436,6 +240,7 @@ export async function POST(req: NextRequest) {
   if (!auth) {
     return NextResponse.json({ error: "no_repo_context" }, { status: 400 });
   }
+
   setGitHubContext(auth.owner, auth.repo, auth.token);
 
   try {
@@ -464,29 +269,13 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "no_octokit" }, { status: 401 });
     }
 
-    const result =
-      kind === "agentGoal" || kind === "agentLoop"
-        ? await importGoal({
-            octokit,
-            owner: auth.owner,
-            repo: auth.repo,
-            slug,
-          })
-        : kind === "agent" || kind === "agentResponsibility"
-          ? await importStateStoreAsset({
-              octokit,
-              owner: auth.owner,
-              repo: auth.repo,
-              kind,
-              slug,
-            })
-          : await importRawStoreAsset({
-              octokit,
-              owner: auth.owner,
-              repo: auth.repo,
-              kind,
-              slug,
-            });
+    const result = await addStoreReference({
+      octokit,
+      owner: auth.owner,
+      repo: auth.repo,
+      kind,
+      slug,
+    });
 
     return NextResponse.json({
       kind,

@@ -1,11 +1,12 @@
 /**
- * @fileoverview Store Catalog import browser tests.
+ * @fileoverview Store Catalog add-reference browser tests.
  * @testFramework playwright
  * @domain e2e
  *
  * Runs the real catalog UI with mocked catalog/import APIs so the browser flow
- * verifies that "Import to repo" imports models, not just config references.
+ * verifies that "Add from Store" links Store models without local copies.
  */
+
 import { expect, test, type Page } from "@playwright/test";
 
 type CatalogKind =
@@ -20,7 +21,7 @@ interface CatalogItem {
   title: string;
   description: string;
   kind: CatalogKind;
-  status: "not-active" | "customized";
+  status: "active" | "not-active" | "customized";
   active: boolean;
   activatable: boolean;
   source: "store" | "local";
@@ -101,16 +102,15 @@ async function seedAuth(page: Page): Promise<void> {
 async function mockStoreCatalog(page: Page): Promise<unknown[]> {
   const imports: unknown[] = [];
   const imported = new Set<string>();
-
   const items = (): CatalogItem[] =>
     catalogSeeds.map((item) => {
       const key = `${item.kind}:${item.slug}`;
       const isImported = imported.has(key);
       return {
         ...item,
-        active: false,
-        status: isImported ? "customized" : "not-active",
-        source: isImported ? "local" : "store",
+        active: isImported,
+        status: isImported ? "active" : "not-active",
+        source: "store",
       };
     });
 
@@ -143,21 +143,12 @@ async function mockStoreCatalog(page: Page): Promise<unknown[]> {
         slug: body.slug,
         imported: true,
         status: "imported",
-        path: `.kody/imported/${body.slug}`,
+        path: `company.active.${body.slug}`,
       }),
     });
   });
 
   return imports;
-}
-
-async function openStoreCatalog(page: Page): Promise<void> {
-  await seedAuth(page);
-  await mockIdentity(page);
-  await page.goto("/store-catalog", { waitUntil: "domcontentloaded" });
-  await expect(
-    page.getByRole("heading", { name: "Store Catalog" }),
-  ).toBeVisible({ timeout: 10_000 });
 }
 
 async function mockIdentity(page: Page): Promise<void> {
@@ -179,7 +170,16 @@ async function mockIdentity(page: Page): Promise<void> {
   });
 }
 
-async function importCatalogItem(
+async function openStoreCatalog(page: Page): Promise<void> {
+  await seedAuth(page);
+  await mockIdentity(page);
+  await page.goto("/store-catalog", { waitUntil: "domcontentloaded" });
+  await expect(
+    page.getByRole("heading", { name: "Store Catalog" }),
+  ).toBeVisible({ timeout: 10_000 });
+}
+
+async function addCatalogItem(
   page: Page,
   item: { kind: CatalogKind; slug: string },
 ): Promise<void> {
@@ -187,30 +187,27 @@ async function importCatalogItem(
   const button = page.getByTestId(
     `store-catalog-import-${item.kind}-${item.slug}`,
   );
-  await expect(button).toBeVisible();
-  await expect(button).toContainText("Import to repo");
+  await expect(button).toContainText("Add from Store");
   await Promise.all([
     page.waitForResponse(
       (response) =>
         response.url().includes("/api/kody/store-catalog/import") &&
-        response.request().method() === "POST",
+        response.status() === 200,
     ),
     button.click(),
   ]);
-  await expect(button).toHaveCount(0);
-  await expect(page.getByText("Customized").first()).toBeVisible();
+  await expect(page.getByText("Active").first()).toBeVisible();
+  await expect(button).toBeHidden();
 }
 
-test.describe("Store Catalog import", () => {
-  test("imports every agentic store item type into the repo", async ({
-    page,
-  }) => {
+test.describe("Store Catalog add", () => {
+  test("adds every agentic store item type by reference", async ({ page }) => {
     const imports = await mockStoreCatalog(page);
 
     await openStoreCatalog(page);
 
     for (const item of catalogSeeds) {
-      await importCatalogItem(page, item);
+      await addCatalogItem(page, item);
     }
 
     expect(imports).toEqual([
