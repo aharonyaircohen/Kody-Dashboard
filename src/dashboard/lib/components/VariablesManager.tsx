@@ -3,7 +3,7 @@
  * @domain variables
  * @pattern variables-manager
  * @ai-summary CRUD UI for the dashboard variables store. Per-repo plaintext
- *   JSON at .kody/variables.json. Unlike secrets, values are visible/editable
+ *   JSON in the connected repo's external state repo. Unlike secrets, values are visible/editable
  *   in the UI — variables hold non-sensitive config (model lists, feature
  *   flags, etc) that the dashboard reads at runtime.
  */
@@ -241,10 +241,10 @@ function VariablesManagerInner() {
               <Settings2 className="w-8 h-8 text-white/30 mx-auto" />
               <p className="text-sm text-white/70">No variables yet.</p>
               <p className="text-xs text-white/40 max-w-md mx-auto">
-                Variables are plaintext config stored at{" "}
-                <code className="text-white/55">.kody/variables.json</code> in
-                this repo. Use them for non-sensitive values the dashboard reads
-                at runtime — model lists, feature flags, default ids.
+                Variables are plaintext config stored as{" "}
+                <code className="text-white/55">variables.json</code> in the
+                state repo. Use them for non-sensitive values the dashboard
+                reads at runtime — model lists, feature flags, default ids.
               </p>
               <Button
                 size="sm"
@@ -310,9 +310,9 @@ function VariablesManagerInner() {
         </ul>
 
         <p className="text-[11px] text-white/30 pt-4">
-          Stored in plaintext at{" "}
-          <code className="text-white/50">.kody/variables.json</code>. For
-          sensitive values, use{" "}
+          Stored in plaintext as{" "}
+          <code className="text-white/50">variables.json</code> in the state
+          repo. For sensitive values, use{" "}
           <Link
             href="/secrets"
             className="text-white/60 hover:text-white/80 underline"
@@ -339,7 +339,7 @@ function VariablesManagerInner() {
       <ConfirmDialog
         open={deleting !== null}
         title={`Delete ${deleting}?`}
-        description="The variable is removed from .kody/variables.json. Runtime code reading it falls back to environment variables."
+        description="The variable is removed from variables.json in the state repo. Runtime code reading it falls back to environment variables."
         confirmLabel={remove.isPending ? "Deleting…" : "Delete"}
         variant="destructive"
         onConfirm={() => {
@@ -396,14 +396,14 @@ function VariableEditor({
             {isUpdate ? `Edit ${initialName}` : "New variable"}
           </DialogTitle>
           <DialogDescription>
-            Stored plaintext in <code>.kody/variables.json</code>. Use this page
-            for non-sensitive config only.
+            Stored plaintext in <code>variables.json</code> in the state repo.
+            Use this page for non-sensitive config only.
           </DialogDescription>
         </DialogHeader>
         <div className="rounded-md border border-white/[0.08] bg-white/[0.03] p-3 text-xs">
           <div className="flex items-center justify-between gap-3">
             <span className="font-medium text-white/70">Active file</span>
-            <code className="font-mono text-sky-200">.kody/variables.json</code>
+            <code className="font-mono text-sky-200">variables.json</code>
           </div>
           <div className="mt-2 flex items-center justify-between gap-3">
             <span className="font-medium text-white/70">Active variable</span>

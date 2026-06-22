@@ -34,7 +34,7 @@ const HAND_WRITTEN_FEATURES: FeatureEntry[] = [
       "Per-repo encrypted secrets store. Dashboard-managed alternative to Vercel env vars.",
     details: `The secrets vault is a dashboard-managed alternative to Vercel env vars.
 
-- Each connected repo has its own encrypted blob at \`.kody/secrets.enc\`.
+- Each connected repo has its own encrypted state repo blob at \`secrets.enc\`.
 - Values written via the \`/secrets\` page are AES-256-GCM-encrypted with the shared
   \`KODY_MASTER_KEY\` env var and committed back to the repo.
 - Runtime code reads values via \`getSecret\` (src/dashboard/lib/vault/get-secret.ts),

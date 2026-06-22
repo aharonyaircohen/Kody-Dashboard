@@ -46,8 +46,14 @@ function writeStorage(map: LastSeenMap): void {
   }
 }
 
-export function useReportsUnread() {
-  const { data: reports = [], isLoading } = useReports();
+export interface UseReportsUnreadOptions {
+  enabled?: boolean;
+}
+
+export function useReportsUnread(options: UseReportsUnreadOptions = {}) {
+  const { data: reports = [], isLoading } = useReports({
+    enabled: options.enabled,
+  });
 
   // Hydration-safe: start empty, then load on the client so SSR/CSR match.
   const [lastSeen, setLastSeen] = useState<LastSeenMap>({});

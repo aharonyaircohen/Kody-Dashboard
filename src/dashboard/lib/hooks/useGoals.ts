@@ -25,11 +25,19 @@ export const goalQueryKeys = {
   discussion: (id: string) => ["kody-goals", "discussion", id] as const,
 };
 
-export function useGoals() {
+export interface UseGoalsOptions {
+  enabled?: boolean;
+  refetchInterval?: number | false;
+}
+
+export function useGoals(options: UseGoalsOptions = {}) {
+  const enabled = (options.enabled ?? true) && !!getStoredAuth();
+  const refetchInterval = options.refetchInterval ?? 30_000;
+
   return useQuery({
     queryKey: goalQueryKeys.list,
     queryFn: () => kodyApi.goals.list(),
-    enabled: !!getStoredAuth(),
+    enabled,
     staleTime: 30_000,
     // Poll every 30s so goals created externally (kody engine creating
     // qa-engineer goals from a developer machine, manifest edits via the
@@ -37,7 +45,7 @@ export function useGoals() {
     // rely on refetchOnWindowFocus — it's globally disabled in
     // KodyProviders to avoid refresh loops on session expiry — and
     // staleTime alone never triggers a refetch on its own.
-    refetchInterval: 30_000,
+    refetchInterval: enabled ? refetchInterval : false,
     refetchIntervalInBackground: false,
     retry: (failureCount, error) => {
       if (error instanceof SessionExpiredError) return false;

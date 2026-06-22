@@ -1,18 +1,17 @@
 /**
  * @fileType utility
  * @domain variables
- * @pattern github-contents
- * @ai-summary Read/write a per-repo plaintext variables file at
- *   .kody/variables.json. Mirrors the encrypted vault pattern (read-through
- *   cache, in-flight dedup, write-then-invalidate) but stores non-sensitive
- *   config that needs to be human-readable: model lists, model ids, feature
- *   flags. Sensitive values still belong in the encrypted vault.
+ * @pattern state-repo
+ * @ai-summary Read/write repo plaintext variables in the configured external
+ * state repo. Sensitive values still belong in the encrypted vault.
  */
 
 import type { Octokit } from "@octokit/rest";
-import { logger } from "@dashboard/lib/logger";
 
-export const VARIABLES_PATH = ".kody/variables.json";
+import { logger } from "@dashboard/lib/logger";
+import { readStateText, writeStateText } from "@dashboard/lib/state-repo";
+
+export const VARIABLES_PATH = "variables.json";
 
 export interface VariableMeta {
   updatedAt: string;
@@ -49,46 +48,23 @@ function emptyDoc(): VariablesDocument {
   return { version: 1, variables: {} };
 }
 
-interface RawContentsResponse {
-  type?: string;
-  encoding?: string;
-  content?: string;
-  sha?: string;
-}
-
 async function fetchRaw(
   octokit: Octokit,
   owner: string,
   repo: string,
 ): Promise<{ doc: VariablesDocument; sha: string | null }> {
-  try {
-    const res = await octokit.rest.repos.getContent({
-      owner,
-      repo,
-      path: VARIABLES_PATH,
-      headers: { "If-None-Match": "" },
-    });
-    const data = res.data as RawContentsResponse | RawContentsResponse[];
-    if (Array.isArray(data) || data.type !== "file" || !data.content) {
-      return { doc: emptyDoc(), sha: null };
-    }
-    const buf = Buffer.from(
-      data.content,
-      (data.encoding ?? "base64") as BufferEncoding,
-    );
-    const text = buf.toString("utf8").trim();
-    const parsed = JSON.parse(text) as VariablesDocument;
-    if (parsed.version !== 1 || typeof parsed.variables !== "object") {
-      throw new Error("Variables document has unexpected shape");
-    }
-    return { doc: parsed, sha: data.sha ?? null };
-  } catch (err) {
-    const status = (err as { status?: number }).status;
-    if (status === 404) {
-      return { doc: emptyDoc(), sha: null };
-    }
-    throw err;
+  const file = await readStateText(octokit, owner, repo, VARIABLES_PATH, {
+    headers: { "If-None-Match": "" },
+  });
+
+  if (!file) return { doc: emptyDoc(), sha: null };
+
+  const parsed = JSON.parse(file.content) as VariablesDocument;
+  if (parsed.version !== 1 || typeof parsed.variables !== "object") {
+    throw new Error("Variables document has unexpected shape");
   }
+
+  return { doc: parsed, sha: file.sha };
 }
 
 export async function readVariables(
@@ -133,23 +109,22 @@ export async function writeVariables(
   currentSha: string | null,
   commitMessage = "chore(variables): update dashboard variables",
 ): Promise<{ sha: string }> {
-  const content = Buffer.from(JSON.stringify(doc, null, 2), "utf8").toString(
-    "base64",
-  );
-  const res = await octokit.rest.repos.createOrUpdateFileContents({
+  const { sha: newSha } = await writeStateText({
+    octokit,
     owner,
     repo,
     path: VARIABLES_PATH,
+    content: JSON.stringify(doc, null, 2),
     message: commitMessage,
-    content,
-    ...(currentSha ? { sha: currentSha } : {}),
+    sha: currentSha ?? undefined,
   });
-  const newSha = res.data.content?.sha ?? null;
+
   CACHE.set(cacheKey(owner, repo), {
     doc,
     sha: newSha,
     expiresAt: Date.now() + TTL_MS,
   });
+
   if (!newSha) {
     logger.warn(
       { owner, repo },
@@ -157,6 +132,7 @@ export async function writeVariables(
     );
     return { sha: "" };
   }
+
   return { sha: newSha };
 }
 
@@ -165,12 +141,9 @@ export function invalidateVariablesCache(owner: string, repo: string): void {
 }
 
 /**
- * Read-modify-write helper with 409 (SHA conflict) retry. `mutate` is a pure
- * function returning the new document from the freshly-read one; it runs again
- * on each retry against the latest SHA, so concurrent writes to *different*
- * keys don't clobber each other. Mirrors the changelog store's
- * `updateChangelog`. Non-409 errors (and `mutate` throwing) propagate
- * immediately. Returns the written document.
+ * Read-modify-write helper with 409 (SHA conflict) retry. `mutate` is pure
+ * and runs again on the latest document when there is a retry, so concurrent
+ * writes to different keys do not clobber each other.
  */
 export async function updateVariables(
   octokit: Octokit,
@@ -199,7 +172,7 @@ export async function updateVariables(
       throw err;
     }
   }
-  // Unreachable: the loop either returns or throws.
+
   throw new Error("variables: write failed after retries");
 }
 

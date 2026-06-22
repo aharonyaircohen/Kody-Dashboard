@@ -30,6 +30,11 @@ import {
 import { Avatar, AvatarFallback, AvatarImage } from "@dashboard/ui/avatar";
 import { useTheme } from "@dashboard/providers/Theme";
 import { cn } from "@dashboard/lib/utils/ui";
+import {
+  shouldEnableSidebarInboxBadgeData,
+  shouldEnableSidebarMessagesBadgeData,
+  shouldEnableSidebarReportsBadgeData,
+} from "../github-background-polling";
 import { useGitHubIdentity } from "../hooks/useGitHubIdentity";
 import { SimpleTooltip } from "./SimpleTooltip";
 import { InboxBadge } from "./InboxBadge";
@@ -99,6 +104,7 @@ const VIBE_MODE_SECTIONS: Array<{ title: string; items: readonly NavItem[] }> =
         sidebarItem("/todos"),
         sidebarItem("/messages"),
         sidebarItem("/reports"),
+        sidebarItem("/cms"),
         sidebarItem("/docs"),
         sidebarItem("/changelog"),
       ],
@@ -120,6 +126,7 @@ const ENGINEER_MODE_SECTIONS: Array<{
       sidebarItem("/todos"),
       sidebarItem("/messages"),
       sidebarItem("/reports"),
+      sidebarItem("/cms"),
       sidebarItem("/files"),
       sidebarItem("/docs"),
       sidebarItem("/changelog"),
@@ -161,6 +168,10 @@ export function Sidebar() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const search = searchParams?.toString() ?? "";
+  const enableInboxBadgeData = shouldEnableSidebarInboxBadgeData(pathname);
+  const enableMessagesBadgeData =
+    shouldEnableSidebarMessagesBadgeData(pathname);
+  const enableReportsBadgeData = shouldEnableSidebarReportsBadgeData(pathname);
   const { githubUser, connectedRepo, clearGitHubUser } = useGitHubIdentity();
   const { theme, setTheme } = useTheme();
   const [userMenuOpen, setUserMenuOpen] = useState<boolean>(false);
@@ -267,16 +278,19 @@ export function Sidebar() {
         {!collapsed && <span className="truncate">{item.label}</span>}
         {item.href === "/inbox" && (
           <InboxBadge
+            enabled={enableInboxBadgeData}
             className={cn(collapsed ? "absolute top-1 right-1" : "ml-auto")}
           />
         )}
         {item.href === "/messages" && (
           <MessagesBadge
+            enabled={enableMessagesBadgeData}
             className={cn(collapsed ? "absolute top-1 right-1" : "ml-auto")}
           />
         )}
         {item.href === "/reports" && (
           <ReportsBadge
+            enabled={enableReportsBadgeData}
             className={cn(collapsed ? "absolute top-1 right-1" : "ml-auto")}
           />
         )}

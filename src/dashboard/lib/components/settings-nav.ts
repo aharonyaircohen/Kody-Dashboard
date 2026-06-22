@@ -16,6 +16,7 @@ import {
   Building2,
   CheckCircle2,
   Cpu,
+  Database,
   FileText,
   FolderOpen,
   History,
@@ -158,6 +159,13 @@ export const PRIMARY_NAV_ITEMS: readonly SettingsNavItem[] = [
     description: "Outputs from agentResponsibility runs.",
     tint: "text-sky-300 bg-sky-500/10",
   },
+  {
+    href: "/cms",
+    label: "CMS",
+    icon: Database,
+    description: "Configured content collections.",
+    tint: "text-emerald-300 bg-emerald-500/10",
+  },
   PREVIEW_NAV_ITEM,
 ] as const;
 
@@ -208,7 +216,8 @@ export const SETTINGS_NAV_SECTIONS: readonly SettingsNavSection[] = [
         href: "/agents",
         label: "Agents",
         icon: Users,
-        description: "Agent identities that execute your agentResponsibilities.",
+        description:
+          "Agent identities that execute your agentResponsibilities.",
         tint: "text-violet-300 bg-violet-500/10",
       },
 
@@ -249,7 +258,8 @@ export const SETTINGS_NAV_SECTIONS: readonly SettingsNavSection[] = [
         label: "Store Catalog",
         icon: Package,
         exact: true,
-        description: "Browse shared store items and activate them in this repo.",
+        description:
+          "Browse shared store items and activate them in this repo.",
         tint: "text-emerald-300 bg-emerald-500/10",
       },
     ],

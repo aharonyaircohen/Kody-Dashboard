@@ -3,7 +3,7 @@
  * @domain vault
  * @pattern secrets-manager
  * @ai-summary CRUD UI for the dashboard secrets vault. Per-repo encrypted
- *   vault stored at .kody/secrets.enc in the connected GitHub repo. Values
+ *   vault stored in the connected repo's external state repo. Values
  *   are write-only after creation — the GitHub Contents API returns
  *   ciphertext only and the server never echoes plaintext back to the client.
  */
@@ -319,8 +319,8 @@ function SecretsManagerInner() {
               <ShieldCheck className="w-8 h-8 text-white/30 mx-auto" />
               <p className="text-sm text-white/70">No secrets stored yet.</p>
               <p className="text-xs text-white/40 max-w-md mx-auto">
-                Secrets are AES-256-GCM-encrypted and stored at{" "}
-                <code className="text-white/55">.kody/secrets.enc</code> in this
+                Secrets are AES-256-GCM-encrypted and stored as{" "}
+                <code className="text-white/55">secrets.enc</code> in the state
                 repo. Use them in place of Vercel env vars — the dashboard reads
                 them at request time.
               </p>
@@ -395,91 +395,91 @@ function SecretsManagerInner() {
             const unlockedSecret = unlocked ? (s as SecretValue) : null;
 
             return (
-            <li key={s.name}>
-              <Card className="border-white/[0.08] bg-white/[0.03]">
-                <CardContent className="p-3 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-                  <div className="min-w-0 w-full">
-                    <p className="font-mono text-sm text-white/90 truncate">
-                      {s.name}
-                    </p>
-                    {unlockedSecret ? (
-                      <p className="font-mono text-[11px] text-emerald-300 mt-0.5 max-h-8 overflow-hidden break-all">
-                        {unlockedSecret.value}
+              <li key={s.name}>
+                <Card className="border-white/[0.08] bg-white/[0.03]">
+                  <CardContent className="p-3 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                    <div className="min-w-0 w-full">
+                      <p className="font-mono text-sm text-white/90 truncate">
+                        {s.name}
                       </p>
-                    ) : (
-                      <p className="text-[11px] text-white/40 mt-0.5">
-                        Updated {formatRelative(s.updatedAt)}
-                        {s.updatedBy ? ` by ${s.updatedBy}` : ""}
-                      </p>
-                    )}
-                  </div>
-                  <div className="flex flex-wrap items-center gap-1 sm:justify-end">
-                    {unlockedSecret ? (
-                      <>
-                        <Button
-                          size="icon"
-                          variant="ghost"
-                          aria-label={`View ${unlockedSecret.name}`}
-                          title="View"
-                          onClick={() => setViewingSecret(unlockedSecret)}
-                        >
-                          <Eye className="w-3.5 h-3.5" />
-                        </Button>
-                        <Button
-                          size="icon"
-                          variant="ghost"
-                          aria-label={`Copy ${unlockedSecret.name}`}
-                          title="Copy"
-                          onClick={() => copySecretValue(unlockedSecret)}
-                        >
-                          <Copy className="w-3.5 h-3.5" />
-                        </Button>
-                        <Button
-                          size="icon"
-                          variant="ghost"
-                          aria-label="Lock vault"
-                          title="Lock"
-                          className="text-amber-300"
-                          onClick={() => {
-                            setUnlocked(false);
-                            setUnlockedSecrets([]);
-                            setUnlockKey("");
-                            setUnlockError(null);
-                            setViewingSecret(null);
-                          }}
-                        >
-                          <EyeOff className="w-3.5 h-3.5" />
-                        </Button>
-                      </>
-                    ) : (
-                      <>
-                        <Button
-                          size="icon"
-                          variant="ghost"
-                          aria-label={`Edit ${s.name}`}
-                          title="Edit"
-                          onClick={() =>
-                            setEditing({ name: s.name, existing: true })
-                          }
-                        >
-                          <Pencil className="w-3.5 h-3.5" />
-                        </Button>
-                        <Button
-                          size="icon"
-                          variant="ghost"
-                          aria-label={`Delete ${s.name}`}
-                          title="Delete"
-                          className="text-rose-300 hover:text-rose-200"
-                          onClick={() => setDeleting(s.name)}
-                        >
-                          <Trash2 className="w-3.5 h-3.5" />
-                        </Button>
-                      </>
-                    )}
-                  </div>
-                </CardContent>
-              </Card>
-            </li>
+                      {unlockedSecret ? (
+                        <p className="font-mono text-[11px] text-emerald-300 mt-0.5 max-h-8 overflow-hidden break-all">
+                          {unlockedSecret.value}
+                        </p>
+                      ) : (
+                        <p className="text-[11px] text-white/40 mt-0.5">
+                          Updated {formatRelative(s.updatedAt)}
+                          {s.updatedBy ? ` by ${s.updatedBy}` : ""}
+                        </p>
+                      )}
+                    </div>
+                    <div className="flex flex-wrap items-center gap-1 sm:justify-end">
+                      {unlockedSecret ? (
+                        <>
+                          <Button
+                            size="icon"
+                            variant="ghost"
+                            aria-label={`View ${unlockedSecret.name}`}
+                            title="View"
+                            onClick={() => setViewingSecret(unlockedSecret)}
+                          >
+                            <Eye className="w-3.5 h-3.5" />
+                          </Button>
+                          <Button
+                            size="icon"
+                            variant="ghost"
+                            aria-label={`Copy ${unlockedSecret.name}`}
+                            title="Copy"
+                            onClick={() => copySecretValue(unlockedSecret)}
+                          >
+                            <Copy className="w-3.5 h-3.5" />
+                          </Button>
+                          <Button
+                            size="icon"
+                            variant="ghost"
+                            aria-label="Lock vault"
+                            title="Lock"
+                            className="text-amber-300"
+                            onClick={() => {
+                              setUnlocked(false);
+                              setUnlockedSecrets([]);
+                              setUnlockKey("");
+                              setUnlockError(null);
+                              setViewingSecret(null);
+                            }}
+                          >
+                            <EyeOff className="w-3.5 h-3.5" />
+                          </Button>
+                        </>
+                      ) : (
+                        <>
+                          <Button
+                            size="icon"
+                            variant="ghost"
+                            aria-label={`Edit ${s.name}`}
+                            title="Edit"
+                            onClick={() =>
+                              setEditing({ name: s.name, existing: true })
+                            }
+                          >
+                            <Pencil className="w-3.5 h-3.5" />
+                          </Button>
+                          <Button
+                            size="icon"
+                            variant="ghost"
+                            aria-label={`Delete ${s.name}`}
+                            title="Delete"
+                            className="text-rose-300 hover:text-rose-200"
+                            onClick={() => setDeleting(s.name)}
+                          >
+                            <Trash2 className="w-3.5 h-3.5" />
+                          </Button>
+                        </>
+                      )}
+                    </div>
+                  </CardContent>
+                </Card>
+              </li>
             );
           })}
         </ul>
@@ -596,8 +596,9 @@ function SecretEditor({
             {isUpdate ? `Edit ${initialName}` : "New secret"}
           </DialogTitle>
           <DialogDescription>
-            Stored encrypted in <code>.kody/secrets.enc</code>. Existing values
-            aren&apos;t shown — saving overwrites the current value.
+            Stored encrypted in <code>secrets.enc</code> in the state repo.
+            Existing values aren&apos;t shown — saving overwrites the current
+            value.
           </DialogDescription>
         </DialogHeader>
         <div className="space-y-3 mt-2">

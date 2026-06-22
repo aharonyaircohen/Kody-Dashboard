@@ -36,6 +36,7 @@ import { CommandPalette } from "./CommandPalette";
 import { SettingsDrawerProvider } from "./SettingsDrawer";
 import { NotificationsProvider } from "../notifications/NotificationsProvider";
 import { useAuth } from "../auth-context";
+import { shouldPollChatGoalsForRoute } from "../github-background-polling";
 import { useGitHubIdentity } from "../hooks/useGitHubIdentity";
 import { useGoals } from "../hooks/useGoals";
 import type { ChatContext } from "../chat-types";
@@ -150,7 +151,8 @@ export function ChatRailShell({ children }: { children: ReactNode }) {
   // dashboard page) so it works from any route — chat is always mounted
   // here. We pass the live goals straight down; the parser resolves the
   // number/slug to a canonical id.
-  const { data: goalsData } = useGoals();
+  const shouldPollChatGoals = shouldPollChatGoalsForRoute(pathname);
+  const { data: goalsData } = useGoals({ enabled: shouldPollChatGoals });
   const goals = useMemo(() => goalsData ?? [], [goalsData]);
   const directToGoal = useCallback(
     (goalId: string) => {
@@ -336,7 +338,8 @@ export function ChatRailShell({ children }: { children: ReactNode }) {
   const isChatRoute = pathname === "/chat";
   const isVibeRoute =
     pathname === "/vibe" || (pathname?.startsWith("/vibe/") ?? false);
-  const isOrgRoute = pathname === "/org" || (pathname?.startsWith("/org/") ?? false);
+  const isOrgRoute =
+    pathname === "/org" || (pathname?.startsWith("/org/") ?? false);
   // Routes whose page renders its OWN in-pane header (KodyDashboard on the
   // tasks list, new-task / report-bug modals, and issue detail at /<number>;
   // plus Vibe). The shared AppHeader must NOT render on these or two headers

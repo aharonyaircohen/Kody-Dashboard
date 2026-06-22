@@ -15,7 +15,7 @@ export const fetchCache = "force-cache";
 export const metadata = buildKodyMetadata({
   title: "Secrets — Kody Operations Dashboard",
   description:
-    "Manage API keys and secrets stored in the encrypted .kody/secrets.enc vault.",
+    "Manage API keys and secrets stored in the encrypted state repo vault.",
   path: "/secrets",
 });
 

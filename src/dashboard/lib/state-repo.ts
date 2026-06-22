@@ -270,9 +270,9 @@ export async function writeStateText({
   content: string;
   message: string;
   sha?: string;
-}): Promise<void> {
+}): Promise<{ sha: string | null }> {
   const target = await resolveStateRepo(octokit, owner, repo);
-  await octokit.repos.createOrUpdateFileContents({
+  const res = await octokit.repos.createOrUpdateFileContents({
     owner: target.owner,
     repo: target.repo,
     path: stateRepoPath(target, path),
@@ -280,6 +280,7 @@ export async function writeStateText({
     content: Buffer.from(content, "utf8").toString("base64"),
     ...(sha ? { sha } : {}),
   });
+  return { sha: res.data.content?.sha ?? null };
 }
 
 export async function deleteStateFile({

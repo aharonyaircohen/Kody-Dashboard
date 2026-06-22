@@ -6,7 +6,7 @@
  *
  * Opens a release-tracking GitHub issue and posts `@kody release` on it.
  * The repo-stored release agentAction reads branch policy from
- * `.kody/variables.json` and handles both single-main and dev-to-main repos.
+ * state repo `variables.json` and handles both single-main and dev-to-main repos.
  */
 import { tool } from "ai";
 import { z } from "zod";

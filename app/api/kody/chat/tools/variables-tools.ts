@@ -3,7 +3,7 @@
  * @domain variables
  * @pattern chat-tools
  * @ai-summary Chat tools to manage non-secret dashboard variables
- *   (`.kody/variables.json`) — list, set, delete. Variables are plaintext
+ *   (`variables.json` in the state repo) — list, set, delete. Variables are plaintext
  *   config knobs (unlike the encrypted secrets vault). The reserved
  *   LLM_MODELS variable is managed via the models tools, not here.
  */
@@ -32,7 +32,7 @@ export function createVariableTools(ctx: Ctx) {
 
   return {
     list_variables: tool({
-      description: `List the non-secret dashboard variables for ${repoRef} (.kody/variables.json) with their values and last-updated timestamps. These are plaintext config — secrets live in the encrypted vault instead.`,
+      description: `List the non-secret dashboard variables for ${repoRef} (variables.json in the state repo) with their values and last-updated timestamps. These are plaintext config — secrets live in the encrypted vault instead.`,
       inputSchema: z.object({}),
       execute: async () => {
         try {

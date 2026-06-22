@@ -49,12 +49,16 @@ function useReportQueryScope() {
   };
 }
 
-export function useReports() {
+export interface UseReportsOptions {
+  enabled?: boolean;
+}
+
+export function useReports(options: UseReportsOptions = {}) {
   const { currentAuth, scope } = useReportQueryScope();
   return useQuery<Report[]>({
     queryKey: reportQueryKeys.list(scope),
     queryFn: () => kodyApi.reports.list(),
-    enabled: !!currentAuth,
+    enabled: (options.enabled ?? true) && !!currentAuth,
     staleTime: 30_000,
     retry: (failureCount, error) => {
       if (error instanceof SessionExpiredError) return false;

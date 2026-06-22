@@ -11,10 +11,14 @@ import { useChannelsUnread } from "../hooks/useChannelsUnread";
 
 interface MessagesBadgeProps {
   className?: string;
+  enabled?: boolean;
 }
 
-export function MessagesBadge({ className }: MessagesBadgeProps) {
-  const { unreadCount, isLoading } = useChannelsUnread();
+export function MessagesBadge({
+  className,
+  enabled = true,
+}: MessagesBadgeProps) {
+  const { unreadCount, isLoading } = useChannelsUnread({ enabled });
   if (isLoading || unreadCount <= 0) return null;
   return (
     <span

@@ -8,7 +8,7 @@
  * `.github/workflows/kody.yml` in the target repo, (best-effort) writes the
  * user's PAT as the
  * `KODY_TOKEN` Actions secret so the engine has GitHub auth at runtime,
- * (best-effort) decrypts the per-repo vault (`.kody/secrets.enc`) and
+ * (best-effort) decrypts the per-repo vault from the state repo and
  * mirrors every entry into the consumer repo's Actions secrets so the
  * engine has provider API keys at runtime, and (best-effort) registers
  * the dashboard webhook so push-based cache invalidation works from
@@ -27,9 +27,12 @@ import sodium from "libsodium-wrappers";
 import { logger } from "@dashboard/lib/logger";
 import { ensureWebhook } from "@dashboard/lib/webhooks/register";
 import { readVault } from "@dashboard/lib/vault/store";
+import { readVariables } from "@dashboard/lib/variables/store";
 import {
+  ChatModelsSchema,
   pickEngineDefaultModel,
   engineModelSpec,
+  VAR_LLM_MODELS,
   type ChatModel,
 } from "@dashboard/lib/variables/models";
 import { writeEngineModel } from "./config";
@@ -39,7 +42,6 @@ export const KODY_TOKEN_SECRET = "KODY_TOKEN";
 export const WORKFLOW_TEMPLATE_SOURCE =
   "dashboard:kody-chat-compatible-workflow";
 export const WORKFLOW_PATH = ".github/workflows/kody.yml";
-export const VARIABLES_PATH = ".kody/variables.json";
 
 const WORKFLOW_TEMPLATE = `# Drop this file at .github/workflows/kody.yml in your repo.
 #
@@ -337,36 +339,19 @@ async function readExisting(
   }
 }
 
-interface VariablesJson {
-  LLM_MODELS?: ChatModel[];
-}
-
-async function readVariablesJson(
+async function readChatModels(
   octokit: Octokit,
   owner: string,
   repo: string,
-): Promise<{ models: ChatModel[]; sha: string | null }> {
+): Promise<ChatModel[]> {
   try {
-    const { data } = await octokit.rest.repos.getContent({
-      owner,
-      repo,
-      path: VARIABLES_PATH,
-    });
-    if (Array.isArray(data) || !("content" in data) || !data.content) {
-      return { models: [], sha: null };
-    }
-    const content = Buffer.from(data.content, "base64").toString("utf-8");
-    const parsed = JSON.parse(content) as VariablesJson;
-    return {
-      models: parsed.LLM_MODELS ?? [],
-      sha: data.sha ?? null,
-    };
+    const { doc } = await readVariables(octokit, owner, repo, { force: true });
+    const raw = doc.variables[VAR_LLM_MODELS]?.value;
+    if (!raw) return [];
+    return ChatModelsSchema.parse(JSON.parse(raw));
   } catch (err: unknown) {
-    const status = (err as { status?: number }).status;
-    if (status === 404) {
-      return { models: [], sha: null };
-    }
-    throw err;
+    logger.warn({ err, owner, repo }, "install: failed to read chat models");
+    return [];
   }
 }
 
@@ -416,7 +401,7 @@ export async function installEngine(
     // the engine actually reads), preserving any hand-authored config. Always
     // writes a baseline (agentActions + github) even when no model is
     // configured yet, so the file exists for the engine to extend.
-    const { models } = await readVariablesJson(octokit, owner, repo);
+    const models = await readChatModels(octokit, owner, repo);
     const engineModel = pickEngineDefaultModel(models);
     await writeEngineModel(
       octokit,

@@ -3,7 +3,7 @@
  * @domain models
  * @pattern chat-tools
  * @ai-summary Chat tools for the chat-model registry (the `LLM_MODELS`
- *   variable in `.kody/variables.json`). Lists models and flips the
+ *   variable in the state repo `variables.json`). Lists models and flips the
  *   chat/engine default + enabled flags. Adding brand-new provider bindings
  *   (with API-key secret wiring) stays in the /models page UI; chat only
  *   selects among existing entries. Mirrors the /api/kody/models PUT writer.

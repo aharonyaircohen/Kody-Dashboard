@@ -26,7 +26,7 @@ import { readVault } from "@dashboard/lib/vault/store";
 
 /**
  * Empty fallback. Returned only when the vault is genuinely unreadable
- * (no token, no `.kody/secrets.enc`, decrypt failure). When a token is
+ * (no token, no state repo `secrets.enc`, decrypt failure). When a token is
  * passed in but the read fails, the caller decides whether to proceed.
  */
 const EMPTY: VaultBuildContext = { buildEnv: {}, buildMode: "prod" };

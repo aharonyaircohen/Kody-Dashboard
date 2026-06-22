@@ -19,22 +19,25 @@ import {
 // ──────────────────────────────────────────────────────────────────────────────
 
 function createMockOctokit(overrides?: Record<string, unknown>) {
-  return {
-    rest: {
-      repos: {
-        getContent: vi.fn().mockResolvedValue({
-          data: { content: "", sha: "abc123" },
-        }),
-        createOrUpdateFileContents: vi.fn().mockResolvedValue({
-          data: {
-            commit: { sha: "commitsha" },
-            content: {
-              html_url:
-                "https://github.com/example/repo/blob/main/.github/workflows/kody.yml",
-            },
-          },
-        }),
+  const repos = {
+    getContent: vi.fn().mockResolvedValue({
+      data: { content: "", sha: "abc123" },
+    }),
+    createOrUpdateFileContents: vi.fn().mockResolvedValue({
+      data: {
+        commit: { sha: "commitsha" },
+        content: {
+          html_url:
+            "https://github.com/example/repo/blob/main/.github/workflows/kody.yml",
+        },
       },
+    }),
+  };
+
+  return {
+    repos,
+    rest: {
+      repos,
       actions: {
         getRepoPublicKey: vi.fn().mockResolvedValue({
           data: { key: "mock-public-key", key_id: "key-id-123" },
@@ -67,7 +70,7 @@ function captureFileWrites(octokit: ReturnType<typeof createMockOctokit>) {
   );
   return {
     calls,
-    getByPath: (path: string) => calls.find((c) => c.path === path),
+    getByPath: (path: string) => calls.findLast((c) => c.path === path),
   };
 }
 
@@ -148,26 +151,33 @@ describe("installEngine", () => {
       const { getByPath } = captureFileWrites(octokit);
 
       // Simulate variables.json returning a default model
-      vi.spyOn(octokit.rest.repos, "getContent").mockImplementation(
+      vi.spyOn(octokit.repos, "getContent").mockImplementation(
         async (params: any) => {
-          if (params.path === ".kody/variables.json") {
+          if (params.path === "my-repo/variables.json") {
             const variablesContent = JSON.stringify({
-              LLM_MODELS: [
-                {
-                  id: "example/chat-model",
-                  label: "Example Chat Model",
-                  provider: "example",
-                  protocol: "openai",
-                  baseURL: "",
-                  modelName: "chat-model",
-                  apiKeySecret: "MY_API_KEY",
-                  enabled: true,
-                  default: true,
+              version: 1,
+              variables: {
+                LLM_MODELS: {
+                  value: JSON.stringify([
+                    {
+                      id: "example/chat-model",
+                      label: "Example Chat Model",
+                      provider: "openai",
+                      protocol: "openai",
+                      baseURL: "",
+                      modelName: "chat-model",
+                      apiKeySecret: "MY_API_KEY",
+                      enabled: true,
+                      default: true,
+                    },
+                  ]),
+                  updatedAt: "2026-01-01T00:00:00.000Z",
                 },
-              ],
+              },
             });
             return {
               data: {
+                type: "file",
                 content: Buffer.from(variablesContent).toString("base64"),
                 sha: "varsha",
               },
@@ -201,37 +211,44 @@ describe("installEngine", () => {
       const octokit = createMockOctokit();
       const { getByPath } = captureFileWrites(octokit);
 
-      vi.spyOn(octokit.rest.repos, "getContent").mockImplementation(
+      vi.spyOn(octokit.repos, "getContent").mockImplementation(
         async (params: any) => {
-          if (params.path === ".kody/variables.json") {
+          if (params.path === "my-repo/variables.json") {
             const variablesContent = JSON.stringify({
-              LLM_MODELS: [
-                {
-                  id: "anthropic/claude-sonnet-4-6",
-                  label: "Chat",
-                  provider: "anthropic",
-                  protocol: "anthropic",
-                  baseURL: "",
-                  modelName: "claude-sonnet-4-6",
-                  apiKeySecret: "ANTHROPIC_API_KEY",
-                  enabled: true,
-                  default: true,
+              version: 1,
+              variables: {
+                LLM_MODELS: {
+                  value: JSON.stringify([
+                    {
+                      id: "anthropic/claude-sonnet-4-6",
+                      label: "Chat",
+                      provider: "anthropic",
+                      protocol: "anthropic",
+                      baseURL: "",
+                      modelName: "claude-sonnet-4-6",
+                      apiKeySecret: "ANTHROPIC_API_KEY",
+                      enabled: true,
+                      default: true,
+                    },
+                    {
+                      id: "minimax/MiniMax-M2.7-highspeed",
+                      label: "Engine",
+                      provider: "custom",
+                      protocol: "openai",
+                      baseURL: "https://api.minimax.io/v1",
+                      modelName: "MiniMax-M2.7-highspeed",
+                      apiKeySecret: "MINIMAX_API_KEY",
+                      enabled: true,
+                      engineDefault: true,
+                    },
+                  ]),
+                  updatedAt: "2026-01-01T00:00:00.000Z",
                 },
-                {
-                  id: "minimax/MiniMax-M2.7-highspeed",
-                  label: "Engine",
-                  provider: "custom",
-                  protocol: "openai",
-                  baseURL: "https://api.minimax.io/v1",
-                  modelName: "MiniMax-M2.7-highspeed",
-                  apiKeySecret: "MINIMAX_API_KEY",
-                  enabled: true,
-                  engineDefault: true,
-                },
-              ],
+              },
             });
             return {
               data: {
+                type: "file",
                 content: Buffer.from(variablesContent).toString("base64"),
                 sha: "varsha",
               },
@@ -260,9 +277,9 @@ describe("installEngine", () => {
       const { getByPath } = captureFileWrites(octokit);
 
       // Simulate variables.json not existing (404)
-      vi.spyOn(octokit.rest.repos, "getContent").mockImplementation(
+      vi.spyOn(octokit.repos, "getContent").mockImplementation(
         async (params: any) => {
-          if (params.path === ".kody/variables.json") {
+          if (params.path === "my-repo/variables.json") {
             const error = new Error("Not Found") as unknown as {
               status: number;
             };
@@ -298,7 +315,7 @@ describe("installEngine", () => {
       const { getByPath } = captureFileWrites(octokit);
 
       // Simulate kody.config.json already existing
-      vi.spyOn(octokit.rest.repos, "getContent").mockImplementation(
+      vi.spyOn(octokit.repos, "getContent").mockImplementation(
         async (params: any) => {
           if (params.path === "kody.config.json") {
             const existingConfig = JSON.stringify({

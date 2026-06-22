@@ -4,7 +4,7 @@
  * @pattern models-api
  * @ai-summary GET — list chat models from the LLM_MODELS variable.
  *   PUT — replace the entire list with a validated ChatModel[] array.
- *   Backing storage is the LLM_MODELS entry in .kody/variables.json.
+ *   Backing storage is the LLM_MODELS entry in state repo variables.json.
  *
  *   Why a dedicated route instead of /api/kody/variables: validation. The
  *   chat UI dropdown and the chat route both depend on the shape, so we

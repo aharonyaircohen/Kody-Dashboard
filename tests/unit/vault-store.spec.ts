@@ -1,188 +1,193 @@
 /**
- * Unit tests for the per-repo encrypted vault store
- * (src/dashboard/lib/vault/store.ts), which reads/writes `.kody/secrets.enc`
- * via the GitHub Contents API. The load-bearing behaviors here are the
- * rate-limit guards (60s TTL cache + in-flight dedup so polling can't
- * stampede GitHub) and the optimistic-SHA write path.
- *
- * Real crypto is used (KODY_MASTER_KEY set) so the encrypt→commit→decrypt
- * round-trip is exercised end to end; GitHub is a fake octokit.
+ * Unit tests for the encrypted vault store. The vault is encrypted, but the
+ * file itself lives in the configured external state repo.
  */
-import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
+
 import { randomBytes } from "crypto";
-import { deriveKeyCheck, encrypt } from "@dashboard/lib/vault/crypto";
-import {
-  readVault,
-  writeVault,
-  invalidateVaultCache,
-  listSecretMetadata,
-  VAULT_PATH,
-  type VaultDocument,
-} from "@dashboard/lib/vault/store";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+
+const stateRepo = vi.hoisted(() => ({
+  readStateText: vi.fn(),
+  writeStateText: vi.fn(),
+}));
+
+vi.mock("@dashboard/lib/state-repo", () => ({
+  readStateText: stateRepo.readStateText,
+  writeStateText: stateRepo.writeStateText,
+}));
 
 vi.mock("@dashboard/lib/logger", () => ({
   logger: { warn: vi.fn(), info: vi.fn(), error: vi.fn() },
 }));
 
+import { decrypt, deriveKeyCheck, encrypt } from "@dashboard/lib/vault/crypto";
+import {
+  invalidateVaultCache,
+  listSecretMetadata,
+  readVault,
+  VAULT_PATH,
+  writeVault,
+  type VaultDocument,
+} from "@dashboard/lib/vault/store";
+
 const KEY = randomBytes(32).toString("hex");
 let savedKey: string | undefined;
 
-/** Build a fake octokit whose getContent returns the given encrypted doc. */
-function fakeOctokit(opts: {
-  getContent?: ReturnType<typeof vi.fn>;
-  createOrUpdate?: ReturnType<typeof vi.fn>;
-}) {
-  return {
-    rest: {
-      repos: {
-        getContent: opts.getContent ?? vi.fn(),
-        createOrUpdateFileContents: opts.createOrUpdate ?? vi.fn(),
-      },
-    },
-  } as never;
+function fakeOctokit() {
+  return { marker: "octokit" } as never;
 }
 
-/** Encode a VaultDocument the way GitHub returns it (base64 file content). */
-function contentsResponse(doc: VaultDocument, sha = "sha-1") {
-  const cipher = encrypt(JSON.stringify(doc));
+function stateFile(doc: VaultDocument, sha = "sha-1") {
   return {
-    data: {
-      type: "file",
-      encoding: "base64",
-      content: Buffer.from(cipher, "utf8").toString("base64"),
-      sha,
-    },
+    content: encrypt(JSON.stringify(doc)),
+    sha,
   };
 }
 
 const DOC: VaultDocument = {
   version: 1,
   secrets: {
-    OPENAI_API_KEY: {
-      value: "sk-1",
-      updatedAt: "2026-01-01T00:00:00Z",
+    API_KEY: {
+      value: "super-secret",
+      updatedAt: "2026-01-01T00:00:00.000Z",
       updatedBy: "alice",
     },
   },
+  keyCheck: deriveKeyCheck(KEY),
 };
 
 beforeEach(() => {
   savedKey = process.env.KODY_MASTER_KEY;
   process.env.KODY_MASTER_KEY = KEY;
+  vi.clearAllMocks();
   invalidateVaultCache("acme", "widgets");
 });
 
 afterEach(() => {
-  if (savedKey === undefined) delete process.env.KODY_MASTER_KEY;
-  else process.env.KODY_MASTER_KEY = savedKey;
+  process.env.KODY_MASTER_KEY = savedKey;
+  invalidateVaultCache("acme", "widgets");
 });
 
 describe("readVault", () => {
-  it("decrypts and parses the stored document", async () => {
-    const getContent = vi.fn().mockResolvedValue(contentsResponse(DOC));
-    const oct = fakeOctokit({ getContent });
+  it("reads and decrypts secrets.enc from the configured state repo", async () => {
+    const octokit = fakeOctokit();
+    stateRepo.readStateText.mockResolvedValue(stateFile(DOC));
 
-    const { doc, sha } = await readVault(oct, "acme", "widgets");
-    expect(doc.secrets.OPENAI_API_KEY.value).toBe("sk-1");
+    const { doc, sha } = await readVault(octokit, "acme", "widgets");
+
+    expect(doc).toEqual(DOC);
     expect(sha).toBe("sha-1");
+    expect(stateRepo.readStateText).toHaveBeenCalledWith(
+      octokit,
+      "acme",
+      "widgets",
+      VAULT_PATH,
+      { headers: { "If-None-Match": "" } },
+    );
   });
 
-  it("serves a warm cache hit without a second GitHub call", async () => {
-    const getContent = vi.fn().mockResolvedValue(contentsResponse(DOC));
-    const oct = fakeOctokit({ getContent });
+  it("caches reads per repo until invalidated", async () => {
+    stateRepo.readStateText.mockResolvedValue(stateFile(DOC));
+    const octokit = fakeOctokit();
 
-    await readVault(oct, "acme", "widgets");
-    await readVault(oct, "acme", "widgets");
-    expect(getContent).toHaveBeenCalledTimes(1);
+    await readVault(octokit, "acme", "widgets");
+    await readVault(octokit, "acme", "widgets");
+
+    expect(stateRepo.readStateText).toHaveBeenCalledTimes(1);
   });
 
-  it("force-refresh bypasses the cache", async () => {
-    const getContent = vi.fn().mockResolvedValue(contentsResponse(DOC));
-    const oct = fakeOctokit({ getContent });
+  it("force read bypasses cache", async () => {
+    stateRepo.readStateText.mockResolvedValue(stateFile(DOC));
+    const octokit = fakeOctokit();
 
-    await readVault(oct, "acme", "widgets");
-    await readVault(oct, "acme", "widgets", { force: true });
-    expect(getContent).toHaveBeenCalledTimes(2);
+    await readVault(octokit, "acme", "widgets");
+    await readVault(octokit, "acme", "widgets", { force: true });
+
+    expect(stateRepo.readStateText).toHaveBeenCalledTimes(2);
   });
 
-  it("collapses concurrent reads into one GitHub call (in-flight dedup)", async () => {
-    let resolve!: (v: unknown) => void;
-    const getContent = vi.fn().mockReturnValue(
+  it("collapses concurrent reads into one state repo call", async () => {
+    let resolve!: (value: unknown) => void;
+    stateRepo.readStateText.mockReturnValue(
       new Promise((r) => {
         resolve = r;
       }),
     );
-    const oct = fakeOctokit({ getContent });
+    const octokit = fakeOctokit();
 
-    const p1 = readVault(oct, "acme", "widgets");
-    const p2 = readVault(oct, "acme", "widgets");
-    resolve(contentsResponse(DOC));
+    const p1 = readVault(octokit, "acme", "widgets");
+    const p2 = readVault(octokit, "acme", "widgets");
+    resolve(stateFile(DOC));
     const [a, b] = await Promise.all([p1, p2]);
 
-    expect(getContent).toHaveBeenCalledTimes(1);
+    expect(stateRepo.readStateText).toHaveBeenCalledTimes(1);
     expect(a.doc).toEqual(b.doc);
   });
 
-  it("returns an empty document on 404 (vault not yet created)", async () => {
-    const getContent = vi.fn().mockRejectedValue({ status: 404 });
-    const oct = fakeOctokit({ getContent });
+  it("returns an empty document when the state file does not exist", async () => {
+    stateRepo.readStateText.mockResolvedValue(null);
 
-    const { doc, sha } = await readVault(oct, "acme", "widgets");
+    const { doc, sha } = await readVault(fakeOctokit(), "acme", "widgets");
+
     expect(doc).toEqual({ version: 1, secrets: {} });
     expect(sha).toBeNull();
-  });
-
-  it("returns an empty document when the path is a directory, not a file", async () => {
-    const getContent = vi.fn().mockResolvedValue({ data: [{ type: "file" }] });
-    const oct = fakeOctokit({ getContent });
-
-    const { doc } = await readVault(oct, "acme", "widgets");
-    expect(doc.secrets).toEqual({});
   });
 });
 
 describe("writeVault", () => {
-  it("encrypts, sends the current sha for optimistic concurrency, and caches the result", async () => {
-    const createOrUpdate = vi
-      .fn()
-      .mockResolvedValue({ data: { content: { sha: "sha-2" } } });
-    const oct = fakeOctokit({ createOrUpdate });
+  it("encrypts and writes secrets.enc to the configured state repo", async () => {
+    stateRepo.writeStateText.mockResolvedValue({ sha: "sha-2" });
+    const octokit = fakeOctokit();
 
-    const { sha } = await writeVault(oct, "acme", "widgets", DOC, "sha-1");
+    const { sha } = await writeVault(octokit, "acme", "widgets", DOC, "sha-1");
 
     expect(sha).toBe("sha-2");
-    const args = createOrUpdate.mock.calls[0][0];
-    expect(args).toMatchObject({ path: VAULT_PATH, sha: "sha-1" });
-    // Content must be base64 (encrypted), never plaintext secret material.
-    expect(args.content).not.toContain("sk-1");
+    expect(stateRepo.writeStateText).toHaveBeenCalledTimes(1);
+    const payload = stateRepo.writeStateText.mock.calls[0][0];
+    expect(payload).toMatchObject({
+      octokit,
+      owner: "acme",
+      repo: "widgets",
+      path: VAULT_PATH,
+      message: "chore(vault): update dashboard secrets",
+      sha: "sha-1",
+    });
+    expect(JSON.parse(decrypt(payload.content))).toEqual(DOC);
+  });
 
-    // The write seeds the cache: a subsequent read needs no getContent call.
-    const getContent = vi.fn();
-    const { doc } = await readVault(
-      fakeOctokit({ getContent }),
+  it("adds keyCheck on first write when missing", async () => {
+    stateRepo.writeStateText.mockResolvedValue({ sha: "sha-2" });
+    const docWithoutKeyCheck: VaultDocument = {
+      version: 1,
+      secrets: DOC.secrets,
+    };
+
+    await writeVault(
+      fakeOctokit(),
       "acme",
       "widgets",
+      docWithoutKeyCheck,
+      null,
     );
-    expect(doc.secrets.OPENAI_API_KEY.value).toBe("sk-1");
-    expect(doc.keyCheck).toBe(deriveKeyCheck(KEY));
-    expect(getContent).not.toHaveBeenCalled();
+
+    const payload = stateRepo.writeStateText.mock.calls[0][0];
+    expect(JSON.parse(decrypt(payload.content))).toEqual({
+      ...docWithoutKeyCheck,
+      keyCheck: deriveKeyCheck(KEY),
+    });
   });
 
-  it("omits the sha when creating the file for the first time", async () => {
-    const createOrUpdate = vi
-      .fn()
-      .mockResolvedValue({ data: { content: { sha: "sha-new" } } });
-    const oct = fakeOctokit({ createOrUpdate });
+  it("returns empty sha when state repo write returns no sha", async () => {
+    stateRepo.writeStateText.mockResolvedValue({ sha: null });
 
-    await writeVault(oct, "acme", "widgets", DOC, null);
-    expect(createOrUpdate.mock.calls[0][0]).not.toHaveProperty("sha");
-  });
+    const { sha } = await writeVault(
+      fakeOctokit(),
+      "acme",
+      "widgets",
+      DOC,
+      null,
+    );
 
-  it("returns an empty sha when GitHub reports none", async () => {
-    const createOrUpdate = vi.fn().mockResolvedValue({ data: { content: {} } });
-    const oct = fakeOctokit({ createOrUpdate });
-
-    const { sha } = await writeVault(oct, "acme", "widgets", DOC, "sha-1");
     expect(sha).toBe("");
   });
 });
@@ -196,7 +201,9 @@ describe("listSecretMetadata", () => {
         ABLE: { value: "a", updatedAt: "t1" },
       },
     };
+
     const meta = listSecretMetadata(doc);
+
     expect(meta.map((m) => m.name)).toEqual(["ABLE", "ZED"]);
     expect(meta[0]).not.toHaveProperty("value");
   });

@@ -13,10 +13,11 @@ import { useReportsUnread } from "../hooks/useReportsUnread";
 
 interface ReportsBadgeProps {
   className?: string;
+  enabled?: boolean;
 }
 
-export function ReportsBadge({ className }: ReportsBadgeProps) {
-  const { unreadCount, isLoading } = useReportsUnread();
+export function ReportsBadge({ className, enabled = true }: ReportsBadgeProps) {
+  const { unreadCount, isLoading } = useReportsUnread({ enabled });
   if (isLoading || unreadCount <= 0) return null;
   return (
     <span

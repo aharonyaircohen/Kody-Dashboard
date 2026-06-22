@@ -15,7 +15,7 @@ export const fetchCache = "force-cache";
 export const metadata = buildKodyMetadata({
   title: "Variables — Kody Operations Dashboard",
   description:
-    "Manage non-sensitive config stored in .kody/variables.json. For secrets use /secrets.",
+    "Manage non-sensitive config stored in the state repo. For secrets use /secrets.",
   path: "/variables",
 });
 
