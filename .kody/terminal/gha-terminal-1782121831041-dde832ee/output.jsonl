@@ -1,1 +1,3 @@
 {"id":1,"type":"output","data":"Starting GitHub Actions terminal...\r\n","at":"2026-06-22T09:50:32.027Z"}
+{"id":1782121843100,"type":"output","data":"\r\nKODY_MASTER_KEY is required for GitHub Actions terminal.\r\n","at":"2026-06-22T09:50:43.100Z"}
+{"id":1782121843101,"type":"exit","code":1,"at":"2026-06-22T09:50:43.100Z"}
