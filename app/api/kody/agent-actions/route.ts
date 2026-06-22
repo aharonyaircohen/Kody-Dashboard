@@ -21,7 +21,7 @@ import {
   clearGitHubContext,
 } from "@dashboard/lib/github-client";
 import {
-  listLocalAgentActionFiles,
+  listAgentActionFiles,
   readAgentActionFile,
   writeAgentActionFile,
   isValidSlug,
@@ -50,7 +50,7 @@ export async function GET(req: NextRequest) {
     );
 
   try {
-    const agentActions = await listLocalAgentActionFiles();
+    const activeAgentActions = new Set<string>();
     let defaults = { issue: null as string | null, pr: null as string | null };
     if (headerAuth) {
       const userOctokit = await getUserOctokit(req);
@@ -64,8 +64,14 @@ export async function GET(req: NextRequest) {
           issue: config.defaultAgentAction ?? null,
           pr: config.defaultPrAgentAction ?? null,
         };
+        for (const slug of config.company?.activeAgentActions ?? []) {
+          activeAgentActions.add(slug);
+        }
       }
     }
+    const agentActions = (await listAgentActionFiles()).filter(
+      (item) => item.source !== "store" || activeAgentActions.has(item.slug),
+    );
     return NextResponse.json(
       { agentActions, defaults },
       { headers: NO_STORE_HEADERS },

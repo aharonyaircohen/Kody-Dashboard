@@ -80,6 +80,8 @@ describe("PATCH /api/kody/company/config store activation", () => {
   it("forwards active store references as catalog-only config patch", async () => {
     const res = await PATCH(
       patchReq({
+        activeAgents: ["cto"],
+        activeAgentActions: ["run"],
         activeAgentResponsibilities: ["release"],
         activeGoals: ["web-release", { template: "weekly-check", every: "1w" }],
         actorLogin: "alice",
@@ -92,6 +94,8 @@ describe("PATCH /api/kody/company/config store activation", () => {
     >;
     expect(calls).toHaveLength(1);
     const patch = calls[0]![3];
+    expect(patch.activeAgents).toEqual(["cto"]);
+    expect(patch.activeAgentActions).toEqual(["run"]);
     expect(patch.activeAgentResponsibilities).toEqual(["release"]);
     expect(patch.activeGoals).toEqual([
       "web-release",

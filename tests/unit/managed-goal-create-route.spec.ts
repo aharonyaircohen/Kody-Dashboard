@@ -3,9 +3,12 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { NextRequest } from "next/server";
 
 const h = vi.hoisted(() => ({
+  listManagedGoalFiles: vi.fn(async () => []),
+  listCompanyStoreGoalTemplateFiles: vi.fn(async () => []),
   readManagedGoalFile: vi.fn(),
   writeManagedGoalFile: vi.fn(),
   getUserOctokit: vi.fn(),
+  getEngineConfig: vi.fn(async () => ({ config: {}, sha: null })),
 }));
 
 vi.mock("@dashboard/lib/auth", () => ({
@@ -27,13 +30,16 @@ vi.mock("@dashboard/lib/github-client", () => ({
 }));
 
 vi.mock("@dashboard/lib/managed-goals-files", () => ({
-  listManagedGoalFiles: vi.fn(async () => []),
-  listCompanyStoreGoalTemplateFiles: vi.fn(async () => []),
+  listManagedGoalFiles: h.listManagedGoalFiles,
+  listCompanyStoreGoalTemplateFiles: h.listCompanyStoreGoalTemplateFiles,
   readManagedGoalFile: h.readManagedGoalFile,
   writeManagedGoalFile: h.writeManagedGoalFile,
 }));
+vi.mock("@dashboard/lib/engine/config", () => ({
+  getEngineConfig: h.getEngineConfig,
+}));
 
-import { POST } from "../../app/api/kody/goals/managed/route";
+import { GET, POST } from "../../app/api/kody/goals/managed/route";
 
 function createRequest(body: unknown) {
   return new NextRequest("https://dash.test/api/kody/goals/managed", {
@@ -45,6 +51,17 @@ function createRequest(body: unknown) {
       "x-kody-repo": "test-repo",
     },
     body: JSON.stringify(body),
+  });
+}
+
+function listRequest() {
+  return new NextRequest("https://dash.test/api/kody/goals/managed", {
+    method: "GET",
+    headers: {
+      "x-kody-token": "ghp_test-token",
+      "x-kody-owner": "test-owner",
+      "x-kody-repo": "test-repo",
+    },
   });
 }
 
@@ -150,5 +167,66 @@ describe("POST /api/kody/goals/managed", () => {
       route: [],
       facts: { goalType: "agentLoop" },
     });
+  });
+});
+
+describe("GET /api/kody/goals/managed", () => {
+  it("lists active Store goals from config without listing entire Store", async () => {
+    h.getUserOctokit.mockResolvedValue({ rest: {} });
+    h.listManagedGoalFiles.mockResolvedValue([]);
+    h.getEngineConfig.mockResolvedValue({
+      config: { company: { activeGoals: ["web-release"] } },
+      sha: null,
+    });
+    h.listCompanyStoreGoalTemplateFiles.mockResolvedValue([
+      {
+        id: "web-release",
+        path: ".kody/goals/templates/web-release/state.json",
+        source: "store",
+        recordType: "template",
+        state: {
+          version: 1,
+          kind: "template",
+          state: "inactive",
+          type: "release",
+          destination: {
+            outcome: "Ship web release.",
+            evidence: ["releaseDone"],
+          },
+          agentResponsibilities: ["release"],
+          route: [],
+          facts: {},
+          blockers: [],
+        },
+      },
+      {
+        id: "codebase-health",
+        path: ".kody/goals/templates/codebase-health/state.json",
+        source: "store",
+        recordType: "template",
+        state: {
+          version: 1,
+          kind: "template",
+          state: "inactive",
+          type: "standing",
+          destination: {
+            outcome: "Keep codebase healthy.",
+            evidence: ["healthChecked"],
+          },
+          agentResponsibilities: ["code-health"],
+          route: [],
+          facts: {},
+          blockers: [],
+        },
+      },
+    ] as never);
+
+    const res = await GET(listRequest());
+    const json = await res.json();
+
+    expect(res.status).toBe(200);
+    expect(json.goals.map((goal: { id: string }) => goal.id)).toEqual([
+      "web-release",
+    ]);
   });
 });

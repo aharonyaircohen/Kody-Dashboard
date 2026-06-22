@@ -31,10 +31,16 @@ import {
   slugifyManagedGoalId,
 } from "@dashboard/lib/managed-goals";
 import {
+  listCompanyStoreGoalTemplateFiles,
   listManagedGoalFiles,
   readManagedGoalFile,
   writeManagedGoalFile,
 } from "@dashboard/lib/managed-goals-files";
+import { getEngineConfig, type ActiveGoalConfigEntry } from "@dashboard/lib/engine/config";
+
+function activeGoalSlug(entry: ActiveGoalConfigEntry): string {
+  return typeof entry === "string" ? entry : entry.template;
+}
 
 function mapGithubError(error: any, fallback: string, status = 500) {
   if (error?.status === 401) {
@@ -101,7 +107,24 @@ export async function GET(req: NextRequest) {
       headerAuth.repo,
     );
     const visibleLocalGoals = collapseManagedGoalRecordsForList(localGoals);
-    const goals = visibleLocalGoals.sort((a, b) => a.id.localeCompare(b.id));
+    const { config } = await getEngineConfig(
+      octokit,
+      headerAuth.owner,
+      headerAuth.repo,
+    );
+    const activeGoalIds = new Set(
+      (config.company?.activeGoals ?? []).map(activeGoalSlug),
+    );
+    const localIds = new Set(visibleLocalGoals.map((goal) => goal.id));
+    const storeGoals =
+      activeGoalIds.size > 0
+        ? (await listCompanyStoreGoalTemplateFiles(octokit)).filter(
+            (goal) => activeGoalIds.has(goal.id) && !localIds.has(goal.id),
+          )
+        : [];
+    const goals = [...visibleLocalGoals, ...storeGoals].sort((a, b) =>
+      a.id.localeCompare(b.id),
+    );
 
     return NextResponse.json(
       { goals },

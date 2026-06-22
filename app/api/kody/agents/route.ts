@@ -21,11 +21,12 @@ import {
   clearGitHubContext,
 } from "@dashboard/lib/github-client";
 import {
-  listAgentFiles,
+  listResolvedAgentFiles,
   writeAgentFile,
   isValidSlug,
   readAgentFile,
 } from "@dashboard/lib/agent-files";
+import { getEngineConfig } from "@dashboard/lib/engine/config";
 import { recordAudit } from "@dashboard/lib/activity/audit";
 
 export const dynamic = "force-dynamic";
@@ -48,7 +49,21 @@ export async function GET(req: NextRequest) {
     );
 
   try {
-    const agent = await listAgentFiles();
+    const activeAgents = new Set<string>();
+    const octokit = await getUserOctokit(req);
+    if (octokit && headerAuth) {
+      const { config } = await getEngineConfig(
+        octokit,
+        headerAuth.owner,
+        headerAuth.repo,
+      );
+      for (const slug of config.company?.activeAgents ?? []) {
+        activeAgents.add(slug);
+      }
+    }
+    const agent = (await listResolvedAgentFiles()).filter(
+      (item) => item.source !== "store" || activeAgents.has(item.slug),
+    );
     return NextResponse.json({ agent }, { headers: NO_STORE_HEADERS });
   } catch (error: any) {
     console.error("[Agent] Error fetching agent:", error);

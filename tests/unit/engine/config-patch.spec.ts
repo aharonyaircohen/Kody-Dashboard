@@ -122,6 +122,8 @@ describe("writeConfigPatch — store activation", () => {
     });
 
     await writeConfigPatch(octokit, "o", "r", {
+      activeAgents: ["cto", "cto", "qa"],
+      activeAgentActions: ["run", "run", "fix-ci"],
       activeAgentResponsibilities: ["release", "release", "qa_sweep"],
       activeGoals: [
         "web-release",
@@ -137,6 +139,8 @@ describe("writeConfigPatch — store activation", () => {
     const written = lastWritten();
     expect(written.company).toEqual({
       ownerNote: "keep",
+      activeAgents: ["cto", "qa"],
+      activeAgentActions: ["run", "fix-ci"],
       activeAgentResponsibilities: ["release", "qa_sweep"],
       activeGoals: [
         "web-release",
@@ -157,12 +161,16 @@ describe("writeConfigPatch — store activation", () => {
       github: { owner: "o", repo: "r" },
       company: {
         ownerNote: "keep",
+        activeAgents: ["cto"],
+        activeAgentActions: ["run"],
         activeAgentResponsibilities: ["release"],
         activeGoals: ["web-release"],
       },
     });
 
     await writeConfigPatch(octokit, "o", "r", {
+      activeAgents: null,
+      activeAgentActions: null,
       activeAgentResponsibilities: null,
       activeGoals: null,
     });

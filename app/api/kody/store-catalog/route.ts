@@ -118,9 +118,13 @@ export async function GET(req: NextRequest) {
       headerAuth.owner,
       headerAuth.repo,
     );
+    const activeAgents = config.company?.activeAgents ?? [];
+    const activeAgentActions = config.company?.activeAgentActions ?? [];
     const activeAgentResponsibilities =
       config.company?.activeAgentResponsibilities ?? [];
     const activeGoals = config.company?.activeGoals ?? [];
+    const activeAgentSet = new Set(activeAgents);
+    const activeAgentActionSet = new Set(activeAgentActions);
     const activeAgentResponsibilitySet = new Set(activeAgentResponsibilities);
     const activeGoalSet = new Set(
       activeGoals
@@ -183,39 +187,41 @@ export async function GET(req: NextRequest) {
       });
     }
 
-    for (const item of agentActions) {
-      const fromStore = item.source === "store";
-      const customized = !fromStore && agentActionStoreSet.has(item.slug);
-      if (!fromStore && !customized) continue;
-      items.push({
-        slug: item.slug,
-        title: item.slug,
-        description: item.describe,
-        kind: "agentAction",
-        status: statusFor({ activatable: false, active: false, customized }),
-        active: false,
-        activatable: false,
-        source: fromStore ? "store" : "local",
-        htmlUrl: item.htmlUrl,
+  for (const item of agentActions) {
+    const fromStore = item.source === "store";
+    const customized = !fromStore && agentActionStoreSet.has(item.slug);
+    if (!fromStore && !customized) continue;
+    const active = fromStore && activeAgentActionSet.has(item.slug);
+    items.push({
+      slug: item.slug,
+      title: item.slug,
+      description: item.describe,
+      kind: "agentAction",
+      status: statusFor({ activatable: true, active, customized }),
+      active,
+      activatable: fromStore,
+      source: fromStore ? "store" : "local",
+      htmlUrl: item.htmlUrl,
         agent: item.agent,
         schedule: item.every ?? null,
       });
     }
 
-    for (const item of agents) {
-      const fromStore = item.source === "store";
-      const customized = !fromStore && agentStoreSet.has(item.slug);
-      if (!fromStore && !customized) continue;
-      items.push({
-        slug: item.slug,
-        title: item.title,
-        description: firstText(item.body),
-        kind: "agent",
-        status: statusFor({ activatable: false, active: false, customized }),
-        active: false,
-        activatable: false,
-        source: fromStore ? "store" : "local",
-        htmlUrl: item.htmlUrl,
+  for (const item of agents) {
+    const fromStore = item.source === "store";
+    const customized = !fromStore && agentStoreSet.has(item.slug);
+    if (!fromStore && !customized) continue;
+    const active = fromStore && activeAgentSet.has(item.slug);
+    items.push({
+      slug: item.slug,
+      title: item.title,
+      description: firstText(item.body),
+      kind: "agent",
+      status: statusFor({ activatable: true, active, customized }),
+      active,
+      activatable: fromStore,
+      source: fromStore ? "store" : "local",
+      htmlUrl: item.htmlUrl,
       });
     }
 
@@ -246,6 +252,8 @@ export async function GET(req: NextRequest) {
         items: items.sort((a, b) =>
           `${a.kind}:${a.slug}`.localeCompare(`${b.kind}:${b.slug}`),
         ),
+        activeAgents,
+        activeAgentActions,
         activeAgentResponsibilities,
         activeGoals,
       },

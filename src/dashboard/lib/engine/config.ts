@@ -77,6 +77,8 @@ export interface KodyConfig {
   };
   /** Store catalog items this repo explicitly enables. */
   company?: {
+    activeAgents?: string[];
+    activeAgentActions?: string[];
     activeAgentResponsibilities?: string[];
     activeGoals?: ActiveGoalConfigEntry[];
   };
@@ -589,7 +591,11 @@ function companyRecordFrom(raw: unknown): Record<string, unknown> {
 
 function setCompanyField(
   next: Record<string, unknown>,
-  key: "activeAgentResponsibilities" | "activeGoals",
+  key:
+    | "activeAgents"
+    | "activeAgentActions"
+    | "activeAgentResponsibilities"
+    | "activeGoals",
   value: string[] | ActiveGoalConfigEntry[],
 ): void {
   const prevCompany = companyRecordFrom(next.company);
@@ -643,6 +649,8 @@ export interface ConfigPatch {
   quality?: KodyQuality | null;
   aliases?: Record<string, string> | null;
   allowedAssociations?: string[] | null;
+  activeAgents?: string[] | null;
+  activeAgentActions?: string[] | null;
   activeAgentResponsibilities?: string[] | null;
   activeGoals?: ActiveGoalConfigEntry[] | null;
   defaultBranch?: string | null;
@@ -716,6 +724,18 @@ export async function writeConfigPatch(
           if (Object.keys(rest).length > 0) next.access = rest;
           else delete next.access;
         }
+      }
+
+      if (patch.activeAgents !== undefined) {
+        const list = patch.activeAgents ? cleanSlugList(patch.activeAgents) : [];
+        setCompanyField(next, "activeAgents", list);
+      }
+
+      if (patch.activeAgentActions !== undefined) {
+        const list = patch.activeAgentActions
+          ? cleanSlugList(patch.activeAgentActions)
+          : [];
+        setCompanyField(next, "activeAgentActions", list);
       }
 
       if (patch.activeAgentResponsibilities !== undefined) {

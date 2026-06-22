@@ -21,12 +21,13 @@ import {
   clearGitHubContext,
 } from "@dashboard/lib/github-client";
 import {
-  listLocalAgentResponsibilityFiles,
+  listAgentResponsibilityFiles,
   readAgentResponsibilityFile,
   writeAgentResponsibilityFile,
   isValidSlug,
 } from "@dashboard/lib/agent-responsibilities-files";
 import { readAgentFile } from "@dashboard/lib/agent-files";
+import { getEngineConfig } from "@dashboard/lib/engine/config";
 import { recordAudit } from "@dashboard/lib/activity/audit";
 
 export const dynamic = "force-dynamic";
@@ -51,9 +52,24 @@ export async function GET(req: NextRequest) {
     );
 
   try {
-    const agentResponsibilities = (await listLocalAgentResponsibilityFiles()).sort((a, b) =>
-      a.slug.localeCompare(b.slug),
-    );
+    const activeAgentResponsibilities = new Set<string>();
+    const octokit = await getUserOctokit(req);
+    if (octokit && headerAuth) {
+      const { config } = await getEngineConfig(
+        octokit,
+        headerAuth.owner,
+        headerAuth.repo,
+      );
+      for (const slug of config.company?.activeAgentResponsibilities ?? []) {
+        activeAgentResponsibilities.add(slug);
+      }
+    }
+    const agentResponsibilities = (await listAgentResponsibilityFiles())
+      .filter(
+        (item) =>
+          item.source !== "store" || activeAgentResponsibilities.has(item.slug),
+      )
+      .sort((a, b) => a.slug.localeCompare(b.slug));
     return NextResponse.json({ agentResponsibilities }, { headers: NO_STORE_HEADERS });
   } catch (error: any) {
     console.error("[AgentResponsibilities] Error fetching agentResponsibilities:", error);

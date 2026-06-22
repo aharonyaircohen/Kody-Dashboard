@@ -72,6 +72,8 @@ interface StoreCatalogItem {
 
 interface StoreCatalogResponse {
   items: StoreCatalogItem[];
+  activeAgents: string[];
+  activeAgentActions: string[];
   activeAgentResponsibilities: string[];
   activeGoals: ActiveGoalConfigEntry[];
 }
@@ -168,11 +170,13 @@ async function fetchCatalog(
     headers,
     cache: "no-store",
   });
-  const json = (await res.json().catch(() => ({}))) as {
-    items?: StoreCatalogItem[];
-    activeAgentResponsibilities?: string[];
-    activeGoals?: ActiveGoalConfigEntry[];
-    error?: string;
+    const json = (await res.json().catch(() => ({}))) as {
+      items?: StoreCatalogItem[];
+      activeAgents?: string[];
+      activeAgentActions?: string[];
+      activeAgentResponsibilities?: string[];
+      activeGoals?: ActiveGoalConfigEntry[];
+      error?: string;
     message?: string;
   };
   if (!res.ok) {
@@ -180,6 +184,8 @@ async function fetchCatalog(
   }
   return {
     items: json.items ?? [],
+    activeAgents: json.activeAgents ?? [],
+    activeAgentActions: json.activeAgentActions ?? [],
     activeAgentResponsibilities: json.activeAgentResponsibilities ?? [],
     activeGoals: json.activeGoals ?? [],
   };
@@ -188,6 +194,8 @@ async function fetchCatalog(
 async function patchConfig(
   headers: Record<string, string>,
   patch: {
+    activeAgents?: string[];
+    activeAgentActions?: string[];
     activeAgentResponsibilities?: string[];
     activeGoals?: ActiveGoalConfigEntry[];
     actorLogin?: string;
@@ -257,6 +265,28 @@ export function StoreCatalogManager() {
     mutationFn: async (item: StoreCatalogItem) => {
       if (!catalog.data || !item.activatable) return;
       const nextActive = !item.active;
+      if (item.kind === "agent") {
+        await patchConfig(headers, {
+          activeAgents: updateActiveAgentResponsibilities(
+            catalog.data.activeAgents,
+            item.slug,
+            nextActive,
+          ),
+          actorLogin: auth?.user.login,
+        });
+        return;
+      }
+      if (item.kind === "agentAction") {
+        await patchConfig(headers, {
+          activeAgentActions: updateActiveAgentResponsibilities(
+            catalog.data.activeAgentActions,
+            item.slug,
+            nextActive,
+          ),
+          actorLogin: auth?.user.login,
+        });
+        return;
+      }
       if (item.kind === "agentResponsibility") {
         await patchConfig(headers, {
           activeAgentResponsibilities: updateActiveAgentResponsibilities(

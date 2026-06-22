@@ -45,6 +45,8 @@ export async function GET(req: NextRequest) {
       quality: config.quality ?? {},
       aliases: config.aliases ?? {},
       allowedAssociations: config.access?.allowedAssociations ?? [],
+      activeAgents: config.company?.activeAgents ?? [],
+      activeAgentActions: config.company?.activeAgentActions ?? [],
       activeAgentResponsibilities:
         config.company?.activeAgentResponsibilities ?? [],
       activeGoals: config.company?.activeGoals ?? [],
@@ -110,6 +112,8 @@ const PatchSchema = z
       .max(200)
       .nullable()
       .optional(),
+    activeAgents: z.array(slugSchema).max(200).nullable().optional(),
+    activeAgentActions: z.array(slugSchema).max(200).nullable().optional(),
     activeGoals: z.array(activeGoalSchema).max(200).nullable().optional(),
     defaultBranch: z.string().max(255).nullable().optional(),
     // AgentAction slug → `provider/model` override. Bounded so a paste can't
@@ -178,6 +182,8 @@ export async function PATCH(req: NextRequest) {
     aliases,
     allowedAssociations,
     activeAgentResponsibilities,
+    activeAgents,
+    activeAgentActions,
     activeGoals,
     defaultBranch,
     perAgentAction,
@@ -199,6 +205,8 @@ export async function PATCH(req: NextRequest) {
         quality,
         aliases,
         allowedAssociations,
+        activeAgents,
+        activeAgentActions,
         activeAgentResponsibilities,
         activeGoals,
         defaultBranch,
@@ -215,6 +223,8 @@ export async function PATCH(req: NextRequest) {
       quality: config.quality ?? {},
       aliases: config.aliases ?? {},
       allowedAssociations: config.access?.allowedAssociations ?? [],
+      activeAgents: config.company?.activeAgents ?? [],
+      activeAgentActions: config.company?.activeAgentActions ?? [],
       activeAgentResponsibilities:
         config.company?.activeAgentResponsibilities ?? [],
       activeGoals: config.company?.activeGoals ?? [],
