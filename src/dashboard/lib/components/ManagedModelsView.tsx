@@ -565,6 +565,7 @@ function NewGoalDialog({
                     emptyLabel="No duties found"
                     disabled={dutiesLoading}
                     selectedLabel="duties selected"
+                    selectedHeading="Selected duties"
                     maxVisibleSelected={4}
                   />
                 </div>

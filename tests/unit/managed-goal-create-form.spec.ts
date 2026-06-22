@@ -42,6 +42,7 @@ describe("ManagedModelsView new model form", () => {
     expect(dialog).toContain("SearchableMultiSelect");
     expect(dialog).toContain("options={routineDutyOptions}");
     expect(dialog).toContain('selectedLabel="duties selected"');
+    expect(dialog).toContain('selectedHeading="Selected duties"');
     expect(dialog).toContain("selectedDutySlugs.length");
     expect(dialog).toContain('isRoutine ? "Scope" : "Finish line"');
     expect(dialog).not.toContain("goal-create-mode");

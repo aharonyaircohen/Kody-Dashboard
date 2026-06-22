@@ -172,6 +172,7 @@ export function SearchableMultiSelect({
   emptyLabel = "No matches",
   disabled,
   selectedLabel = "selected",
+  selectedHeading = "Selected",
   maxVisibleSelected = 6,
 }: {
   id?: string;
@@ -183,6 +184,7 @@ export function SearchableMultiSelect({
   emptyLabel?: string;
   disabled?: boolean;
   selectedLabel?: string;
+  selectedHeading?: string;
   maxVisibleSelected?: number;
 }) {
   const rootRef = useRef<HTMLDivElement | null>(null);
@@ -281,16 +283,22 @@ export function SearchableMultiSelect({
       </Button>
 
       {selectedOptions.length ? (
-        <div className="mt-2 flex flex-wrap gap-1.5">
+        <div
+          className="mt-2 flex flex-wrap items-center gap-1.5 text-xs text-muted-foreground"
+          aria-label={selectedHeading}
+        >
+          <span className="mr-0.5 font-medium text-muted-foreground">
+            {selectedHeading}:
+          </span>
           {visibleSelected.map((option) => (
             <span
               key={option.value}
-              className="inline-flex max-w-full items-center gap-1 rounded border border-border/70 bg-muted/50 px-2 py-1 text-xs text-foreground"
+              className="inline-flex max-w-full items-center gap-1 rounded-full border border-border/70 bg-muted/30 px-2 py-1 text-foreground"
             >
               <span className="truncate">{option.label}</span>
               <button
                 type="button"
-                className="rounded text-muted-foreground hover:text-foreground focus:outline-none focus:ring-1 focus:ring-ring"
+                className="rounded-full text-muted-foreground hover:text-foreground focus:outline-none focus:ring-1 focus:ring-ring"
                 aria-label={`Remove ${option.label}`}
                 onClick={() => remove(option.value)}
               >
@@ -299,14 +307,14 @@ export function SearchableMultiSelect({
             </span>
           ))}
           {hiddenSelectedCount ? (
-            <span className="inline-flex items-center rounded border border-border/70 bg-muted/30 px-2 py-1 text-xs text-muted-foreground">
+            <span className="inline-flex items-center rounded-full border border-border/70 bg-muted/20 px-2 py-1 text-muted-foreground">
               +{hiddenSelectedCount} more
             </span>
           ) : null}
           {selectedOptions.length > 1 ? (
             <button
               type="button"
-              className="rounded px-2 py-1 text-xs text-muted-foreground hover:text-foreground focus:outline-none focus:ring-1 focus:ring-ring"
+              className="rounded px-1.5 py-1 text-xs text-muted-foreground hover:text-foreground focus:outline-none focus:ring-1 focus:ring-ring"
               onClick={() => onChange([])}
             >
               Clear all
