@@ -309,11 +309,15 @@ export async function listDutyFiles(): Promise<DutyFile[]> {
       repo: getRepo(),
       path: DUTIES_DIR,
     });
-    if (!Array.isArray(data)) return [];
-    entries = data as Array<{ name: string; type: string }>;
+    entries = Array.isArray(data)
+      ? (data as Array<{ name: string; type: string }>)
+      : [];
   } catch (error: unknown) {
-    if ((error as { status?: number })?.status === 404) return [];
-    throw error;
+    if ((error as { status?: number })?.status === 404) {
+      entries = [];
+    } else {
+      throw error;
+    }
   }
 
   const duties = await Promise.all(
@@ -428,8 +432,8 @@ export async function readDutyFile(
       lastDurationMs: useActivity
         ? activity.durationMs
         : tickState.lastDurationMs,
-schedule: profile.every ?? null,
-capabilityKind: profile.capabilityKind ?? null,
+      schedule: profile.every ?? null,
+      capabilityKind: profile.capabilityKind ?? null,
       disabled: profile.disabled === true,
       runner: profile.runner ?? null,
       reviewer: profile.reviewer ?? null,
@@ -479,8 +483,8 @@ async function readStoreDutyFile(
     nextEligibleAt: null,
     lastOutcome: null,
     lastDurationMs: null,
-schedule: profile.every ?? null,
-capabilityKind: profile.capabilityKind ?? null,
+    schedule: profile.every ?? null,
+    capabilityKind: profile.capabilityKind ?? null,
     disabled: profile.disabled === true,
     runner: profile.runner ?? null,
     reviewer: profile.reviewer ?? null,
