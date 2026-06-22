@@ -2,7 +2,7 @@
  * @fileType component
  * @domain kody
  * @pattern store-catalog
- * @ai-summary Browse store assets and activate store-backed items by reference.
+ * @ai-summary Browse shared Store assets and import them into the repo.
  */
 
 "use client";
@@ -21,7 +21,6 @@ import {
   Loader2,
   Package,
   Plus,
-  PowerOff,
   RefreshCw,
   Target,
   Users,
@@ -141,30 +140,6 @@ function statusClass(item: StoreCatalogItem): string {
   return "border-sky-500/20 bg-sky-500/10 text-sky-200";
 }
 
-function goalActivationSlug(entry: ActiveGoalConfigEntry): string {
-  return typeof entry === "string" ? entry : entry.template;
-}
-
-function updateActiveGoals(
-  entries: ActiveGoalConfigEntry[] | undefined,
-  slug: string,
-  active: boolean,
-): ActiveGoalConfigEntry[] {
-  const without = (entries ?? []).filter(
-    (entry) => goalActivationSlug(entry) !== slug,
-  );
-  return active ? [...without, slug] : without;
-}
-
-function updateActiveAgentResponsibilities(
-  entries: string[] | undefined,
-  slug: string,
-  active: boolean,
-): string[] {
-  const without = (entries ?? []).filter((entry) => entry !== slug);
-  return active ? [...without, slug] : without;
-}
-
 async function fetchCatalog(
   headers: Record<string, string>,
 ): Promise<StoreCatalogResponse> {
@@ -172,13 +147,13 @@ async function fetchCatalog(
     headers,
     cache: "no-store",
   });
-    const json = (await res.json().catch(() => ({}))) as {
-      items?: StoreCatalogItem[];
-      activeAgents?: string[];
-      activeAgentActions?: string[];
-      activeAgentResponsibilities?: string[];
-      activeGoals?: ActiveGoalConfigEntry[];
-      error?: string;
+  const json = (await res.json().catch(() => ({}))) as {
+    items?: StoreCatalogItem[];
+    activeAgents?: string[];
+    activeAgentActions?: string[];
+    activeAgentResponsibilities?: string[];
+    activeGoals?: ActiveGoalConfigEntry[];
+    error?: string;
     message?: string;
   };
   if (!res.ok) {
@@ -193,28 +168,50 @@ async function fetchCatalog(
   };
 }
 
-async function patchConfig(
+async function importCatalogItem(
   headers: Record<string, string>,
-  patch: {
-    activeAgents?: string[];
-    activeAgentActions?: string[];
-    activeAgentResponsibilities?: string[];
-    activeGoals?: ActiveGoalConfigEntry[];
-    actorLogin?: string;
-  },
-): Promise<void> {
-  const res = await fetch("/api/kody/company/config", {
-    method: "PATCH",
+  item: StoreCatalogItem,
+  actorLogin?: string,
+): Promise<{
+  imported: boolean;
+  status: "imported" | "already_local";
+  path: string;
+}> {
+  const res = await fetch("/api/kody/store-catalog/import", {
+    method: "POST",
     headers: { "content-type": "application/json", ...headers },
-    body: JSON.stringify(patch),
+    body: JSON.stringify({
+      kind: item.kind,
+      slug: item.slug,
+      actorLogin,
+    }),
   });
   const json = (await res.json().catch(() => ({}))) as {
+    imported?: boolean;
+    status?: "imported" | "already_local";
+    path?: string;
     error?: string;
     message?: string;
   };
   if (!res.ok) {
     throw new Error(json.message || json.error || `HTTP ${res.status}`);
   }
+  return {
+    imported: json.imported === true,
+    status: json.status ?? "imported",
+    path: json.path ?? "",
+  };
+}
+
+async function invalidateOperationsQueries(
+  queryClient: ReturnType<typeof useQueryClient>,
+): Promise<void> {
+  await Promise.all([
+    queryClient.invalidateQueries({ queryKey: ["kody-agent"] }),
+    queryClient.invalidateQueries({ queryKey: ["kody-agentActions"] }),
+    queryClient.invalidateQueries({ queryKey: ["kody-agentResponsibilities"] }),
+    queryClient.invalidateQueries({ queryKey: ["kody-managed-goals"] }),
+  ]);
 }
 
 export function StoreCatalogManager() {
@@ -258,65 +255,24 @@ export function StoreCatalogManager() {
       if (selectedSlug) setSelectedSlug(null);
       return;
     }
-    if (!selectedSlug || !filtered.some((item) => itemKey(item) === selectedSlug)) {
+    if (
+      !selectedSlug ||
+      !filtered.some((item) => itemKey(item) === selectedSlug)
+    ) {
       setSelectedSlug(itemKey(filtered[0]!));
     }
   }, [filtered, selectedSlug]);
 
-  const activation = useMutation({
-    mutationFn: async (item: StoreCatalogItem) => {
-      if (!catalog.data || !item.activatable) return;
-      const nextActive = !item.active;
-      if (item.kind === "agent") {
-        await patchConfig(headers, {
-          activeAgents: updateActiveAgentResponsibilities(
-            catalog.data.activeAgents,
-            item.slug,
-            nextActive,
-          ),
-          actorLogin: auth?.user.login,
-        });
-        return;
-      }
-      if (item.kind === "agentAction") {
-        await patchConfig(headers, {
-          activeAgentActions: updateActiveAgentResponsibilities(
-            catalog.data.activeAgentActions,
-            item.slug,
-            nextActive,
-          ),
-          actorLogin: auth?.user.login,
-        });
-        return;
-      }
-      if (item.kind === "agentResponsibility") {
-        await patchConfig(headers, {
-          activeAgentResponsibilities: updateActiveAgentResponsibilities(
-            catalog.data.activeAgentResponsibilities,
-            item.slug,
-            nextActive,
-          ),
-          actorLogin: auth?.user.login,
-        });
-        return;
-      }
-      if (item.kind === "agentGoal" || item.kind === "agentLoop") {
-        await patchConfig(headers, {
-          activeGoals: updateActiveGoals(
-            catalog.data.activeGoals,
-            item.slug,
-            nextActive,
-          ),
-          actorLogin: auth?.user.login,
-        });
-      }
-    },
+  const importMutation = useMutation({
+    mutationFn: (item: StoreCatalogItem) =>
+      importCatalogItem(headers, item, auth?.user.login),
     onSuccess: async () => {
       await queryClient.invalidateQueries({ queryKey });
-      toast.success("Catalog selection updated");
+      await invalidateOperationsQueries(queryClient);
+      toast.success("Imported to repo");
     },
     onError: (error: Error) => {
-      toast.error("Couldn't update catalog selection", {
+      toast.error("Couldn't import store item", {
         description: error.message,
       });
     },
@@ -379,8 +335,8 @@ export function StoreCatalogManager() {
           <CatalogDetail
             item={selected}
             onBack={() => setSelectedSlug(null)}
-            onToggle={() => activation.mutate(selected)}
-            toggling={activation.isPending}
+            onImport={() => importMutation.mutate(selected)}
+            importing={importMutation.isPending}
           />
         ) : (
           <EmptyState
@@ -403,7 +359,9 @@ export function StoreCatalogManager() {
             <li key={`${item.kind}:${item.slug}`}>
               <CatalogRow
                 item={item}
-                selected={selected ? itemKey(selected) === itemKey(item) : false}
+                selected={
+                  selected ? itemKey(selected) === itemKey(item) : false
+                }
                 onSelect={() => setSelectedSlug(itemKey(item))}
               />
             </li>
@@ -423,7 +381,8 @@ function CatalogRow({
   selected: boolean;
   onSelect: () => void;
 }) {
-  const Icon = KIND_FILTERS.find((filter) => filter.id === item.kind)?.icon ?? Package;
+  const Icon =
+    KIND_FILTERS.find((filter) => filter.id === item.kind)?.icon ?? Package;
   return (
     <button
       type="button"
@@ -453,7 +412,9 @@ function CatalogRow({
         <StatusPill item={item} />
       </div>
       {item.description ? (
-        <p className="mt-1 truncate text-xs text-white/50">{item.description}</p>
+        <p className="mt-1 truncate text-xs text-white/50">
+          {item.description}
+        </p>
       ) : null}
     </button>
   );
@@ -462,15 +423,17 @@ function CatalogRow({
 function CatalogDetail({
   item,
   onBack,
-  onToggle,
-  toggling,
+  onImport,
+  importing,
 }: {
   item: StoreCatalogItem;
   onBack: () => void;
-  onToggle: () => void;
-  toggling: boolean;
+  onImport: () => void;
+  importing: boolean;
 }) {
-  const Icon = KIND_FILTERS.find((filter) => filter.id === item.kind)?.icon ?? Package;
+  const Icon =
+    KIND_FILTERS.find((filter) => filter.id === item.kind)?.icon ?? Package;
+  const canImport = item.source === "store";
   return (
     <article className="min-h-full">
       <div className="border-b border-white/[0.06] bg-gradient-to-b from-emerald-500/[0.06] via-emerald-500/[0.02] to-transparent">
@@ -499,23 +462,20 @@ function CatalogDetail({
               </div>
             </div>
             <div className="flex flex-wrap items-center gap-2">
-              {item.activatable ? (
+              {canImport ? (
                 <Button
                   size="sm"
-                  variant={item.active ? "outline" : "default"}
-                  onClick={onToggle}
-                  disabled={toggling}
-                  data-testid={`store-catalog-toggle-${item.kind}-${item.slug}`}
+                  onClick={onImport}
+                  disabled={importing}
+                  data-testid={`store-catalog-import-${item.kind}-${item.slug}`}
                   className="gap-1"
                 >
-                  {toggling ? (
+                  {importing ? (
                     <Loader2 className="h-4 w-4 animate-spin" />
-                  ) : item.active ? (
-                    <PowerOff className="h-4 w-4" />
                   ) : (
                     <Plus className="h-4 w-4" />
                   )}
-                  {item.active ? "Deactivate" : "Add to repo"}
+                  {importing ? "Importing..." : "Import to repo"}
                 </Button>
               ) : null}
               {item.htmlUrl ? (
@@ -546,7 +506,9 @@ function CatalogDetail({
         {item.capabilityKind ? (
           <InfoRow label="Kind" value={item.capabilityKind} />
         ) : null}
-        {item.schedule ? <InfoRow label="Schedule" value={item.schedule} /> : null}
+        {item.schedule ? (
+          <InfoRow label="Schedule" value={item.schedule} />
+        ) : null}
       </div>
     </article>
   );
