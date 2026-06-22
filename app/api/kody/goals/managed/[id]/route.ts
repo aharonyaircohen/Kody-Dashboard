@@ -67,6 +67,7 @@ const updateManagedGoalSchema = z.object({
   type: z.string().min(1).max(80).optional(),
   outcome: z.string().min(1).max(500).optional(),
   schedule: managedGoalScheduleSchema.optional(),
+  duties: z.array(z.string().min(1).max(80)).optional(),
   evidence: z.array(z.string().min(1).max(80)).optional(),
   route: z.array(routeStepSchema).optional(),
   actorLogin: z.string().optional(),
@@ -76,12 +77,15 @@ function isStoreBackedGoalState(state: ManagedGoalState): boolean {
   return state.kind === "template" || state.template === true;
 }
 
-function isStateOnlyUpdate(data: z.infer<typeof updateManagedGoalSchema>): boolean {
+function isStateOnlyUpdate(
+  data: z.infer<typeof updateManagedGoalSchema>,
+): boolean {
   return (
     data.state !== undefined &&
     data.type === undefined &&
     data.outcome === undefined &&
     data.schedule === undefined &&
+    data.duties === undefined &&
     data.evidence === undefined &&
     data.route === undefined
   );
@@ -96,14 +100,18 @@ function instantiateStoreGoalState(
   const nextState: ManagedGoalState = {
     version: 1,
     sourceTemplate:
-      typeof storeState.sourceTemplate === "string" ? storeState.sourceTemplate : id,
+      typeof storeState.sourceTemplate === "string"
+        ? storeState.sourceTemplate
+        : id,
     state,
     type: storeState.type,
     destination: storeState.destination,
     duties: storeState.duties,
     route: storeState.route,
     schedule: storeState.schedule ?? "manual",
-    ...(typeof storeState.stage === "string" ? { stage: storeState.stage } : {}),
+    ...(typeof storeState.stage === "string"
+      ? { stage: storeState.stage }
+      : {}),
     facts: { ...storeState.facts },
     blockers: [],
   };
@@ -162,10 +170,10 @@ export async function PATCH(
       context.headerAuth.owner,
       context.headerAuth.repo,
     );
-  if (!existing) {
-    const storeGoals = await listCompanyStoreGoalTemplateFiles(
-      context.octokit,
-    );
+    if (!existing) {
+      const storeGoals = await listCompanyStoreGoalTemplateFiles(
+        context.octokit,
+      );
       const storeGoal = storeGoals.find((goal) => goal.id === id);
       if (storeGoal) {
         if (isStateOnlyUpdate(parsed.data)) {
@@ -178,17 +186,17 @@ export async function PATCH(
           const path = managedGoalPath(id);
           await writeManagedGoalFile({
             octokit: context.octokit,
-          owner: context.headerAuth.owner,
-          repo: context.headerAuth.repo,
-          id,
-          state: nextState,
-          message: `chore(goals): update managed goal ${id}`,
-        });
-        return NextResponse.json({ goal: { id, path, state: nextState } });
-      }
-      return NextResponse.json(
-        {
-          error: "store_goal_protected",
+            owner: context.headerAuth.owner,
+            repo: context.headerAuth.repo,
+            id,
+            state: nextState,
+            message: `chore(goals): update managed goal ${id}`,
+          });
+          return NextResponse.json({ goal: { id, path, state: nextState } });
+        }
+        return NextResponse.json(
+          {
+            error: "store_goal_protected",
             message: "Store goals cannot be edited directly.",
           },
           { status: 409 },
@@ -232,6 +240,7 @@ export async function PATCH(
       type: parsed.data.type ?? existing.state.type,
       outcome: parsed.data.outcome ?? existing.state.destination.outcome,
       schedule: parsed.data.schedule ?? existing.state.schedule ?? "manual",
+      duties: parsed.data.duties ?? existing.state.duties,
       evidence: parsed.data.evidence ?? existing.state.destination.evidence,
       route: parsed.data.route ?? existing.state.route,
     });
@@ -243,7 +252,9 @@ export async function PATCH(
       destination: rebuilt.destination,
       schedule: rebuilt.schedule,
       duties:
-        parsed.data.route === undefined ? existing.state.duties : rebuilt.duties,
+        parsed.data.duties === undefined && parsed.data.route === undefined
+          ? existing.state.duties
+          : rebuilt.duties,
       route:
         parsed.data.route === undefined ? existing.state.route : rebuilt.route,
       stage:

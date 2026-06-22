@@ -375,6 +375,7 @@ export interface UpdateManagedGoalInput {
   type?: string;
   outcome?: string;
   schedule?: ManagedGoalSchedule;
+  duties?: string[];
   evidence?: string[];
   route?: ManagedGoalRouteStep[];
 }

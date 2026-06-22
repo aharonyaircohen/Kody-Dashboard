@@ -42,16 +42,19 @@ vi.mock("@dashboard/lib/managed-goals-files", () => ({
 import { PATCH } from "../../app/api/kody/goals/managed/[id]/route";
 
 function patchRequest(body: unknown) {
-  return new NextRequest("https://dash.test/api/kody/goals/managed/codebase-health", {
-    method: "PATCH",
-    headers: {
-      "content-type": "application/json",
-      "x-kody-token": "ghp_test-token",
-      "x-kody-owner": "test-owner",
-      "x-kody-repo": "test-repo",
+  return new NextRequest(
+    "https://dash.test/api/kody/goals/managed/codebase-health",
+    {
+      method: "PATCH",
+      headers: {
+        "content-type": "application/json",
+        "x-kody-token": "ghp_test-token",
+        "x-kody-owner": "test-owner",
+        "x-kody-repo": "test-repo",
+      },
+      body: JSON.stringify(body),
     },
-    body: JSON.stringify(body),
-  });
+  );
 }
 
 function params(id = "codebase-health") {
@@ -99,6 +102,27 @@ describe("PATCH /api/kody/goals/managed/[id]", () => {
     expect(h.writeManagedGoalFile).toHaveBeenCalledTimes(1);
     const write = h.writeManagedGoalFile.mock.calls[0]![0];
     expect(write.state.duties).toEqual(["code-health", "docs-health"]);
+    expect(write.state.route).toEqual([]);
+    expect(write.state.stage).toBe("watching");
+  });
+
+  it("updates standalone duties when duties are edited", async () => {
+    h.getUserOctokit.mockResolvedValue({ rest: {} });
+    h.readManagedGoalFile.mockResolvedValue({
+      state: localGoalState(),
+      sha: "goal-sha",
+      path: ".kody/goals/instances/codebase-health/state.json",
+    });
+    h.writeManagedGoalFile.mockResolvedValue(undefined);
+
+    const res = await PATCH(
+      patchRequest({ duties: ["qa-sweep", "docs-health"] }),
+      params(),
+    );
+
+    expect(res.status).toBe(200);
+    const write = h.writeManagedGoalFile.mock.calls[0]![0];
+    expect(write.state.duties).toEqual(["qa-sweep", "docs-health"]);
     expect(write.state.route).toEqual([]);
     expect(write.state.stage).toBe("watching");
   });

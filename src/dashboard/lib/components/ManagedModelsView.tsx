@@ -338,6 +338,33 @@ function goalSearchText(goal: ManagedGoalRecord): string {
     .toLowerCase();
 }
 
+function dutySelectOptions(
+  duties: Duty[],
+  seedSlugs: string[],
+): SearchableSelectOption[] {
+  const bySlug = new Map<string, SearchableSelectOption>();
+  for (const slug of seedSlugs) {
+    bySlug.set(slug, {
+      value: slug,
+      label: slug,
+      searchText: slug,
+    });
+  }
+  for (const duty of duties) {
+    const label = duty.title || duty.slug;
+    const source = duty.source ? ` / ${duty.source}` : "";
+    bySlug.set(duty.slug, {
+      value: duty.slug,
+      label,
+      description: `${duty.slug}${source}`,
+      searchText: `${label} ${duty.slug} ${duty.source ?? ""}`,
+    });
+  }
+  return Array.from(bySlug.values()).sort((a, b) =>
+    (a.value ?? "").localeCompare(b.value ?? ""),
+  );
+}
+
 function NewGoalDialog({
   open,
   onOpenChange,
@@ -371,29 +398,10 @@ function NewGoalDialog({
   const scheduleChoices = isRoutine
     ? scheduleOptions.filter((option) => option.value !== "manual")
     : scheduleOptions;
-  const routineDutyOptions = useMemo<SearchableSelectOption[]>(() => {
-    const bySlug = new Map<string, SearchableSelectOption>();
-    for (const slug of selectedGoalType.duties) {
-      bySlug.set(slug, {
-        value: slug,
-        label: slug,
-        searchText: slug,
-      });
-    }
-    for (const duty of duties) {
-      const label = duty.title || duty.slug;
-      const source = duty.source ? ` / ${duty.source}` : "";
-      bySlug.set(duty.slug, {
-        value: duty.slug,
-        label,
-        description: `${duty.slug}${source}`,
-        searchText: `${label} ${duty.slug} ${duty.source ?? ""}`,
-      });
-    }
-    return Array.from(bySlug.values()).sort((a, b) =>
-      (a.value ?? "").localeCompare(b.value ?? ""),
-    );
-  }, [duties, selectedGoalType.duties]);
+  const routineDutyOptions = useMemo(
+    () => dutySelectOptions(duties, selectedGoalType.duties),
+    [duties, selectedGoalType.duties],
+  );
   const canSubmit =
     outcome.trim().length > 0 && (!isRoutine || selectedDutySlugs.length > 0);
   const showTypeSelect = !isRoutine && goalTypes.length > 1;
@@ -447,24 +455,6 @@ function NewGoalDialog({
           <DialogTitle>New {label}</DialogTitle>
           <DialogDescription>{dialogDescription}</DialogDescription>
         </DialogHeader>
-
-        {isRoutine ? (
-          <div className="rounded-lg border border-sky-500/20 bg-sky-500/[0.06] px-4 py-3">
-            <div className="flex flex-wrap items-center gap-2">
-              <span className="inline-flex h-8 w-8 items-center justify-center rounded-md bg-sky-500/15 text-sky-600 dark:text-sky-200">
-                <RefreshCw className="h-4 w-4" />
-              </span>
-              <div className="min-w-0 flex-1">
-                <p className="text-sm font-medium text-foreground">
-                  Routine loop
-                </p>
-                <p className="text-xs text-muted-foreground">
-                  Runs on cadence, updates health state, keeps duties attached.
-                </p>
-              </div>
-            </div>
-          </div>
-        ) : null}
 
         <div className="min-w-0 space-y-4">
           {isRoutine ? (
@@ -544,7 +534,7 @@ function NewGoalDialog({
             </div>
 
             {isRoutine ? (
-              <div className="min-w-0 space-y-3">
+              <div className="min-w-0 space-y-3 md:col-span-2">
                 <div className="space-y-2">
                   <Label htmlFor="routine-duties">Duties</Label>
                   <SearchableMultiSelect
@@ -561,6 +551,7 @@ function NewGoalDialog({
                     selectedLabel="duties selected"
                     selectedSingularLabel="duty selected"
                     selectedHeading="Selected duties"
+                    selectedTone="info"
                     maxVisibleSelected={4}
                   />
                 </div>
@@ -667,32 +658,49 @@ function EditManagedGoalDialog({
   open,
   onOpenChange,
   label,
+  duties,
 }: {
   goal: ManagedGoalRecord | null;
   open: boolean;
   onOpenChange: (open: boolean) => void;
   label: string;
+  duties: Duty[];
 }) {
   const updateGoal = useUpdateManagedGoal(goal?.id ?? "");
   const isRoutine = goal ? managedGoalModel(goal) === "routine" : false;
-  const intentLabel = isRoutine ? "Routine scope" : "Finish line";
+  const intentLabel = isRoutine ? "Scope" : "Finish line";
   const editDescription = isRoutine
-    ? "Update routine scope and cadence."
+    ? "Update routine scope, cadence, and duties."
     : "Update finish line and schedule.";
   const [outcome, setOutcome] = useState("");
   const [schedule, setSchedule] = useState<ManagedGoalSchedule>("manual");
+  const [selectedDutySlugs, setSelectedDutySlugs] = useState<string[]>([]);
+  const scheduleChoices = isRoutine
+    ? scheduleOptions.filter((option) => option.value !== "manual")
+    : scheduleOptions;
+  const routineDutyOptions = useMemo(
+    () => dutySelectOptions(duties, goal?.state.duties ?? []),
+    [duties, goal?.state.duties],
+  );
 
   useEffect(() => {
     if (!goal || !open) return;
+    const currentSchedule = scheduleOptions.some(
+      (option) => option.value === goal.state.schedule,
+    )
+      ? (goal.state.schedule as ManagedGoalSchedule)
+      : "manual";
     setOutcome(goal.state.destination.outcome);
     setSchedule(
-      scheduleOptions.some((option) => option.value === goal.state.schedule)
-        ? (goal.state.schedule as ManagedGoalSchedule)
-        : "manual",
+      isRoutine && currentSchedule === "manual" ? "1d" : currentSchedule,
     );
-  }, [goal, open]);
+    setSelectedDutySlugs(isRoutine ? goal.state.duties : []);
+  }, [goal, isRoutine, open]);
 
-  const canSubmit = !!goal && outcome.trim().length > 0;
+  const canSubmit =
+    !!goal &&
+    outcome.trim().length > 0 &&
+    (!isRoutine || selectedDutySlugs.length > 0);
 
   const submit = async () => {
     if (!goal) return;
@@ -700,13 +708,14 @@ function EditManagedGoalDialog({
       type: goal.state.type,
       outcome: outcome.trim(),
       schedule,
+      ...(isRoutine ? { duties: selectedDutySlugs } : {}),
     });
     onOpenChange(false);
   };
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-xl">
+      <DialogContent className="w-[calc(100vw-2rem)] max-w-[calc(100vw-2rem)] overflow-x-hidden sm:w-full sm:max-w-2xl">
         <DialogHeader>
           <DialogTitle>Edit {label}</DialogTitle>
           <DialogDescription>{editDescription}</DialogDescription>
@@ -722,25 +731,49 @@ function EditManagedGoalDialog({
             />
           </div>
 
-          <div className="space-y-2">
-            <Label htmlFor="edit-goal-schedule">Schedule</Label>
-            <Select
-              value={schedule}
-              onValueChange={(value) =>
-                setSchedule(value as ManagedGoalSchedule)
-              }
-            >
-              <SelectTrigger id="edit-goal-schedule">
-                <SelectValue placeholder="Choose schedule" />
-              </SelectTrigger>
-              <SelectContent>
-                {scheduleOptions.map((option) => (
-                  <SelectItem key={option.value} value={option.value}>
-                    {option.label}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+          <div className="grid min-w-0 gap-3 md:grid-cols-2">
+            <div className="space-y-2">
+              <Label htmlFor="edit-goal-schedule">
+                {isRoutine ? "Cadence" : "Schedule"}
+              </Label>
+              <Select
+                value={schedule}
+                onValueChange={(value) =>
+                  setSchedule(value as ManagedGoalSchedule)
+                }
+              >
+                <SelectTrigger id="edit-goal-schedule">
+                  <SelectValue placeholder="Choose schedule" />
+                </SelectTrigger>
+                <SelectContent>
+                  {scheduleChoices.map((option) => (
+                    <SelectItem key={option.value} value={option.value}>
+                      {option.label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+
+            {isRoutine ? (
+              <div className="min-w-0 space-y-2 md:col-span-2">
+                <Label htmlFor="edit-routine-duties">Duties</Label>
+                <SearchableMultiSelect
+                  id="edit-routine-duties"
+                  options={routineDutyOptions}
+                  value={selectedDutySlugs}
+                  onChange={setSelectedDutySlugs}
+                  placeholder="Select duties"
+                  searchPlaceholder="Search duties..."
+                  emptyLabel="No duties found"
+                  selectedLabel="duties selected"
+                  selectedSingularLabel="duty selected"
+                  selectedHeading="Selected duties"
+                  selectedTone="info"
+                  maxVisibleSelected={4}
+                />
+              </div>
+            ) : null}
           </div>
 
           <div className="flex justify-end gap-2">
@@ -1633,6 +1666,7 @@ export function ManagedModelsView({ model }: { model: ManagedGoalModel }) {
         goal={editingGoal}
         open={!!editingGoal}
         label={copy.singular}
+        duties={duties}
         onOpenChange={(open) => {
           if (!open) setEditingGoal(null);
         }}

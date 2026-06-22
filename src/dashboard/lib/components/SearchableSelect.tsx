@@ -174,6 +174,7 @@ export function SearchableMultiSelect({
   selectedLabel = "selected",
   selectedSingularLabel,
   selectedHeading = "Selected",
+  selectedTone = "default",
   maxVisibleSelected = 6,
 }: {
   id?: string;
@@ -187,6 +188,7 @@ export function SearchableMultiSelect({
   selectedLabel?: string;
   selectedSingularLabel?: string;
   selectedHeading?: string;
+  selectedTone?: "default" | "info";
   maxVisibleSelected?: number;
 }) {
   const rootRef = useRef<HTMLDivElement | null>(null);
@@ -290,48 +292,57 @@ export function SearchableMultiSelect({
 
       {selectedOptions.length ? (
         <div
-          className="mt-2 flex flex-wrap items-center gap-1.5 text-xs text-muted-foreground"
+          className={cn(
+            "mt-2 rounded-lg border px-3 py-2 text-xs text-muted-foreground",
+            selectedTone === "info"
+              ? "border-sky-500/20 bg-sky-500/[0.06]"
+              : "border-border/70 bg-muted/25",
+          )}
           aria-label={selectedHeading}
         >
-          <span className="mr-0.5 font-medium text-muted-foreground">
-            {selectedHeading}:
-          </span>
-          {visibleSelected.map((option) => (
-            <span
-              key={option.value}
-              className="inline-flex max-w-full items-center gap-1 rounded-full border border-border/70 bg-muted/30 px-2 py-1 text-foreground"
-            >
-              <span className="truncate">{option.label}</span>
+          <div className="mb-2 flex items-center justify-between gap-3">
+            <p className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
+              {selectedHeading}
+            </p>
+            {selectedOptions.length > 1 ? (
               <button
                 type="button"
-                className="rounded-full text-muted-foreground hover:text-foreground focus:outline-none focus:ring-1 focus:ring-ring"
-                aria-label={`Remove ${option.label}`}
-                onClick={() => remove(option.value)}
+                className="rounded px-1.5 py-1 text-xs text-muted-foreground hover:text-foreground focus:outline-none focus:ring-1 focus:ring-ring"
+                onClick={() => onChange([])}
               >
-                <X className="h-3 w-3" />
+                Clear all
               </button>
-            </span>
-          ))}
-          {hiddenSelectedCount ? (
-            <span className="inline-flex items-center rounded-full border border-border/70 bg-muted/20 px-2 py-1 text-muted-foreground">
-              +{hiddenSelectedCount} more
-            </span>
-          ) : null}
-          {selectedOptions.length > 1 ? (
-            <button
-              type="button"
-              className="rounded px-1.5 py-1 text-xs text-muted-foreground hover:text-foreground focus:outline-none focus:ring-1 focus:ring-ring"
-              onClick={() => onChange([])}
-            >
-              Clear all
-            </button>
-          ) : null}
+            ) : null}
+          </div>
+          <div className="flex flex-wrap gap-1.5">
+            {visibleSelected.map((option) => (
+              <span
+                key={option.value}
+                className="inline-flex max-w-full items-center gap-1 rounded-full border border-border/70 bg-background px-2 py-1 text-foreground"
+              >
+                <span className="truncate">{option.label}</span>
+                <button
+                  type="button"
+                  className="rounded-full text-muted-foreground hover:text-foreground focus:outline-none focus:ring-1 focus:ring-ring"
+                  aria-label={`Remove ${option.label}`}
+                  onClick={() => remove(option.value)}
+                >
+                  <X className="h-3 w-3" />
+                </button>
+              </span>
+            ))}
+            {hiddenSelectedCount ? (
+              <span className="inline-flex items-center rounded-full border border-border/70 bg-background px-2 py-1 text-muted-foreground">
+                +{hiddenSelectedCount} more
+              </span>
+            ) : null}
+          </div>
         </div>
       ) : null}
 
       {open ? (
         <div
-          className="z-[80] mt-1 w-full min-w-0 overflow-hidden rounded-md border bg-popover text-popover-foreground shadow-elevation-3 md:absolute md:left-0 md:right-0 md:top-full"
+          className="z-[80] mt-1 w-full min-w-0 overflow-hidden rounded-md border bg-popover text-popover-foreground shadow-elevation-3"
           data-searchable-multi-select-menu
         >
           <div className="relative border-b p-2">
