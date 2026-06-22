@@ -8,13 +8,10 @@
 
 export type ManagedGoalStateValue = "inactive" | "active" | "paused" | "done";
 export type ManagedGoalSchedule = "manual" | "1h" | "1d" | "7d" | "30d";
-export type ManagedGoalTypeId =
-  | "improve"
-  | "maintain"
-  | "monitor"
-  | "release"
-  | "checklist";
+export type ManagedGoalTypeId = "improve" | "routine" | "release" | "checklist";
 export type ManagedGoalModel = "objective" | "routine";
+
+const LEGACY_ROUTINE_TYPE_IDS = new Set(["maintain", "monitor"]);
 
 export const SIMPLE_MANAGED_GOAL_TEMPLATE = "simple";
 export const SIMPLE_MANAGED_GOAL_EVIDENCE = "labelledTasksComplete";
@@ -67,15 +64,15 @@ export const MANAGED_GOAL_TYPES: ManagedGoalTypeDefinition[] = [
     ],
   },
   {
-    id: "maintain",
+    id: "routine",
     model: "routine",
-    label: "Maintain",
+    label: "Routine",
     description:
-      "Keep existing area healthy and surface drift before it becomes urgent.",
+      "Run recurring duties on schedule and surface health or drift.",
     bestFor:
-      "Ongoing code health, documentation health, cleanup, and repo hygiene.",
+      "Ongoing health, maintenance, QA sweeps, monitoring, and repo hygiene.",
     systemSummary:
-      "Kody runs maintenance duties and reports issues that need attention.",
+      "Kody runs routine duties on selected schedule and records findings.",
     promptPlaceholder: "Example: Keep codebase healthy and report drift.",
     evidence: [],
     duties: [
@@ -86,21 +83,10 @@ export const MANAGED_GOAL_TYPES: ManagedGoalTypeDefinition[] = [
       "memory-compaction",
       "repo-graph",
       "skills-research",
+      "health-check",
+      "pr-health-triage",
+      "qa-sweep",
     ],
-    route: [],
-  },
-  {
-    id: "monitor",
-    model: "routine",
-    label: "Monitor",
-    description: "Watch system, product area, or workflow and report problems.",
-    bestFor:
-      "Recurring checks, production health, QA sweeps, and operational signals.",
-    systemSummary:
-      "Kody runs monitoring duties on selected schedule and records findings.",
-    promptPlaceholder: "Example: Watch production health and report problems.",
-    evidence: [],
-    duties: ["health-check", "pr-health-triage", "qa-sweep"],
     route: [],
   },
 
@@ -258,6 +244,8 @@ export function isStoreBackedManagedGoal(goal: ManagedGoalRecord): boolean {
 
 export function managedGoalModel(goal: ManagedGoalRecord): ManagedGoalModel {
   if (goal.state.scheduleMode === "duty-cadence") return "routine";
+  if (LEGACY_ROUTINE_TYPE_IDS.has(goal.state.type)) return "routine";
+
   const goalType = MANAGED_GOAL_TYPES.find(
     (type) => type.id === goal.state.type,
   );

@@ -63,8 +63,7 @@ describe("simple managed goal creation", () => {
   it("exposes simple goal types for the create form", () => {
     expect(MANAGED_GOAL_TYPES.map((type) => type.id)).toEqual([
       "improve",
-      "maintain",
-      "monitor",
+      "routine",
       "release",
       "checklist",
     ]);
@@ -135,27 +134,27 @@ describe("simple managed goal creation", () => {
     });
   });
 
-  it("builds route-free maintain routine structure", () => {
+  it("builds route-free routine structure", () => {
     const state = buildManagedGoalState(
       buildSimpleManagedGoalCreateInput({
-        goalType: "maintain",
+        goalType: "routine",
         schedule: "1d",
-        prompt: "Keep codebase healthy and report drift.",
+        prompt: "Keep codebase healthy report drift.",
       }),
     );
 
     expect(state).toMatchObject({
-      type: "maintain",
+      type: "routine",
       schedule: "1d",
       destination: {
-        outcome: "Keep codebase healthy and report drift.",
+        outcome: "Keep codebase healthy report drift.",
         evidence: [],
       },
       route: [],
-      facts: { goalType: "maintain" },
+      facts: { goalType: "routine" },
     });
     expect(state.duties).toContain("code-health");
-    expect(state.duties).not.toContain("health-check");
+    expect(state.duties).toContain("health-check");
   });
 
   it("keeps legacy simple template goals route-free", () => {
@@ -253,7 +252,8 @@ describe("managedGoalModel", () => {
     ).toBe("routine");
   });
 
-  it("classifies routine types as routines", () => {
+  it("classifies routine and legacy routine types as routines", () => {
+    expect(managedGoalModel(goal({ type: "routine" }))).toBe("routine");
     expect(managedGoalModel(goal({ type: "maintain" }))).toBe("routine");
     expect(managedGoalModel(goal({ type: "monitor" }))).toBe("routine");
   });
