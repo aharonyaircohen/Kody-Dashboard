@@ -513,6 +513,7 @@ export function buildManagedGoalState(
     ...dutyInput,
     ...route.map((step) => step.duty),
   ]);
+  const isRoutine = selectedGoalType?.model === "routine";
 
   return {
     version: 1,
@@ -523,6 +524,7 @@ export function buildManagedGoalState(
       evidence,
     },
     schedule: input.schedule ?? "manual",
+    ...(isRoutine ? { scheduleMode: "duty-cadence" as const } : {}),
     duties,
     route,
     stage: route[0]?.stage,

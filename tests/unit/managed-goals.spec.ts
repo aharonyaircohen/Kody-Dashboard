@@ -146,6 +146,7 @@ describe("simple managed goal creation", () => {
     expect(state).toMatchObject({
       type: "routine",
       schedule: "1d",
+      scheduleMode: "duty-cadence",
       destination: {
         outcome: "Keep codebase healthy report drift.",
         evidence: [],
@@ -168,6 +169,7 @@ describe("simple managed goal creation", () => {
     );
 
     expect(state.duties).toEqual(["docs-health", "qa-sweep"]);
+    expect(state.scheduleMode).toBe("duty-cadence");
   });
 
   it("keeps legacy simple template goals route-free", () => {
