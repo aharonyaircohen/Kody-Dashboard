@@ -133,19 +133,17 @@ This trips people up, so it's worth being precise:
 | State                         | Stored as                                                          | Read by                                                        |
 | ----------------------------- | ------------------------------------------------------------------ | -------------------------------------------------------------- |
 | Per-task `kodyState`          | A **comment on the GitHub issue** (repo-global, not branch-scoped) | `fetchKodyState` → `fetchComments` → `findKodyStateInComments` |
-| Goal/job file state, cursors  | Files on the **`kody-state` branch** (`STATE_BRANCH` constant)     | `fetchGoalStateFromRepo` etc., always `ref: STATE_BRANCH`      |
+| Goal/job file state, cursors | Files in the **configured Kody state repo** | State-repo readers such as `readStateText` / `listStateDirectory` |
 | Human config (`.md`, prompts) | The **default branch**                                             | their own readers                                              |
 
-So the broad rule "all machine-written engine state goes to the `kody-state`
-branch, never the default branch" holds for **file-based** state — goal
-`state.json`, per-job cursors, activity. `STATE_BRANCH` is a hard-coded
-constant (`"kody-state"`), not an env var, and must match the engine's
-`STATE_BRANCH` ([state-branch.ts](../src/dashboard/lib/state-branch.ts)). The
-per-_task_ `kodyState` the board uses for lane derivation is the exception: it
-rides as an **issue comment**, which GitHub stores at the repo level
-independent of any branch — so the board reads it via `fetchComments`, not by
-reading a file off `kody-state`. Both are "the engine writes it"; only the
-file-based half lives on the branch.
+
+So the broad rule "all machine-written engine state goes to the configured Kody
+state repo, never the consumer default branch" holds for **file-based** state —
+goal `state.json`, per-job cursors, activity. The per-_task_ `kodyState` the
+board uses for lane derivation is the exception: it rides as **issue comment**,
+which GitHub stores repo-level independent of any branch. The board reads it
+via `fetchComments`, not by reading file state from the state repo. Both "the
+engine writes it"; only the file-based half lives in state repo.
 
 When multiple `kodyState` comments exist (a re-classify or self-dispatch retry
 can post a fresh one while the canonical one is edited in place),
@@ -223,7 +221,7 @@ Never add `noCache: true` to "fix staleness"; lower the TTL, call
 | ---------------------------------------------------------------------------------------------- | ---------------------------------------------------------------- |
 | [`tasks/derive-column.ts`](../src/dashboard/lib/tasks/derive-column.ts)                        | Pure lane derivation — the priority order above. **Read first.** |
 | [`kody-state.ts`](../src/dashboard/lib/kody-state.ts)                                          | Parse the canonical `kodyState` comment; newest-wins selection.  |
-| [`state-branch.ts`](../src/dashboard/lib/state-branch.ts)                                      | `STATE_BRANCH = "kody-state"` constant (file-based state).       |
+| [`state-repo.ts`](../src/dashboard/lib/state-repo.ts)                                          | Resolves and reads/writes the configured Kody state repo.         |
 | [`constants.ts`](../src/dashboard/lib/constants.ts)                                            | `ColumnId`, `COLUMN_DEFS`, `parseKodyPhase`, `parseKodyFlow`.    |
 | [`types.ts`](../src/dashboard/lib/types.ts)                                                    | `KodyTask`, `GitHubIssue`/`PR`/`WorkflowRun`, `ColumnId`.        |
 | [`/api/kody/tasks/route.ts`](../app/api/kody/tasks/route.ts)                                   | GET list (derivation orchestration) + POST create.               |
@@ -261,7 +259,7 @@ chip.
 **Where does task state live — the `kody-state` branch or the issue?**
 
 Per-_task_ state is an issue **comment** (repo-global, not branch-scoped).
-The `kody-state` branch holds **file-based** state — goal `state.json`,
+The configured Kody state repo holds **file-based** state — goal `state.json`,
 per-job cursors, activity. Both are engine-written; only the file-based half
 sits on the branch.
 

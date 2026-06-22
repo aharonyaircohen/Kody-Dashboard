@@ -90,10 +90,10 @@ not behavior bugs — but two are real seams worth a look.
 
 ### Real seams
 
-- **Activity "Feed" tab reads the wrong branch.** `activity/feed-source.ts`
+- **Activity "Feed" tab reads the wrong source.** `activity/feed-source.ts`
   reads `.kody/events/*.jsonl` from `KODY_STORE_BRANCH ?? "main"`, while the
-  "Auto" tab reads company activity from `kody-state` (`STATE_BRANCH`). If the
-  engine writes event files to `kody-state` (or the repo default isn't
+  "Auto" tab reads company activity from the configured Kody state repo. If the
+  engine writes event files to state repo (or the repo default isn't
   `main`), the Feed tab silently goes empty while Auto keeps working. See
   [activity.md](activity.md).
 - **Version-bump hook freezes silently.** `.husky/pre-commit` →

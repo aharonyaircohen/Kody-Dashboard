@@ -89,7 +89,7 @@ Important fields:
 The dashboard create form asks for an output type:
 
 - `Run` - no generated report is promised.
-- `Report` - one `.kody/reports/<slug>.md` file is the durable output, and the
+- `Report` - one `reports/<slug>.md` file in the configured Kody state repo is the durable output, and the
   report slug is stored in `writesTo`.
 
 A agentResponsibility with no `runner` should not auto-run. A agentResponsibility pointing at a missing agent
@@ -144,7 +144,7 @@ Key points:
 ## State files
 
 Runtime state is not part of the agentResponsibility authoring surface. The engine writes it
-under the state branch, and the dashboard reads it to render run status:
+under the configured Kody state repo, and the dashboard reads it to render run status:
 
 - `lastTickAt` - last visible run time.
 - `nextEligibleAt` - next known eligible run time, when the engine provides it.

@@ -1,13 +1,8 @@
 # Reports
 
-Reports are the dashboard's review surface for agentResponsibility output. A agentResponsibility can either
-act through its agentAction, or write a markdown report under
-`.kody/reports/<slug>.md` on the `kody-state` branch when the next step needs
-operator judgement.
+Reports are the dashboard review surface for agentResponsibility output. A agentResponsibility can either act through an agentAction, or write a markdown report under `reports/<slug>.md` in the configured Kody state repo when the next step needs operator judgement.
 
-The Reports page reads those files, shows the report body, tracks unread state
-locally, and can render optional suggested actions from frontmatter. It replaces
-the old inbox-approval/ledger review surface for recommendations.
+The Reports page reads files, shows report body, tracks unread state locally, and can render optional suggested actions from frontmatter. It replaces the old inbox-approval/ledger review surface for recommendations.
 
 ## Report Shape
 
@@ -117,7 +112,7 @@ pnpm exec vitest run tests/unit/reports-files.spec.ts tests/unit/report-schema-v
 | File                                                                            | Purpose                                                     |
 | ------------------------------------------------------------------------------- | ----------------------------------------------------------- |
 | [ReportsView.tsx](../src/dashboard/lib/components/ReportsView.tsx)              | Reports page, markdown rendering, suggested-action buttons. |
-| [reports-files.ts](../src/dashboard/lib/reports-files.ts)                       | Reads report markdown from the state branch.                |
+| [reports-files.ts](../src/dashboard/lib/reports-files.ts)                       | Reads report markdown from the configured Kody state repo.                |
 | [report-suggested-actions.ts](../src/dashboard/lib/report-suggested-actions.ts) | Parses `suggestedActions` frontmatter.                      |
 | [report-schema-validator.mjs](../scripts/report-schema-validator.mjs)           | Validates report frontmatter in tests/scripts.              |
 | [\_schema.yaml](../.kody/reports/_schema.yaml)                                  | Human-readable report schema.                               |
