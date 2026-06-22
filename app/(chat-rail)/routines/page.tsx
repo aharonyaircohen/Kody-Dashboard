@@ -1,11 +1,11 @@
 /**
  * @fileType page
  * @domain kody
- * @pattern managed-goals
- * @ai-summary Routine page for ongoing schedule/health managed goals.
+ * @pattern routines
+ * @ai-summary Routine page for ongoing schedule/health operating models.
  */
 
-import { ManagedGoalsView } from "@dashboard/lib/components/ManagedGoalsView";
+import { ManagedModelsView } from "@dashboard/lib/components/ManagedModelsView";
 import { buildKodyMetadata } from "../../metadata";
 
 export const metadata = buildKodyMetadata({
@@ -15,5 +15,5 @@ export const metadata = buildKodyMetadata({
 });
 
 export default function RoutinesPage() {
-  return <ManagedGoalsView model="routine" />;
+  return <ManagedModelsView model="routine" />;
 }

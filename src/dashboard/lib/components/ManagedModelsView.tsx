@@ -1,8 +1,8 @@
 /**
  * @fileType component
  * @domain kody
- * @pattern managed-goals
- * @ai-summary Full managed-goals page backed by engine goal state files.
+ * @pattern managed-models
+ * @ai-summary Shared Objective/Routine page backed by engine state files.
  */
 "use client";
 
@@ -76,41 +76,27 @@ import { MasterDetailShell } from "./MasterDetailShell";
 
 const defaultGoalType = MANAGED_GOAL_TYPES[0]!;
 
-type ManagedGoalsViewModel = ManagedGoalModel | "all";
+type ManagedModelViewCopy = {
+  title: string;
+  singular: string;
+  plural: string;
+  selectTitle: string;
+  selectHint: string;
+  emptyTitle: string;
+  emptyHint: string;
+  searchPlaceholder: string;
+  newLabel: string;
+};
 
-const viewCopy: Record<
-  ManagedGoalsViewModel,
-  {
-    title: string;
-    singular: string;
-    plural: string;
-    selectTitle: string;
-    selectHint: string;
-    emptyTitle: string;
-    emptyHint: string;
-    searchPlaceholder: string;
-    newLabel: string;
-  }
-> = {
-  all: {
-    title: "Goals",
-    singular: "goal",
-    plural: "goals",
-    selectTitle: "Select a goal",
-    selectHint: "Choose a goal from list.",
-    emptyTitle: "No goals yet",
-    emptyHint: "Create first engine-managed goal for repo.",
-    searchPlaceholder: "Search goals...",
-    newLabel: "New goal",
-  },
+const viewCopy: Record<ManagedGoalModel, ManagedModelViewCopy> = {
   objective: {
     title: "Objectives",
     singular: "objective",
     plural: "objectives",
     selectTitle: "Select an objective",
-    selectHint: "Choose an objective from list.",
+    selectHint: "Choose an objective from the list.",
     emptyTitle: "No objectives yet",
-    emptyHint: "Create first evidence-driven objective for repo.",
+    emptyHint: "Create the first evidence-driven objective for this repo.",
     searchPlaceholder: "Search objectives...",
     newLabel: "New objective",
   },
@@ -119,9 +105,9 @@ const viewCopy: Record<
     singular: "routine",
     plural: "routines",
     selectTitle: "Select a routine",
-    selectHint: "Choose a routine from list.",
+    selectHint: "Choose a routine from the list.",
     emptyTitle: "No routines yet",
-    emptyHint: "Create first schedule-driven routine for repo.",
+    emptyHint: "Create the first schedule-driven routine for this repo.",
     searchPlaceholder: "Search routines...",
     newLabel: "New routine",
   },
@@ -287,15 +273,21 @@ function GoalActivityBadge({
   );
 }
 
-function StoreGoalBadge({ className }: { className?: string }) {
+function StoreModelBadge({
+  className,
+  label,
+}: {
+  className?: string;
+  label: string;
+}) {
   return (
     <span
       className={cn(
         "shrink-0 inline-flex h-6 w-6 items-center justify-center rounded border border-emerald-500/20 bg-emerald-500/10 text-emerald-300",
         className,
       )}
-      title="Store goal"
-      aria-label="Store goal"
+      title={`Store ${label}`}
+      aria-label={`Store ${label}`}
       role="img"
     >
       <Package className="h-3.5 w-3.5" />
@@ -330,20 +322,17 @@ function goalSearchText(goal: ManagedGoalRecord): string {
 function NewGoalDialog({
   open,
   onOpenChange,
-  model = "all",
-  label = "goal",
+  model,
+  label,
 }: {
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  model?: ManagedGoalsViewModel;
-  label?: string;
+  model: ManagedGoalModel;
+  label: string;
 }) {
   const createGoal = useCreateManagedGoal();
   const goalTypes = useMemo(
-    () =>
-      model === "all"
-        ? MANAGED_GOAL_TYPES
-        : MANAGED_GOAL_TYPES.filter((type) => type.model === model),
+    () => MANAGED_GOAL_TYPES.filter((type) => type.model === model),
     [model],
   );
   const defaultType = goalTypes[0] ?? defaultGoalType;
@@ -489,10 +478,12 @@ function EditManagedGoalDialog({
   goal,
   open,
   onOpenChange,
+  label,
 }: {
   goal: ManagedGoalRecord | null;
   open: boolean;
   onOpenChange: (open: boolean) => void;
+  label: string;
 }) {
   const updateGoal = useUpdateManagedGoal(goal?.id ?? "");
   const [outcome, setOutcome] = useState("");
@@ -524,7 +515,7 @@ function EditManagedGoalDialog({
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-xl">
         <DialogHeader>
-          <DialogTitle>Edit goal</DialogTitle>
+          <DialogTitle>Edit {label}</DialogTitle>
           <DialogDescription>
             Update finish line and schedule.
           </DialogDescription>
@@ -593,11 +584,13 @@ function GoalRow({
   isActive,
   onSelect,
   onDelete,
+  label,
 }: {
   goal: ManagedGoalRecord;
   isActive: boolean;
   onSelect: () => void;
   onDelete: () => void;
+  label: string;
 }) {
   const done = completedEvidence(goal);
   const total = goal.state.destination.evidence.length;
@@ -627,7 +620,7 @@ function GoalRow({
             {goal.id}
           </span>
           <GoalActivityBadge state={goal.state.state} />
-          {storeBacked ? <StoreGoalBadge /> : null}
+          {storeBacked ? <StoreModelBadge label={label} /> : null}
         </div>
 
         <div className="text-xs text-muted-foreground mt-1 flex items-center gap-2 flex-wrap">
@@ -660,8 +653,8 @@ function GoalRow({
             onDelete();
           }}
           className="absolute right-3 top-3 h-8 w-8 px-0 text-red-300 hover:text-red-200"
-          title="Delete goal"
-          aria-label={`Delete ${goal.id}`}
+          title={`Delete ${label}`}
+          aria-label={`Delete ${label} ${goal.id}`}
         >
           <Trash2 className="w-3.5 h-3.5" />
         </Button>
@@ -670,7 +663,13 @@ function GoalRow({
   );
 }
 
-function GoalInstancesSection({ goal }: { goal: ManagedGoalRecord }) {
+function GoalInstancesSection({
+  goal,
+  label,
+}: {
+  goal: ManagedGoalRecord;
+  label: string;
+}) {
   const instances = instanceSummaries(goal);
   const totalEvidence = goal.state.destination.evidence.length;
 
@@ -678,7 +677,7 @@ function GoalInstancesSection({ goal }: { goal: ManagedGoalRecord }) {
     <ContentSection
       icon={Clock3}
       title="Instances"
-      subtitle="Recent scheduled runs for this goal"
+      subtitle={`Recent scheduled runs for this ${label}`}
       count={instances.length}
     >
       {instances.length ? (
@@ -736,6 +735,7 @@ function GoalInstancesSection({ goal }: { goal: ManagedGoalRecord }) {
 function GoalDetail({
   goal,
   duties,
+  copy,
   onBack,
   onActivate,
   onPause,
@@ -747,6 +747,7 @@ function GoalDetail({
 }: {
   goal: ManagedGoalRecord;
   duties: Duty[];
+  copy: ManagedModelViewCopy;
   onBack: () => void;
   onActivate: () => void;
   onPause: () => void;
@@ -779,14 +780,14 @@ function GoalDetail({
             className="md:hidden gap-1 -ml-2 text-muted-foreground"
           >
             <ArrowLeft className="w-4 h-4" />
-            All goals
+            All {copy.plural}
           </Button>
 
           <header className="flex items-start justify-between gap-4 flex-wrap">
             <div className="min-w-0 flex-1 space-y-2">
               <h1 className="text-2xl md:text-3xl font-semibold tracking-tight break-words font-mono inline-flex items-center gap-3 flex-wrap">
                 <span>{goal.id}</span>
-                {storeBacked ? <StoreGoalBadge /> : null}
+                {storeBacked ? <StoreModelBadge label={copy.singular} /> : null}
                 <GoalActivityBadge state={goal.state.state} />
                 <span className="text-[11px] font-sans uppercase tracking-wide bg-white/[0.06] text-white/50 px-2 py-0.5 rounded">
                   {goal.state.type}
@@ -819,8 +820,12 @@ function GoalDetail({
                 onClick={onRun}
                 disabled={!canRun || isRunning}
                 className="h-8 w-8 px-0"
-                title={canRun ? "Run goal now" : "Goal cannot be run"}
-                aria-label="Run goal now"
+                title={
+                  canRun
+                    ? `Run ${copy.singular} now`
+                    : `${copy.singular} cannot be run`
+                }
+                aria-label={`Run ${copy.singular} now`}
               >
                 {isRunning ? (
                   <Loader2 className="w-3.5 h-3.5 animate-spin" />
@@ -836,8 +841,8 @@ function GoalDetail({
                     size="sm"
                     onClick={onEdit}
                     className="h-8 w-8 px-0"
-                    title="Edit goal"
-                    aria-label="Edit goal"
+                    title={`Edit ${copy.singular}`}
+                    aria-label={`Edit ${copy.singular}`}
                   >
                     <Pencil className="w-3.5 h-3.5" />
                   </Button>
@@ -846,8 +851,8 @@ function GoalDetail({
                     size="sm"
                     onClick={onDelete}
                     className="h-8 w-8 px-0 text-red-300 hover:text-red-200"
-                    title="Delete goal"
-                    aria-label="Delete goal"
+                    title={`Delete ${copy.singular}`}
+                    aria-label={`Delete ${copy.singular}`}
                   >
                     <Trash2 className="w-3.5 h-3.5" />
                   </Button>
@@ -861,8 +866,8 @@ function GoalDetail({
                   onClick={onActivate}
                   disabled={isUpdating}
                   className="h-8 w-8 px-0"
-                  title="Activate goal"
-                  aria-label="Activate goal"
+                  title={`Activate ${copy.singular}`}
+                  aria-label={`Activate ${copy.singular}`}
                 >
                   {isUpdating ? (
                     <Loader2 className="w-3.5 h-3.5 animate-spin" />
@@ -878,8 +883,8 @@ function GoalDetail({
                   onClick={onPause}
                   disabled={isUpdating}
                   className="h-8 w-8 px-0"
-                  title="Deactivate goal"
-                  aria-label="Deactivate goal"
+                  title={`Deactivate ${copy.singular}`}
+                  aria-label={`Deactivate ${copy.singular}`}
                 >
                   {isUpdating ? (
                     <Loader2 className="w-3.5 h-3.5 animate-spin" />
@@ -904,6 +909,7 @@ function GoalDetail({
       <div className="max-w-4xl mx-auto p-4 md:p-8 space-y-6">
         <GoalDutiesSection
           goal={goal}
+          label={copy.singular}
           duties={duties}
           runningSlug={
             runDuty.isPending
@@ -913,11 +919,11 @@ function GoalDetail({
           }
           onRun={(slug) => runDuty.mutate({ slug, force: true })}
         />
-        <GoalInstancesSection goal={goal} />
+        <GoalInstancesSection goal={goal} label={copy.singular} />
         <ContentSection
           icon={CheckCircle2}
           title="Evidence"
-          subtitle="What proves this goal is done"
+          subtitle={`What proves this ${copy.singular} is done`}
           count={goal.state.destination.evidence.length}
         >
           <div className="space-y-2">
@@ -1060,11 +1066,13 @@ function dutyStateClass(state: string): string {
 
 function GoalDutiesSection({
   goal,
+  label,
   duties,
   runningSlug,
   onRun,
 }: {
   goal: ManagedGoalRecord;
+  label: string;
   duties: Duty[];
   runningSlug: string | null;
   onRun: (slug: string) => void;
@@ -1087,7 +1095,7 @@ function GoalDutiesSection({
     <ContentSection
       icon={Play}
       title="Duties"
-      subtitle="What this goal checks and chose last tick"
+      subtitle={`What this ${label} checks and chose last tick`}
       count={dutySlugs.length}
     >
       {lastDecision ? (
@@ -1114,7 +1122,7 @@ function GoalDutiesSection({
             const cadence = schedule?.cadence ?? duty?.schedule ?? null;
             const reason =
               schedule?.reason ??
-              (duty ? "Not selected by last goal tick" : "Duty not loaded");
+              (duty ? `Not selected by last ${label} tick` : "Duty not loaded");
 
             return (
               <div
@@ -1216,11 +1224,7 @@ function EmptyHint({ text }: { text: string }) {
   return <p className="text-sm text-muted-foreground">{text}</p>;
 }
 
-export function ManagedGoalsView({
-  model = "all",
-}: {
-  model?: ManagedGoalsViewModel;
-}) {
+export function ManagedModelsView({ model }: { model: ManagedGoalModel }) {
   const [createOpen, setCreateOpen] = useState(false);
   const [editingGoal, setEditingGoal] = useState<ManagedGoalRecord | null>(
     null,
@@ -1241,10 +1245,7 @@ export function ManagedGoalsView({
   const deleteManagedGoal = useDeleteManagedGoal();
   const copy = viewCopy[model];
   const modelGoals = useMemo(
-    () =>
-      model === "all"
-        ? goals
-        : goals.filter((goal) => managedGoalModel(goal) === model),
+    () => goals.filter((goal) => managedGoalModel(goal) === model),
     [goals, model],
   );
 
@@ -1279,7 +1280,9 @@ export function ManagedGoalsView({
           modelGoals.length === 1 ? copy.singular : copy.plural
         }`}
         error={
-          error ? `Failed to load goals: ${(error as Error).message}` : null
+          error
+            ? `Failed to load ${copy.plural}: ${(error as Error).message}`
+            : null
         }
         search={search}
         onSearch={setSearch}
@@ -1294,7 +1297,7 @@ export function ManagedGoalsView({
               size="sm"
               onClick={() => void refetch()}
               disabled={isFetching}
-              aria-label="Refresh goals"
+              aria-label={`Refresh ${copy.plural}`}
             >
               <RefreshCw
                 className={cn("h-4 w-4", isFetching && "animate-spin")}
@@ -1316,6 +1319,7 @@ export function ManagedGoalsView({
             <GoalDetail
               goal={selectedGoal}
               duties={duties}
+              copy={copy}
               onBack={() => setSelectedId(null)}
               onEdit={() => setEditingGoal(selectedGoal)}
               onDelete={() => setDeleteGoal(selectedGoal)}
@@ -1374,6 +1378,7 @@ export function ManagedGoalsView({
                 <GoalRow
                   goal={goal}
                   isActive={selectedId === goal.id}
+                  label={copy.singular}
                   onSelect={() => setSelectedId(goal.id)}
                   onDelete={() => setDeleteGoal(goal)}
                 />
@@ -1392,6 +1397,7 @@ export function ManagedGoalsView({
       <EditManagedGoalDialog
         goal={editingGoal}
         open={!!editingGoal}
+        label={copy.singular}
         onOpenChange={(open) => {
           if (!open) setEditingGoal(null);
         }}
@@ -1404,10 +1410,10 @@ export function ManagedGoalsView({
       >
         <DialogContent className="max-w-md">
           <DialogHeader>
-            <DialogTitle>Delete goal?</DialogTitle>
+            <DialogTitle>Delete {copy.singular}?</DialogTitle>
             <DialogDescription>
-              This removes the managed goal state file. It does not delete
-              GitHub issues.
+              This removes the managed {copy.singular} state file. It does not
+              delete GitHub issues.
             </DialogDescription>
           </DialogHeader>
           <div className="rounded-lg border border-white/[0.08] bg-white/[0.02] px-3 py-2 text-sm text-white/75">

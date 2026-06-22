@@ -122,10 +122,10 @@ export function useCreateManagedGoal() {
         },
       );
       queryClient.invalidateQueries({ queryKey: managedGoalQueryKeys.list });
-      toast.success("Goal created");
+      toast.success("Created");
     },
     onError: (error) => {
-      toast.error("Failed to create goal", { description: error.message });
+      toast.error("Failed to create item", { description: error.message });
     },
   });
 }
@@ -143,10 +143,10 @@ export function useUpdateManagedGoal(id: string) {
             : [updated],
       );
       queryClient.invalidateQueries({ queryKey: managedGoalQueryKeys.list });
-      toast.success("Goal updated");
+      toast.success("Updated");
     },
     onError: (error) => {
-      toast.error("Failed to update goal", { description: error.message });
+      toast.error("Failed to update item", { description: error.message });
     },
   });
 }
@@ -172,7 +172,7 @@ export function useDeleteManagedGoal() {
         managedGoalQueryKeys.list,
         (prev) => prev?.filter((goal) => !managedGoalMatchesId(goal, id)) ?? [],
       );
-      toast.success("Goal deleted");
+      toast.success("Deleted");
     },
     onError: (error, _id, context) => {
       if (context?.previous) {
@@ -181,7 +181,7 @@ export function useDeleteManagedGoal() {
           context.previous,
         );
       }
-      toast.error("Failed to delete goal", { description: error.message });
+      toast.error("Failed to delete item", { description: error.message });
     },
   });
 }
@@ -199,10 +199,10 @@ export function useRunManagedGoal() {
         managedGoalQueryKeys.list,
         (prev) => mergeManagedGoalRecord(prev, result.goal),
       );
-      toast.success("Goal run started");
+      toast.success("Run started");
     },
     onError: (error) => {
-      toast.error("Failed to run goal", { description: error.message });
+      toast.error("Failed to start run", { description: error.message });
     },
   });
 }
@@ -250,7 +250,7 @@ export function useSetManagedGoalState() {
           context.previous,
         );
       }
-      toast.error("Failed to update goal", { description: error.message });
+      toast.error("Failed to update item", { description: error.message });
     },
   });
 }

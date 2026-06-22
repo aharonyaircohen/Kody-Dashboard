@@ -1,11 +1,11 @@
 /**
  * @fileType page
  * @domain kody
- * @pattern managed-goals
- * @ai-summary Objective page for finite, evidence-driven managed goals.
+ * @pattern objectives
+ * @ai-summary Objective page for finite, evidence-driven operating models.
  */
 
-import { ManagedGoalsView } from "@dashboard/lib/components/ManagedGoalsView";
+import { ManagedModelsView } from "@dashboard/lib/components/ManagedModelsView";
 import { buildKodyMetadata } from "../../metadata";
 
 export const metadata = buildKodyMetadata({
@@ -15,5 +15,5 @@ export const metadata = buildKodyMetadata({
 });
 
 export default function ObjectivesPage() {
-  return <ManagedGoalsView model="objective" />;
+  return <ManagedModelsView model="objective" />;
 }
