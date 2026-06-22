@@ -26,7 +26,7 @@ import {
   deleteDutyFile,
   isValidSlug,
 } from "@dashboard/lib/duties-files";
-import { readStaffFile } from "@dashboard/lib/staff-files";
+import { readAgentFile } from "@dashboard/lib/agent-files";
 import { recordAudit } from "@dashboard/lib/activity/audit";
 
 export async function GET(
@@ -79,7 +79,7 @@ const updateDutySchema = z.object({
     .optional(),
   disabled: z.boolean().optional(),
   capabilityKind: z.enum(["observe", "act", "verify"]).nullable().optional(),
-  runner: z.string().min(1).nullable().optional(),
+  agent: z.string().min(1).nullable().optional(),
   reviewer: z.string().min(1).nullable().optional(),
   action: z.string().min(1).max(64).nullable().optional(),
   mentions: z.array(z.string()).optional(),
@@ -113,31 +113,31 @@ function normalizeOptionalSlug(
   return trimmed.length > 0 ? trimmed : null;
 }
 
-function normalizeStaffSlug(value: string | null | undefined): string | null {
+function normalizeAgentSlug(value: string | null | undefined): string | null {
   const trimmed = value?.trim().replace(/^@/, "") ?? "";
   return trimmed.length > 0 ? trimmed : null;
 }
 
-async function validateStaffRole(
+async function validateAgentRole(
   slug: string | null,
-  field: "runner" | "reviewer",
+  field: "agent" | "reviewer",
 ): Promise<NextResponse | null> {
   if (!slug) return null;
   if (!isValidSlug(slug)) {
     return NextResponse.json(
       {
         error: `invalid_${field}`,
-        message: `${field} must be a staff member slug.`,
+        message: `${field} must be an agent slug.`,
       },
       { status: 400 },
     );
   }
-  const staff = await readStaffFile(slug);
-  if (!staff) {
+  const agent = await readAgentFile(slug);
+  if (!agent) {
     return NextResponse.json(
       {
         error: `unknown_${field}`,
-        message: `${field} must reference an existing staff member.`,
+        message: `${field} must reference an existing agent.`,
       },
       { status: 400 },
     );
@@ -180,7 +180,7 @@ export async function PATCH(
     schedule,
     disabled,
     capabilityKind,
-    runner,
+    agent,
       reviewer,
       action,
       mentions,
@@ -224,16 +224,16 @@ export async function PATCH(
         { status: 400 },
       );
     }
-    const nextRunner =
-      runner === undefined ? existing.runner : normalizeStaffSlug(runner);
+    const nextAgent =
+      agent === undefined ? existing.agent : normalizeAgentSlug(agent);
     const nextReviewer =
-      reviewer === undefined ? existing.reviewer : normalizeStaffSlug(reviewer);
-    if (runner !== undefined) {
-      const runnerError = await validateStaffRole(nextRunner, "runner");
-      if (runnerError) return runnerError;
+      reviewer === undefined ? existing.reviewer : normalizeAgentSlug(reviewer);
+    if (agent !== undefined) {
+      const agentError = await validateAgentRole(nextAgent, "agent");
+      if (agentError) return agentError;
     }
     if (reviewer !== undefined) {
-      const reviewerError = await validateStaffRole(nextReviewer, "reviewer");
+      const reviewerError = await validateAgentRole(nextReviewer, "reviewer");
       if (reviewerError) return reviewerError;
     }
 
@@ -258,7 +258,7 @@ export async function PATCH(
     disabled: disabled === undefined ? existing.disabled : disabled,
     capabilityKind:
       capabilityKind === undefined ? existing.capabilityKind : capabilityKind,
-    runner: nextRunner,
+    agent: nextAgent,
       reviewer: nextReviewer,
       action: nextAction,
       // Read-merge: omitting `mentions` preserves the existing list rather
@@ -291,7 +291,7 @@ export async function PATCH(
       action: "duty.update",
       resource: slug,
       duty: slug,
-      staff: duty.runner ?? null,
+      agent: duty.agent ?? null,
       detail: "edited duty",
     });
 
@@ -375,7 +375,7 @@ export async function DELETE(
       action: "duty.delete",
       resource: slug,
       duty: slug,
-      staff: existing.runner ?? null,
+      agent: existing.agent ?? null,
       detail: "deleted duty",
     });
 

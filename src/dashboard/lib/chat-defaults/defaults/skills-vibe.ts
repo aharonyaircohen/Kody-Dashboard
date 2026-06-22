@@ -33,7 +33,7 @@ If a \`## Current task\` block is present, the issue **already exists** — you 
 
 ### Hard rules
 
-- **Clarifying questions are rare.** Same bar as the persona.
+- **Clarifying questions are rare.** Same bar as the agentIdentity.
 - **Never** post \`@kody ...\` comments on issues or PRs.
 - Do **not** call \`create_*\` on the first turn — research and present the plan first.
 - Call \`vibe_start_execution\` IMMEDIATELY after the create-issue tool succeeds in the same turn — one approval is enough. Never ask for a second "ship it / run it / go" confirmation.

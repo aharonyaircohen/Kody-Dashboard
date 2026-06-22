@@ -57,7 +57,7 @@ async function readExecutableGuide(): Promise<string> {
       "- Put deterministic work in executable-owned `*.sh` scripts.",
       "- Use MCP tools only for external callable tool servers.",
       "- Use `skipAgent` when the script does all the work.",
-      "- Duties own cadence, staff, purpose, and safety bounds.",
+      "- Duties own cadence, agent, purpose, and safety bounds.",
     ].join("\n");
   }
 }

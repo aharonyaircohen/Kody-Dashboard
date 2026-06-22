@@ -3,10 +3,10 @@
  * @domain kody
  * @pattern company-api
  * @ai-summary Company import/export API. GET assembles a portable bundle
- *   (staff, duties, prompts, instructions) from the connected repo. POST
+ *   (agent, duties, prompts, instructions) from the connected repo. POST
  *   applies an uploaded bundle, writing those artifacts via the file
  *   helpers — `mode` ("skip" | "overwrite") decides slug collisions.
- *   Mirrors the jobs/staff route auth pattern: header PAT for reads,
+ *   Mirrors the jobs/agents route auth pattern: header PAT for reads,
  *   verified actor + user octokit for the commits an import performs.
  */
 /* eslint-disable @typescript-eslint/no-explicit-any */

@@ -3,7 +3,7 @@
  * @domain kody
  * @pattern company-import
  * @ai-summary Apply a portable Company bundle to the connected repo.
- *   Writes staff, duties, and commands via their existing file helpers,
+ *   Writes agent, duties, and commands via their existing file helpers,
  *   plus the single instructions file. On a slug/file that already
  *   exists, `mode` decides: "skip" (default, non-destructive) leaves the
  *   target untouched; "overwrite" replaces it. Returns a structured
@@ -14,7 +14,7 @@
 
 import type { Octokit } from "@octokit/rest";
 import { readDutyFile, writeDutyFile } from "../duties-files";
-import { readStaffFile, writeStaffFile } from "../staff-files";
+import { readAgentFile, writeAgentFile } from "../agent-files";
 import { readCommandFile, writeCommandFile } from "../commands/files";
 import { readContextFile, writeContextFile } from "../context/files";
 import {
@@ -61,7 +61,7 @@ interface TickWriter {
 }
 
 /**
- * Import one ticked collection (staff or duties). For each entry: skip or
+ * Import one ticked collection (agent or duties). For each entry: skip or
  * overwrite if it already exists, otherwise create. Failures are caught
  * per-entry so one bad file doesn't abort the whole import.
  */
@@ -91,7 +91,7 @@ async function importTickCollection(
         body: entry.body,
         schedule: entry.schedule,
         disabled: entry.disabled,
-        runner: entry.runner,
+        agent: entry.agent,
         reviewer: entry.reviewer,
         action: entry.action,
         mentions: entry.mentions,
@@ -165,7 +165,7 @@ async function importContexts(
         octokit,
         slug: entry.slug,
         body: entry.body,
-        staff: entry.staff,
+        agent: entry.agent,
         sha: existing?.sha,
       });
       if (existing) counts.updated++;
@@ -332,8 +332,8 @@ async function importConfig(
 }
 
 /**
- * Apply a validated bundle to the connected repo. Staff first, then
- * duties — so a duty that names a staff member lands after its executor
+ * Apply a validated bundle to the connected repo. Agent first, then
+ * duties — so a duty that names an agent lands after its executor
  * exists (cosmetic ordering; the engine resolves at tick time regardless).
  */
 export async function applyCompanyBundle(
@@ -343,12 +343,12 @@ export async function applyCompanyBundle(
 ): Promise<CompanyImportResult> {
   const notes: string[] = [];
 
-  const staff = await importTickCollection(
+  const agent = await importTickCollection(
     octokit,
-    "staff",
-    bundle.staff,
+    "agent",
+    bundle.agent,
     mode,
-    { read: readStaffFile, write: writeStaffFile },
+    { read: readAgentFile, write: writeAgentFile },
     notes,
   );
   const duties = await importTickCollection(
@@ -395,7 +395,7 @@ export async function applyCompanyBundle(
 
   return {
     mode,
-    staff,
+    agent,
     duties,
     contexts,
     commands,

@@ -1,5 +1,5 @@
 ---
-staff: ["*"]
+agent: ["*"]
 ---
 
 # PR Graph Context

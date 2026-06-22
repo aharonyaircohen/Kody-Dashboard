@@ -60,12 +60,7 @@ interface DutyInput {
   action?: string;
   executable?: string;
   executables?: string[];
-  staff?: string;
-  /**
-   * @deprecated Alias for `staff` — kept for callers that still pass the
-   * old name. If both are provided, `staff` wins.
-   */
-  runner?: string;
+  agent?: string;
   reviewer?: string;
   schedule?: DutyScheduleToken;
   purpose: string;
@@ -109,8 +104,8 @@ async function readDutyGuide(): Promise<string> {
       "",
       "- Kody can create or update duties with `create_or_update_kody_duty`.",
       "- Duties live at `.kody/duties/<slug>/profile.json` plus `duty.md`.",
-      "- A duty owns public action, purpose, cadence, runner, reviewer, output, and safety rules.",
-      "- Put staff persona in `.kody/staff/<slug>.md`.",
+      "- A duty owns public action, purpose, cadence, agent, reviewer, output, and safety rules.",
+      "- Put agentIdentity in `.kody/agents/<slug>.md`.",
       "- Put reusable action logic in `.kody/executables/<slug>/`.",
       "- Do not put metadata or raw state keys in `duty.md`; runtime state belongs to the engine.",
     ].join("\n");
@@ -307,7 +302,7 @@ export const createOrUpdateKodyDutyInputSchema = z.object({
         "one-executable case. For multi-executable duties, use `executables` " +
         "(an array) instead. Omit to preserve the existing executable on " +
         "update. On create, omit for normal folder duties that the built-in " +
-        "duty runner should execute.",
+        "duty agent should execute.",
     ),
   executables: z
     .array(z.string().min(1).max(64))
@@ -319,31 +314,20 @@ export const createOrUpdateKodyDutyInputSchema = z.object({
         "profile.json as `executables`. An empty array clears the field. " +
         "Omit to preserve the existing executables on update.",
     ),
-  staff: z
+  agent: z
     .string()
     .min(1)
     .optional()
     .describe(
-      "Staff persona slug that will run this duty, e.g. `qa` or `cto`. " +
-        "This matches the engine's `config.staff` field — prefer this over " +
-        "the deprecated `runner` alias. Required when CREATING a new duty; " +
-        "omitted fields preserve the existing staff on update.",
-    ),
-  runner: z
-    .string()
-    .min(1)
-    .optional()
-    .describe(
-      "DEPRECATED — use `staff` instead (the engine reads `config.staff`). " +
-        "Accepted as an alias for backwards compatibility; if both `staff` " +
-        "and `runner` are passed, `staff` wins. Required when CREATING a " +
-        "new duty; omitted fields preserve the existing runner on update.",
+      "AgentIdentity slug that will run this duty, e.g. `qa` or `cto`. " +
+        "This matches the engine's `config.agent` field. Required when CREATING a new duty; " +
+        "omitted fields preserve the existing agent on update.",
     ),
   reviewer: z
     .string()
     .optional()
     .describe(
-      "Optional staff persona slug responsible for reviewing or handling the duty output. " +
+      "Optional agentIdentity slug responsible for reviewing or handling the duty output. " +
         "Omit to preserve the existing reviewer on update.",
     ),
   schedule: z
@@ -435,7 +419,7 @@ export const createOrUpdateKodyDutyInputSchema = z.object({
         "`dutyTools`, `version`, or any engine-specific field the typed " +
         "schema doesn't expose). Values are merged on top of the typed " +
         "fields — typed values still win for the keys the build function " +
-        "manages directly (name, describe, action, runner, reviewer, " +
+        "manages directly (name, describe, action, agent, reviewer, " +
         "executable, schedule, disabled). Pass `null` to clear a key. " +
         "Use this when the typed schema is too rigid for the shape the " +
         "engine needs; prefer the typed fields when they suffice.",
@@ -466,15 +450,14 @@ export function createDutyTools(ctx: Ctx) {
         `\`${STATE_BRANCH}:.kody/reports/<slug>.md\`. The kody engine's duty-scheduler ticks every duty folder in ` +
         "`.kody/duties/`; the duty profile's `every` value decides how often it may run.\n\n" +
         "MODES (resolved at call time from whether the slug already exists):\n" +
-        "- CREATE: requires `title`, `staff` (or the legacy `runner` alias), `schedule`, " +
+        "- CREATE: requires `title`, `agent`, `schedule`, " +
         "`purpose`, `inputs` (≥1), `reportSchema`. Builds a fresh duty.md from the " +
         "body-building fields.\n" +
         "- UPDATE: requires `slug` (the existing duty). All other fields are optional — omitted " +
         "fields preserve the current value. Pass `body` to replace the markdown content; otherwise " +
         "the existing body is preserved.\n\n" +
         "KEY FIELDS:\n" +
-        "- `staff` — staff persona slug; matches the engine's `config.staff`. `runner` is " +
-        "accepted as a deprecated alias (if both are passed, `staff` wins).\n" +
+        "- `agent` — agentIdentity slug; matches engine's `config.agent`.\n" +
         "- `executables` — array of executable slugs for multi-run duties. `executable` is the " +
         "singular convenience alias; prefer the array for >1.\n" +
         "- `output` — `run` (generic Run-style body, no report markers) or `report` (default; " +
@@ -485,7 +468,7 @@ export function createDutyTools(ctx: Ctx) {
         "- `profile` — raw profile.json field overrides. Use for engine-specific fields the " +
         "typed schema doesn't expose (e.g. `tickScript`, `readsFrom`, `writesTo`, `mentions`, " +
         "`dutyTools`, `version`). Typed values still win for keys the build function manages.\n\n" +
-        "BEFORE CALLING (CREATE): gather title, purpose, staff, reviewer, schedule, output path, " +
+        "BEFORE CALLING (CREATE): gather title, purpose, agent, reviewer, schedule, output path, " +
         "inputs (data sources as concrete `gh` commands), and reportSchema. Ask the user clarifying " +
         "questions in small batches until each field is well-specified — never invent inputs or schema. " +
         "Show the proposed profile JSON and markdown body for approval before calling.\n\n" +
@@ -515,17 +498,14 @@ export function createDutyTools(ctx: Ctx) {
 
           if (!existing) {
             // ── CREATE ───────────────────────────────────────────────────────
-            // `staff` is the engine-aligned name; `runner` is a deprecated
-            // alias. Either satisfies the create-required check; if both are
-            // present, `staff` wins downstream.
-            const createStaff = input.staff ?? input.runner;
+            const createAgent = input.agent;
             // Resolve the output mode up front so validation and body
             // building agree. Run-style duties have relaxed required
             // fields (no `inputs`/`reportSchema`).
             const output = resolveOutput(input);
             const missing: string[] = [];
             if (!input.title) missing.push("title");
-            if (!createStaff) missing.push("staff");
+            if (!createAgent) missing.push("agent");
             if (!input.schedule) missing.push("schedule");
             if (!input.purpose) missing.push("purpose");
             if (output === "report") {
@@ -539,7 +519,7 @@ export function createDutyTools(ctx: Ctx) {
                 message:
                   `Cannot create duty: missing required field(s): ${missing.join(", ")}. ` +
                   `For a Report-style duty (default), ${missing.includes("inputs") || missing.includes("reportSchema") ? "all of `inputs` and `reportSchema`" : "all the listed fields"} are required. ` +
-                  `For a Run-style duty, only ${["title", "staff", "schedule", "purpose"].filter((f) => missing.includes(f)).join(", ")} are required — pass \`output: "run"\` to opt in.`,
+                  `For a Run-style duty, only ${["title", "agent", "schedule", "purpose"].filter((f) => missing.includes(f)).join(", ")} are required — pass \`output: "run"\` to opt in.`,
               };
             }
 
@@ -589,7 +569,7 @@ export function createDutyTools(ctx: Ctx) {
               title: input.title!,
               body,
               schedule: input.schedule!,
-              staff: createStaff!,
+              agent: createAgent!,
               reviewer: input.reviewer?.trim().replace(/^@/, "") || null,
               action,
               executable,
@@ -607,7 +587,7 @@ export function createDutyTools(ctx: Ctx) {
                 executable,
                 executables,
                 schedule: input.schedule,
-                staff: createStaff,
+                agent: createAgent,
                 actorLogin,
               },
               "create_or_update_kody_duty: created duty folder",
@@ -631,9 +611,8 @@ export function createDutyTools(ctx: Ctx) {
           // back to the existing duty.
           const nextTitle = input.title ?? existing.title;
           const nextSchedule = input.schedule ?? existing.schedule ?? undefined;
-          // `staff` (engine-aligned) wins over the deprecated `runner` alias.
-          const staffProvided = input.staff ?? input.runner;
-          const nextStaff = staffProvided ?? existing.runner;
+          const agentProvided = input.agent;
+          const nextAgent = agentProvided ?? existing.agent;
           const nextReviewer =
             input.reviewer !== undefined
               ? input.reviewer?.trim().replace(/^@/, "") || null
@@ -759,8 +738,8 @@ export function createDutyTools(ctx: Ctx) {
             input.disabled !== existing.disabled
           )
             changedFields.push("disabled");
-          if (staffProvided !== undefined && staffProvided !== existing.runner)
-            changedFields.push("staff");
+          if (agentProvided !== undefined && agentProvided !== existing.agent)
+            changedFields.push("agent");
           if (
             input.reviewer !== undefined &&
             input.reviewer !== existing.reviewer
@@ -791,7 +770,7 @@ export function createDutyTools(ctx: Ctx) {
             body: nextBody,
             schedule: nextSchedule,
             disabled: nextDisabled,
-            staff: nextStaff,
+            agent: nextAgent,
             reviewer: nextReviewer,
             action: nextAction,
             executable: nextExecutable,
@@ -812,7 +791,7 @@ export function createDutyTools(ctx: Ctx) {
               changedFields,
               outputSwitched,
               schedule: nextSchedule,
-              staff: nextStaff,
+              agent: nextAgent,
               disabled: nextDisabled,
               actorLogin,
             },

@@ -44,8 +44,8 @@ export interface KodyHistoryEntry {
   executable: string;
   action: string;
   note?: string;
-  /** Staff member this run executed as, when the duty declares one. */
-  staff?: string;
+  /** Agent member this run executed as, when the duty declares one. */
+  agent?: string;
   /** Stable id for this job run (CI run id in Actions, else a stamp). */
   jobId?: string;
   /** Whether this run was an instant (`@kody`) or scheduled (cron) job. */
@@ -68,7 +68,7 @@ export interface KodyTaskState {
     attempts: Record<string, number>;
     prUrl?: string;
     runUrl?: string;
-    /** Staff persona the most recent run executed as, when declared. */
+    /** AgentIdentity the most recent run executed as, when declared. */
     ranAsStaff?: string | null;
   };
   /** Ordered run-history: one job entry per engine run on this issue/PR. */

@@ -38,7 +38,7 @@ import { getClientIp, isFromGitHub } from "@dashboard/lib/webhooks/github-ip";
 import { logger } from "@dashboard/lib/logger";
 import { dispatchNotifications } from "@dashboard/lib/notifications-dispatch";
 import { dispatchMentionPushes } from "@dashboard/lib/push/mention-dispatch";
-import { dispatchStaffMentions } from "@dashboard/lib/push/staff-mention-dispatch";
+import { dispatchAgentMentions } from "@dashboard/lib/push/agent-mention-dispatch";
 import { dispatchDutyFailures } from "@dashboard/lib/push/duty-failure-dispatch";
 import { dispatchReportPushes } from "@dashboard/lib/push/report-dispatch";
 import { applyVerdictFromComment } from "@dashboard/lib/ui-verify/apply-label";
@@ -457,16 +457,16 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
         "dispatchMentionPushes threw — should have been caught internally",
       );
     });
-    // @staff mentions → one-shot worker-ask tick, reply back in-thread.
+    // @agent mentions → one-shot agent-ask tick, reply back in-thread.
     // Same GitHub-backed surfaces as mention push (messages, goals, tasks,
     // previews, PR/issue comments, reviews) — one hook covers them all.
-    await dispatchStaffMentions(eventType, obj).catch((err: unknown) => {
+    await dispatchAgentMentions(eventType, obj).catch((err: unknown) => {
       logger.error(
         {
-          event: "staff_mention_dispatch_crashed",
+          event: "agent_mention_dispatch_crashed",
           error: err instanceof Error ? err.message : String(err),
         },
-        "dispatchStaffMentions threw — should have been caught internally",
+        "dispatchAgentMentions threw — should have been caught internally",
       );
     });
     // Failed duty run → inbox entry for every operator. Triggered by the

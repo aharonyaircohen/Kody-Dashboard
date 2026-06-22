@@ -2,7 +2,7 @@
  * @fileType component
  * @domain kody
  * @pattern list-search
- * @ai-summary Shared search input for list pages (duties, staff, prompts).
+ * @ai-summary Shared search input for list pages (duties, agent, prompts).
  *   Mirrors the inline filter on the Reports view: a plain `type="search"`
  *   box that filters the list client-side, no debounce. `accent` tints the
  *   focus ring to match each page's icon color. Render it inside whatever

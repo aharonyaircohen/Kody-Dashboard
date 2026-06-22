@@ -6,21 +6,21 @@
  *   via the GitHub contents API. Multi-file like prompts: the slug is the
  *   entry name (e.g. `company-profile`, `mission`, `products`) and the body
  *   is free-form markdown — curated context you write FOR Kody (company
- *   facts, brand, persona briefs). Reference docs that already live in the
+ *   facts, brand, agentIdentity briefs). Reference docs that already live in the
  *   repo (README, DESIGN_SYSTEM.md) belong in the repo, not here.
  *
  *   Each file may carry a tiny YAML frontmatter block with a single
- *   `staff:` field — an inline list (`[kody, qa-engineer]`) of the
- *   staff-member slugs that own the entry. Legacy files use `audience:` or
+ *   `agent:` field — an inline list (`[kody, qa-engineer]`) of the
+ *   agent-member slugs that own the entry. Legacy files use `audience:` or
  *   have NO frontmatter; both are mapped on read (`chat` → `kody`,
  *   `qa` → `qa-engineer`, frontmatter-less → `[kody]`) so existing data
  *   keeps flowing unchanged (see `context/frontmatter.ts`).
  *
- *   Entries owned by the built-in chat staff (`kody`) are injected into the
+ *   Entries owned by the built-in chat agent (`kody`) are injected into the
  *   kody-direct chat system prompt under a `## Context` heading (see
- *   `loadContextForPrompt`), so every persona inherits the facts without
+ *   `loadContextForPrompt`), so every agentIdentity inherits the facts without
  *   restating them. Context entries are included in the Company bundle because
- *   duties and staff may depend on them.
+ *   duties and agent may depend on them.
  *
  *   Hot-path loader mirrors the instructions/memory-index pattern: a
  *   60s in-process per-repo cache, invalidated by the write/delete
@@ -32,8 +32,8 @@ import { getOctokit, getOwner, getRepo } from "../github-client";
 import {
   splitContextFrontmatter,
   joinContextFrontmatter,
-  KODY_CHAT_STAFF,
-  ALL_STAFF,
+  KODY_CHAT_AGENT,
+  ALL_AGENT,
 } from "./frontmatter";
 
 const CONTEXT_DIR = ".kody/context";
@@ -47,11 +47,11 @@ export interface ContextFile {
    */
   body: string;
   /**
-   * Staff-member slugs that own this entry, from `staff:` frontmatter.
-   * Defaults to `["kody"]` (the built-in chat staff) for legacy
+   * Agent-member slugs that own this entry, from `agent:` frontmatter.
+   * Defaults to `["kody"]` (the built-in chat agent) for legacy
    * frontmatter-less files. Always non-empty unless explicitly unassigned.
    */
-  staff: string[];
+  agent: string[];
   /** Git blob sha. Required for update/delete. */
   sha: string;
   /** Last commit timestamp affecting this file. */
@@ -154,7 +154,7 @@ export async function listContextFiles(): Promise<ContextFile[]> {
         return {
           slug,
           body: body.replace(/^\s+/, ""),
-          staff: frontmatter.staff,
+          agent: frontmatter.agent,
           sha,
           updatedAt,
           htmlUrl: buildHtmlUrl(slug, branch),
@@ -197,7 +197,7 @@ export async function readContextFile(
     return {
       slug,
       body: body.replace(/^\s+/, ""),
-      staff: frontmatter.staff,
+      agent: frontmatter.agent,
       sha: data.sha,
       updatedAt,
       htmlUrl: buildHtmlUrl(slug, branch),
@@ -211,10 +211,10 @@ export async function readContextFile(
 interface WriteOptions {
   octokit: Octokit;
   slug: string;
-  /** Entry markdown (frontmatter-free); the `staff:` block is re-attached here. */
+  /** Entry markdown (frontmatter-free); the `agent:` block is re-attached here. */
   body: string;
-  /** Owning staff-member slugs persisted in `staff:` frontmatter (inline list). */
-  staff: string[];
+  /** Owning agent-member slugs persisted in `agent:` frontmatter (inline list). */
+  agent: string[];
   sha?: string;
   message?: string;
 }
@@ -229,7 +229,7 @@ export async function writeContextFile(
   }
   const filePath = `${CONTEXT_DIR}/${opts.slug}.md`;
   const withFrontmatter = joinContextFrontmatter(
-    { staff: opts.staff },
+    { agent: opts.agent },
     opts.body,
   );
   const content = withFrontmatter.endsWith("\n")
@@ -294,10 +294,10 @@ function cacheKey(): string {
 }
 
 /**
- * Concatenate the chat-staff context files into a single markdown block for
+ * Concatenate the chat-agent context files into a single markdown block for
  * the chat system prompt, each entry prefixed with its slug as a `###`
- * heading. Only entries owned by the built-in chat staff (`kody`) or the `*`
- * all-staff wildcard are included — entries attached only to other staff
+ * heading. Only entries owned by the built-in chat agent (`kody`) or the `*`
+ * all-agent wildcard are included — entries attached only to other agent
  * (e.g. `qa-engineer`) are skipped so they never reach the chat prompt.
  * Returns `null` when no such entries exist. 60s in-process cache (same TTL
  * as the instructions loader); callers treat `null` as "no context".
@@ -311,7 +311,7 @@ export async function loadContextForPrompt(): Promise<string | null> {
   const files = await listContextFiles();
   const prompt = files
     .filter(
-      (f) => f.staff.includes(KODY_CHAT_STAFF) || f.staff.includes(ALL_STAFF),
+      (f) => f.agent.includes(KODY_CHAT_AGENT) || f.agent.includes(ALL_AGENT),
     )
     .map((f) => `### ${f.slug}\n\n${f.body.trim()}`)
     .join("\n\n")

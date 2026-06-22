@@ -1,6 +1,6 @@
 /**
  * Tests for the pure run categorizer — the honest "what kind of engine
- * activity is this" bucketing (scheduled duties/staff vs @kody command vs
+ * activity is this" bucketing (scheduled duties/agents vs @kody command vs
  * Run-now dispatch vs manual). Subcommand-level (fix/fix-ci/ui-review) is
  * deliberately NOT inferred here — see categorize.ts.
  */
@@ -8,7 +8,7 @@ import { describe, expect, it } from "vitest";
 import { categorizeRun } from "@dashboard/lib/activity/categorize";
 
 describe("categorizeRun", () => {
-  it("schedule → scheduled (duty/staff ticks)", () => {
+  it("schedule → scheduled (duty/agents ticks)", () => {
     expect(categorizeRun("schedule", "kody")).toBe("scheduled");
   });
 

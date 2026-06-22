@@ -3,7 +3,7 @@
  * @domain kody
  * @pattern company-bundle
  * @ai-summary Portable "Company" bundle — the repo-agnostic operating
- *   manual of an org: its staff (personas), duties (recurring work),
+ *   manual of an org: its agent (agent identities), duties (recurring work),
  *   context, commands (slash-command SOPs), and instructions (tone/behaviour).
  *   Deliberately excludes repo-specific state (memory, secrets,
  *   variables, dashboard config, goals, inbox, notifications) — those
@@ -38,9 +38,9 @@ const SCHEDULE_TOKENS = [
 ] as const;
 
 /**
- * A staff member or duty entry. They share the same portable API shape even
- * though staff are markdown files and duties are folders. `runner` (the executor persona slug)
- * is only ever set on duties; staff files always carry `null`.
+ * An agent or duty entry. They share the same portable API shape even
+ * though agent are markdown files and duties are folders. `agent` (the executor agentIdentity slug)
+ * is only ever set on duties; agent files always carry `null`.
  */
 export interface CompanyTickEntry {
   slug: string;
@@ -48,11 +48,11 @@ export interface CompanyTickEntry {
   body: string;
   schedule: ScheduleEvery | null;
   disabled: boolean;
-  /** Executor persona slug — duties only; staff entries are always null. */
-  runner: string | null;
-  /** Staff slug responsible for reviewing duty output; staff entries are null. */
+  /** Executor agentIdentity slug — duties only; agent entries are always null. */
+  agent: string | null;
+  /** Agent slug responsible for reviewing duty output; agent entries are null. */
   reviewer: string | null;
-  /** Public `@kody <action>` name — duties only; staff entries are null. */
+  /** Public `@kody <action>` name — duties only; agent entries are null. */
   action: string | null;
   /** GitHub logins to mention from duty output. */
   mentions: string[];
@@ -60,9 +60,9 @@ export interface CompanyTickEntry {
   executable: string | null;
   /** Legacy/multi-run executable slugs assigned to a duty. */
   executables: string[];
-  /** Duty tool names exposed to the tick runner. */
+  /** Duty tool names exposed to the tick agent. */
   dutyTools: string[];
-  /** Optional tick script path for the duty runner. */
+  /** Optional tick script path for the duty agent. */
   tickScript: string | null;
   /** Context/report/duty slugs read by the duty. */
   readsFrom: string[];
@@ -82,7 +82,7 @@ export interface CompanyCommandEntry {
 export interface CompanyContextEntry {
   slug: string;
   body: string;
-  staff: string[];
+  agent: string[];
 }
 
 /**
@@ -130,7 +130,7 @@ export interface CompanyBundle {
   exportedAt: string;
   /** `owner/repo` the bundle was exported from (provenance only). */
   exportedFrom: string;
-  staff: CompanyTickEntry[];
+  agent: CompanyTickEntry[];
   duties: CompanyTickEntry[];
   contexts: CompanyContextEntry[];
   commands: CompanyCommandEntry[];
@@ -168,7 +168,7 @@ export type CompanyConfigOutcome = "applied" | "skipped" | "absent";
 /** Structured result of applying a bundle to the target repo. */
 export interface CompanyImportResult {
   mode: CompanyImportMode;
-  staff: CompanyImportCounts;
+  agent: CompanyImportCounts;
   duties: CompanyImportCounts;
   contexts: CompanyImportCounts;
   commands: CompanyImportCounts;
@@ -193,7 +193,7 @@ const tickEntrySchema = z.object({
   body: z.string().default(""),
   schedule: z.enum(SCHEDULE_TOKENS).nullable().default(null),
   disabled: z.boolean().default(false),
-  runner: z.string().min(1).nullable().default(null),
+  agent: z.string().min(1).nullable().default(null),
   reviewer: z.string().min(1).nullable().default(null),
   action: slugSchema.nullable().default(null),
   mentions: z.array(z.string().min(1)).default([]),
@@ -215,7 +215,7 @@ const commandEntrySchema = z.object({
 const contextEntrySchema = z.object({
   slug: slugSchema,
   body: z.string().default(""),
-  staff: z.array(z.string().min(1)).default([]),
+  agent: z.array(z.string().min(1)).default([]),
 });
 
 const executableEntrySchema = z.object({
@@ -256,7 +256,7 @@ export const companyBundleSchema = z
     kodyCompany: z.literal(COMPANY_BUNDLE_VERSION),
     exportedAt: z.string().optional(),
     exportedFrom: z.string().optional(),
-    staff: z.array(tickEntrySchema).default([]),
+    agent: z.array(tickEntrySchema).default([]),
     duties: z.array(tickEntrySchema).default([]),
     contexts: z.array(contextEntrySchema).default([]),
     commands: z.array(commandEntrySchema).optional(),

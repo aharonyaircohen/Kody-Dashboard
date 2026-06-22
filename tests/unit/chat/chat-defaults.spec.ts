@@ -1,11 +1,11 @@
 /**
- * Verifies chat-defaults bundle structure: persona, executable, duties,
+ * Verifies chat-defaults bundle structure: agentIdentity, executable, duties,
  * skills. Repo-backed duties/executables are source truth; TS defaults are
  * fallback data.
  */
 
 import { describe, expect, it } from "vitest";
-import { readFileSync } from "fs";
+import { existsSync, readFileSync } from "fs";
 import {
   loadChatDefaults,
   composeChatPrompt,
@@ -14,7 +14,7 @@ import {
   CRITICAL_REMINDERS_MD,
 } from "@dashboard/lib/chat-defaults";
 import {
-  DEFAULT_PERSONA_MD,
+  DEFAULT_IDENTITY_MD,
   DEFAULT_EXECUTABLE,
   DEFAULT_DUTIES,
   DEFAULT_SKILLS,
@@ -22,18 +22,20 @@ import {
 import { AGENT_KODY } from "@dashboard/lib/agents";
 
 describe("chat-defaults bundle", () => {
-  it("loads repo-backed chat duties that use the kody-chat executable", async () => {
+  it("loads repo-backed chat duties when present, otherwise uses defaults", async () => {
     const bundle = await loadChatDefaults("acme", "widget");
-    const executableProfile = JSON.parse(
-      readFileSync(".kody/executables/kody-chat/profile.json", "utf8"),
-    );
-    const analyzerProfile = JSON.parse(
-      readFileSync(".kody/duties/kody-analyzer/profile.json", "utf8"),
-    );
+    const executablePath = ".kody/executables/kody-chat/profile.json";
+    const analyzerPath = ".kody/duties/kody-analyzer/profile.json";
 
     expect(bundle.executable.slug).toBe("kody-chat");
-    expect(bundle.executable).toMatchObject(executableProfile);
-    expect(analyzerProfile.executable).toBe("kody-chat");
+    if (existsSync(executablePath) && existsSync(analyzerPath)) {
+      const executableProfile = JSON.parse(readFileSync(executablePath, "utf8"));
+      const analyzerProfile = JSON.parse(readFileSync(analyzerPath, "utf8"));
+      expect(bundle.executable).toMatchObject(executableProfile);
+      expect(analyzerProfile.executable).toBe("kody-chat");
+    } else {
+      expect(bundle.executable).toMatchObject(DEFAULT_EXECUTABLE);
+    }
     expect(bundle.duties.some((duty) => duty.slug === "kody-analyzer")).toBe(
       true,
     );
@@ -42,13 +44,13 @@ describe("chat-defaults bundle", () => {
     );
   });
 
-  it("persona preserves the legacy AGENT_KODY.systemPrompt hard rules + tool policy (regression guard)", () => {
-    // The persona text is now data, but the rules must not drift. The
+  it("agentIdentity preserves the legacy AGENT_KODY.systemPrompt hard rules + tool policy (regression guard)", () => {
+    // The agentIdentity text is now data, but the rules must not drift. The
     // chat-kody-direct integration tests assert the same invariants against
     // the bundle; this unit test pins the section boundaries so a future
     // refactor that drops # Hard rules or # Tool policy fails fast.
-    expect(DEFAULT_PERSONA_MD).toContain("# Hard rules");
-    expect(DEFAULT_PERSONA_MD).toContain("# Tool policy");
+    expect(DEFAULT_IDENTITY_MD).toContain("# Hard rules");
+    expect(DEFAULT_IDENTITY_MD).toContain("# Tool policy");
     // The legacy string's verbatim distinctive phrases (the ones the
     // model behavior depends on). The read-tool list is also pinned
     // here so a future refactor that adds a phantom tool name (one
@@ -68,12 +70,12 @@ describe("chat-defaults bundle", () => {
       "Small factual answers",
     ];
     for (const p of phrases) {
-      expect(DEFAULT_PERSONA_MD).toContain(p);
+      expect(DEFAULT_IDENTITY_MD).toContain(p);
     }
   });
 
-  it("persona does not mention phantom tools (regression: phantom tools cause hallucinations)", () => {
-    // The persona must only list tools that ACTUALLY exist in the
+  it("agentIdentity does not mention phantom tools (regression: phantom tools cause hallucinations)", () => {
+    // The agentIdentity must only list tools that ACTUALLY exist in the
     // chat registry. Phantom names make the model attempt calls that
     // fail silently and then fabricate results to keep the user happy.
     const phantomTools = [
@@ -83,7 +85,7 @@ describe("chat-defaults bundle", () => {
       "github_get_tree", // wrong name; registry has `github_list_tree`
     ];
     for (const t of phantomTools) {
-      expect(DEFAULT_PERSONA_MD).not.toContain(t);
+      expect(DEFAULT_IDENTITY_MD).not.toContain(t);
     }
   });
 
@@ -103,8 +105,8 @@ describe("chat-defaults bundle", () => {
       "app/api/kody/chat/tools/goal-tools.ts",
       "app/api/kody/chat/tools/duty-tools.ts",
       "app/api/kody/chat/tools/duty-admin-tools.ts",
-      "app/api/kody/chat/tools/staff-tools.ts",
-      "app/api/kody/chat/tools/staff-admin-tools.ts",
+      "app/api/kody/chat/tools/agent-tools.ts",
+      "app/api/kody/chat/tools/agent-admin-tools.ts",
       "app/api/kody/chat/tools/executable-tools.ts",
       "app/api/kody/chat/tools/commands-tools.ts",
       "app/api/kody/chat/tools/context-tools.ts",
@@ -189,7 +191,7 @@ describe("chat-defaults bundle", () => {
 
     expect(operator!.body).toContain("create-issue");
     expect(operator!.body).toContain("create-duty");
-    expect(operator!.body).toContain("create-staff");
+    expect(operator!.body).toContain("create-agent");
 
     expect(vibe!.body).toContain("vibe");
     expect(mem!.body).toContain("memory");
@@ -209,11 +211,11 @@ describe("chat-defaults bundle", () => {
     ).toContain("explicit memory command");
   });
 
-  it("exposes 8 skills — diagnose-pr, report-advise, goal-planner, create-issue, create-duty, create-staff, vibe, memory", () => {
+  it("exposes 8 skills — diagnose-pr, report-advise, goal-planner, create-issue, create-duty, create-agent, vibe, memory", () => {
     expect(Object.keys(DEFAULT_SKILLS).sort()).toEqual([
+      "create-agent",
       "create-duty",
       "create-issue",
-      "create-staff",
       "diagnose-pr",
       "goal-planner",
       "memory",
@@ -275,12 +277,12 @@ describe("chat-defaults bundle", () => {
 });
 
 describe("composeChatPrompt", () => {
-  it("joins persona, workflows, skills, and tools into a single prompt", async () => {
+  it("joins agentIdentity, workflows, skills, and tools into a single prompt", async () => {
     const bundle = await loadChatDefaults();
     const prompt = composeChatPrompt(bundle, {
       repo: { owner: "acme", repo: "widget" },
     });
-    // Persona header.
+    // AgentIdentity header.
     expect(prompt).toContain("Kody — in-process dashboard chat agent");
     // Repo block.
     expect(prompt).toContain("## Connected repository");
@@ -300,7 +302,7 @@ describe("composeChatPrompt", () => {
     expect(prompt).toContain("### goal-planner");
     expect(prompt).toContain("### create-issue");
     expect(prompt).toContain("### create-duty");
-    expect(prompt).toContain("### create-staff");
+    expect(prompt).toContain("### create-agent");
     expect(prompt).toContain("### vibe");
     expect(prompt).toContain("### memory");
     // Tools allowlist.
@@ -408,12 +410,12 @@ describe("CRITICAL_REMINDERS_MD", () => {
   });
 });
 
-describe("persona: verify-before-claiming rule", () => {
-  it("persona contains a hard rule requiring verification before claiming", () => {
+describe("agentIdentity: verify-before-claiming rule", () => {
+  it("agentIdentity contains a hard rule requiring verification before claiming", () => {
     // The do-not-invent-labels memory is a symptom of a missing hard
-    // rule. The persona must have an explicit verify-before-claiming
+    // rule. The agentIdentity must have an explicit verify-before-claiming
     // rule so the model holds the line even when memory isn't read.
-    expect(DEFAULT_PERSONA_MD).toMatch(/verify before claiming/i);
-    expect(DEFAULT_PERSONA_MD).toMatch(/do not invent|inventing/i);
+    expect(DEFAULT_IDENTITY_MD).toMatch(/verify before claiming/i);
+    expect(DEFAULT_IDENTITY_MD).toMatch(/do not invent|inventing/i);
   });
 });

@@ -60,7 +60,7 @@ import { useMentionRoster } from "../hooks/useMentionRoster";
 interface Mention {
   login: string;
   avatar_url: string;
-  /** True for staff personas — mentioning one dispatches an ad-hoc tick. */
+  /** True for agentIdentity identities — mentioning one dispatches an ad-hoc tick. */
   isStaff?: boolean;
 }
 
@@ -296,7 +296,7 @@ function MessageComposer({
   const [showMentions, setShowMentions] = useState(false);
   const [selectedMentionIndex, setSelectedMentionIndex] = useState(0);
 
-  // Shared roster: collaborators + staff + self. Staff (e.g. @cto)
+  // Shared roster: collaborators + agent + self. Agent (e.g. @cto)
   // are offered here and in every other composer via the same hook.
   const mentions = useMentionRoster({
     login: githubUser?.login,
@@ -321,9 +321,9 @@ function MessageComposer({
 
   const handleSubmit = () => {
     if (!canSubmit) return;
-    // Staff @mentions are handled server-side: the message becomes a
-    // Discussion comment, the webhook detects `@staff` and dispatches the
-    // one-shot worker-ask tick, and the reply lands back in this thread.
+    // Agent @mentions are handled server-side: the message becomes a
+    // Discussion comment, the webhook detects `@agent` and dispatches the
+    // one-shot agent-ask tick, and the reply lands back in this thread.
     postMessage(att.withAttachments(body.trim()), {
       onSuccess: () => {
         setBody("");
@@ -572,7 +572,7 @@ function MessageComposer({
                     <span className="text-sm truncate">{mention.login}</span>
                     {mention.isStaff ? (
                       <span className="ml-auto text-[10px] font-medium uppercase tracking-wide text-primary bg-primary/10 rounded px-1.5 py-0.5">
-                        staff
+                        agent
                       </span>
                     ) : null}
                   </button>

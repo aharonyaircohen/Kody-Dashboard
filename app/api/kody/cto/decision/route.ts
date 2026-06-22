@@ -53,7 +53,7 @@ import {
   isDashboardAction,
   dispatchCommand,
   isNonEngineCommand,
-  DEFAULT_STAFF_SLUG,
+  DEFAULT_AGENT_SLUG,
 } from "@dashboard/lib/cto/recommendation";
 
 const bodySchema = z.object({
@@ -61,17 +61,17 @@ const bodySchema = z.object({
   action: z.enum(CTO_ACTIONS).default("execute"),
   decision: z.enum(["approve", "reject", "dismiss"]),
   /**
-   * Slug of the staff member whose rec this verdict decides. Kept for display
+   * Slug of the agent whose rec this verdict decides. Kept for display
    * and legacy clients. Trust itself is keyed by duty.
    */
-  staff: z
+  agent: z
     .string()
     .max(40)
     .regex(/^[a-z0-9][a-z0-9-]*$/i)
-    .default(DEFAULT_STAFF_SLUG),
+    .default(DEFAULT_AGENT_SLUG),
   /**
    * Slug of the DUTY whose rec this verdict decides — the trust key. Absent on
-   * legacy clients; the server falls back to the persona slug so trust still
+   * legacy clients; the server falls back to the agentIdentity slug so trust still
    * records coherently until the engine stamps `kody-duty` on every rec.
    */
   duty: z
@@ -113,8 +113,8 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "bad_json" }, { status: 400 });
     }
 
-    const { taskNumber, action, decision, actorLogin, staff } = payload;
-    const duty = payload.duty ?? staff;
+    const { taskNumber, action, decision, actorLogin, agent } = payload;
+    const duty = payload.duty ?? agent;
     const requested = payload.command?.trim();
 
     if (actorLogin) {
@@ -192,7 +192,7 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({
       ok: true,
       executed,
-      staff,
+      agent,
       duty,
       action,
       decision,

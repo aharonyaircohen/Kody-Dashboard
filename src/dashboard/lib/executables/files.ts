@@ -60,8 +60,8 @@ export interface ExecutableSummary {
   /** Last-commit date; null in the list view (per-duty lookups are rate-limited). */
   updatedAt: string | null;
   htmlUrl: string;
-  /** Staff member this duty runs as (profile.staff), or null. */
-  staff: string | null;
+  /** Agent member this duty runs as (profile.agent), or null. */
+  agent: string | null;
   /** Recurrence cadence from profile.every, or null. */
   every?: string | null;
   /** Runtime resolution source. Local repo assets win over store assets. */
@@ -146,9 +146,9 @@ function summaryFromProfile(
   const describe = typeof profile.describe === "string" ? profile.describe : "";
   const landing: ExecutableLanding =
     profile.lifecycle === "pr-branch" ? "pr" : "comment";
-  const staff =
-    typeof profile.staff === "string" && profile.staff.trim()
-      ? profile.staff.trim()
+  const agent =
+    typeof profile.agent === "string" && profile.agent.trim()
+      ? profile.agent.trim()
       : null;
   const every =
     typeof profile.every === "string" && profile.every.trim()
@@ -160,7 +160,7 @@ function summaryFromProfile(
     landing,
     updatedAt: null,
     htmlUrl,
-    staff,
+    agent,
     every,
     ...extra,
   };
@@ -221,9 +221,9 @@ async function listExecutableFolders(
         profile && typeof profile.describe === "string" ? profile.describe : "";
       const landing: ExecutableLanding =
         profile?.lifecycle === "pr-branch" ? "pr" : "comment";
-      const staff =
-        profile && typeof profile.staff === "string" && profile.staff.trim()
-          ? profile.staff.trim()
+      const agent =
+        profile && typeof profile.agent === "string" && profile.agent.trim()
+          ? profile.agent.trim()
           : null;
       // No per-duty fetchLastCommitDate here: it's one listCommits call PER duty,
       // which drains the shared GitHub token on every list render (see
@@ -238,7 +238,7 @@ async function listExecutableFolders(
         landing,
         updatedAt: null,
         htmlUrl: buildHtmlUrl(slug, branch),
-        staff,
+        agent,
         every,
       };
     }),
@@ -323,9 +323,9 @@ export async function readExecutableFile(
 
   const profile = parseProfileJson(profileRaw);
   if (!profile) return null;
-  const staff =
-    typeof profile.staff === "string" && profile.staff.trim()
-      ? profile.staff.trim()
+  const agent =
+    typeof profile.agent === "string" && profile.agent.trim()
+      ? profile.agent.trim()
       : null;
 
   // The stored prompt.md ends with the managed output-format contract;
@@ -370,7 +370,7 @@ export async function readExecutableFile(
     landing: fields.landing,
     updatedAt: await fetchLastCommitDate(octokit, `${base}/profile.json`),
     htmlUrl: buildHtmlUrl(slug, branch),
-    staff,
+    agent,
     prompt,
     model: fields.model,
     permissionMode: fields.permissionMode,

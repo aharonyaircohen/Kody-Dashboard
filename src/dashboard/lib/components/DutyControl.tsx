@@ -60,7 +60,7 @@ import {
   useRunDuty,
   useUpdateDuty,
 } from "../hooks/useDuties";
-import { useStaff } from "../hooks/useStaff";
+import { useAgents } from "../hooks/useAgents";
 import { useGitHubIdentity } from "../hooks/useGitHubIdentity";
 import { useNow } from "../hooks/useNow";
 import { formatDuration, formatRelativePast } from "../duties-schedule";
@@ -124,8 +124,8 @@ interface ExecutableSummary {
   describe?: string;
 }
 
-const ALL_RUNNER_FILTER = "__all_runner__";
-const NO_RUNNER_FILTER = "__no_runner__";
+const ALL_AGENT_FILTER = "__all_agent__";
+const NO_AGENT_FILTER = "__no_agent__";
 const ENABLED_STATUS_FILTER = "__enabled__";
 const DISABLED_STATUS_FILTER = "__disabled__";
 type DutyStatusFilterValue =
@@ -186,38 +186,38 @@ export function DutyControlInner() {
   );
 
   const [search, setSearch] = useState("");
-  const [runnerFilter, setRunnerFilter] = useState(ALL_RUNNER_FILTER);
+  const [agentFilter, setAgentFilter] = useState(ALL_AGENT_FILTER);
   const [statusFilter, setStatusFilter] = useState<DutyStatusFilterValue>(
     ENABLED_STATUS_FILTER,
   );
-  const { data: staffMembers = [] } = useStaff();
+  const { data: agentMembers = [] } = useAgents();
   const staffTitleBySlug = useMemo(
-    () => new Map(staffMembers.map((s) => [s.slug, s.title])),
-    [staffMembers],
+    () => new Map(agentMembers.map((s) => [s.slug, s.title])),
+    [agentMembers],
   );
-  const runnerFilterOptions = useMemo(() => {
+  const agentFilterOptions = useMemo(() => {
     const slugs = new Set<string>();
-    staffMembers.forEach((s) => slugs.add(s.slug));
+    agentMembers.forEach((s) => slugs.add(s.slug));
     duties.forEach((d) => {
-      if (d.runner) slugs.add(d.runner);
+      if (d.agent) slugs.add(d.agent);
     });
     return [...slugs].sort((a, b) =>
       (staffTitleBySlug.get(a) ?? a).localeCompare(
         staffTitleBySlug.get(b) ?? b,
       ),
     );
-  }, [duties, staffMembers, staffTitleBySlug]);
-  const hasDutiesWithoutRunner = useMemo(
-    () => duties.some((d) => !d.runner),
+  }, [duties, agentMembers, staffTitleBySlug]);
+  const hasDutiesWithoutAgent = useMemo(
+    () => duties.some((d) => !d.agent),
     [duties],
   );
 
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase();
-    const matchesRunnerFilter = (duty: Duty) => {
-      if (runnerFilter === ALL_RUNNER_FILTER) return true;
-      if (runnerFilter === NO_RUNNER_FILTER) return !duty.runner;
-      return duty.runner === runnerFilter;
+    const matchesAgentFilter = (duty: Duty) => {
+      if (agentFilter === ALL_AGENT_FILTER) return true;
+      if (agentFilter === NO_AGENT_FILTER) return !duty.agent;
+      return duty.agent === agentFilter;
     };
     const matchesStatusFilter = (duty: Duty) => {
       if (statusFilter === ENABLED_STATUS_FILTER) return !duty.disabled;
@@ -225,7 +225,7 @@ export function DutyControlInner() {
     };
     return duties.filter(
       (d) =>
-        matchesRunnerFilter(d) &&
+        matchesAgentFilter(d) &&
         matchesStatusFilter(d) &&
         (!q ||
           d.slug.toLowerCase().includes(q) ||
@@ -233,11 +233,11 @@ export function DutyControlInner() {
           d.body.toLowerCase().includes(q) ||
           d.action.toLowerCase().includes(q) ||
           (d.executable?.toLowerCase().includes(q) ?? false) ||
-          (d.runner?.toLowerCase().includes(q) ?? false) ||
+          (d.agent?.toLowerCase().includes(q) ?? false) ||
           (d.reviewer?.toLowerCase().includes(q) ?? false) ||
           d.executables.some((e) => e.toLowerCase().includes(q))),
     );
-  }, [duties, search, runnerFilter, statusFilter]);
+  }, [duties, search, agentFilter, statusFilter]);
 
   useEffect(() => {
     if (filtered.length === 0) {
@@ -286,12 +286,12 @@ export function DutyControlInner() {
           duties.length > 0 ? (
             <div className="mt-2 space-y-2">
               <div className="grid grid-cols-[1fr_auto] gap-2">
-                <DutyRunnerFilter
-                  value={runnerFilter}
-                  onChange={setRunnerFilter}
-                  staffSlugs={runnerFilterOptions}
+                <DutyAgentFilter
+                  value={agentFilter}
+                  onChange={setAgentFilter}
+                  agentSlugs={agentFilterOptions}
                   staffTitleBySlug={staffTitleBySlug}
-                  hasDutiesWithoutRunner={hasDutiesWithoutRunner}
+                  hasDutiesWithoutAgent={hasDutiesWithoutAgent}
                 />
                 <DutyStatusToggle
                   value={statusFilter}
@@ -449,7 +449,7 @@ export function DutyControlInner() {
                       {duty.reviewer ? (
                         <span
                           className="inline-flex items-center gap-1"
-                          title="Reviewer staff member"
+                          title="Reviewer agent"
                         >
                           <UserCheck className="w-3 h-3" />
                           {duty.reviewer}
@@ -614,21 +614,21 @@ function DutyDetail({
                   updated {new Date(duty.updatedAt).toLocaleDateString()}
                 </span>
                 <span>·</span>
-                {duty.runner ? (
+                {duty.agent ? (
                   <span
                     className="inline-flex items-center gap-1"
-                    title={`Runs as the ${duty.runner} staff persona`}
+                    title={`Runs as the ${duty.agent} agentIdentity`}
                   >
                     <User className="w-3 h-3" />
-                    {duty.runner}
+                    {duty.agent}
                   </span>
                 ) : (
                   <span
                     className="inline-flex items-center gap-1 text-amber-400"
-                    title="No staff assigned — the engine scheduler skips this duty"
+                    title="No agent assigned — the engine scheduler skips this duty"
                   >
                     <User className="w-3 h-3" />
-                    no staff
+                    no agent
                   </span>
                 )}
                 {duty.mentions && duty.mentions.length > 0 ? (
@@ -643,7 +643,7 @@ function DutyDetail({
                 {duty.reviewer ? (
                   <span
                     className="inline-flex items-center gap-1"
-                    title="Reviewer staff member responsible for treating this duty's output"
+                    title="Reviewer agent responsible for treating this duty's output"
                   >
                     <UserCheck className="w-3 h-3" />
                     {duty.reviewer}
@@ -808,7 +808,7 @@ function CreateDutyDialog({
         schedule: values.schedule,
         capabilityKind: values.capabilityKind,
         disabled: false,
-        runner: values.runner,
+        agent: values.agent,
         reviewer: values.reviewer,
         action: values.action || undefined,
         executable: values.executable,
@@ -872,7 +872,7 @@ function EditDutyDialog({
     body?: string;
     schedule?: DutySchedule | null;
     capabilityKind?: DutyCapabilityKind | null;
-    runner?: string | null;
+    agent?: string | null;
       reviewer?: string | null;
       action?: string | null;
       executable?: string | null;
@@ -884,7 +884,7 @@ function EditDutyDialog({
   if (values.capabilityKind !== duty.capabilityKind) {
     patch.capabilityKind = values.capabilityKind;
   }
-    if (values.runner !== duty.runner) patch.runner = values.runner;
+    if (values.agent !== duty.agent) patch.agent = values.agent;
     if (values.reviewer !== duty.reviewer) patch.reviewer = values.reviewer;
     if (values.action !== duty.action) patch.action = values.action;
     if (values.executable !== duty.executable)
@@ -946,7 +946,7 @@ function EditDutyDialog({
  * Row pill that escalates a duty's raw timestamps into an actionable
  * warning: amber "Overdue" (next-eligible passed beyond the cron window),
  * red "Never run" (scheduled, old enough to have run, no proof yet), or
- * gray "No staff" (the scheduler skips it).
+ * gray "No agent" (the scheduler skips it).
  * Renders nothing for healthy/manual duties.
  */
 function DutyHealthBadge({ duty }: { duty: Duty }) {
@@ -978,10 +978,10 @@ function DutyHealthBadge({ duty }: { duty: Duty }) {
     return (
       <span
         className="shrink-0 inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-medium uppercase tracking-wide bg-white/[0.06] text-muted-foreground border border-white/[0.08]"
-        title="No staff assigned — the engine scheduler skips this duty."
+        title="No agent assigned — the engine scheduler skips this duty."
       >
         <User className="w-2.5 h-2.5" />
-        No staff
+        No agent
       </span>
     );
   }
@@ -1019,10 +1019,10 @@ function DutyHealthSummaryBar({ duties }: { duties: Duty[] }) {
       {skipped > 0 ? (
         <span
           className="inline-flex items-center gap-1 text-muted-foreground"
-          title="Scheduled duties skipped because no staff is assigned"
+          title="Scheduled duties skipped because no agent is assigned"
         >
           <User className="w-3 h-3" />
-          {skipped} no staff
+          {skipped} no agent
         </span>
       ) : null}
     </div>
@@ -1068,25 +1068,25 @@ function DutyStatusToggle({
     </div>
   );
 }
-function DutyRunnerFilter({
+function DutyAgentFilter({
   value,
   onChange,
-  staffSlugs,
+  agentSlugs,
   staffTitleBySlug,
-  hasDutiesWithoutRunner,
+  hasDutiesWithoutAgent,
 }: {
   value: string;
   onChange: (next: string) => void;
-  staffSlugs: string[];
+  agentSlugs: string[];
   staffTitleBySlug: Map<string, string>;
-  hasDutiesWithoutRunner: boolean;
+  hasDutiesWithoutAgent: boolean;
 }) {
   const options: SearchableSelectOption[] = [
-    { value: ALL_RUNNER_FILTER, label: "All staff" },
-    ...(hasDutiesWithoutRunner
-      ? [{ value: NO_RUNNER_FILTER, label: "No staff" }]
+    { value: ALL_AGENT_FILTER, label: "All agent" },
+    ...(hasDutiesWithoutAgent
+      ? [{ value: NO_AGENT_FILTER, label: "No agent" }]
       : []),
-    ...staffSlugs.map((slug) => {
+    ...agentSlugs.map((slug) => {
       const title = staffTitleBySlug.get(slug);
       return {
         value: slug,
@@ -1098,11 +1098,11 @@ function DutyRunnerFilter({
   return (
     <SearchableSelect
       value={value}
-      onChange={(next) => onChange(next ?? ALL_RUNNER_FILTER)}
+      onChange={(next) => onChange(next ?? ALL_AGENT_FILTER)}
       options={options}
-      placeholder="All staff"
-      searchPlaceholder="Search staff…"
-      emptyLabel="No staff found"
+      placeholder="All agent"
+      searchPlaceholder="Search agent…"
+      emptyLabel="No agent found"
     />
   );
 }
@@ -1315,7 +1315,7 @@ interface DutyFormValues {
   body: string;
   schedule: DutySchedule | null;
   capabilityKind: DutyCapabilityKind | null;
-  runner: string | null;
+  agent: string | null;
   reviewer: string | null;
   action: string;
   executable: string | null;
@@ -1328,7 +1328,7 @@ interface DutyFormSubmitValues {
   body: string;
   schedule: DutySchedule | null;
   capabilityKind: DutyCapabilityKind | null;
-  runner: string | null;
+  agent: string | null;
   reviewer: string | null;
   action: string | null;
   executable: string | null;
@@ -1349,7 +1349,7 @@ function buildNewDutyFormValues(): DutyFormValues {
     ),
     schedule: "manual",
     capabilityKind,
-    runner: null,
+    agent: null,
     reviewer: null,
     action: "",
     executable: null,
@@ -1365,7 +1365,7 @@ function buildDutyFormValues(duty: Duty): DutyFormValues {
     body: duty.body || "",
     schedule: duty.schedule,
     capabilityKind: duty.capabilityKind,
-    runner: duty.runner,
+    agent: duty.agent,
     reviewer: duty.reviewer,
     action: duty.action,
     executable: duty.executable,
@@ -1404,7 +1404,7 @@ function DutyForm({
   const [bodyTouched, setBodyTouched] = useState(false);
   const [capabilityKind, setCapabilityKind] =
     useState<DutyCapabilityKind | null>(initialValues.capabilityKind);
-  const [runner, setRunner] = useState<string | null>(initialValues.runner);
+  const [agent, setAgent] = useState<string | null>(initialValues.agent);
   const [reviewer, setReviewer] = useState<string | null>(
     initialValues.reviewer,
   );
@@ -1427,7 +1427,7 @@ function DutyForm({
     setBody(initialValues.body);
     setBodyTouched(false);
     setCapabilityKind(initialValues.capabilityKind);
-    setRunner(initialValues.runner);
+    setAgent(initialValues.agent);
     setReviewer(initialValues.reviewer);
     setAction(initialValues.action);
     setActionTouched(false);
@@ -1519,7 +1519,7 @@ function DutyForm({
       body,
       schedule,
       capabilityKind,
-      runner,
+      agent,
       reviewer,
       action: action.trim() || null,
       executable,
@@ -1587,9 +1587,9 @@ function DutyForm({
             </p>
           </div>
         ) : null}
-      <DutyStaffRoleRow
-        runner={runner}
-        onRunnerChange={setRunner}
+      <DutyAgentRoleRow
+        agent={agent}
+        onAgentChange={setAgent}
         reviewer={reviewer}
         onReviewerChange={setReviewer}
         hideReviewer={simpleCreate}
@@ -1819,25 +1819,25 @@ function ScheduleSelect({
 }
 
 /**
- * Runner picker. A duty is *what* runs on a schedule; the runner is the staff
- * member whose persona the engine injects ahead of the duty body.
+ * Agent picker. A duty is *what* runs on a schedule; the agent is the agent
+ * member whose agentIdentity the engine injects ahead of the duty body.
  */
-function DutyStaffRoleRow({
-  runner,
-  onRunnerChange,
+function DutyAgentRoleRow({
+  agent,
+  onAgentChange,
   reviewer,
   onReviewerChange,
   hideReviewer = false,
 }: {
-  runner: string | null;
-  onRunnerChange: (next: string | null) => void;
+  agent: string | null;
+  onAgentChange: (next: string | null) => void;
   reviewer: string | null;
   onReviewerChange: (next: string | null) => void;
   hideReviewer?: boolean;
 }) {
   return (
     <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-      <RunnerSelect value={runner} onChange={onRunnerChange} />
+      <AgentSelect value={agent} onChange={onAgentChange} />
       {hideReviewer ? null : (
         <ReviewerSelect value={reviewer} onChange={onReviewerChange} />
       )}
@@ -1845,17 +1845,17 @@ function DutyStaffRoleRow({
   );
 }
 
-function RunnerSelect({
+function AgentSelect({
   value,
   onChange,
 }: {
   value: string | null;
   onChange: (next: string | null) => void;
 }) {
-  const { data: staff, isLoading } = useStaff();
+  const { data: agent, isLoading } = useAgents();
   const options: SearchableSelectOption[] = [
     { value: null, label: "None (duty won't run)" },
-    ...withSelectedStaffFallback(staff ?? [], value).map((w) => ({
+    ...withSelectedStaffFallback(agent ?? [], value).map((w) => ({
       value: w.slug,
       label: `${w.title} (${w.slug})`,
       searchText: `${w.slug} ${w.title}`,
@@ -1863,25 +1863,25 @@ function RunnerSelect({
   ];
   return (
     <div className="space-y-1.5">
-<Label htmlFor="duty-runner">Staff</Label>
+<Label htmlFor="duty-agent">Agent</Label>
       <SearchableSelect
-        id="duty-runner"
+        id="duty-agent"
         value={value}
         onChange={onChange}
         options={options}
-placeholder={isLoading ? "Loading staff…" : "Select staff"}
-        searchPlaceholder="Search staff…"
-        emptyLabel="No staff found"
+placeholder={isLoading ? "Loading agent…" : "Select agent"}
+        searchPlaceholder="Search agent…"
+        emptyLabel="No agent found"
         disabled={isLoading}
       />
       <p className="text-xs text-muted-foreground">
         {value ? (
           <>
-            Runs as the <strong>{value}</strong> persona.
+            Runs as the <strong>{value}</strong> agentIdentity.
           </>
         ) : (
           <span className="text-amber-400">
-            No staff assigned — the engine scheduler will skip this duty until
+            No agent assigned — the engine scheduler will skip this duty until
             you pick one.
           </span>
         )}
@@ -1897,10 +1897,10 @@ function ReviewerSelect({
   value: string | null;
   onChange: (next: string | null) => void;
 }) {
-  const { data: staff, isLoading } = useStaff();
+  const { data: agent, isLoading } = useAgents();
   const options: SearchableSelectOption[] = [
     { value: null, label: "None" },
-    ...withSelectedStaffFallback(staff ?? [], value).map((w) => ({
+    ...withSelectedStaffFallback(agent ?? [], value).map((w) => ({
       value: w.slug,
       label: `${w.title} (${w.slug})`,
       searchText: `${w.slug} ${w.title}`,
@@ -1917,13 +1917,13 @@ function ReviewerSelect({
         value={value}
         onChange={onChange}
         options={options}
-        placeholder={isLoading ? "Loading staff…" : "Select a reviewer"}
-        searchPlaceholder="Search staff…"
-        emptyLabel="No staff found"
+        placeholder={isLoading ? "Loading agent…" : "Select a reviewer"}
+        searchPlaceholder="Search agent…"
+        emptyLabel="No agent found"
         disabled={isLoading}
       />
       <p className="text-xs text-muted-foreground">
-        Staff member responsible for reviewing or handling this duty&apos;s
+        Agent member responsible for reviewing or handling this duty&apos;s
         output.
       </p>
     </div>
@@ -1931,11 +1931,11 @@ function ReviewerSelect({
 }
 
 function withSelectedStaffFallback(
-  staff: Array<{ slug: string; title: string }>,
+  agent: Array<{ slug: string; title: string }>,
   value: string | null,
 ): Array<{ slug: string; title: string }> {
-  if (!value || staff.some((s) => s.slug === value)) return staff;
-  return [{ slug: value, title: `Missing staff: ${value}` }, ...staff];
+  if (!value || agent.some((s) => s.slug === value)) return agent;
+  return [{ slug: value, title: `Missing agent: ${value}` }, ...agent];
 }
 
 function ExecutableSelect({

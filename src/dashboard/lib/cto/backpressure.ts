@@ -3,7 +3,7 @@
  * @domain kody
  * @pattern cto-backpressure-gate
  * @ai-summary Code-enforced cap on **pending** CTO recommendations in the
- *   inbox. The `cto.md` staff member is told to stop at 10, but that is prose an
+ *   inbox. The `cto.md` agent is told to stop at 10, but that is prose an
  *   LLM re-counts every tick from a ledger — it drifts and over-posts. This
  *   module makes the cap deterministic at the one server-side write point
  *   (the webhook → inbox-feed append): a CTO recommendation entry is only
@@ -19,13 +19,13 @@
  */
 import type { InboxFeedEntry } from "../inbox/feed";
 import { trustDecisionKey, type TrustLatestDecision } from "./trust-state";
-import { DEFAULT_STAFF_SLUG } from "./recommendation";
+import { DEFAULT_AGENT_SLUG } from "./recommendation";
 
 /**
  * Hard ceiling on undecided recommendations visible in the inbox at once,
  * applied **per duty** — a chatty duty can't crowd other duties out of
  * the operator's queue. Mirrors the "at most 10 pending" rule in
- * `.kody/staff/*.md`, but enforced here so it actually holds.
+ * `.kody/agents/*.md`, but enforced here so it actually holds.
  */
 export const MAX_PENDING_CTO_RECS = 10;
 
@@ -41,7 +41,7 @@ function issueNumberFromUrl(url: string): number | null {
  * The `(duty, taskNumber, action)` a recommendation feed entry decides on,
  * or `null` when the entry is not a resolvable recommendation (a plain
  * mention, or a marker comment whose verb/issue we can't recover). Legacy
- * entries with no `ctoDuty` default to `ctoStaff`, then the CTO slug.
+ * entries with no `ctoDuty` default to `ctoAgent`, then the CTO slug.
  */
 export function ctoFeedKey(
   entry: InboxFeedEntry,
@@ -50,7 +50,7 @@ export function ctoFeedKey(
   const taskNumber = issueNumberFromUrl(entry.url);
   if (taskNumber === null) return null;
   return {
-    duty: entry.ctoDuty ?? entry.ctoStaff ?? DEFAULT_STAFF_SLUG,
+    duty: entry.ctoDuty ?? entry.ctoAgent ?? DEFAULT_AGENT_SLUG,
     taskNumber,
     action: entry.ctoAction,
   };

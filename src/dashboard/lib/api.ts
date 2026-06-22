@@ -890,13 +890,13 @@ capabilityKind: DutyCapabilityKind | null;
    */
   disabled: boolean;
   /**
-   * Slug of the staff member (persona) that executes this duty, from
-   * `profile.json.runner`. The duty owns the schedule; the runner is
-   * *who* the engine tick runs as. `null` = no runner assigned — the engine
+   * Slug of the agent (agentIdentity) that executes this duty, from
+   * `profile.json.agent`. The duty owns the schedule; the agent is
+   * *who* the engine tick runs as. `null` = no agent assigned — the engine
    * scheduler skips such duties (every duty must name an executor).
    */
-  runner: string | null;
-  /** Staff slug responsible for reviewing this duty's output. */
+  agent: string | null;
+  /** Agent slug responsible for reviewing this duty's output. */
   reviewer: string | null;
   /** Public `@kody <action>` name owned by this duty. */
   action: string;
@@ -952,7 +952,7 @@ export const dutiesApi = {
 schedule?: DutySchedule | null;
 capabilityKind?: DutyCapabilityKind | null;
     disabled?: boolean;
-    runner?: string | null;
+    agent?: string | null;
     reviewer?: string | null;
     action?: string | null;
     mentions?: string[];
@@ -981,7 +981,7 @@ capabilityKind?: DutyCapabilityKind | null;
 schedule?: DutySchedule | null;
 capabilityKind?: DutyCapabilityKind | null;
       disabled?: boolean;
-      runner?: string | null;
+    agent?: string | null;
       reviewer?: string | null;
       action?: string | null;
       mentions?: string[];
@@ -1044,9 +1044,9 @@ capabilityKind?: DutyCapabilityKind | null;
   },
 };
 
-// ============ Staff API ============
+// ============ Agent API ============
 
-export interface Staff {
+export interface Agent {
   /** Filename without `.md` — stable identity. */
   slug: string;
   title: string;
@@ -1055,28 +1055,28 @@ export interface Staff {
   updatedAt: string;
   /** Convenience link to the file on github.com. */
   htmlUrl: string;
-  /** Runtime resolution source. Local repo staff win over store staff. */
+  /** Runtime resolution source. Local repo agent win over store agent. */
   source?: "local" | "store";
-  /** Store-linked staff are visible and dispatchable, but not editable locally. */
+  /** Store-linked agent are visible and dispatchable, but not editable locally. */
   readOnly?: boolean;
 }
 
 export const staffApi = {
-  list: async (): Promise<Staff[]> => {
-    const res = await fetch(`${API_BASE}/staff`, {
+  list: async (): Promise<Agent[]> => {
+    const res = await fetch(`${API_BASE}/agents`, {
       headers: buildHeaders(),
       cache: "no-store",
     });
-    const data = await handleResponse<{ staff: Staff[] }>(res);
-    return data.staff;
+    const data = await handleResponse<{ agent: Agent[] }>(res);
+    return data.agent;
   },
 
-  get: async (slug: string): Promise<Staff> => {
-    const res = await fetch(`${API_BASE}/staff/${encodeURIComponent(slug)}`, {
+  get: async (slug: string): Promise<Agent> => {
+    const res = await fetch(`${API_BASE}/agents/${encodeURIComponent(slug)}`, {
       headers: buildHeaders(),
     });
-    const data = await handleResponse<{ staffMember: Staff }>(res);
-    return data.staffMember;
+    const data = await handleResponse<{ agentMember: Agent }>(res);
+    return data.agentMember;
   },
 
   create: async (data: {
@@ -1084,14 +1084,14 @@ export const staffApi = {
     title: string;
     body: string;
     actorLogin?: string;
-  }): Promise<Staff> => {
-    const res = await fetch(`${API_BASE}/staff`, {
+  }): Promise<Agent> => {
+    const res = await fetch(`${API_BASE}/agents`, {
       method: "POST",
       headers: buildHeaders(),
       body: JSON.stringify(data),
     });
-    const payload = await handleResponse<{ staffMember: Staff }>(res);
-    return payload.staffMember;
+    const payload = await handleResponse<{ agentMember: Agent }>(res);
+    return payload.agentMember;
   },
 
   update: async (
@@ -1101,14 +1101,14 @@ export const staffApi = {
       body?: string;
       actorLogin?: string;
     },
-  ): Promise<Staff> => {
-    const res = await fetch(`${API_BASE}/staff/${encodeURIComponent(slug)}`, {
+  ): Promise<Agent> => {
+    const res = await fetch(`${API_BASE}/agents/${encodeURIComponent(slug)}`, {
       method: "PATCH",
       headers: buildHeaders(),
       body: JSON.stringify(data),
     });
-    const payload = await handleResponse<{ staffMember: Staff }>(res);
-    return payload.staffMember;
+    const payload = await handleResponse<{ agentMember: Agent }>(res);
+    return payload.agentMember;
   },
 
   remove: async (slug: string, actorLogin?: string): Promise<void> => {
@@ -1116,7 +1116,7 @@ export const staffApi = {
     if (actorLogin) params.set("actorLogin", actorLogin);
     const suffix = params.toString() ? `?${params}` : "";
     const res = await fetch(
-      `${API_BASE}/staff/${encodeURIComponent(slug)}${suffix}`,
+      `${API_BASE}/agents/${encodeURIComponent(slug)}${suffix}`,
       {
         method: "DELETE",
         headers: buildHeaders(),
@@ -1126,9 +1126,9 @@ export const staffApi = {
   },
 
   /**
-   * Send an ad-hoc message to a staff member and run it like a one-shot duty.
-   * Posts an `@kody worker-ask` directive on the control issue; the engine
-   * runs the persona stateless and replies on that issue. When `actorLogin`
+   * Send an ad-hoc message to an agent and run it like a one-shot duty.
+   * Posts an `@kody agent-ask` directive on the control issue; the engine
+   * runs the agentIdentity stateless and replies on that issue. When `actorLogin`
    * is set, the reply @-mentions the requester so it lands in their inbox.
    */
   dispatch: async (
@@ -1140,7 +1140,7 @@ export const staffApi = {
     commentUrl: string;
   }> => {
     const res = await fetch(
-      `${API_BASE}/staff/${encodeURIComponent(slug)}/dispatch`,
+      `${API_BASE}/agents/${encodeURIComponent(slug)}/dispatch`,
       {
         method: "POST",
         headers: buildHeaders(),
@@ -1158,8 +1158,8 @@ export interface ContextEntry {
   slug: string;
   /** Entry markdown (frontmatter-free). */
   body: string;
-  /** Owning staff-member slugs from `staff:` frontmatter (`["kody"]` default for legacy files). */
-  staff: string[];
+  /** Owning agent-member slugs from `agent:` frontmatter (`["kody"]` default for legacy files). */
+  agent: string[];
   /** Git blob sha. */
   sha: string;
   /** Last commit timestamp affecting this file (ISO8601). */
@@ -1189,7 +1189,7 @@ export const contextApi = {
   create: async (data: {
     slug: string;
     body: string;
-    staff: string[];
+    agent: string[];
     actorLogin?: string;
   }): Promise<ContextEntry> => {
     const res = await fetch(`${API_BASE}/context`, {
@@ -1205,7 +1205,7 @@ export const contextApi = {
     slug: string,
     data: {
       body?: string;
-      staff?: string[];
+      agent?: string[];
       actorLogin?: string;
     },
   ): Promise<ContextEntry> => {
@@ -2011,20 +2011,20 @@ export const vibeApi = {
  */
 export const ctoApi = {
   decide: async (input: {
-    /** Emitting staff slug; kept for display and legacy entries. */
-    staff?: string;
-    /** Emitting duty slug — the trust key (falls back to staff server-side). */
+    /** Emitting agent slug; kept for display and legacy entries. */
+    agent?: string;
+    /** Emitting duty slug — the trust key (falls back to agent server-side). */
     duty?: string;
     taskNumber: number;
     action?: import("./cto/recommendation").CtoAction;
     decision: "approve" | "reject" | "dismiss";
     actorLogin?: string;
-    /** The exact `@kody …` command from the staff member's `kody-cmd` line. */
+    /** The exact `@kody …` command from the agent's `kody-cmd` line. */
     command?: string;
   }): Promise<{
     ok: true;
     executed: boolean;
-    staff: string;
+    agent: string;
     duty: string;
     action: string;
     decision: "approve" | "reject" | "dismiss";
@@ -2295,7 +2295,7 @@ import type {
 } from "./company/types";
 
 export const companyApi = {
-  /** Export the connected repo's staff/duties/prompts/instructions bundle. */
+  /** Export the connected repo's agent/duties/prompts/instructions bundle. */
   export: async (): Promise<CompanyBundle> => {
     const res = await fetch(`${API_BASE}/company`, {
       headers: buildHeaders(),
@@ -2425,7 +2425,7 @@ export const kodyApi = {
   ci: ciApi,
   remote: remoteApi,
   duties: dutiesApi,
-  staff: staffApi,
+  agent: staffApi,
   context: contextApi,
   todos: todosApi,
   memory: memoryApi,

@@ -60,7 +60,7 @@ function rec(over: Partial<CompanyActivityRecord> = {}): CompanyActivityRecord {
     action: "Ran duty: Verify changelog",
     duty: "changelog-verify",
     dutyTitle: "Verify changelog",
-    staff: "qa-engineer",
+    agent: "qa-engineer",
     staffTitle: "QA Engineer",
     trigger: "schedule",
     outcome: "failed",

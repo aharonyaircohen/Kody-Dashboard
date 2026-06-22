@@ -4,9 +4,9 @@
  * @pattern company-activity-record
  * @ai-summary Shape + JSONL parser for the engine-authored Company Activity
  *   log (`.kody/activity/<date>.jsonl`). Each line is one named, attributed
- *   action the engine performed — who (staff), what (duty), why (trigger),
+ *   action the engine performed — who (agent), what (duty), why (trigger),
  *   and the result. The dashboard reads these into the Activity → Auto feed;
- *   it does NOT derive activity from commits/PRs (those carry no staff/duty).
+ *   it does NOT derive activity from commits/PRs (those carry no agent/duty).
  *   Mirrors the record written by kody2 `appendCompanyActivity`.
  */
 
@@ -16,8 +16,8 @@ export interface CompanyActivityRecord {
   action: string;
   duty: string;
   dutyTitle: string | null;
-  /** Staff (persona) slug that ran it. */
-  staff: string | null;
+  /** Agent (agentIdentity) slug that ran it. */
+  agent: string | null;
   staffTitle: string | null;
   trigger: "schedule" | "manual" | "event";
   outcome: "completed" | "failed" | "unknown";
@@ -42,7 +42,7 @@ function coerce(raw: unknown): CompanyActivityRecord | null {
     action: typeof r.action === "string" ? r.action : `Ran duty: ${r.duty}`,
     duty: r.duty,
     dutyTitle: typeof r.dutyTitle === "string" ? r.dutyTitle : null,
-    staff: typeof r.staff === "string" ? r.staff : null,
+    agent: typeof r.agent === "string" ? r.agent : null,
     staffTitle: typeof r.staffTitle === "string" ? r.staffTitle : null,
     trigger:
       typeof r.trigger === "string" && TRIGGERS.has(r.trigger)

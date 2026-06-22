@@ -66,10 +66,10 @@ vi.mock("@dashboard/lib/inbox/types", () => ({
   buildSnippet: (b: string) => b.slice(0, 80),
 }));
 vi.mock("@dashboard/lib/cto/recommendation", () => ({
-  DEFAULT_STAFF_SLUG: "cto",
+  DEFAULT_AGENT_SLUG: "cto",
   parseCtoAction: () => undefined,
   parseCtoCommand: () => undefined,
-  parseCtoStaff: () => undefined,
+  parseCtoAgent: () => undefined,
   parseCtoDuty: () => null,
 }));
 vi.mock("@dashboard/lib/cto/trust-store", () => ({

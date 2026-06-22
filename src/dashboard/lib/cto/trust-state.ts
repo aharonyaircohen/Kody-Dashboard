@@ -4,7 +4,7 @@
  * @pattern duty-trust-ledger
  * @ai-summary The duty-keyed trust ledger — types + pure transforms. Trust is
  *   tracked **per duty** (whole-duty, not per action): one mode + streak per
- *   duty slug. Two duties sharing a persona earn autonomy independently.
+ *   duty slug. Two duties sharing an agentIdentity earn autonomy independently.
  *
  *     - keyed by DUTY slug → stats (mode/approvals/rejections/streak);
  *     - stored as a JSON FILE on the `kody-state` branch (see `trust-store.ts`),
@@ -254,8 +254,8 @@ export function serializeTrustManifest(manifest: TrustManifest): string {
 
 export interface TrustDutyView extends TrustDutyStats {
   duty: string;
-  /** Persona the duty runs as (from the roster), or null if unknown. */
-  staff: string | null;
+  /** AgentIdentity the duty runs as (from the roster), or null if unknown. */
+  agent: string | null;
   /** Clean approvals still needed to graduate (0 once "auto"). */
   remaining: number;
   /** 0..1 streak progress toward the threshold. */
@@ -264,10 +264,10 @@ export interface TrustDutyView extends TrustDutyStats {
   hasHistory: boolean;
 }
 
-/** Pair of `(duty slug, persona it runs as)` — the only roster fields needed. */
+/** Pair of `(duty slug, agentIdentity it runs as)` — the only roster fields needed. */
 export interface DutyStaffLink {
   slug: string;
-  staff: string | null;
+  agent: string | null;
 }
 
 /**
@@ -281,7 +281,7 @@ export function summarizeTrust(
   threshold: number = TRUST_GRADUATION_THRESHOLD,
 ): TrustDutyView[] {
   const staffByDuty = new Map<string, string | null>();
-  for (const d of duties) staffByDuty.set(d.slug, d.staff);
+  for (const d of duties) staffByDuty.set(d.slug, d.agent);
 
   const slugs = new Set<string>([
     ...Object.keys(manifest.duties),
@@ -297,7 +297,7 @@ export function summarizeTrust(
       threshold <= 0 ? 1 : Math.min(1, s.consecutiveApprovals / threshold);
     return {
       duty,
-      staff: staffByDuty.get(duty) ?? null,
+      agent: staffByDuty.get(duty) ?? null,
       ...s,
       remaining,
       progress,

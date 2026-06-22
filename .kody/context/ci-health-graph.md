@@ -1,5 +1,5 @@
 ---
-staff: [*]
+agent: [*]
 ---
 
 # CI Health Graph

@@ -3,7 +3,7 @@
  * @domain kody
  * @pattern ticked-files
  * @ai-summary Markdown-backed store for ticked-file shaped records.
- *   Staff still use `<dir>/<slug>.md`; duties use folder-backed storage in
+ *   Agent still use `<dir>/<slug>.md`; duties use folder-backed storage in
  *   `duties-files.ts` and share only the exported `TickFile` UI shape.
  *
  *   One file per definition. Path is the source of truth for identity
@@ -78,18 +78,18 @@ export interface TickFile {
    */
   disabled: boolean;
   /**
-   * Assigned runner staff member (persona) slug from metadata, or
-   * `null` if none. Duty-only in practice — staff are personas and never
-   * declare a runner. The dashboard reads this to render/seed the
-   * duty's runner picker; the engine scheduler skips duties with no runner.
+   * Assigned agent agent (agentIdentity) slug from metadata, or
+   * `null` if none. Duty-only in practice — agent are agent identities and never
+   * declare a agent. The dashboard reads this to render/seed the
+   * duty's agent picker; the engine scheduler skips duties with no agent.
    */
-  runner: string | null;
+  agent: string | null;
   /**
-   * Staff slug responsible for reviewing this duty's output after it is
-   * produced. Duty-only in practice; staff files return `null`.
+   * Agent slug responsible for reviewing this duty's output after it is
+   * produced. Duty-only in practice; agent files return `null`.
    */
   reviewer: string | null;
-  /** Public `@kody <action>` name for duties; null for staff files. */
+  /** Public `@kody <action>` name for duties; null for agent files. */
   action: string | null;
   /**
    * GitHub logins this file's output should `@`-mention, parsed from metadata.
@@ -134,26 +134,19 @@ export interface TickWriteOptions {
   disabled?: boolean;
   capabilityKind?: DutyCapabilityKind | null;
   /**
-   * Staff member (persona) slug. `null`/absent writes no runner assignment.
-   * Aliased to `runner` in the input; the engine reads `config.staff` from
-   * profile.json, so the dashboard writes `staff` to profile.json and
-   * `runner` here is preserved for legacy callers. Only duties set this;
-   * staff files never do.
+   * Agent member (agentIdentity) slug. `null`/absent writes no agent assignment.
+   * Aliased to `agent` in the input; the engine reads `config.agent` from
+   * profile.json, so the dashboard writes `agent` to profile.json and
+   * agent files never do.
    */
-  staff?: string | null;
+  agent?: string | null;
   /**
-   * @deprecated Prefer `staff` (matches the engine field name). Kept as an
-   * alias for callers that still pass `runner`; `buildDutyProfile` reads
-   * `staff` first and falls back to `runner`.
-   */
-  runner?: string | null;
-  /**
-   * Staff slug responsible for reviewing the output. `null`/absent writes no
+   * Agent slug responsible for reviewing the output. `null`/absent writes no
    * reviewer metadata.
    */
   reviewer?: string | null;
   /**
-   * Public `@kody <action>` name. Duties should set this; staff files leave it
+   * Public `@kody <action>` name. Duties should set this; agent files leave it
    * absent.
    */
   action?: string | null;
@@ -183,7 +176,7 @@ export interface TickWriteOptions {
    * (e.g. `tickScript`, `readsFrom`, `writesTo`, `mentions`, `dutyTools`,
    * or any engine field the typed schema doesn't expose). Merged on top
    * of the typed fields — typed values still win for the well-known keys
-   * the build function manages directly (name, describe, action, runner,
+   * the build function manages directly (name, describe, action, agent,
    * reviewer, executable, schedule, disabled). Use this for advanced
    * shapes the typed schema doesn't cover; pass `null` to clear a key.
    */
@@ -424,7 +417,7 @@ function buildFileContent(
   body: string,
   schedule: ScheduleEvery | null,
   disabled: boolean,
-  runner: string | null,
+  agent: string | null,
   reviewer: string | null,
   action: string | null,
   executable: string | null,
@@ -446,7 +439,7 @@ function buildFileContent(
   if (action?.trim()) fm.action = action.trim();
   if (executable?.trim()) fm.executable = executable.trim();
   if (schedule) fm.every = schedule;
-  if (runner) fm.runner = runner;
+  if (agent) fm.agent = agent;
   if (reviewer) fm.reviewer = reviewer.replace(/^@/, "");
   if (mentions.length > 0) fm.mentions = mentions;
   if (executables.length > 0) fm.executables = executables;
@@ -605,7 +598,7 @@ export function createTickedFiles(config: TickedFilesConfig): TickedFilesApi {
 schedule: frontmatter.every ?? null,
 capabilityKind: null,
             disabled: frontmatter.disabled === true,
-            runner: frontmatter.runner ?? null,
+            agent: frontmatter.agent ?? null,
             reviewer: frontmatter.reviewer ?? null,
             action: effectiveAction(dir, slug, frontmatter),
             mentions: frontmatter.mentions ?? [],
@@ -691,7 +684,7 @@ capabilityKind: null,
 schedule: frontmatter.every ?? null,
 capabilityKind: null,
         disabled: frontmatter.disabled === true,
-        runner: frontmatter.runner ?? null,
+        agent: frontmatter.agent ?? null,
         reviewer: frontmatter.reviewer ?? null,
         action: effectiveAction(dir, slug, frontmatter),
         mentions: frontmatter.mentions ?? [],
@@ -725,7 +718,7 @@ capabilityKind: null,
       opts.body,
       opts.schedule ?? null,
       opts.disabled === true,
-      opts.runner ?? null,
+      opts.agent ?? null,
       opts.reviewer ?? null,
       opts.action ?? null,
       opts.executable ?? null,

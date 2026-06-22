@@ -7,7 +7,7 @@
  *   `@kody <duty> [why]` on the target issue/PR.
  *
  *   Scheduled jobs are NOT dispatched here — their source of truth is a duty
- *   file (staff + every + intent), created via the duties API. This endpoint
+ *   file (agent + every + intent), created via the duties API. This endpoint
  *   rejects `flavor: "scheduled"` so the two paths never blur.
  */
 /* eslint-disable @typescript-eslint/no-explicit-any */
@@ -55,7 +55,7 @@ export async function POST(req: NextRequest) {
         {
           error: "not_instant",
           message:
-            "Only instant jobs run here. Save a scheduled job as a duty (staff + schedule + executable).",
+            "Only instant jobs run here. Save a scheduled job as a duty (agent + schedule + executable).",
         },
         { status: 400 },
       );

@@ -10,7 +10,7 @@ export interface ExecutableEntry {
   tools: string[];
   /** Skill slugs the executable composes. */
   skills: string[];
-  /** Glue text — how the executable wires persona + skills together. */
+  /** Glue text — how the executable wires agentIdentity + skills together. */
   prompt: string;
 }
 

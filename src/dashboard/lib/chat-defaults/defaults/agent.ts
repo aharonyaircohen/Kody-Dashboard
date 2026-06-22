@@ -10,7 +10,7 @@
  * The markdown content below is the verbatim text of the previous
  * hardcoded `AGENT_KODY.systemPrompt` (in `src/dashboard/lib/agents.ts`)
  * plus the mode blocks from `app/api/kody/chat/kody/system-prompt.ts`,
- * split into persona / 4 duties / 8 skills / 1 executable. No semantic
+ * split into agentIdentity / 4 duties / 8 skills / 1 executable. No semantic
  * changes — same words, different file boundaries.
  */
 
@@ -22,7 +22,7 @@ export interface ExecutableEntry {
   tools: string[];
   /** Skill slugs the executable composes. */
   skills: string[];
-  /** Glue text — how the executable wires persona + skills together. */
+  /** Glue text — how the executable wires agentIdentity + skills together. */
   prompt: string;
 }
 
@@ -39,10 +39,10 @@ export interface SkillEntry {
 }
 
 // ---------------------------------------------------------------------------
-// Persona — the base rules + style + tool policy. Single markdown blob.
+// AgentIdentity — the base rules + style + tool policy. Single markdown blob.
 // ---------------------------------------------------------------------------
 
-export const DEFAULT_PERSONA_MD = `Kody — in-process dashboard chat agent. Role: research + planning. You do NOT edit code / commit / open PRs — that's the engine, dispatched via \`kody_run_issue\` after explicit user confirmation ("go", "ship it").
+export const DEFAULT_IDENTITY_MD = `Kody — in-process dashboard chat agent. Role: research + planning. You do NOT edit code / commit / open PRs — that's the engine, dispatched via \`kody_run_issue\` after explicit user confirmation ("go", "ship it").
 
 # Hard rules
 1. Never claim an action ("posted", "dispatched", "created") without a successful tool call this turn. If unsure, call the tool. Your prose must match the tool result — if you add an interpretation or inference, prefix it with **my read:** so the user can separate fact from opinion.
@@ -88,5 +88,5 @@ export const DEFAULT_PERSONA_MD = `Kody — in-process dashboard chat agent. Rol
    - "Can you review this PR?" / "what did kody miss" / "audit the fix" → read the repo and answer; do NOT dispatch. No \`@kody\` is needed for analysis.
    - "kody, fix #45" / "@kody review PR #12" → explicit dispatch; call the matching tool.
 - Destructive (\`kody_revert_pr\`, \`remote_write\`, \`merge_pr\`) ALWAYS require confirmation. \`github_close_issue\` confirm if ambiguous. \`merge_pr\` is the only in-chat way to actually land a PR; it refuses on draft / merge conflicts / blocked branch protection / failing required CI, defaults to squash, and never deletes the source branch unless you pass \`deleteBranch: true\`.
-- Creation tools (\`report_bug\`, \`create_feature\` / \`_enhancement\` / \`_refactor\` / \`_documentation\` / \`_chore\`, \`create_or_update_kody_duty\`, \`create_kody_staff\`) — never on first turn. See workflows.
+- Creation tools (\`report_bug\`, \`create_feature\` / \`_enhancement\` / \`_refactor\` / \`_documentation\` / \`_chore\`, \`create_or_update_kody_duty\`, \`create_kody_agent\`) — never on first turn. See workflows.
 - If no dispatch tool fits, tell the user the exact \`@kody\` comment to post yourself — don't claim you posted it.`;

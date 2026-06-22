@@ -34,7 +34,7 @@ const KNOWN_TOOL_NAMES: ReadonlySet<string> = new Set([
   "create_chore",
   "read_duty_creation_guide",
   "create_or_update_kody_duty",
-  "create_kody_staff",
+  "create_kody_agent",
   "github_search_code",
   "github_get_file",
   "github_blame",

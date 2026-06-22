@@ -4,7 +4,7 @@
  * @pattern ticked-frontmatter
  * @ai-summary Tiny YAML-frontmatter parser/serializer for legacy
  *   "ticked markdown" records. Duties now store metadata in
- *   `.kody/duties/<slug>/profile.json`; this module remains for staff and
+ *   `.kody/duties/<slug>/profile.json`; this module remains for agent and
  *   for schedule/type helpers reused by the folder-backed duty UI.
  *
  *   No `gray-matter` dep on purpose — the format is intentionally
@@ -64,13 +64,13 @@ export interface TickFrontmatter {
    */
   disabled?: boolean;
   /**
-   * Slug of the staff member (persona) under `.kody/staff/<runner>.md` that
+   * Slug of the agent (agentIdentity) under `.kody/agents/<agent>.md` that
    * executes this duty in legacy markdown metadata. Folder-backed duties store
-   * the same value in `profile.json.runner`.
+   * the same value in `profile.json.agent`.
    */
-  runner?: string;
+  agent?: string;
   /**
-   * Staff slug responsible for reviewing this duty's output. Folder-backed
+   * Agent slug responsible for reviewing this duty's output. Folder-backed
    * duties store the same value in `profile.json.reviewer`.
    */
   reviewer?: string;
@@ -87,7 +87,7 @@ export interface TickFrontmatter {
    */
   executables?: string[];
   /**
-   * Tool names exposed to the duty tick runner. Stored on the engine-facing
+   * Tool names exposed to the duty tick agent. Stored on the engine-facing
    * `tools:` metadata line in legacy markdown records.
    */
   dutyTools?: string[];
@@ -227,8 +227,8 @@ function parseFlatYaml(text: string): TickFrontmatter {
       const lower = value.toLowerCase();
       if (lower === "true") out.disabled = true;
       else if (lower === "false") out.disabled = false;
-    } else if ((key === "runner" || key === "staff") && value.length > 0) {
-      out.runner = value;
+    } else if ((key === "agent" || key === "agent") && value.length > 0) {
+      out.agent = value;
     } else if (key === "reviewer" && value.length > 0) {
       out.reviewer = value.replace(/^@/, "");
     } else if (key === "mentions") {
@@ -264,7 +264,7 @@ function serializeFlatYaml(frontmatter: TickFrontmatter): string[] {
   if (frontmatter.executable)
     lines.push(`executable: ${frontmatter.executable}`);
   if (frontmatter.every) lines.push(`every: ${frontmatter.every}`);
-  if (frontmatter.runner) lines.push(`runner: ${frontmatter.runner}`);
+  if (frontmatter.agent) lines.push(`agent: ${frontmatter.agent}`);
   if (frontmatter.reviewer)
     lines.push(`reviewer: ${frontmatter.reviewer.replace(/^@/, "")}`);
   // Comma-separated logins on one line, no leading `@`. Omitted when empty

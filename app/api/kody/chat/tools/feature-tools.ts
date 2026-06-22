@@ -119,7 +119,7 @@ Each stage's status is committed to a per-task \`status.json\` on the work branc
       "Folders at .kody/duties/<slug>/ that the engine duty-scheduler ticks.",
     details: `A Kody Duty is a folder at \`.kody/duties/<slug>/\`:
 
-- \`profile.json\` stores action, executable, cadence, staff, mentions, and data-contract metadata.
+- \`profile.json\` stores action, executable, cadence, agent, mentions, and data-contract metadata.
 - \`duty.md\` stores the human-readable purpose, output, allowed commands, and restrictions.
 
 The engine duty-scheduler enumerates duty folders and ticks due duties. Each
@@ -149,24 +149,24 @@ markdown, never first turn and always call \`read_duty\` first to surface
 the current profile.`,
   },
   {
-    id: "kody-staff",
-    name: "Kody Staff (reusable persona files)",
+    id: "kody-agent",
+    name: "Kody Agent (reusable agent files)",
     summary:
-      "Markdown files at .kody/staff/<slug>.md — pure reusable personas.",
-    details: `A Kody Staff member is a markdown file at \`.kody/staff/<slug>.md\`. A
-staff member is a pure reusable PERSONA — a markdown body describing intent,
-allowed commands, and restrictions. Staff have NO schedule, NO state,
-and NO run/tick; they're personas referenced by other flows. The Staff
-page is a pure persona editor (list / view / create / edit / delete).
+      "Markdown files at .kody/agents/<slug>.md — pure reusable agent identities.",
+    details: `A Kody Agent member is a markdown file at \`.kody/agents/<slug>.md\`. A
+agent is a pure reusable identity — a markdown body describing intent,
+allowed commands, and restrictions. Agents have NO schedule, NO state,
+and NO run/tick; they're agent identities referenced by other flows. The Agent
+page is a pure agentIdentity editor (list / view / create / edit / delete).
 
-Format (must match existing staff in \`.kody/staff/\`):
+Format (must match existing agent in \`.kody/agents/\`):
 - H1 title
-- \`## Staff\` — purpose / persona
+- \`## Agent\` — purpose / agentIdentity
 - \`## Allowed Commands\`
 - \`## Restrictions\`
 
-The chat exposes the \`create_kody_staff\` tool to scaffold a new staff
-persona after a gap-analysis conversation.`,
+The chat exposes the \`create_kody_agent\` tool to scaffold a new agent
+agentIdentity after a gap-analysis conversation.`,
   },
   {
     id: "memory",
@@ -269,7 +269,7 @@ const NAV_HREF_TO_HANDWRITTEN: Readonly<Record<string, string>> = {
   "/": "task-dashboard",
   "/secrets": "secrets-vault",
   "/duties": "kody-duties",
-  "/staff": "kody-staff",
+  "/agents": "kody-agent",
 };
 
 function kebab(label: string): string {

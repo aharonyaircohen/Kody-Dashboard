@@ -45,7 +45,7 @@ export { extractMentions } from "../notifications/recipients";
  * scratchpads (the inbox feed, push-subscription list) or audit trails
  * (the Kody control issue) — every dashboard write edits
  * them, which re-fires an `issues.edited` / `issue_comment.created` webhook
- * whose body is full of `@login` feed entries or `@kody worker-ask`
+ * whose body is full of `@login` feed entries or `@kody agent-ask`
  * directives. Routing those as mention pushes is a self-feedback loop: the
  * user gets pinged with the raw manifest text. Never notify on them.
  */

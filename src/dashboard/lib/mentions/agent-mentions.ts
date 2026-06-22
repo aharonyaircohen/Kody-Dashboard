@@ -1,15 +1,15 @@
 /**
  * @fileType util
  * @domain kody
- * @pattern staff-mentions
+ * @pattern agent-mentions
  * @ai-summary Resolve `@slug` tokens in a composed message against the
- *   known staff roster. A staff mention is distinct from a GitHub
- *   @login: when a token matches a staff slug it dispatches an ad-hoc
- *   `worker-ask` tick instead of (only) notifying a person. Staff wins
+ *   known agent roster. An agent mention is distinct from a GitHub
+ *   @login: when a token matches an agent slug it dispatches an ad-hoc
+ *   `agent-ask` tick instead of (only) notifying a person. Agent wins
  *   on collision with a GitHub login — the same precedence rule repo
  *   prompts use over built-ins (the more specific, repo-owned thing wins).
- *   (`worker-ask` is the unchanged engine executable name; the dashboard
- *   feature noun is "staff".)
+ *   (`agent-ask` is the unchanged engine executable name; the dashboard
+ *   feature noun is "agent".)
  */
 
 // Same shape as the push mention matcher: `@` not preceded by an
@@ -18,7 +18,7 @@
 const MENTION_RE = /(^|[^A-Za-z0-9_/-])@([A-Za-z0-9](?:[A-Za-z0-9-]{0,38}))\b/g;
 
 /**
- * Extract the set of staff slugs @mentioned in `body`, preserving the
+ * Extract the set of agent slugs @mentioned in `body`, preserving the
  * order of first appearance and de-duplicating. Only slugs present in
  * `knownSlugs` are returned — an unknown `@x` is left to the normal
  * GitHub-mention path.
@@ -44,7 +44,7 @@ export function extractStaffMentions(
   return out;
 }
 
-/** True when `body` mentions at least one known staff member. */
+/** True when `body` mentions at least one known agent. */
 export function hasStaffMention(
   body: string,
   knownSlugs: Iterable<string>,

@@ -1295,7 +1295,7 @@ export function KodyChat({
   );
   const activeLoading = messages.some((m) => m.isLoading);
 
-  // 800ms grace period for the typing indicator (issue #330). The persona
+  // 800ms grace period for the typing indicator (issue #330). The agentIdentity
   // tells the model to emit a short status line (≤8 words) as the very first
   // word of every reply so the bubble is never blank. The grace timer is the
   // UI backstop for that prompt — if the model is still silent after 800ms
@@ -5276,7 +5276,7 @@ export function KodyChat({
                               {/* Never a blank bubble: while the turn is in flight and
                             no visible answer text has arrived yet, show the
                             thinking indicator — but only after the 800ms grace
-                            timer (issue #330). The persona's status-line rule
+                            timer (issue #330). The agentIdentity's status-line rule
                             should already have given the model a chance to
                             emit a first-line within that window; the indicator
                             is the backstop for when it didn't. Covers the
@@ -5323,7 +5323,7 @@ export function KodyChat({
             Covers the Kody-engine first-byte window where the placeholder is
             only pushed once the first SSE event arrives. Gated on the same
             800ms grace timer as the in-bubble indicator (#330) so a fast
-            model that emits the persona's status line quickly never flashes
+            model that emits the agentIdentity's status line quickly never flashes
             the typing bubble. */}
           {chatMode === "ai" &&
             activeLoading &&

@@ -3,7 +3,7 @@
  * @domain kody
  * @pattern company-export
  * @ai-summary Build a portable Company bundle from the connected repo.
- *   Reads the company-level artifact types (staff, duties, commands,
+ *   Reads the company-level artifact types (agent, duties, commands,
  *   executables, instructions) via their existing file helpers and maps each to the
  *   repo-agnostic shape in `types.ts` — dropping sha/html_url/commit and
  *   tick timestamps, which are meaningless in another repo. Runs inside
@@ -12,7 +12,7 @@
 
 import { getOctokit, getOwner, getRepo } from "../github-client";
 import { listDutyFiles } from "../duties-files";
-import { listStaffFiles } from "../staff-files";
+import { listAgentFiles } from "../agent-files";
 import { listRepoCommandFiles } from "../commands/files";
 import { listContextFiles } from "../context/files";
 import { readInstructionsFile } from "../instructions/files";
@@ -40,7 +40,7 @@ function toTickEntry(file: TickFile): CompanyTickEntry {
     body: file.body,
     schedule: file.schedule,
     disabled: file.disabled,
-    runner: file.runner,
+    agent: file.agent,
     reviewer: file.reviewer,
     action: file.action,
     mentions: file.mentions,
@@ -66,7 +66,7 @@ function toContextEntry(file: ContextFile): CompanyContextEntry {
   return {
     slug: file.slug,
     body: file.body,
-    staff: file.staff,
+    agent: file.agent,
   };
 }
 
@@ -128,7 +128,7 @@ async function buildConfigBundle(): Promise<CompanyConfigBundle | null> {
  */
 export async function buildCompanyBundle(): Promise<CompanyBundle> {
   const [
-    staff,
+    agent,
     duties,
     contexts,
     commandsResult,
@@ -137,7 +137,7 @@ export async function buildCompanyBundle(): Promise<CompanyBundle> {
     instructions,
     config,
   ] = await Promise.all([
-    listStaffFiles(),
+    listAgentFiles(),
     listDutyFiles(),
     listContextFiles(),
     listRepoCommandFiles(),
@@ -151,7 +151,7 @@ export async function buildCompanyBundle(): Promise<CompanyBundle> {
     kodyCompany: COMPANY_BUNDLE_VERSION,
     exportedAt: new Date().toISOString(),
     exportedFrom: `${getOwner()}/${getRepo()}`,
-    staff: staff.map(toTickEntry),
+    agent: agent.map(toTickEntry),
     duties: duties.map(toTickEntry),
     contexts: contexts.map(toContextEntry),
     commands: commandsResult.commands

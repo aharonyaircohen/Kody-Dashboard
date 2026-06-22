@@ -26,7 +26,7 @@ import {
   writeDutyFile,
   isValidSlug,
 } from "@dashboard/lib/duties-files";
-import { readStaffFile } from "@dashboard/lib/staff-files";
+import { readAgentFile } from "@dashboard/lib/agent-files";
 import { recordAudit } from "@dashboard/lib/activity/audit";
 
 export const dynamic = "force-dynamic";
@@ -90,7 +90,7 @@ const createDutySchema = z.object({
     .optional(),
   disabled: z.boolean().optional(),
   capabilityKind: z.enum(["observe", "act", "verify"]).nullable().optional(),
-  runner: z.string().min(1).nullable().optional(),
+  agent: z.string().min(1).nullable().optional(),
   reviewer: z.string().min(1).nullable().optional(),
   action: z.string().min(1).max(64).nullable().optional(),
   mentions: z.array(z.string()).optional(),
@@ -126,31 +126,31 @@ function normalizeOptionalSlug(
   return trimmed.length > 0 ? trimmed : null;
 }
 
-function normalizeStaffSlug(value: string | null | undefined): string | null {
+function normalizeAgentSlug(value: string | null | undefined): string | null {
   const trimmed = value?.trim().replace(/^@/, "") ?? "";
   return trimmed.length > 0 ? trimmed : null;
 }
 
-async function validateStaffRole(
+async function validateAgentRole(
   slug: string | null,
-  field: "runner" | "reviewer",
+  field: "agent" | "reviewer",
 ): Promise<NextResponse | null> {
   if (!slug) return null;
   if (!isValidSlug(slug)) {
     return NextResponse.json(
       {
         error: `invalid_${field}`,
-        message: `${field} must be a staff member slug.`,
+        message: `${field} must be an agent slug.`,
       },
       { status: 400 },
     );
   }
-  const staff = await readStaffFile(slug);
-  if (!staff) {
+  const agent = await readAgentFile(slug);
+  if (!agent) {
     return NextResponse.json(
       {
         error: `unknown_${field}`,
-        message: `${field} must reference an existing staff member.`,
+        message: `${field} must reference an existing agent.`,
       },
       { status: 400 },
     );
@@ -191,7 +191,7 @@ export async function POST(req: NextRequest) {
     schedule,
     disabled,
     capabilityKind,
-    runner,
+    agent,
       reviewer,
       action,
       mentions,
@@ -237,11 +237,11 @@ export async function POST(req: NextRequest) {
         { status: 400 },
       );
     }
-    const runnerSlug = normalizeStaffSlug(runner);
-    const reviewerSlug = normalizeStaffSlug(reviewer);
-    const runnerError = await validateStaffRole(runnerSlug, "runner");
-    if (runnerError) return runnerError;
-    const reviewerError = await validateStaffRole(reviewerSlug, "reviewer");
+    const agentSlug = normalizeAgentSlug(agent);
+    const reviewerSlug = normalizeAgentSlug(reviewer);
+    const agentError = await validateAgentRole(agentSlug, "agent");
+    if (agentError) return agentError;
+    const reviewerError = await validateAgentRole(reviewerSlug, "reviewer");
     if (reviewerError) return reviewerError;
 
     const existing = await readDutyFile(slug);
@@ -275,7 +275,7 @@ export async function POST(req: NextRequest) {
     schedule: schedule ?? null,
     disabled: disabled === true,
     capabilityKind: capabilityKind ?? null,
-    runner: runnerSlug,
+    agent: agentSlug,
       reviewer: reviewerSlug,
       action: actionSlug,
       mentions: normalizeMentions(mentions),
@@ -291,7 +291,7 @@ export async function POST(req: NextRequest) {
       action: "duty.create",
       resource: slug,
       duty: slug,
-      staff: runner ?? null,
+      agent: agent ?? null,
       detail: `created duty "${title}"${schedule ? ` (${schedule})` : ""}`,
     });
 

@@ -1,5 +1,5 @@
 ---
-staff: [*]
+agent: [*]
 ---
 
 # Company Graph
@@ -10,7 +10,7 @@ The live graph data is written to `.kody/reports/company-graph.md`.
 
 ## What It Shows
 
-- Staff
+- Agent
 - Duties
 - Executables
 - Skills
@@ -27,7 +27,7 @@ Read nodes as things that exist. Read edges as relationships between them.
 
 Common edges:
 
-- `assigned_to`: duty to staff
+- `assigned_to`: duty to agent
 - `runs`: duty to executable
 - `reads_from`: duty to context or report
 - `writes_to`: duty to report

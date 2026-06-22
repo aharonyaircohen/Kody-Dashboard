@@ -20,10 +20,10 @@ const h = vi.hoisted(() => ({
   listDutyFiles: vi.fn(),
   readDutyFile: vi.fn(),
   writeDutyFile: vi.fn(),
-  // staff-files
-  listStaffFiles: vi.fn(),
-  readStaffFile: vi.fn(),
-  writeStaffFile: vi.fn(),
+  // agent-files
+  listAgentFiles: vi.fn(),
+  readAgentFile: vi.fn(),
+  writeAgentFile: vi.fn(),
   // commands/files
   listRepoCommandFiles: vi.fn(),
   readCommandFile: vi.fn(),
@@ -69,10 +69,10 @@ vi.mock("@dashboard/lib/duties-files", () => ({
   readDutyFile: h.readDutyFile,
   writeDutyFile: h.writeDutyFile,
 }));
-vi.mock("@dashboard/lib/staff-files", () => ({
-  listStaffFiles: h.listStaffFiles,
-  readStaffFile: h.readStaffFile,
-  writeStaffFile: h.writeStaffFile,
+vi.mock("@dashboard/lib/agent-files", () => ({
+  listAgentFiles: h.listAgentFiles,
+  readAgentFile: h.readAgentFile,
+  writeAgentFile: h.writeAgentFile,
 }));
 vi.mock("@dashboard/lib/commands/files", () => ({
   listRepoCommandFiles: h.listRepoCommandFiles,
@@ -155,7 +155,7 @@ function tickFile(over: Record<string, unknown> = {}) {
     nextEligibleAt: null,
     schedule: null,
     disabled: false,
-    runner: null,
+    agent: null,
     reviewer: null,
     action: null,
     mentions: [],
@@ -179,7 +179,7 @@ describe("companyBundleSchema", () => {
     kodyCompany: COMPANY_BUNDLE_VERSION,
     exportedAt: "2026-01-01T00:00:00Z",
     exportedFrom: "acme/widgets",
-    staff: [],
+    agent: [],
     duties: [],
     contexts: [],
     commands: [],
@@ -191,7 +191,7 @@ describe("companyBundleSchema", () => {
 
   it("accepts a valid bundle and applies collection defaults", () => {
     const parsed = companyBundleSchema.parse({ kodyCompany: 1 });
-    expect(parsed.staff).toEqual([]);
+    expect(parsed.agent).toEqual([]);
     expect(parsed.duties).toEqual([]);
     expect(parsed.contexts).toEqual([]);
     expect(parsed.commands).toEqual([]);
@@ -213,7 +213,7 @@ describe("companyBundleSchema", () => {
     ).toThrow();
   });
 
-  it("defaults a duty's schedule/disabled/runner and keeps a valid one", () => {
+  it("defaults a duty's schedule/disabled/agent and keeps a valid one", () => {
     const parsed = companyBundleSchema.parse({
       ...base,
       duties: [
@@ -222,7 +222,7 @@ describe("companyBundleSchema", () => {
           title: "Nightly",
           body: "do it",
           schedule: "1d",
-          runner: "cto",
+          agent: "cto",
           reviewer: "qa",
         },
         { slug: "ad-hoc", title: "Ad hoc" },
@@ -230,13 +230,13 @@ describe("companyBundleSchema", () => {
     });
     expect(parsed.duties[0]).toMatchObject({
       schedule: "1d",
-      runner: "cto",
+      agent: "cto",
       reviewer: "qa",
       disabled: false,
     });
     expect(parsed.duties[1]).toMatchObject({
       schedule: null,
-      runner: null,
+      agent: null,
       reviewer: null,
       disabled: false,
       body: "",
@@ -254,7 +254,7 @@ describe("companyBundleSchema", () => {
 
 describe("buildCompanyBundle", () => {
   it("maps the four reads into the portable shape and drops built-in commands", async () => {
-    h.listStaffFiles.mockResolvedValue([
+    h.listAgentFiles.mockResolvedValue([
       tickFile({ slug: "cto", title: "CTO" }),
     ]);
     h.listDutyFiles.mockResolvedValue([
@@ -262,7 +262,7 @@ describe("buildCompanyBundle", () => {
         slug: "nightly",
         title: "Nightly",
         schedule: "1d",
-        runner: "cto",
+        agent: "cto",
         reviewer: "qa",
         mentions: ["alice"],
         action: "nightly",
@@ -278,7 +278,7 @@ describe("buildCompanyBundle", () => {
       {
         slug: "reports",
         body: "Read generated reports.",
-        staff: ["*"],
+        agent: ["*"],
         sha: "ctx",
         updatedAt: "",
         htmlUrl: "",
@@ -327,14 +327,14 @@ describe("buildCompanyBundle", () => {
 
     expect(bundle.kodyCompany).toBe(COMPANY_BUNDLE_VERSION);
     expect(bundle.exportedFrom).toBe("acme/widgets");
-    expect(bundle.staff).toEqual([
+    expect(bundle.agent).toEqual([
       {
         slug: "cto",
         title: "CTO",
         body: "b",
         schedule: null,
         disabled: false,
-        runner: null,
+        agent: null,
         reviewer: null,
         mentions: [],
         action: null,
@@ -349,7 +349,7 @@ describe("buildCompanyBundle", () => {
     expect(bundle.duties[0]).toMatchObject({
       slug: "nightly",
       schedule: "1d",
-      runner: "cto",
+      agent: "cto",
       reviewer: "qa",
       mentions: ["alice"],
       action: "nightly",
@@ -364,7 +364,7 @@ describe("buildCompanyBundle", () => {
       {
         slug: "reports",
         body: "Read generated reports.",
-        staff: ["*"],
+        agent: ["*"],
       },
     ]);
     // built-in command filtered out; only the repo one survives
@@ -378,12 +378,12 @@ describe("buildCompanyBundle", () => {
     ]);
     expect(bundle.instructions).toBe("Be terse.");
     // repo-specific fields are not leaked into the bundle
-    expect(bundle.staff[0]).not.toHaveProperty("sha");
-    expect(bundle.staff[0]).not.toHaveProperty("htmlUrl");
+    expect(bundle.agent[0]).not.toHaveProperty("sha");
+    expect(bundle.agent[0]).not.toHaveProperty("htmlUrl");
   });
 
   it("emits null instructions when the file is blank/absent", async () => {
-    h.listStaffFiles.mockResolvedValue([]);
+    h.listAgentFiles.mockResolvedValue([]);
     h.listDutyFiles.mockResolvedValue([]);
     h.listContextFiles.mockResolvedValue([]);
     h.listRepoCommandFiles.mockResolvedValue({
@@ -396,7 +396,7 @@ describe("buildCompanyBundle", () => {
   });
 
   it("exports executable folders recursively", async () => {
-    h.listStaffFiles.mockResolvedValue([]);
+    h.listAgentFiles.mockResolvedValue([]);
     h.listDutyFiles.mockResolvedValue([]);
     h.listContextFiles.mockResolvedValue([]);
     h.listRepoCommandFiles.mockResolvedValue({
@@ -437,14 +437,14 @@ describe("applyCompanyBundle", () => {
     kodyCompany: COMPANY_BUNDLE_VERSION,
     exportedAt: "",
     exportedFrom: "",
-    staff: [
+    agent: [
       {
         slug: "cto",
         title: "CTO",
         body: "x",
         schedule: null,
         disabled: false,
-        runner: null,
+        agent: null,
         reviewer: null,
         action: null,
         mentions: [],
@@ -463,7 +463,7 @@ describe("applyCompanyBundle", () => {
         body: "y",
         schedule: "1d" as const,
         disabled: false,
-        runner: "cto",
+        agent: "cto",
         reviewer: "qa",
         action: "nightly",
         mentions: ["alice"],
@@ -482,7 +482,7 @@ describe("applyCompanyBundle", () => {
       {
         slug: "reports",
         body: "Read generated reports.",
-        staff: ["*"],
+        agent: ["*"],
       },
     ],
     executables: [],
@@ -492,12 +492,12 @@ describe("applyCompanyBundle", () => {
   };
 
   it("creates everything on a fresh repo", async () => {
-    h.readStaffFile.mockResolvedValue(null);
+    h.readAgentFile.mockResolvedValue(null);
     h.readDutyFile.mockResolvedValue(null);
     h.readCommandFile.mockResolvedValue(null);
     h.readContextFile.mockResolvedValue(null);
     h.readInstructionsFile.mockResolvedValue(null);
-    h.writeStaffFile.mockResolvedValue({});
+    h.writeAgentFile.mockResolvedValue({});
     h.writeDutyFile.mockResolvedValue({});
     h.writeCommandFile.mockResolvedValue({});
     h.writeContextFile.mockResolvedValue({});
@@ -505,7 +505,7 @@ describe("applyCompanyBundle", () => {
 
     const result = await applyCompanyBundle(octokit, bundle, "skip");
 
-    expect(result.staff).toMatchObject({
+    expect(result.agent).toMatchObject({
       created: 1,
       updated: 0,
       skipped: 0,
@@ -515,11 +515,11 @@ describe("applyCompanyBundle", () => {
     expect(result.commands).toMatchObject({ created: 1 });
     expect(result.contexts).toMatchObject({ created: 1 });
     expect(result.instructions).toBe("created");
-    // a duty carries its runner/reviewer staff slugs through to the writer
+    // a duty carries its agent/reviewer agent slugs through to the writer
     expect(h.writeDutyFile).toHaveBeenCalledWith(
       expect.objectContaining({
         slug: "nightly",
-        runner: "cto",
+        agent: "cto",
         reviewer: "qa",
         schedule: "1d",
         action: "nightly",
@@ -539,7 +539,7 @@ describe("applyCompanyBundle", () => {
       octokit,
       {
         ...bundle,
-        staff: [],
+        agent: [],
         duties: [],
         contexts: [],
         commands: [],
@@ -562,7 +562,7 @@ describe("applyCompanyBundle", () => {
   });
 
   it("skips existing artifacts in skip mode (no writes)", async () => {
-    h.readStaffFile.mockResolvedValue({ sha: "a" });
+    h.readAgentFile.mockResolvedValue({ sha: "a" });
     h.readDutyFile.mockResolvedValue({ sha: "b" });
     h.readCommandFile.mockResolvedValue({ sha: "c" });
     h.readContextFile.mockResolvedValue({ sha: "ctx" });
@@ -570,20 +570,20 @@ describe("applyCompanyBundle", () => {
 
     const result = await applyCompanyBundle(octokit, bundle, "skip");
 
-    expect(result.staff).toMatchObject({ created: 0, updated: 0, skipped: 1 });
+    expect(result.agent).toMatchObject({ created: 0, updated: 0, skipped: 1 });
     expect(result.contexts).toMatchObject({ skipped: 1 });
     expect(result.instructions).toBe("skipped");
-    expect(h.writeStaffFile).not.toHaveBeenCalled();
+    expect(h.writeAgentFile).not.toHaveBeenCalled();
     expect(h.writeInstructionsFile).not.toHaveBeenCalled();
   });
 
   it("updates existing artifacts in overwrite mode (passes sha)", async () => {
-    h.readStaffFile.mockResolvedValue({ sha: "staff-sha" });
+    h.readAgentFile.mockResolvedValue({ sha: "agent-sha" });
     h.readDutyFile.mockResolvedValue({ sha: "duty-sha" });
     h.readCommandFile.mockResolvedValue({ sha: "command-sha" });
     h.readContextFile.mockResolvedValue({ sha: "ctx-sha" });
     h.readInstructionsFile.mockResolvedValue({ sha: "instr-sha" });
-    h.writeStaffFile.mockResolvedValue({});
+    h.writeAgentFile.mockResolvedValue({});
     h.writeDutyFile.mockResolvedValue({});
     h.writeCommandFile.mockResolvedValue({});
     h.writeContextFile.mockResolvedValue({});
@@ -591,16 +591,16 @@ describe("applyCompanyBundle", () => {
 
     const result = await applyCompanyBundle(octokit, bundle, "overwrite");
 
-    expect(result.staff).toMatchObject({ created: 0, updated: 1 });
+    expect(result.agent).toMatchObject({ created: 0, updated: 1 });
     expect(result.instructions).toBe("updated");
-    expect(h.writeStaffFile).toHaveBeenCalledWith(
-      expect.objectContaining({ sha: "staff-sha" }),
+    expect(h.writeAgentFile).toHaveBeenCalledWith(
+      expect.objectContaining({ sha: "agent-sha" }),
     );
   });
 
   it("records a per-item failure without aborting the import", async () => {
-    h.readStaffFile.mockResolvedValue(null);
-    h.writeStaffFile.mockRejectedValue(new Error("boom"));
+    h.readAgentFile.mockResolvedValue(null);
+    h.writeAgentFile.mockRejectedValue(new Error("boom"));
     h.readDutyFile.mockResolvedValue(null);
     h.writeDutyFile.mockResolvedValue({});
     h.readCommandFile.mockResolvedValue(null);
@@ -612,17 +612,17 @@ describe("applyCompanyBundle", () => {
 
     const result = await applyCompanyBundle(octokit, bundle, "skip");
 
-    expect(result.staff).toMatchObject({ failed: 1, created: 0 });
+    expect(result.agent).toMatchObject({ failed: 1, created: 0 });
     expect(result.duties).toMatchObject({ created: 1 });
     expect(result.notes.some((n) => n.includes("boom"))).toBe(true);
   });
 
   it("reports instructions absent when the bundle has none", async () => {
-    h.readStaffFile.mockResolvedValue(null);
+    h.readAgentFile.mockResolvedValue(null);
     h.readDutyFile.mockResolvedValue(null);
     h.readCommandFile.mockResolvedValue(null);
     h.readContextFile.mockResolvedValue(null);
-    h.writeStaffFile.mockResolvedValue({});
+    h.writeAgentFile.mockResolvedValue({});
     h.writeDutyFile.mockResolvedValue({});
     h.writeCommandFile.mockResolvedValue({});
     h.writeContextFile.mockResolvedValue({});
@@ -650,7 +650,7 @@ describe("applyCompanyBundle", () => {
       octokit,
       {
         ...bundle,
-        staff: [],
+        agent: [],
         duties: [],
         contexts: [],
         commands: [],

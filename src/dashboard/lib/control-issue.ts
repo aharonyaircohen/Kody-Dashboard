@@ -6,7 +6,7 @@
  *   the audit-trail issue the dashboard posts `@kody <subcommand>` comments
  *   on to manually dispatch engine executables (the engine fires on
  *   `issue_comment` and routes to the named executable). Used by Duty
- *   "Run now" and by staff @mentions ("ask"); both reuse the same issue
+ *   "Run now" and by agent @mentions ("ask"); both reuse the same issue
  *   so the dispatch trail lives in one place.
  */
 
@@ -18,7 +18,7 @@ export const CONTROL_TITLE = "Kody control";
 const CONTROL_BODY = [
   "Audit trail for manual `@kody` dispatches from the dashboard.",
   "",
-  'Each comment below was a manual dispatch (Duty "Run now", or a staff',
+  'Each comment below was a manual dispatch (Duty "Run now", or an agent',
   "@mention in a message). The engine fires on `issue_comment` and routes",
   "to the named executable.",
   "",
@@ -78,23 +78,23 @@ export async function findOrCreateControlIssue(
   return created.number;
 }
 
-/** Reply target for an ad-hoc worker run: where the worker posts its answer. */
+/** Reply target for an ad-hoc agent run: where the agent posts its answer. */
 export interface WorkerAskReply {
   kind: "discussion" | "issue";
   number: number;
 }
 
 /**
- * Dispatch a one-shot `worker-ask` tick by posting the directive comment on
+ * Dispatch a one-shot `agent-ask` tick by posting the directive comment on
  * the repo's control issue. The engine's `issue_comment` trigger fires
- * kody.yml and routes to the `worker-ask` executable. The directive line is
+ * kody.yml and routes to the `agent-ask` executable. The directive line is
  * first (the engine strips it); the message + context follows verbatim so
  * markdown/newlines survive. Returns the created comment.
  *
  * Shared by the manual HTTP endpoint and the webhook mention path so there
  * is exactly one dispatch shape.
  */
-export async function dispatchWorkerAsk(
+export async function dispatchAgentAsk(
   octokit: Octokit,
   owner: string,
   repo: string,
@@ -104,7 +104,7 @@ export async function dispatchWorkerAsk(
   const replyFlag = opts.reply
     ? ` --thread ${opts.reply.kind}:${opts.reply.number}`
     : "";
-  const body = `@kody worker-ask --worker ${opts.slug}${replyFlag}\n\n${opts.message}`;
+  const body = `@kody agent-ask --agent ${opts.slug}${replyFlag}\n\n${opts.message}`;
   const { data: comment } = await octokit.rest.issues.createComment({
     owner,
     repo,

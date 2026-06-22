@@ -77,7 +77,7 @@ export function useSetGoalState(goalId: string, actorLogin?: string | null) {
 
 /**
  * Toggle "let Kody manage this goal end-to-end" — the `goal-manager`
- * staff member decomposes it, QA-verifies the journey, recovers stalls, and
+ * agent decomposes it, QA-verifies the journey, recovers stalls, and
  * leaves one open deliverable PR. Enabling a never-started goal starts it.
  */
 export function useManageGoal(goalId: string, actorLogin?: string | null) {

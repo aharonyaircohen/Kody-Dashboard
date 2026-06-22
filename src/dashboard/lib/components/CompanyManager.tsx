@@ -3,10 +3,10 @@
  * @domain kody
  * @pattern company-manager
  * @ai-summary Import/export a "Company" — the portable operating manual of
- *   an org (staff, duties, commands, instructions). Export downloads a JSON
+ *   an org (agent, duties, commands, instructions). Export downloads a JSON
  *   bundle from the connected repo; Import uploads one and writes it back,
  *   with skip/overwrite collision handling. A separate card runs the
- *   one-time legacy `.kody/jobs|workers` → `duties|staff` folder migration.
+ *   one-time legacy `.kody/jobs|agents` → `duties|agent` folder migration.
  */
 "use client";
 
@@ -47,7 +47,7 @@ export function CompanyManager() {
   );
 }
 
-function countLine(label: string, c: CompanyImportResult["staff"]): string {
+function countLine(label: string, c: CompanyImportResult["agent"]): string {
   return `${label}: ${c.created} added, ${c.updated} updated, ${c.skipped} skipped${
     c.failed ? `, ${c.failed} failed` : ""
   }`;
@@ -76,7 +76,7 @@ function CompanyManagerInner() {
       );
       downloadJson(`kody-company-${safeRepo}-${stamp}.json`, bundle);
       const total =
-        bundle.staff.length +
+        bundle.agent.length +
         bundle.duties.length +
         bundle.contexts.length +
         bundle.commands.length +
@@ -85,7 +85,7 @@ function CompanyManagerInner() {
         (bundle.instructions ? 1 : 0) +
         (bundle.config ? 1 : 0);
       toast.success(
-        `Exported ${bundle.staff.length} staff, ${bundle.duties.length} duties, ${bundle.goals.length} objectives/routines, ${bundle.contexts.length} contexts, ${bundle.commands.length} commands, ${bundle.executables.length} executables${
+        `Exported ${bundle.agent.length} agent, ${bundle.duties.length} duties, ${bundle.goals.length} objectives/routines, ${bundle.contexts.length} contexts, ${bundle.commands.length} commands, ${bundle.executables.length} executables${
           bundle.instructions ? ", instructions" : ""
         }${bundle.config ? ", config" : ""} (${total} items)`,
       );
@@ -110,7 +110,7 @@ function CompanyManagerInner() {
       const result = await kodyApi.company.import(bundle, mode, actorLogin);
       setLastImport(result);
       const failed =
-        result.staff.failed +
+        result.agent.failed +
         result.duties.failed +
         result.contexts.failed +
         result.commands.failed +
@@ -140,7 +140,7 @@ function CompanyManagerInner() {
         <p className="text-sm text-white/60 max-w-2xl">
           A <span className="text-white/80">Company</span> is your org&apos;s
           portable operating manual — its{" "}
-          <span className="text-white/80">staff</span>,{" "}
+          <span className="text-white/80">agent</span>,{" "}
           <span className="text-white/80">duties</span>,{" "}
           <span className="text-white/80">objectives/routines</span>,{" "}
           <span className="text-white/80">context</span>,{" "}
@@ -162,7 +162,7 @@ function CompanyManagerInner() {
                 Export company
               </p>
               <p className="text-xs text-white/50 mt-1">
-                Download a JSON bundle of this repo&apos;s staff, duties,
+                Download a JSON bundle of this repo&apos;s agent, duties,
                 objectives/routines, context, repo-defined commands,
                 executables, and instructions.
               </p>
@@ -241,7 +241,7 @@ function CompanyManagerInner() {
 
             {lastImport && (
               <div className="text-xs text-white/60 border-t border-white/[0.06] pt-3 space-y-1">
-                <p>{countLine("Staff", lastImport.staff)}</p>
+                <p>{countLine("Agent", lastImport.agent)}</p>
                 <p>{countLine("Duties", lastImport.duties)}</p>
                 <p>{countLine("Contexts", lastImport.contexts)}</p>
                 <p>{countLine("Commands", lastImport.commands)}</p>
@@ -263,7 +263,7 @@ function CompanyManagerInner() {
 
         {/* What's included */}
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-[11px] text-white/45">
-          <Included icon={Users} label="Staff" />
+          <Included icon={Users} label="Agent" />
           <Included icon={ListChecks} label="Duties" />
           <Included icon={Target} label="Objectives/Routines" />
           <Included icon={BookOpenText} label="Context" />

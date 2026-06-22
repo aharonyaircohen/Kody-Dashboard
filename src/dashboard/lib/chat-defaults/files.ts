@@ -15,7 +15,7 @@ import { readFile } from "node:fs/promises";
 import path from "node:path";
 
 import {
-  DEFAULT_PERSONA_MD,
+  DEFAULT_IDENTITY_MD,
   DEFAULT_EXECUTABLE,
   DEFAULT_DUTIES,
   DEFAULT_SKILLS,
@@ -25,7 +25,7 @@ import {
 } from "./defaults";
 
 export interface ChatDefaultsFilesBundle {
-  persona: string;
+  agentIdentity: string;
   executable: ExecutableEntry;
   duties: DutyEntry[];
   skills: Record<string, SkillEntry>;
@@ -97,8 +97,8 @@ async function loadSkill(slug: string): Promise<SkillEntry> {
 
 export async function loadChatDefaultsFromFiles(): Promise<ChatDefaultsFilesBundle | null> {
   try {
-    const [persona, executable] = await Promise.all([
-      readText(KODY_CHAT_EXECUTABLE, "persona.md"),
+    const [agentIdentity, executable] = await Promise.all([
+      readText(KODY_CHAT_EXECUTABLE, "agent.md"),
       readJson<ExecutableEntry>(KODY_CHAT_EXECUTABLE, "profile.json").then(
         assertExecutable,
       ),
@@ -113,7 +113,7 @@ export async function loadChatDefaultsFromFiles(): Promise<ChatDefaultsFilesBund
     );
 
     return {
-      persona,
+      agentIdentity,
       executable: {
         ...executable,
         prompt: await readText(KODY_CHAT_EXECUTABLE, "prompt.md"),
@@ -138,7 +138,7 @@ export function invalidateChatDefaultsCache(
 }
 
 export {
-  DEFAULT_PERSONA_MD,
+  DEFAULT_IDENTITY_MD,
   DEFAULT_EXECUTABLE,
   DEFAULT_DUTIES,
   DEFAULT_SKILLS,

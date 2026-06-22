@@ -1,10 +1,10 @@
 /**
  * @fileType api-endpoint
  * @domain kody
- * @pattern staff-api
- * @ai-summary Staff detail API — GET reads a single staff file, PATCH
+ * @pattern agent-api
+ * @ai-summary Agent detail API — GET reads a single agent file, PATCH
  *   updates the title/body, DELETE removes the file. Backed by
- *   `.kody/staff/<slug>.md` via the GitHub contents API. Duplicated
+ *   `.kody/agents/<slug>.md` via the GitHub contents API. Duplicated
  *   from the duties detail API.
  */
 /* eslint-disable @typescript-eslint/no-explicit-any */
@@ -21,12 +21,12 @@ import {
   clearGitHubContext,
 } from "@dashboard/lib/github-client";
 import {
-  readStaffFile,
-  readResolvedStaffFile,
-  writeStaffFile,
-  deleteStaffFile,
+  readAgentFile,
+  readResolvedAgentFile,
+  writeAgentFile,
+  deleteAgentFile,
   isValidSlug,
-} from "@dashboard/lib/staff-files";
+} from "@dashboard/lib/agent-files";
 import { recordAudit } from "@dashboard/lib/activity/audit";
 
 export async function GET(
@@ -51,17 +51,17 @@ export async function GET(
     if (!isValidSlug(slug)) {
       return NextResponse.json({ error: "invalid_slug" }, { status: 400 });
     }
-    const staffMember = await readResolvedStaffFile(slug);
-    if (!staffMember) {
+    const agentMember = await readResolvedAgentFile(slug);
+    if (!agentMember) {
       return NextResponse.json({ error: "not_found" }, { status: 404 });
     }
-    return NextResponse.json({ staffMember });
+    return NextResponse.json({ agentMember });
   } catch (error: any) {
-    console.error("[Staff] Error fetching staff member:", error);
+    console.error("[Agent] Error fetching agent:", error);
     return NextResponse.json(
       {
         error: "fetch_failed",
-        message: error?.message ?? "Failed to fetch staff member",
+        message: error?.message ?? "Failed to fetch agent",
       },
       { status: 500 },
     );
@@ -99,7 +99,7 @@ export async function PATCH(
       return NextResponse.json({ error: "invalid_slug" }, { status: 400 });
     }
 
-    const existing = await readStaffFile(slug);
+    const existing = await readAgentFile(slug);
     if (!existing) {
       return NextResponse.json({ error: "not_found" }, { status: 404 });
     }
@@ -116,13 +116,13 @@ export async function PATCH(
         {
           error: "no_user_token",
           message:
-            "A signed-in GitHub token is required to commit staff files.",
+            "A signed-in GitHub token is required to commit agent files.",
         },
         { status: 401 },
       );
     }
 
-    const staffMember = await writeStaffFile({
+    const agentMember = await writeAgentFile({
       octokit: userOctokit,
       slug,
       title: title ?? existing.title,
@@ -131,15 +131,15 @@ export async function PATCH(
     });
 
     recordAudit(req, {
-      action: "staff.update",
+      action: "agent.update",
       resource: slug,
-      staff: slug,
-      detail: "edited staff",
+      agent: slug,
+      detail: "edited agent",
     });
 
-    return NextResponse.json({ staffMember });
+    return NextResponse.json({ agentMember });
   } catch (error: any) {
-    console.error("[Staff] Error updating staff member:", error);
+    console.error("[Agent] Error updating agent:", error);
 
     if (error instanceof z.ZodError) {
       return NextResponse.json(
@@ -156,7 +156,7 @@ export async function PATCH(
     return NextResponse.json(
       {
         error: "update_failed",
-        message: error?.message ?? "Failed to update staff member",
+        message: error?.message ?? "Failed to update agent",
       },
       { status: 500 },
     );
@@ -188,7 +188,7 @@ export async function DELETE(
       return NextResponse.json({ error: "invalid_slug" }, { status: 400 });
     }
 
-    const existing = await readStaffFile(slug);
+    const existing = await readAgentFile(slug);
     if (!existing) {
       return NextResponse.json({ success: true, alreadyMissing: true });
     }
@@ -205,24 +205,24 @@ export async function DELETE(
         {
           error: "no_user_token",
           message:
-            "A signed-in GitHub token is required to delete staff files.",
+            "A signed-in GitHub token is required to delete agent files.",
         },
         { status: 401 },
       );
     }
 
-    await deleteStaffFile(userOctokit, slug);
+    await deleteAgentFile(userOctokit, slug);
 
     recordAudit(req, {
-      action: "staff.delete",
+      action: "agent.delete",
       resource: slug,
-      staff: slug,
-      detail: "deleted staff",
+      agent: slug,
+      detail: "deleted agent",
     });
 
     return NextResponse.json({ success: true });
   } catch (error: any) {
-    console.error("[Staff] Error deleting staff member:", error);
+    console.error("[Agent] Error deleting agent:", error);
     if (error?.status === 401) {
       return NextResponse.json(
         { error: "github_token_expired" },
@@ -232,7 +232,7 @@ export async function DELETE(
     return NextResponse.json(
       {
         error: "delete_failed",
-        message: error?.message ?? "Failed to delete staff member",
+        message: error?.message ?? "Failed to delete agent",
       },
       { status: 500 },
     );

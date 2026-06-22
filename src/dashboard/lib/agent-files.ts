@@ -1,12 +1,12 @@
 /**
  * @fileType util
  * @domain kody
- * @pattern staff-files
- * @ai-summary Staff preset over the shared ticked-file store. A staff
- *   member is a `.kody/staff/<slug>.md` file; duties and staff are the
+ * @pattern agent-files
+ * @ai-summary Agent preset over the shared ticked-file store. An agent
+ *   member is a `.kody/agents/<slug>.md` file; duties and agent are the
  *   same mechanism, so the implementation lives once in `ticked/files.ts`.
- *   This file binds the staff directory / commit scope / cache and
- *   re-exports the API under the `*StaffFile` names so importers stay
+ *   This file binds the agent directory / commit scope / cache and
+ *   re-exports the API under the `*AgentFile` names so importers stay
  *   stable.
  */
 
@@ -25,66 +25,66 @@ import {
   type TickFile,
 } from "./ticked/files";
 
-/** Alias — duties and staff share the `TickFile` shape. */
-export type StaffFile = TickFile;
+/** Alias — duties and agent share the `TickFile` shape. */
+export type AgentFile = TickFile;
 
 const impl = createTickedFiles({
-  dir: ".kody/staff",
-  commitScope: "staff",
+  dir: ".kody/agents",
+  commitScope: "agent",
   invalidateCache: invalidateStaffCache,
 });
 
-export const listStaffFiles = impl.listFiles;
-export const readStaffFile = impl.readFile;
-export const writeStaffFile = impl.writeFile;
-export const deleteStaffFile = impl.deleteFile;
+export const listAgentFiles = impl.listFiles;
+export const readAgentFile = impl.readFile;
+export const writeAgentFile = impl.writeFile;
+export const deleteAgentFile = impl.deleteFile;
 export const isValidSlug = impl.isValidSlug;
 
-export async function listResolvedStaffFiles(): Promise<StaffFile[]> {
+export async function listResolvedAgentFiles(): Promise<AgentFile[]> {
   const octokit = getOctokit();
-  const local = await listStaffFiles();
-  const store = await listStoreStaffFiles(
+  const local = await listAgentFiles();
+  const store = await listStoreAgentFiles(
     octokit,
-    new Set(local.map((staff) => staff.slug)),
+    new Set(local.map((agent) => agent.slug)),
   );
   return mergeAssetsBySlug(local, store);
 }
 
-export async function readResolvedStaffFile(
+export async function readResolvedAgentFile(
   slug: string,
   octokitOverride?: Octokit,
-): Promise<StaffFile | null> {
-  const local = await readStaffFile(slug, octokitOverride);
+): Promise<AgentFile | null> {
+  const local = await readAgentFile(slug, octokitOverride);
   if (local) return local;
-  return readStoreStaffFile(slug, octokitOverride ?? getOctokit());
+  return readStoreAgentFile(slug, octokitOverride ?? getOctokit());
 }
 
-async function listStoreStaffFiles(
+async function listStoreAgentFiles(
   octokit: Octokit,
   localSlugs: Set<string>,
-): Promise<StaffFile[]> {
+): Promise<AgentFile[]> {
   const slugs = await listCompanyStoreMarkdownAssetSlugs(
     octokit,
-    "staff",
+    "agent",
     isValidSlug,
   );
-  const staff = await Promise.all(
+  const agent = await Promise.all(
     slugs
       .filter((slug) => !localSlugs.has(slug))
-      .map((slug) => readStoreStaffFile(slug, octokit)),
+      .map((slug) => readStoreAgentFile(slug, octokit)),
   );
-  return staff.filter((member): member is StaffFile => member !== null);
+  return agent.filter((member): member is AgentFile => member !== null);
 }
 
-async function readStoreStaffFile(
+async function readStoreAgentFile(
   slug: string,
   octokit: Octokit,
-): Promise<StaffFile | null> {
+): Promise<AgentFile | null> {
   if (!isValidSlug(slug)) return null;
-  const path = `.kody/staff/${slug}.md`;
+  const path = `.kody/agents/${slug}.md`;
   const [raw, updatedAt] = await Promise.all([
     readCompanyStoreText(octokit, path),
-    companyStoreUpdatedAt(octokit, "staff", slug),
+    companyStoreUpdatedAt(octokit, "agent", slug),
   ]);
   if (raw === null) return null;
   const { title, body } = parseTickedMarkdown(raw, slug);
@@ -101,7 +101,7 @@ async function readStoreStaffFile(
 schedule: null,
 capabilityKind: null,
     disabled: false,
-    runner: null,
+    agent: null,
     reviewer: null,
     action: null,
     mentions: [],

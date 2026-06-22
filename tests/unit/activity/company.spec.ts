@@ -15,7 +15,7 @@ describe("parseActivityJsonl", () => {
         ts: "2026-05-23T10:00:00Z",
         action: "Ran duty: QA",
         duty: "qa",
-        staff: "qa-engineer",
+        agent: "qa-engineer",
         staffTitle: "QA Engineer",
         trigger: "schedule",
         outcome: "completed",
@@ -31,7 +31,7 @@ describe("parseActivityJsonl", () => {
     expect(out).toHaveLength(2);
     expect(out[0]).toMatchObject({
       duty: "qa",
-      staff: "qa-engineer",
+      agent: "qa-engineer",
       trigger: "schedule",
       outcome: "completed",
     });
@@ -41,7 +41,7 @@ describe("parseActivityJsonl", () => {
       action: "Ran duty: sweep",
       trigger: "event",
       outcome: "unknown",
-      staff: null,
+      agent: null,
       durationMs: null,
     });
   });

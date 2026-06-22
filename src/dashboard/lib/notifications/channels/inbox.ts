@@ -18,7 +18,7 @@ import { buildSnippet } from "../../inbox/types";
 import {
   parseCtoAction,
   parseCtoCommand,
-  parseCtoStaff,
+  parseCtoAgent,
   parseCtoDuty,
 } from "../../cto/recommendation";
 import { readTrust } from "../../cto/trust-store";
@@ -53,7 +53,7 @@ export async function deliverInbox(
   // the snippet collapses them and loses it.
   const ctoAction = parseCtoAction(ev.body ?? "");
   const ctoCommand = parseCtoCommand(ev.body ?? "");
-  const ctoStaff = parseCtoStaff(ev.body ?? "");
+  const ctoAgent = parseCtoAgent(ev.body ?? "");
   const ctoDuty = parseCtoDuty(ev.body ?? "");
   // Same classifier the mute filter keys on — stamp it on the entry so the
   // inbox row can offer a one-click "Mute this type" for the right category.
@@ -71,14 +71,14 @@ export async function deliverInbox(
     sentAt,
     ...(ctoAction ? { ctoAction } : {}),
     ...(ctoCommand ? { ctoCommand } : {}),
-    ...(ctoStaff ? { ctoStaff } : {}),
+    ...(ctoAgent ? { ctoAgent } : {}),
     ...(ctoDuty ? { ctoDuty } : {}),
     ...(category ? { category } : {}),
   }));
 
   setGitHubContext(ctx.owner, ctx.repo, ctx.token);
   try {
-    // Code-enforced cap on pending CTO recommendations. The cto.md staff
+    // Code-enforced cap on pending CTO recommendations. The cto.md agent
     // member is told to stop at 10 but counts by hand and drifts; this gate
     // makes it deterministic at the single write point. Both reads are cached
     // (ETag/304) — no extra GitHub budget on the webhook path.

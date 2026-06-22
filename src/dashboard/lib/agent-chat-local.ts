@@ -1,13 +1,13 @@
 /**
  * @fileType lib
  * @domain kody
- * @pattern staff-chat-local-cache
+ * @pattern agent-chat-local-cache
  *
- * localStorage-backed persistence for staff-scoped chat messages, keyed by
- * staff slug. Mirrors `duty-chat-local.ts` shape.
+ * localStorage-backed persistence for agent-scoped chat messages, keyed by
+ * agent slug. Mirrors `duty-chat-local.ts` shape.
  *
- * Why local-only: staff are markdown files with no per-member branch
- * (unlike tasks), and there is no server-side staff-chat persistence API.
+ * Why local-only: agent are markdown files with no per-member branch
+ * (unlike tasks), and there is no server-side agent-chat persistence API.
  * Reloads would otherwise wipe the conversation. Local cache covers
  * single-device continuity; cross-device sync would need a dedicated
  * load/save endpoint (deferred — the per-device case covers ~all real usage).
@@ -15,11 +15,11 @@
 
 import type { ChatMessage } from "./chat-types";
 
-const KEY_PREFIX = "kody-staff-chat-";
+const KEY_PREFIX = "kody-agent-chat-";
 
 /**
  * Read the connected repo from localStorage.kody_auth so cache keys are
- * scoped per repo — staff slug "foo" in repo A must not share a localStorage
+ * scoped per repo — agent slug "foo" in repo A must not share a localStorage
  * slot with the same slug in repo B. Falls back to an unscoped key when no
  * repo is known (e.g. logged out / SSR).
  */

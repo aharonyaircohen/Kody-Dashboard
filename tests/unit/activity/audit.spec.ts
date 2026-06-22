@@ -77,7 +77,7 @@ describe("recordAudit", () => {
       action: "duty.run",
       resource: "changelog-verify",
       duty: "changelog-verify",
-      staff: "qa-engineer",
+      agent: "qa-engineer",
       detail: "manual run",
     });
 
@@ -92,7 +92,7 @@ describe("recordAudit", () => {
       actor: "alice",
       repo: "acme/widgets",
       duty: "changelog-verify",
-      staff: "qa-engineer",
+      agent: "qa-engineer",
       outcome: "ok",
       source: "dashboard",
     });

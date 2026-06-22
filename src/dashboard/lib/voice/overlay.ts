@@ -30,7 +30,7 @@ import { z } from "zod";
  * base prompt builder layered in.
  *
  * Bound deliberately to the speaker side: it doesn't mention tools,
- * memory, or persona — those are the base agent's job. The overlay
+ * memory, or agentIdentity — those are the base agent's job. The overlay
  * only reshapes OUTPUT.
  */
 export const VOICE_OVERLAY_PROMPT = `## Voice mode (your reply will be read aloud)

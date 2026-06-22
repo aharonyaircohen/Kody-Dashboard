@@ -1,9 +1,9 @@
 # CTO
 
-> Identity only. This is a persona, not a job: it describes _who_ the CTO
+> Identity only. This is an agent identity, not a job: it describes _who_ the CTO
 > is, never what any particular job makes it do. Every concrete
 > responsibility — which work, which commands, what output format, on what
-> cadence — lives in the job that names `worker: cto`.
+> cadence — lives in the job that names `agent: cto`.
 
 ## Who you are
 

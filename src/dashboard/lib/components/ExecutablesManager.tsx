@@ -97,8 +97,8 @@ interface ExecutableSummary {
   landing: ExecutableLanding;
   updatedAt: string | null;
   htmlUrl: string;
-  /** Legacy/profile staff field, if present. Duties normally own staff. */
-  staff?: string | null;
+  /** Legacy/profile agent field, if present. Duties normally own agent. */
+  agent?: string | null;
   source?: "local" | "store";
   readOnly?: boolean;
 }
@@ -601,10 +601,10 @@ function ExecutableRow({
         <span className="inline-flex items-center gap-1">
           {e.landing === "pr" ? "PR result" : "comment result"}
         </span>
-        {e.staff ? (
+        {e.agent ? (
           <span className="inline-flex items-center gap-1">
             <User className="w-3 h-3" />
-            {e.staff}
+            {e.agent}
           </span>
         ) : null}
       </div>
@@ -662,15 +662,15 @@ function ExecutableDetail({
                 </span>
               </h1>
               <div className="text-xs text-muted-foreground flex items-center gap-3 flex-wrap">
-                {e.staff ? (
+                {e.agent ? (
                   <span className="inline-flex items-center gap-1">
                     <User className="w-3 h-3" />
-                    profile staff: {e.staff}
+                    profile agent: {e.agent}
                   </span>
                 ) : (
                   <span className="inline-flex items-center gap-1">
                     <User className="w-3 h-3" />
-                    no staff
+                    no agent
                   </span>
                 )}
                 {e.updatedAt ? (

@@ -1,13 +1,13 @@
 /**
  * @fileType component
  * @domain kody
- * @pattern staff-control-page
- * @ai-summary Staff Control — list, view, create, edit, and delete staff.
- *   A staff member is a pure reusable PERSONA file at `.kody/staff/<slug>.md`
- *   in the connected repo: a markdown body describing the staff member's
- *   intent, allowed commands, and restrictions. Staff have no schedule, no
- *   state, and no run/tick — they're personas referenced by other flows.
- *   The chat rail reuses the existing duty scope kind (a staff member is
+ * @pattern agent-control-page
+ * @ai-summary Agent Control — list, view, create, edit, and delete agent.
+ *   An agent is a pure reusable identity file at `.kody/agents/<slug>.md`
+ *   in the connected repo: a markdown body describing the agent's
+ *   intent, allowed commands, and restrictions. Agents have no schedule, no
+ *   state, and no run/tick — they're agent identities referenced by other flows.
+ *   The chat rail reuses the existing duty scope kind (an agent is
  *   structurally identical to a duty).
  */
 "use client";
@@ -39,16 +39,16 @@ import {
 import { AuthGuard } from "../auth-guard";
 import { cn } from "../utils";
 import {
-  useCreateStaff,
-  useDeleteStaff,
-  useDispatchStaff,
-  useStaff,
-  useUpdateStaff,
-} from "../hooks/useStaff";
+  useCreateAgent,
+  useDeleteAgent,
+  useDispatchAgent,
+  useAgents,
+  useUpdateAgent,
+} from "../hooks/useAgents";
 import { useGitHubIdentity } from "../hooks/useGitHubIdentity";
-import type { Staff } from "../api";
-import { KODY_CHAT_STAFF } from "../context/frontmatter";
-import { STAFF_TEMPLATE } from "../staff-template";
+import type { Agent } from "../api";
+import { KODY_CHAT_AGENT } from "../context/frontmatter";
+import { AGENT_TEMPLATE } from "../agent-template";
 import { ConfirmDialog } from "./ConfirmDialog";
 import { ListSearch } from "./ListSearch";
 import { MarkdownEditor } from "./MarkdownEditor";
@@ -57,94 +57,94 @@ import { PageHeader } from "./PageShell";
 import { useChatScope } from "./ChatRailShell";
 
 /**
- * Kody — the built-in chat persona. Always present in the staff list and
- * never editable or removable (it lives in code, not a `.kody/staff/*.md`
- * file). Identified by the `kody` slug; `isBuiltinStaff` gates the UI.
+ * Kody — the built-in chat agentIdentity. Always present in the agent list and
+ * never editable or removable (it lives in code, not a `.kody/agents/*.md`
+ * file). Identified by the `kody` slug; `isBuiltinAgent` gates the UI.
  */
-const BUILTIN_KODY_STAFF: Staff = {
-  slug: KODY_CHAT_STAFF,
+const BUILTIN_KODY_AGENT: Agent = {
+  slug: KODY_CHAT_AGENT,
   title: "Kody",
   body:
-    "Kody is the built-in assistant persona — the staff member the in-process " +
+    "Kody is the built-in assistant agentIdentity — the agent the in-process " +
     "chat runs as. It is always available and can't be edited or removed here. " +
     "Attach Context entries to Kody to inject them into every chat turn.",
   updatedAt: "",
   htmlUrl: "",
 };
 
-/** True for built-in const staff (no file, no edit/delete). */
-function isBuiltinStaff(slug: string): boolean {
-  return slug === KODY_CHAT_STAFF;
+/** True for built-in const agent (no file, no edit/delete). */
+function isBuiltinAgent(slug: string): boolean {
+  return slug === KODY_CHAT_AGENT;
 }
 
-interface StaffControlProps {
-  /** Render without the built-in PageHeader (e.g. when hosted in StaffPageTabs). */
+interface AgentsControlProps {
+  /** Render without the built-in PageHeader (e.g. when hosted in AgentsPageTabs). */
   embedded?: boolean;
 }
 
-export function StaffControl({ embedded = false }: StaffControlProps = {}) {
+export function AgentsControl({ embedded = false }: AgentsControlProps = {}) {
   return (
     <AuthGuard>
-      <StaffControlInner embedded={embedded} />
+      <AgentsControlInner embedded={embedded} />
     </AuthGuard>
   );
 }
 
-export function StaffControlInner({
+export function AgentsControlInner({
   embedded = false,
-}: StaffControlProps = {}) {
+}: AgentsControlProps = {}) {
   const {
     data: rawStaff = [],
     isLoading,
     isFetching,
     refetch,
     error,
-  } = useStaff();
+  } = useAgents();
 
-  // Kody is always first and never removable; repo staff follow (any stray
+  // Kody is always first and never removable; repo agent follow (any stray
   // `kody.md` file is dropped so the const wins).
-  const staff = useMemo(
+  const agent = useMemo(
     () => [
-      BUILTIN_KODY_STAFF,
-      ...rawStaff.filter((m) => !isBuiltinStaff(m.slug)),
+      BUILTIN_KODY_AGENT,
+      ...rawStaff.filter((m) => !isBuiltinAgent(m.slug)),
     ],
     [rawStaff],
   );
 
   const [selectedSlug, setSelectedSlug] = useState<string | null>(null);
   const [showCreate, setShowCreate] = useState(false);
-  const [editingMember, setEditingMember] = useState<Staff | null>(null);
-  const [pendingDelete, setPendingDelete] = useState<Staff | null>(null);
-  const [taskMember, setTaskMember] = useState<Staff | null>(null);
+  const [editingMember, setEditingMember] = useState<Agent | null>(null);
+  const [pendingDelete, setPendingDelete] = useState<Agent | null>(null);
+  const [taskMember, setTaskMember] = useState<Agent | null>(null);
 
   const selectedMember = useMemo(
-    () => staff.find((m) => m.slug === selectedSlug) ?? null,
-    [staff, selectedSlug],
+    () => agent.find((m) => m.slug === selectedSlug) ?? null,
+    [agent, selectedSlug],
   );
 
   const [search, setSearch] = useState("");
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase();
-    if (!q) return staff;
-    return staff.filter(
+    if (!q) return agent;
+    return agent.filter(
       (m) =>
         m.slug.toLowerCase().includes(q) ||
         m.title.toLowerCase().includes(q) ||
         m.body.toLowerCase().includes(q),
     );
-  }, [staff, search]);
+  }, [agent, search]);
 
   useEffect(() => {
-    if (!selectedSlug && staff.length > 0) {
-      setSelectedSlug(staff[0].slug);
+    if (!selectedSlug && agent.length > 0) {
+      setSelectedSlug(agent[0].slug);
     }
-  }, [staff, selectedSlug]);
+  }, [agent, selectedSlug]);
 
   const { githubUser } = useGitHubIdentity();
-  const deleteMutation = useDeleteStaff(githubUser?.login);
+  const deleteMutation = useDeleteAgent(githubUser?.login);
 
   // Push chat context up to the persistent rail in the root layout.
-  // A staff member is structurally identical to a duty, so we reuse the
+  // An agent is structurally identical to a duty, so we reuse the
   // existing duty scope kind — the chat just needs the file's title/body
   // to answer questions about the selected member.
   const { setScope } = useChatScope();
@@ -160,14 +160,14 @@ export function StaffControlInner({
         {embedded ? (
           <div className="shrink-0 flex items-center justify-end gap-2 px-4 md:px-6 py-2 border-b border-white/[0.06] bg-black/20">
             <span className="text-xs text-muted-foreground mr-auto">
-              {staff.length} {staff.length === 1 ? "member" : "staff"}
+              {agent.length} {agent.length === 1 ? "member" : "agent"}
             </span>
             <Button
               variant="outline"
               size="sm"
               onClick={() => refetch()}
               disabled={isFetching}
-              aria-label="Refresh staff"
+              aria-label="Refresh agent"
             >
               <RefreshCw
                 className={cn("w-4 h-4", isFetching && "animate-spin")}
@@ -184,10 +184,10 @@ export function StaffControlInner({
           </div>
         ) : (
           <PageHeader
-            title="Staff Control"
+            title="Agent Control"
             icon={Target}
             iconClassName="text-emerald-400"
-            subtitle={`${staff.length} ${staff.length === 1 ? "member" : "staff"}`}
+            subtitle={`${agent.length} ${agent.length === 1 ? "member" : "agent"}`}
             actions={
               <>
                 <Button
@@ -195,7 +195,7 @@ export function StaffControlInner({
                   size="sm"
                   onClick={() => refetch()}
                   disabled={isFetching}
-                  aria-label="Refresh staff"
+                  aria-label="Refresh agent"
                 >
                   <RefreshCw
                     className={cn("w-4 h-4", isFetching && "animate-spin")}
@@ -216,42 +216,42 @@ export function StaffControlInner({
 
         {error ? (
           <div className="shrink-0 px-4 py-3 bg-red-500/10 border-b border-red-500/20 text-sm text-red-400">
-            Failed to load staff: {(error as Error).message}
+            Failed to load agent: {(error as Error).message}
           </div>
         ) : null}
 
         <div className="flex-1 min-h-0 flex">
-          {/* Middle: staff list */}
+          {/* Middle: agent list */}
           <aside
             className={cn(
               "w-full md:w-80 md:border-r md:border-border overflow-y-auto",
               selectedMember && "hidden md:block",
             )}
           >
-            {staff.length > 0 ? (
+            {agent.length > 0 ? (
               <div className="sticky top-0 z-10 bg-background/95 backdrop-blur px-3 md:px-4 py-2 md:py-3 border-b border-border">
                 <ListSearch
                   value={search}
                   onChange={setSearch}
-                  placeholder="Search staff…"
-                  ariaLabel="Search staff"
+                  placeholder="Search agent…"
+                  ariaLabel="Search agent"
                   accent="emerald"
                 />
               </div>
             ) : null}
             {isLoading ? (
-              <EmptyState icon={<FileText />} title="Loading staff…" />
-            ) : staff.length === 0 ? (
+              <EmptyState icon={<FileText />} title="Loading agent…" />
+            ) : agent.length === 0 ? (
               <EmptyState
                 icon={<Target />}
-                title="No staff yet"
-                hint="Create your first staff member to describe the intent, system prompt, and restrictions."
+                title="No agent yet"
+                hint="Create your first agent to describe the intent, system prompt, and restrictions."
               />
             ) : filtered.length === 0 ? (
               <EmptyState
                 icon={<Target />}
-                title="No matching staff"
-                hint="No staff member matches your search. Try a different term."
+                title="No matching agent"
+                hint="No agent matches your search. Try a different term."
               />
             ) : (
               <ul className="divide-y divide-border">
@@ -293,7 +293,7 @@ export function StaffControlInner({
                             {member.slug}
                           </span>
                           <span>·</span>
-                          {isBuiltinStaff(member.slug) ? (
+                          {isBuiltinAgent(member.slug) ? (
                             <span>Built-in</span>
                           ) : (
                             <span className="inline-flex items-center gap-1">
@@ -310,7 +310,7 @@ export function StaffControlInner({
             )}
           </aside>
 
-          {/* Right: staff detail */}
+          {/* Right: agent detail */}
           <section
             className={cn(
               "flex-1 min-w-0 overflow-y-auto",
@@ -334,15 +334,15 @@ export function StaffControlInner({
             ) : (
               <EmptyState
                 icon={<Target />}
-                title="Select a staff member"
-                hint="Pick a staff member from the list to see its intent and system prompt."
+                title="Select an agent"
+                hint="Pick an agent from the list to see its intent and system prompt."
               />
             )}
           </section>
         </div>
 
         {/* Create */}
-        <CreateStaffDialog
+        <CreateAgentDialog
           open={showCreate}
           onClose={() => setShowCreate(false)}
           onCreated={(member) => {
@@ -363,10 +363,10 @@ export function StaffControlInner({
         {/* Delete confirm */}
         <ConfirmDialog
           open={!!pendingDelete}
-          title="Delete this staff member?"
+          title="Delete this agent?"
           description={
             pendingDelete
-              ? `Staff member "${pendingDelete.title}" (${pendingDelete.slug}) will be removed from .kody/staff/ via a commit on the default branch.`
+              ? `Agent member "${pendingDelete.title}" (${pendingDelete.slug}) will be removed from .kody/agents/ via a commit on the default branch.`
               : ""
           }
           variant="destructive"
@@ -402,14 +402,14 @@ function StaffDetail({
   onDelete,
   onSendTask,
 }: {
-  member: Staff;
+  member: Agent;
   onBack: () => void;
   onEdit: () => void;
   onDelete: () => void;
   onSendTask: () => void;
 }) {
   const hasBody = member.body.trim().length > 0;
-  const isBuiltin = isBuiltinStaff(member.slug);
+  const isBuiltin = isBuiltinAgent(member.slug);
   return (
     <article className="min-h-full">
       {/* Hero */}
@@ -422,7 +422,7 @@ function StaffDetail({
             className="md:hidden gap-1 -ml-2 text-muted-foreground"
           >
             <ArrowLeft className="w-4 h-4" />
-            All staff
+            All agent
           </Button>
           <header className="flex items-start justify-between gap-4 flex-wrap">
             <div className="min-w-0 flex-1 space-y-2">
@@ -442,7 +442,7 @@ function StaffDetail({
                 {isBuiltin ? (
                   <>
                     <span>·</span>
-                    <span>Built-in persona</span>
+                    <span>Built-in agentIdentity</span>
                   </>
                 ) : (
                   <>
@@ -476,7 +476,7 @@ function StaffDetail({
                   size="sm"
                   onClick={onSendTask}
                   className="w-9 px-0 bg-emerald-600 hover:bg-emerald-700 text-white"
-                  title="Send an ad-hoc task to this staff member"
+                  title="Send an ad-hoc task to this agent"
                   aria-label="Send task"
                 >
                   <Send className="w-3.5 h-3.5" />
@@ -489,10 +489,10 @@ function StaffDetail({
                   className="w-9 px-0"
                   title={
                     member.readOnly
-                      ? "Store-linked staff are read-only"
-                      : "Edit staff member"
+                      ? "Store-linked agent are read-only"
+                      : "Edit agent"
                   }
-                  aria-label="Edit staff member"
+                  aria-label="Edit agent"
                 >
                   <Pencil className="w-3.5 h-3.5" />
                 </Button>
@@ -504,10 +504,10 @@ function StaffDetail({
                   className="w-9 px-0 text-red-400"
                   title={
                     member.readOnly
-                      ? "Store-linked staff are read-only"
-                      : "Delete staff member"
+                      ? "Store-linked agent are read-only"
+                      : "Delete agent"
                   }
-                  aria-label="Delete staff member"
+                  aria-label="Delete agent"
                 >
                   <Trash2 className="w-3.5 h-3.5" />
                 </Button>
@@ -537,7 +537,7 @@ function StaffDetail({
               </p>
               <p className="text-xs text-muted-foreground max-w-sm mx-auto">
                 Use <span className="font-medium text-foreground">Edit</span> to
-                describe the staff member&apos;s intent, system prompt, allowed
+                describe the agent&apos;s intent, system prompt, allowed
                 commands, and restrictions.
               </p>
             </div>
@@ -549,12 +549,12 @@ function StaffDetail({
               className="gap-1.5 mt-1"
               title={
                 member.readOnly
-                  ? "Store-linked staff are read-only"
-                  : "Edit staff member"
+                  ? "Store-linked agent are read-only"
+                  : "Edit agent"
               }
             >
               <Pencil className="w-3.5 h-3.5" />
-              Edit staff member
+              Edit agent
             </Button>
           </div>
         </div>
@@ -563,25 +563,25 @@ function StaffDetail({
   );
 }
 
-function CreateStaffDialog({
+function CreateAgentDialog({
   open,
   onClose,
   onCreated,
 }: {
   open: boolean;
   onClose: () => void;
-  onCreated: (member: Staff) => void;
+  onCreated: (member: Agent) => void;
 }) {
   const { githubUser } = useGitHubIdentity();
-  const createMutation = useCreateStaff(githubUser?.login);
+  const createMutation = useCreateAgent(githubUser?.login);
 
   const [title, setTitle] = useState("");
-  const [body, setBody] = useState(STAFF_TEMPLATE);
+  const [body, setBody] = useState(AGENT_TEMPLATE);
 
   useEffect(() => {
     if (open) {
       setTitle("");
-      setBody(STAFF_TEMPLATE);
+      setBody(AGENT_TEMPLATE);
     }
   }, [open]);
 
@@ -599,18 +599,18 @@ function CreateStaffDialog({
     <Dialog open={open} onOpenChange={(o) => (!o ? onClose() : null)}>
       <DialogContent className="max-w-4xl">
         <DialogHeader>
-          <DialogTitle>New staff member</DialogTitle>
+          <DialogTitle>New agent</DialogTitle>
           <DialogDescription>
-            Describe the staff member&apos;s intent, system prompt, allowed
+            Describe the agent&apos;s intent, system prompt, allowed
             commands, and restrictions.
           </DialogDescription>
         </DialogHeader>
 
         <div className="space-y-4 mt-2">
           <div className="space-y-1.5">
-            <Label htmlFor="staff-title">Title</Label>
+            <Label htmlFor="agent-title">Title</Label>
             <Input
-              id="staff-title"
+              id="agent-title"
               value={title}
               onChange={(e) => setTitle(e.target.value)}
               placeholder="e.g. Release notes manager"
@@ -645,12 +645,12 @@ function EditStaffDialog({
   onClose,
   onSaved,
 }: {
-  member: Staff;
+  member: Agent;
   onClose: () => void;
   onSaved: () => void;
 }) {
   const { githubUser } = useGitHubIdentity();
-  const updateMutation = useUpdateStaff(member.slug, githubUser?.login);
+  const updateMutation = useUpdateAgent(member.slug, githubUser?.login);
 
   const [title, setTitle] = useState(member.title);
   const [body, setBody] = useState(member.body || "");
@@ -679,18 +679,18 @@ function EditStaffDialog({
     <Dialog open onOpenChange={(o) => (!o ? onClose() : null)}>
       <DialogContent className="max-w-4xl">
         <DialogHeader>
-          <DialogTitle>Edit staff member `{member.slug}`</DialogTitle>
+          <DialogTitle>Edit agent `{member.slug}`</DialogTitle>
           <DialogDescription>
-            Update the staff member&apos;s title or body. Saving commits the
+            Update the agent&apos;s title or body. Saving commits the
             file to the default branch.
           </DialogDescription>
         </DialogHeader>
 
         <div className="space-y-4 mt-2">
           <div className="space-y-1.5">
-            <Label htmlFor="edit-staff-title">Title</Label>
+            <Label htmlFor="edit-agent-title">Title</Label>
             <Input
-              id="edit-staff-title"
+              id="edit-agent-title"
               value={title}
               onChange={(e) => setTitle(e.target.value)}
               autoFocus
@@ -723,11 +723,11 @@ function SendTaskDialog({
   member,
   onClose,
 }: {
-  member: Staff;
+  member: Agent;
   onClose: () => void;
 }) {
   const { githubUser } = useGitHubIdentity();
-  const dispatchMutation = useDispatchStaff(githubUser?.login);
+  const dispatchMutation = useDispatchAgent(githubUser?.login);
 
   const [message, setMessage] = useState("");
 

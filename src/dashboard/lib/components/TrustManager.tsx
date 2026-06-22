@@ -10,7 +10,7 @@
  *   recent-decision log sits at the bottom. State + mutations come from
  *   `useTrust`.
  *
- *   Trust is keyed per DUTY (not persona, not per action), so the controls are
+ *   Trust is keyed per DUTY (not agentIdentity, not per action), so the controls are
  *   present for every duty in the roster even before it has any history.
  */
 import { useMemo } from "react";
@@ -59,11 +59,11 @@ function DutyRow({
             <span className="text-body-base font-semibold text-white/90">
               {duty.duty}
             </span>
-            {duty.staff && (
+            {duty.agent && (
               <span className="text-body-xs text-muted-foreground">
                 runs as{" "}
                 <code className="rounded bg-white/[0.06] px-1 py-0.5 text-white/70">
-                  {duty.staff}
+                  {duty.agent}
                 </code>
               </span>
             )}

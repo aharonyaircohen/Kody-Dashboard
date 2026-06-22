@@ -1,5 +1,5 @@
 ---
-staff: ["*"]
+agent: ["*"]
 ---
 
 # Reports
@@ -8,7 +8,7 @@ Reports are generated state files on the `kody-state` branch under `.kody/report
 
 Use this index to choose which report to read:
 
-- `company-graph`: Kody structure, duties, staff, executables, skills, and context links.
+- `company-graph`: Kody structure, duties, agent, executables, skills, and context links.
 - `ci-health-graph`: GitHub Actions runs, PR checks, failing workflows, and CI blockers.
 - `pr-graph`: PR flow, review state, labels, branches, stale PRs, and blocked PRs.
 - `dependency-graph`: package manifests, lockfiles, dependency ranges, and version conflicts.

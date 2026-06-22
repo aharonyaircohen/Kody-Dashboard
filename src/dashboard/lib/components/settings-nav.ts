@@ -228,10 +228,10 @@ export const SETTINGS_NAV_SECTIONS: readonly SettingsNavSection[] = [
         tint: "text-amber-300 bg-amber-500/10",
       },
       {
-        href: "/staff",
-        label: "Staff",
+        href: "/agents",
+        label: "Agent",
         icon: Users,
-        description: "Personas that execute your duties.",
+        description: "Agent identities that execute your duties.",
         tint: "text-violet-300 bg-violet-500/10",
       },
       {
@@ -274,7 +274,7 @@ export const SETTINGS_NAV_SECTIONS: readonly SettingsNavSection[] = [
         label: "Context",
         icon: FileText,
         description:
-          "Curated markdown context you feed Kody — attach to staff; Kody's entries frame every chat turn.",
+          "Curated markdown context you feed Kody — attach to agent; Kody's entries frame every chat turn.",
         tint: "text-teal-300 bg-teal-500/10",
       },
       {
@@ -308,7 +308,7 @@ export const SETTINGS_NAV_SECTIONS: readonly SettingsNavSection[] = [
         label: "Import / Export",
         icon: Building2,
         description:
-          "Move your staff, duties, prompts, and instructions between repos as a portable bundle.",
+          "Move your agent, duties, prompts, and instructions between repos as a portable bundle.",
         tint: "text-emerald-300 bg-emerald-500/10",
       },
     ],

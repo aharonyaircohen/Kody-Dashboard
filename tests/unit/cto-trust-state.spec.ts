@@ -1,7 +1,7 @@
 /**
  * Tests for the duty-keyed trust ledger (`trust-state.ts`). Trust is whole-duty
  * (one mode + streak per duty slug, no action dimension). Contracts:
- *   - sibling duties of one persona stay independent;
+ *   - sibling duties of one agentIdentity stay independent;
  *   - approve bumps the streak and graduates at the threshold; reject zeroes +
  *     de-graduates; dismiss is neutral;
  *   - operator overrides (reset/graduate/degrade) are pure + immutable and work
@@ -41,7 +41,7 @@ function approvals(duty: string, n: number): TrustManifest {
 }
 
 describe("applyTrustDecision — whole-duty keying", () => {
-  it("keeps sibling duties of the same persona independent", () => {
+  it("keeps sibling duties of the same agentIdentity independent", () => {
     const m = approvals("qa-sweep", 10);
     expect(isGraduated(m, "qa-sweep")).toBe(true);
     expect(isGraduated(m, "qa-verify")).toBe(false);
@@ -134,19 +134,19 @@ describe("latestTrustDecisions", () => {
 describe("summarizeTrust", () => {
   it("emits a row for every roster duty even with no history (toggle always present)", () => {
     const views = summarizeTrust(EMPTY_TRUST_MANIFEST, [
-      { slug: "qa-sweep", staff: "qa" },
-      { slug: "docs-readme", staff: "tech-writer" },
+      { slug: "qa-sweep", agent: "qa" },
+      { slug: "docs-readme", agent: "tech-writer" },
     ]);
     expect(views).toHaveLength(2);
     const sweep = views.find((v) => v.duty === "qa-sweep")!;
-    expect(sweep.staff).toBe("qa");
+    expect(sweep.agent).toBe("qa");
     expect(sweep.mode).toBe("ask");
     expect(sweep.hasHistory).toBe(false);
   });
 
   it("computes remaining + progress toward the threshold", () => {
     const [qa] = summarizeTrust(approvals("qa", 4), [
-      { slug: "qa", staff: "qa" },
+      { slug: "qa", agent: "qa" },
     ]);
     expect(qa.remaining).toBe(TRUST_GRADUATION_THRESHOLD - 4);
     expect(qa.progress).toBeCloseTo(4 / TRUST_GRADUATION_THRESHOLD);

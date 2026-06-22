@@ -106,7 +106,7 @@ export function buildEntries(
   const repoUrl = `https://github.com/${owner}/${repo}`;
   const entries: InboxFeedEntry[] = [];
   for (const rec of failures) {
-    const who = rec.staffTitle ?? rec.staff ?? "Kody";
+    const who = rec.staffTitle ?? rec.agent ?? "Kody";
     const stoppedEarly =
       rec.outcomeKind != null && STOPPED_EARLY_KINDS.has(rec.outcomeKind);
     const what = rec.dutyTitle ?? rec.duty;
@@ -123,7 +123,7 @@ export function buildEntries(
         threadType: "Run",
         title,
         snippet,
-        author: rec.staff ?? undefined,
+        author: rec.agent ?? undefined,
         url: rec.runUrl ?? repoUrl,
         sentAt: rec.ts,
       });

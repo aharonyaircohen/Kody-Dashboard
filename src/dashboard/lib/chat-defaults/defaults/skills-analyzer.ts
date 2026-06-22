@@ -9,14 +9,14 @@ import type { SkillEntry } from "./types";
 export const DEFAULT_SKILL_DIAGNOSE_PR: SkillEntry = {
   slug: "diagnose-pr",
   title: "diagnose-pr",
-  body: `Triggers: "diagnose PR #N", "what did kody miss", "audit the kody fix", "why didn't kody solve this". Use the **deep question shape from the persona's hard rule #3** (verdict + \`### Findings\` + \`### What's missing or risky\`), then offer to draft the \`kody_fix_pr\` notes:
+  body: `Triggers: "diagnose PR #N", "what did kody miss", "audit the kody fix", "why didn't kody solve this". Use the **deep question shape from the agentIdentity's hard rule #3** (verdict + \`### Findings\` + \`### What's missing or risky\`), then offer to draft the \`kody_fix_pr\` notes:
 
 1. \`github_get_issue(N)\` — list claims verbatim.
 2. \`github_get_pull_request({ number: N, includeDiff: true })\` — list files touched.
 3. For each claim naming a field/function/behavior: \`github_search_code\` + \`github_get_file\`. Check whether the diff touches that path.
 4. Claims not covered by diff = the gap. No gap → say so explicitly in \`### Findings\`.
 5. Draft \`notes\` for \`kody_fix_pr\`: gap in one sentence, file:line evidence, what to change.
-6. Show draft, wait for explicit approval, then call \`kody_fix_pr({ prNumber, notes })\`. End with the forward-driving approval question from the persona.`,
+6. Show draft, wait for explicit approval, then call \`kody_fix_pr({ prNumber, notes })\`. End with the forward-driving approval question from the agentIdentity.`,
 };
 
 export const DEFAULT_SKILL_REPORT_ADVISE: SkillEntry = {
@@ -24,7 +24,7 @@ export const DEFAULT_SKILL_REPORT_ADVISE: SkillEntry = {
   title: "report-advise",
   body: `When a \`## Current report\` block is present, the user is viewing a markdown report from \`.kody/reports/<slug>.md\`. Recommend one of three paths and say which fits:
 
-1. **Create an issue** — if the report surfaces a concrete actionable item (a bug, a regression, a stuck task, a security finding worth fixing). Use \`report_bug\` or \`create_task\` per the issue-creation rules in the persona. Reference specific line items from the report body.
+1. **Create an issue** — if the report surfaces a concrete actionable item (a bug, a regression, a stuck task, a security finding worth fixing). Use \`report_bug\` or \`create_task\` per the issue-creation rules in the agentIdentity. Reference specific line items from the report body.
 2. **Attach to a mission** — if the report's findings fit an existing or proposed focused effort. Use \`create_task_for_goal\` with the mission id when the user has identified the parent mission.
 3. **No action** — sometimes a report is purely informational ("0 stuck tasks", "all checks green", routine status). Say so plainly and do not invent work to justify a follow-up.
 
@@ -52,7 +52,7 @@ If your research turned up nothing relevant (the mission is greenfield in this c
 
 **Pass 2 — Deepen and create (auto, after approval).** When the user replies with approval (e.g. "approve", "approved", "yes", "go", "ship it"), proceed automatically without asking again. For **each** approved task, in order:
 
-1. Research the codebase per the **Issue creation: research before drafting** rules in the persona (2–4 tool calls per task is plenty in planner mode — you already did the broad research in Pass 1; don't repeat it. Just confirm the specific files and symbols this one task will touch). Include a Research notes block in \`additionalContext\`.
+1. Research the codebase per the **Issue creation: research before drafting** rules in the agentIdentity (2–4 tool calls per task is plenty in planner mode — you already did the broad research in Pass 1; don't repeat it. Just confirm the specific files and symbols this one task will touch). Include a Research notes block in \`additionalContext\`.
 2. Call \`create_task_for_goal\` once with a fully-specced body: \`title\`, \`summary\`, \`requirements\` (concrete, with file paths and symbol names), \`acceptanceCriteria\` (testable bullets), \`affectedArea\` (paths), \`additionalContext\` (constraints, prior decisions, links, **and the required Research notes block**). \`category\` is required — pick the closest match. \`priority\` defaults to P2; raise to P1/P0 only if the mission description signals urgency.
 3. After all approved tasks are created, summarize: list each created issue (number + title + url) and stop. Do NOT call \`create_task_for_goal\` more than once per task. Do NOT loop indefinitely.
 

@@ -47,13 +47,7 @@ interface DutyProfile {
   capabilityKind?: DutyCapabilityKind;
   every?: ScheduleEvery;
   disabled?: boolean;
-  runner?: string;
-  /**
-   * Engine-facing staff slug. Mirrors `runner` and is the field the engine
-   * scheduler actually reads (`config.staff`). The dashboard writes both
-   * for now; readers that pick `runner ?? staff` keep working.
-   */
-  staff?: string;
+  agent?: string;
   reviewer?: string;
   mentions?: string[];
   executables?: string[];
@@ -87,14 +81,9 @@ export function buildDutyProfile(opts: TickWriteOptions): DutyProfile {
   if (opts.capabilityKind) profile.capabilityKind = opts.capabilityKind;
   if (opts.schedule) profile.every = opts.schedule;
   if (opts.disabled === true) profile.disabled = true;
-  // The engine reads `config.staff`; mirror the typed value to BOTH
-  // `staff` and `runner` in profile.json so existing readers (dashboard
-  // UI, parsers that look for `runner`) keep working while the engine
-  // finds the field it expects. `staff` wins when both are provided.
-  const staffSlug = (opts.staff ?? opts.runner ?? "").trim();
-  if (staffSlug) {
-    profile.staff = staffSlug;
-    profile.runner = staffSlug;
+  const agentSlug = (opts.agent ?? "").trim();
+  if (agentSlug) {
+    profile.agent = agentSlug;
   }
   if (opts.reviewer?.trim()) profile.reviewer = cleanLogin(opts.reviewer);
   if (opts.mentions?.length) profile.mentions = cleanList(opts.mentions, true);
@@ -123,7 +112,7 @@ export function buildDutyProfile(opts: TickWriteOptions): DutyProfile {
  * `extraProfile` override cannot clobber these — typed values always win.
  * Use the override to ADD new keys, not to replace typed ones. To clear a
  * typed value, pass the corresponding option as `null`/empty (e.g. omit
- * `staff` to remove the runner).
+ * `agent` to remove the agent).
  */
 const MANAGED_PROFILE_KEYS: ReadonlySet<string> = new Set([
   "name",
@@ -133,8 +122,7 @@ const MANAGED_PROFILE_KEYS: ReadonlySet<string> = new Set([
   "capabilityKind",
   "every",
   "disabled",
-  "staff",
-  "runner",
+  "agent",
   "reviewer",
   "mentions",
   "executables",
@@ -154,7 +142,7 @@ function parseDutyProfile(raw: unknown, slug: string): DutyProfile {
     capabilityKind: dutyCapabilityKindField(r.capabilityKind),
     every: isScheduleEvery(r.every) ? r.every : undefined,
     disabled: typeof r.disabled === "boolean" ? r.disabled : undefined,
-    runner: stringField(r.runner ?? r.staff),
+    agent: stringField(r.agent),
     reviewer: cleanLoginField(r.reviewer),
     mentions: listField(r.mentions).map((m) => m.replace(/^@/, "")),
     executables: listField(r.executables),
@@ -435,7 +423,7 @@ export async function readDutyFile(
       schedule: profile.every ?? null,
       capabilityKind: profile.capabilityKind ?? null,
       disabled: profile.disabled === true,
-      runner: profile.runner ?? null,
+      agent: profile.agent ?? null,
       reviewer: profile.reviewer ?? null,
       action: profile.action ?? slug,
       mentions: profile.mentions ?? [],
@@ -486,7 +474,7 @@ async function readStoreDutyFile(
     schedule: profile.every ?? null,
     capabilityKind: profile.capabilityKind ?? null,
     disabled: profile.disabled === true,
-    runner: profile.runner ?? null,
+    agent: profile.agent ?? null,
     reviewer: profile.reviewer ?? null,
     action: profile.action ?? slug,
     mentions: profile.mentions ?? [],

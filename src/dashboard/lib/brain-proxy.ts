@@ -118,7 +118,7 @@ export interface BrainChatRequest {
  * Output-only style overlay: makes Brain answer in plain, simple terms.
  * Appended LAST in the decorated message so its formatting rules win by
  * recency over the repo/task/duty preambles (same reasoning as the voice
- * overlay). It reshapes OUTPUT only — no mention of tools or persona.
+ * overlay). It reshapes OUTPUT only — no mention of tools or agentIdentity.
  */
 export const PLAIN_LANGUAGE_PREAMBLE = `[Answer style]
 Answer in plain, simple terms — explain it like you would to a smart teammate who is new to this codebase.
@@ -193,7 +193,7 @@ export function formatDutyContext(
     parts.push(`\n[Duty body]\n${truncated}`);
   }
   parts.push(
-    "\nThe user is chatting about this specific duty. A Kody duty is a folder at `.kody/duties/<slug>/`: `profile.json` holds action/cadence/staff metadata, and `duty.md` describes purpose, output, allowed commands, and restrictions. Answer grounded in the body above — do NOT claim the duty does not exist.",
+    "\nThe user is chatting about this specific duty. A Kody duty is a folder at `.kody/duties/<slug>/`: `profile.json` holds action/cadence/agents metadata, and `duty.md` describes purpose, output, allowed commands, and restrictions. Answer grounded in the body above — do NOT claim the duty does not exist.",
   );
   return parts.join("\n");
 }

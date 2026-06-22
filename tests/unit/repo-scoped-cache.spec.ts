@@ -15,7 +15,7 @@ import { variablesQueryKeys } from "@dashboard/lib/components/VariablesManager";
 import { contextQueryKeys } from "@dashboard/lib/hooks/useContextEntries";
 import { memoryQueryKeys } from "@dashboard/lib/hooks/useMemory";
 import { reportQueryKeys } from "@dashboard/lib/hooks/useReports";
-import { staffQueryKeys } from "@dashboard/lib/hooks/useStaff";
+import { agentQueryKeys } from "@dashboard/lib/hooks/useAgents";
 
 function stubAuth() {
   vi.stubGlobal("localStorage", {
@@ -40,8 +40,8 @@ describe("repo-scoped dashboard caches", () => {
     const scope = { owner: "A-Guy-educ", repo: "A-Guy" };
     const other = { owner: "other", repo: "repo" };
 
-    expect(staffQueryKeys.list(scope)).toEqual([
-      "kody-staff",
+    expect(agentQueryKeys.list(scope)).toEqual([
+      "kody-agent",
       "A-Guy-educ",
       "A-Guy",
     ]);
@@ -91,7 +91,7 @@ describe("repo-scoped dashboard caches", () => {
       "A-Guy",
     ]);
 
-    expect(staffQueryKeys.list(scope)).not.toEqual(staffQueryKeys.list(other));
+    expect(agentQueryKeys.list(scope)).not.toEqual(agentQueryKeys.list(other));
     expect(contextQueryKeys.list(scope)).not.toEqual(
       contextQueryKeys.list(other),
     );
@@ -125,8 +125,8 @@ describe("repo-scoped dashboard caches", () => {
     stubAuth();
     const fetchMock = vi.fn(async (input: RequestInfo | URL) => {
       const url = String(input);
-      const body = url.includes("/staff")
-        ? { staff: [] }
+      const body = url.includes("/agents")
+        ? { agent: [] }
         : url.includes("/context")
           ? { entries: [] }
           : url.includes("/memory")
@@ -145,7 +145,7 @@ describe("repo-scoped dashboard caches", () => {
     await reportsApi.list();
 
     expect(fetchMock).toHaveBeenCalledWith(
-      "/api/kody/staff",
+      "/api/kody/agents",
       expect.objectContaining({ cache: "no-store" }),
     );
     expect(fetchMock).toHaveBeenCalledWith(

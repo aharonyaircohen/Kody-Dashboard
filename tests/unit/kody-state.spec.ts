@@ -105,7 +105,7 @@ describe("parseKodyStateComment", () => {
           action: "VERIFIED",
           flavor: "scheduled",
           schedule: "0 */6 * * *",
-          staff: "qa-engineer",
+          agent: "qa-engineer",
           status: "failed",
           runUrl: "https://github.com/x/y/actions/runs/123",
         },

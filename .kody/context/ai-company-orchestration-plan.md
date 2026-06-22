@@ -1,5 +1,5 @@
 ---
-staff: [kody]
+agent: [kody]
 ---
 
 # AI Company Orchestration — 7-Gap Plan

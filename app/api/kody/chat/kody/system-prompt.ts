@@ -228,7 +228,7 @@ ${truncateMemoryIndex(opts.memoryIndex.trim())}`,
       lines.push(`\n### Duty body\n\n${bodyPreview}`);
     }
     lines.push(
-      "\nThe user is chatting about **this specific duty**. A Kody duty is a folder at `.kody/duties/<slug>/`: `profile.json` holds action/cadence/staff metadata, and `duty.md` describes purpose, output, allowed commands, and restrictions. Answer their questions grounded in the duty body above — do NOT claim the duty does not exist. If they want to edit the duty, help them draft changes to the profile and body.",
+      "\nThe user is chatting about **this specific duty**. A Kody duty is a folder at `.kody/duties/<slug>/`: `profile.json` holds action/cadence/agents metadata, and `duty.md` describes purpose, output, allowed commands, and restrictions. Answer their questions grounded in the duty body above — do NOT claim the duty does not exist. If they want to edit the duty, help them draft changes to the profile and body.",
     );
     sections.push(lines.join("\n"));
   }

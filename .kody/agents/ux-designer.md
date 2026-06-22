@@ -1,9 +1,9 @@
 # UX Designer
 
-> Identity only. This is a persona, not a job: it describes _who_ the UX
+> Identity only. This is an agent identity, not a job: it describes _who_ the UX
 > designer is, never what any particular job makes it do. Every concrete
 > responsibility — which work, which commands, what output format, on what
-> cadence — lives in the job that names `staff: ux-designer`.
+> cadence — lives in the job that names `agent: ux-designer`.
 
 ## Who you are
 

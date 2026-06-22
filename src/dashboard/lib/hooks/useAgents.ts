@@ -1,9 +1,9 @@
 /**
  * @fileType hook
  * @domain kody
- * @pattern staff-control-hooks
- * @ai-summary React Query hooks for the Staff Control page.
- *   Backed by `.kody/staff/<slug>.md` files in the connected repo via
+ * @pattern agent-control-hooks
+ * @ai-summary React Query hooks for the Agent Control page.
+ *   Backed by `.kody/agents/<slug>.md` files in the connected repo via
  *   the contents API. Duplicated from useDuties.ts.
  */
 "use client";
@@ -12,54 +12,54 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import {
   kodyApi,
-  type Staff,
+  type Agent,
   NoTokenError,
   SessionExpiredError,
   getStoredAuth,
 } from "../api";
 import { useAuth } from "../auth-context";
 
-export interface StaffQueryScope {
+export interface AgentQueryScope {
   owner?: string | null;
   repo?: string | null;
 }
 
-export function staffQueryScopeFromAuth(
+export function agentQueryScopeFromAuth(
   auth: { owner?: string | null; repo?: string | null } | null | undefined,
-): StaffQueryScope {
+): AgentQueryScope {
   return {
     owner: auth?.owner ?? null,
     repo: auth?.repo ?? null,
   };
 }
 
-export const staffQueryKeys = {
-  all: ["kody-staff"] as const,
-  list: (scope: StaffQueryScope = {}) =>
-    ["kody-staff", scope.owner ?? null, scope.repo ?? null] as const,
-  detail: (slug: string, scope: StaffQueryScope = {}) =>
+export const agentQueryKeys = {
+  all: ["kody-agent"] as const,
+  list: (scope: AgentQueryScope = {}) =>
+    ["kody-agent", scope.owner ?? null, scope.repo ?? null] as const,
+  detail: (slug: string, scope: AgentQueryScope = {}) =>
     [
-      "kody-staff-member",
+      "kody-agent-member",
       scope.owner ?? null,
       scope.repo ?? null,
       slug,
     ] as const,
 };
 
-function useStaffQueryScope() {
+function useAgentsQueryScope() {
   const { auth } = useAuth();
   const currentAuth = auth ?? getStoredAuth();
   return {
     currentAuth,
-    scope: staffQueryScopeFromAuth(currentAuth),
+    scope: agentQueryScopeFromAuth(currentAuth),
   };
 }
 
-export function useStaff() {
-  const { currentAuth, scope } = useStaffQueryScope();
+export function useAgents() {
+  const { currentAuth, scope } = useAgentsQueryScope();
   return useQuery({
-    queryKey: staffQueryKeys.list(scope),
-    queryFn: () => kodyApi.staff.list(),
+    queryKey: agentQueryKeys.list(scope),
+    queryFn: () => kodyApi.agent.list(),
     enabled: !!currentAuth,
     staleTime: 30_000,
     retry: (failureCount, error) => {
@@ -70,22 +70,22 @@ export function useStaff() {
   });
 }
 
-export function useStaffMember(slug: string | null) {
-  const { currentAuth, scope } = useStaffQueryScope();
+export function useAgent(slug: string | null) {
+  const { currentAuth, scope } = useAgentsQueryScope();
   return useQuery({
-    queryKey: staffQueryKeys.detail(slug ?? "", scope),
-    queryFn: () => kodyApi.staff.get(slug!),
+    queryKey: agentQueryKeys.detail(slug ?? "", scope),
+    queryFn: () => kodyApi.agent.get(slug!),
     enabled: !!currentAuth && !!slug,
     staleTime: 30_000,
   });
 }
 
-export function useCreateStaff(actorLogin?: string) {
+export function useCreateAgent(actorLogin?: string) {
   const queryClient = useQueryClient();
-  const { scope } = useStaffQueryScope();
+  const { scope } = useAgentsQueryScope();
 
   return useMutation<
-    Staff,
+    Agent,
     Error,
     {
       slug?: string;
@@ -94,29 +94,29 @@ export function useCreateStaff(actorLogin?: string) {
     }
   >({
     mutationFn: (data) =>
-      kodyApi.staff.create({
+      kodyApi.agent.create({
         ...data,
         ...(actorLogin && { actorLogin }),
       }),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: staffQueryKeys.all });
-      queryClient.invalidateQueries({ queryKey: staffQueryKeys.list(scope) });
-      toast.success("Staff member created");
+      queryClient.invalidateQueries({ queryKey: agentQueryKeys.all });
+      queryClient.invalidateQueries({ queryKey: agentQueryKeys.list(scope) });
+      toast.success("Agent member created");
     },
     onError: (error) => {
-      toast.error("Failed to create staff member", {
+      toast.error("Failed to create agent", {
         description: error.message,
       });
     },
   });
 }
 
-export function useUpdateStaff(slug: string, actorLogin?: string) {
+export function useUpdateAgent(slug: string, actorLogin?: string) {
   const queryClient = useQueryClient();
-  const { scope } = useStaffQueryScope();
+  const { scope } = useAgentsQueryScope();
 
   return useMutation<
-    Staff,
+    Agent,
     Error,
     {
       title?: string;
@@ -124,40 +124,40 @@ export function useUpdateStaff(slug: string, actorLogin?: string) {
     }
   >({
     mutationFn: (data) =>
-      kodyApi.staff.update(slug, {
+      kodyApi.agent.update(slug, {
         ...data,
         ...(actorLogin && { actorLogin }),
       }),
-    onSuccess: (staffMember) => {
-      queryClient.invalidateQueries({ queryKey: staffQueryKeys.all });
-      queryClient.invalidateQueries({ queryKey: staffQueryKeys.list(scope) });
-      queryClient.setQueryData(staffQueryKeys.detail(slug, scope), staffMember);
-      toast.success("Staff member updated");
+    onSuccess: (agentMember) => {
+      queryClient.invalidateQueries({ queryKey: agentQueryKeys.all });
+      queryClient.invalidateQueries({ queryKey: agentQueryKeys.list(scope) });
+      queryClient.setQueryData(agentQueryKeys.detail(slug, scope), agentMember);
+      toast.success("Agent member updated");
     },
     onError: (error) => {
-      toast.error("Failed to update staff member", {
+      toast.error("Failed to update agent", {
         description: error.message,
       });
     },
   });
 }
 
-export function useDeleteStaff(actorLogin?: string) {
+export function useDeleteAgent(actorLogin?: string) {
   const queryClient = useQueryClient();
-  const { scope } = useStaffQueryScope();
+  const { scope } = useAgentsQueryScope();
 
   return useMutation<void, Error, string>({
-    mutationFn: (slug) => kodyApi.staff.remove(slug, actorLogin),
+    mutationFn: (slug) => kodyApi.agent.remove(slug, actorLogin),
     onSuccess: (_, slug) => {
-      queryClient.invalidateQueries({ queryKey: staffQueryKeys.all });
-      queryClient.invalidateQueries({ queryKey: staffQueryKeys.list(scope) });
+      queryClient.invalidateQueries({ queryKey: agentQueryKeys.all });
+      queryClient.invalidateQueries({ queryKey: agentQueryKeys.list(scope) });
       queryClient.removeQueries({
-        queryKey: staffQueryKeys.detail(slug, scope),
+        queryKey: agentQueryKeys.detail(slug, scope),
       });
-      toast.success("Staff member deleted");
+      toast.success("Agent member deleted");
     },
     onError: (error) => {
-      toast.error("Failed to delete staff member", {
+      toast.error("Failed to delete agent", {
         description: error.message,
       });
     },
@@ -165,25 +165,25 @@ export function useDeleteStaff(actorLogin?: string) {
 }
 
 /**
- * Dispatch an ad-hoc message to a staff member — runs the persona one-shot
+ * Dispatch an ad-hoc message to an agent — runs the agent one-shot
  * (like a duty) and replies on the control issue. When `actorLogin` is set,
  * the reply @-mentions the requester so it lands in their inbox.
  */
-export function useDispatchStaff(actorLogin?: string) {
+export function useDispatchAgent(actorLogin?: string) {
   return useMutation<
     { issueNumber: number; commentId: number; commentUrl: string },
     Error,
     { slug: string; message: string }
   >({
     mutationFn: ({ slug, message }) =>
-      kodyApi.staff.dispatch(slug, {
+      kodyApi.agent.dispatch(slug, {
         message,
         ...(actorLogin && { actorLogin }),
       }),
     onSuccess: () => {
       toast.success("Task sent", {
         description:
-          "The staff member is running it now — the reply will appear on the control issue" +
+          "The agent is running it now — the reply will appear on the control issue" +
           (actorLogin ? " and in your inbox." : "."),
       });
     },

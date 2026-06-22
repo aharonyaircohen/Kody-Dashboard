@@ -4,7 +4,7 @@
  * @pattern context-page
  * @ai-summary Context CRUD entry point. Manages free-form markdown files
  *   stored at `.kody/context/<slug>.md`. Entries owned by the built-in
- *   `kody` staff are injected into the kody-direct chat system prompt so the
+ *   `kody` agent are injected into the kody-direct chat system prompt so the
  *   agent knows what the company is and does.
  */
 import { AuthGuard } from "@dashboard/lib/auth-guard";
@@ -17,7 +17,7 @@ export const fetchCache = "force-cache";
 
 export const metadata = buildKodyMetadata({
   title: "Context — Kody Operations Dashboard",
-  description: "Curated markdown context you feed Kody, attached to staff.",
+  description: "Curated markdown context you feed Kody, attached to agent.",
   path: "/context",
 });
 

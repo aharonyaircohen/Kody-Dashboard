@@ -4,7 +4,7 @@
  * @pattern engine-mirror
  * @ai-summary The dashboard's mirror of the engine's `Job` — the unified
  * execution unit. A job ASSEMBLES the reusable nouns into one runnable thing:
- *   - duty (public action/WHY) · executable (HOW) · persona/staff (WHO)
+ *   - duty (public action/WHY) · executable (HOW) · agent/agents (WHO)
  *   - schedule (WHEN)   · target (issue/PR)    · cliArgs · flavor · force
  *
  * Kody now dispatches duties only. An executable can still be linked as the
@@ -22,8 +22,8 @@ export interface KodyJob {
   duty?: string;
   /** WHY (inline): free-text intent, e.g. an `@kody` comment body. */
   why?: string;
-  /** WHO: a staff persona slug. */
-  persona?: string;
+  /** WHO: an agentIdentity slug. */
+  agent?: string;
   /** WHEN: cron expression. Set for scheduled jobs, absent for instant. */
   schedule?: string;
   /** The issue/PR number this job acts on, when applicable. */
@@ -78,7 +78,7 @@ export function validateKodyJob(input: unknown): KodyJob {
     executable: typeof j.executable === "string" ? j.executable : undefined,
     duty: j.duty,
     why: typeof j.why === "string" && j.why.length > 0 ? j.why : undefined,
-    persona: typeof j.persona === "string" ? j.persona : undefined,
+    agent: typeof j.agent === "string" ? j.agent : undefined,
     schedule: typeof j.schedule === "string" ? j.schedule : undefined,
     target: typeof j.target === "number" ? j.target : undefined,
     cliArgs: (j.cliArgs as Record<string, unknown> | undefined) ?? {},

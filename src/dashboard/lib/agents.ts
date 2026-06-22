@@ -183,7 +183,7 @@ export const AGENT_KODY: AgentConfig = {
     "Reply in under a second to first token (no Actions cold start)",
   ],
   // The actual system prompt is composed at runtime from the chat-defaults
-  // bundle (`@dashboard/lib/chat-defaults`). The persona + workflows + skills
+  // bundle (`@dashboard/lib/chat-defaults`). The agentIdentity + workflows + skills
   // + tool allowlist are data, not source. The string below is a placeholder
   // for any code path that still reads `agent.systemPrompt` directly — the
   // kody-direct route composes the real prompt via `composeBasePrompt(bundle)`.

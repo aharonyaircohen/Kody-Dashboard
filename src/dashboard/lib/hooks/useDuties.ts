@@ -91,7 +91,7 @@ export function useCreateDuty(actorLogin?: string) {
       schedule?: DutySchedule | null;
       capabilityKind?: DutyCapabilityKind | null;
       disabled?: boolean;
-      runner?: string | null;
+      agent?: string | null;
       reviewer?: string | null;
       action?: string | null;
       mentions?: string[];
@@ -132,7 +132,7 @@ export function useUpdateDuty(slug: string, actorLogin?: string) {
       schedule?: DutySchedule | null;
       capabilityKind?: DutyCapabilityKind | null;
       disabled?: boolean;
-      runner?: string | null;
+      agent?: string | null;
       reviewer?: string | null;
       action?: string | null;
       mentions?: string[];

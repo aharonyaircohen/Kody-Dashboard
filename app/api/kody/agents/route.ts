@@ -1,9 +1,9 @@
 /**
  * @fileType api-endpoint
  * @domain kody
- * @pattern staff-api
- * @ai-summary Staff Control API — GET lists staff, POST creates one.
- *   A staff member is a markdown file at `.kody/staff/<slug>.md` in the
+ * @pattern agent-api
+ * @ai-summary Agent Control API — GET lists agent, POST creates one.
+ *   An agent is a markdown file at `.kody/agents/<slug>.md` in the
  *   connected repo. Duplicated from the duties API; the manual "Run now"
  *   path reuses the engine's `duty-tick` plumbing.
  */
@@ -21,11 +21,11 @@ import {
   clearGitHubContext,
 } from "@dashboard/lib/github-client";
 import {
-  listResolvedStaffFiles,
-  writeStaffFile,
+  listResolvedAgentFiles,
+  writeAgentFile,
   isValidSlug,
-  readStaffFile,
-} from "@dashboard/lib/staff-files";
+  readAgentFile,
+} from "@dashboard/lib/agent-files";
 import { recordAudit } from "@dashboard/lib/activity/audit";
 
 export const dynamic = "force-dynamic";
@@ -48,10 +48,10 @@ export async function GET(req: NextRequest) {
     );
 
   try {
-    const staff = await listResolvedStaffFiles();
-    return NextResponse.json({ staff }, { headers: NO_STORE_HEADERS });
+    const agent = await listResolvedAgentFiles();
+    return NextResponse.json({ agent }, { headers: NO_STORE_HEADERS });
   } catch (error: any) {
-    console.error("[Staff] Error fetching staff:", error);
+    console.error("[Agent] Error fetching agent:", error);
 
     if (error?.status === 401) {
       return NextResponse.json(
@@ -67,7 +67,7 @@ export async function GET(req: NextRequest) {
     }
 
     return NextResponse.json(
-      { staff: [], error: error?.message || "Failed to fetch staff" },
+      { agent: [], error: error?.message || "Failed to fetch agent" },
       { status: 500, headers: NO_STORE_HEADERS },
     );
   } finally {
@@ -75,7 +75,7 @@ export async function GET(req: NextRequest) {
   }
 }
 
-const createStaffSchema = z.object({
+const createAgentSchema = z.object({
   slug: z.string().min(1).max(64).optional(),
   title: z.string().min(1),
   body: z.string().default(""),
@@ -113,7 +113,7 @@ export async function POST(req: NextRequest) {
       title,
       body,
       actorLogin,
-    } = createStaffSchema.parse(payload);
+    } = createAgentSchema.parse(payload);
 
     const slug = requestedSlug ?? slugifyTitle(title);
     if (!slug || !isValidSlug(slug)) {
@@ -121,18 +121,18 @@ export async function POST(req: NextRequest) {
         {
           error: "invalid_slug",
           message:
-            "Staff slug must be lowercase letters, digits, dashes, or underscores.",
+            "Agent slug must be lowercase letters, digits, dashes, or underscores.",
         },
         { status: 400 },
       );
     }
 
-    const existing = await readStaffFile(slug);
+    const existing = await readAgentFile(slug);
     if (existing) {
       return NextResponse.json(
         {
           error: "slug_taken",
-          message: `Staff member "${slug}" already exists.`,
+          message: `Agent member "${slug}" already exists.`,
         },
         { status: 409 },
       );
@@ -147,13 +147,13 @@ export async function POST(req: NextRequest) {
         {
           error: "no_user_token",
           message:
-            "A signed-in GitHub token is required to commit staff files.",
+            "A signed-in GitHub token is required to commit agent files.",
         },
         { status: 401 },
       );
     }
 
-    const staffMember = await writeStaffFile({
+    const agentMember = await writeAgentFile({
       octokit: userOctokit,
       slug,
       title,
@@ -161,15 +161,15 @@ export async function POST(req: NextRequest) {
     });
 
     recordAudit(req, {
-      action: "staff.create",
+      action: "agent.create",
       resource: slug,
-      staff: slug,
-      detail: `created staff "${title}"`,
+      agent: slug,
+      detail: `created agent "${title}"`,
     });
 
-    return NextResponse.json({ staffMember });
+    return NextResponse.json({ agentMember });
   } catch (error: any) {
-    console.error("[Staff] Error creating staff member:", error);
+    console.error("[Agent] Error creating agent:", error);
 
     if (error instanceof z.ZodError) {
       return NextResponse.json(
@@ -188,7 +188,7 @@ export async function POST(req: NextRequest) {
     return NextResponse.json(
       {
         error: "create_failed",
-        message: error?.message ?? "Failed to create staff member",
+        message: error?.message ?? "Failed to create agent",
       },
       { status: 500 },
     );

@@ -5,7 +5,7 @@
  * @pattern duty-trust-client
  * @ai-summary TanStack Query binding for the /trust page. Reads the duty-keyed
  *   trust ledger (GET /api/kody/cto/trust, backed by a kody-state file) AND the
- *   duty roster (to show the persona each duty runs as), then projects both
+ *   duty roster (to show the agentIdentity each duty runs as), then projects both
  *   through the pure `summarizeTrust` into per-duty view rows.
  *
  *   Exposes `setTrust({ duty, action, op })` — a mutation over POST
@@ -62,7 +62,7 @@ export function useTrust(): UseTrustResult {
     refetchOnWindowFocus: true,
   });
 
-  // Reuse the duties list (its own cache) only to map duty → persona.
+  // Reuse the duties list (its own cache) only to map duty → agentIdentity.
   const dutiesQuery = useQuery({
     queryKey: ["duties", auth?.owner, auth?.repo],
     queryFn: () => kodyApi.duties.list(),
@@ -88,7 +88,7 @@ export function useTrust(): UseTrustResult {
     };
     const dutyLinks = (dutiesQuery.data ?? []).map((d) => ({
       slug: d.slug,
-      staff: d.runner,
+      agent: d.agent,
     }));
     return summarizeTrust(manifest, dutyLinks);
   }, [trustQuery.data, dutiesQuery.data]);

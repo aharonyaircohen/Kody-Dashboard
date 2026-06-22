@@ -1,5 +1,5 @@
 ---
-staff: ["*"]
+agent: ["*"]
 ---
 
 # Docs Graph Context

@@ -12,7 +12,7 @@ describe("folder-backed duty files", () => {
       executable: "repo-graph",
       schedule: "1d",
       disabled: true,
-      runner: "cto",
+      agent: "cto",
       reviewer: "@qa",
       mentions: ["@alice", "bob"],
       dutyTools: ["ensure_issue"],
@@ -27,11 +27,8 @@ describe("folder-backed duty files", () => {
       executable: "repo-graph",
       every: "1d",
       disabled: true,
-      // The engine reads `config.staff`; the dashboard mirrors the
-      // typed `runner` value to BOTH `staff` and `runner` in profile.json
-      // so engine-side picks it up while legacy readers still see `runner`.
-      staff: "cto",
-      runner: "cto",
+      // The engine reads `config.agent`; the dashboard mirrors the
+      agent: "cto",
       reviewer: "qa",
       mentions: ["alice", "bob"],
       tools: ["ensure_issue"],
@@ -42,29 +39,15 @@ describe("folder-backed duty files", () => {
     expect(profile).not.toHaveProperty("assignee");
   });
 
-  it("accepts the new `staff` input field as the primary name", () => {
+  it("accepts the new `agent` input field as the primary name", () => {
     const profile = buildDutyProfile({
       octokit: {} as never,
-      slug: "from-staff",
-      title: "From Staff",
+      slug: "from-agent",
+      title: "From Agent",
       body: "ignored",
-      staff: "qa",
+      agent: "qa",
     });
-    expect(profile.staff).toBe("qa");
-    expect(profile.runner).toBe("qa");
-  });
-
-  it("prefers `staff` over `runner` when both are provided", () => {
-    const profile = buildDutyProfile({
-      octokit: {} as never,
-      slug: "both",
-      title: "Both",
-      body: "ignored",
-      staff: "qa",
-      runner: "cto",
-    });
-    expect(profile.staff).toBe("qa");
-    expect(profile.runner).toBe("qa");
+    expect(profile.agent).toBe("qa");
   });
 
   it("merges `extraProfile` raw overrides on top of the typed fields", () => {
@@ -73,7 +56,7 @@ describe("folder-backed duty files", () => {
       slug: "override",
       title: "Override",
       body: "ignored",
-      staff: "qa",
+      agent: "qa",
       schedule: "1d",
       extraProfile: {
         version: 2,
@@ -82,7 +65,7 @@ describe("folder-backed duty files", () => {
       },
     });
     expect(profile).toMatchObject({
-      staff: "qa",
+      agent: "qa",
       version: 2,
       customFlag: "yes",
     });

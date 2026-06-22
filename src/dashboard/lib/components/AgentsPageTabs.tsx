@@ -1,9 +1,9 @@
 /**
  * @fileType component
  * @domain kody
- * @pattern staff-page-tabs
- * @ai-summary Tabbed shell for the Staff page — mirrors DutiesPageTabs.
- *   Hosts Staff Control under a single route. Only the Staff tab is
+ * @pattern agent-page-tabs
+ * @ai-summary Tabbed shell for the Agent page — mirrors DutiesPageTabs.
+ *   Hosts Agent Control under a single route. Only the Agent tab is
  *   present: the Reports tab is intentionally omitted because reports
  *   live at `.kody/reports/` and are already surfaced on the Duties page —
  *   duplicating them here would show the same data twice. Active tab is
@@ -18,20 +18,20 @@ import { ArrowLeft } from "lucide-react";
 
 import { Button } from "@dashboard/ui/button";
 import { cn } from "@dashboard/lib/utils/ui";
-import { StaffControl } from "./StaffControl";
+import { AgentsControl } from "./AgentsControl";
 import { SimpleTooltip } from "./SimpleTooltip";
 
-type Tab = "staff";
+type Tab = "agent";
 
-const TABS: { id: Tab; label: string }[] = [{ id: "staff", label: "Staff" }];
+const TABS: { id: Tab; label: string }[] = [{ id: "agent", label: "Agent" }];
 
 function parseTab(_value: string | null | undefined): Tab {
-  return "staff";
+  return "agent";
 }
 
-export function StaffPageTabs() {
+export function AgentsPageTabs() {
   const router = useRouter();
-  const pathname = usePathname() ?? "/staff";
+  const pathname = usePathname() ?? "/agents";
   const searchParams = useSearchParams();
   const [active, setActive] = useState<Tab>(() =>
     parseTab(searchParams?.get("tab")),
@@ -71,7 +71,7 @@ export function StaffPageTabs() {
           </SimpleTooltip>
           <div
             role="tablist"
-            aria-label="Staff view"
+            aria-label="Agent view"
             className="flex items-center gap-1"
           >
             {TABS.map((tab) => {
@@ -82,7 +82,7 @@ export function StaffPageTabs() {
                   type="button"
                   role="tab"
                   aria-selected={isActive}
-                  aria-controls={`staff-tab-panel-${tab.id}`}
+                  aria-controls={`agent-tab-panel-${tab.id}`}
                   onClick={() => onSelect(tab.id)}
                   className={cn(
                     "relative px-3 py-2 text-sm font-medium transition-colors",
@@ -101,11 +101,11 @@ export function StaffPageTabs() {
       </div>
 
       <div
-        id={`staff-tab-panel-${active}`}
+        id={`agent-tab-panel-${active}`}
         role="tabpanel"
         className="flex-1 min-h-0 overflow-hidden"
       >
-        <StaffControl embedded />
+        <AgentsControl embedded />
       </div>
     </div>
   );

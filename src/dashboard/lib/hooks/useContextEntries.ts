@@ -4,8 +4,8 @@
  * @pattern context-control-hooks
  * @ai-summary React Query hooks for the Context page.
  *   Backed by `.kody/context/<slug>.md` files in the connected repo via
- *   the contents API. Each entry carries a `staff:` list of staff-member
- *   slugs that own it, deciding which consumers load it. Mirrors useStaff.ts.
+ *   the contents API. Each entry carries a `agent:` list of agent-member
+ *   slugs that own it, deciding which consumers load it. Mirrors useAgents.ts.
  *   (Named `useContextEntries`, not `useContext`, to avoid colliding with
  *   React's `useContext`.)
  */
@@ -93,7 +93,7 @@ export function useCreateContextEntry(actorLogin?: string) {
     {
       slug: string;
       body: string;
-      staff: string[];
+      agent: string[];
     }
   >({
     mutationFn: (data) =>
@@ -123,7 +123,7 @@ export function useUpdateContextEntry(slug: string, actorLogin?: string) {
     Error,
     {
       body?: string;
-      staff?: string[];
+      agent?: string[];
     }
   >({
     mutationFn: (data) =>

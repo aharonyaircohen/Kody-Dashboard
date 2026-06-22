@@ -38,12 +38,12 @@ export interface GoalRunState {
   mergeApproved?: boolean;
   /**
    * "Let Kody manage this goal end-to-end." When true, the `goal-manager`
-   * staff member (`.kody/staff/goal-manager.md`) picks the goal up: decomposes
+   * agent (`.kody/agents/goal-manager.md`) picks the goal up: decomposes
    * it into task issues, lets `goal-tick` execute them, verifies the
    * end-to-end journey with `qa-engineer`, recovers stalls, and leaves a
    * single open deliverable PR for a human to merge. Absent/false → the
-   * staff member ignores the goal entirely. Written only by the dashboard's
-   * `/goals/<id>/manage` endpoint; the engine/staff only reads it.
+   * agent ignores the goal entirely. Written only by the dashboard's
+   * `/goals/<id>/manage` endpoint; the engine/agents only reads it.
    */
   managed?: boolean;
   /**

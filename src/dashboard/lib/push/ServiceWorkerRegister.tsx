@@ -4,7 +4,7 @@
  * @domain kody
  * @pattern service-worker-bootstrap
  * @ai-summary Registers `/sw.js` on first load. Mounted once via
- *   KodyProviders. No-ops when the browser doesn't support service workers
+ *   KodyProviders. No-ops when the browser doesn't support service agents
  *   (older Safari, some embedded webviews) or when running over `http://`
  *   on a non-localhost origin (push requires a secure origin).
  *

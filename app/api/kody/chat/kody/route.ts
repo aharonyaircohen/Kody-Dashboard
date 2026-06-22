@@ -70,7 +70,7 @@ import { createBugTools } from "../tools/bug-tools";
 import { createTaskTools } from "../tools/task-tools";
 import { createGoalTools } from "../tools/goal-tools";
 import { createDutyTools } from "../tools/duty-tools";
-import { createStaffTools } from "../tools/staff-tools";
+import { createAgentTools } from "../tools/agent-tools";
 import { createMemoryTools } from "../tools/memory-tools";
 import { createExecutableTools } from "../tools/executable-tools";
 import { createPlannerTools } from "../tools/planner-tools";
@@ -94,7 +94,7 @@ import { createNotificationTools } from "../tools/notifications-tools";
 import { createCompanyTools } from "../tools/company-tools";
 import { createInboxTools } from "../tools/inbox-tools";
 import { applyReasoning } from "@dashboard/lib/chat/reasoning-adapter";
-import { createStaffAdminTools } from "../tools/staff-admin-tools";
+import { createAgentAdminTools } from "../tools/agent-admin-tools";
 import { createDutyAdminTools } from "../tools/duty-admin-tools";
 import { createMacroTools } from "../tools/macros-tools";
 import {
@@ -446,7 +446,7 @@ export async function POST(req: NextRequest) {
      */
     currentPage?: string;
     /**
-     * Which agent persona to use for the system prompt. Defaults to `kody`.
+     * Which agentIdentity to use for the system prompt. Defaults to `kody`.
      * Any agent whose backend is `kody-direct` is served natively here;
      * agents whose backend is the engine, brain, or kody-live don't have
      * their prompts proxied through this route, so the route falls back to
@@ -569,7 +569,7 @@ export async function POST(req: NextRequest) {
     }
   }
 
-  // Pick the agent persona. Agents whose backend is `kody-direct` are
+  // Pick the agentIdentity. Agents whose backend is `kody-direct` are
   // served natively here; the rest (engine, brain, kody-live) don't have
   // a usable in-process prompt to swap in.
   //
@@ -664,7 +664,7 @@ export async function POST(req: NextRequest) {
     }
   }
 
-  // Load the chat defaults bundle — persona + executable + duties + skills.
+  // Load the chat defaults bundle — agentIdentity + executable + duties + skills.
   // The bundle is the source of truth for the chat's prompt base + tool
   // allowlist. Repo-stored with a TS fallback; step 1 returns TS defaults.
   const chatBundle = await loadChatDefaults(repo?.owner, repo?.repo);
@@ -710,7 +710,7 @@ export async function POST(req: NextRequest) {
         repo: repo.repo,
         actorLogin: verifiedActorLogin,
       }),
-      ...createStaffTools({
+      ...createAgentTools({
         octokit,
         owner: repo.owner,
         repo: repo.repo,
@@ -798,7 +798,7 @@ export async function POST(req: NextRequest) {
         owner: repo.owner,
         repo: repo.repo,
       }),
-      ...createStaffAdminTools({
+      ...createAgentAdminTools({
         octokit,
         owner: repo.owner,
         repo: repo.repo,

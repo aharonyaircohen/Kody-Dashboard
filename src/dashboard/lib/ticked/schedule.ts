@@ -5,7 +5,7 @@
  * @ai-summary Helpers for rendering ticked-file schedule UI: "next
  *   scheduled tick" math (driven by the engine cron in
  *   templates/kody.yml — every 15 minutes) and relative-time formatting
- *   for "last ticked". Shared by duties and staff; `duties-schedule.ts`
+ *   for "last ticked". Shared by duties and agent; `duties-schedule.ts`
  *   is a thin re-export shim over this module.
  *
  *   The engine cron is fixed at `*\/15 * * * *`. If that ever becomes

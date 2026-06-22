@@ -12,7 +12,7 @@ describe("KodyJob duty dispatch boundary", () => {
     const job = validateKodyJob({
       executable: "qa-verify", // HOW
       duty: "nightly-qa", // WHY (slug)
-      persona: "qa-engineer", // WHO
+      agent: "qa-engineer", // WHO
       schedule: "0 3 * * *", // WHEN
       target: 42,
       cliArgs: { pr: 42 },
@@ -20,7 +20,7 @@ describe("KodyJob duty dispatch boundary", () => {
     });
     expect(job.executable).toBe("qa-verify");
     expect(job.duty).toBe("nightly-qa");
-    expect(job.persona).toBe("qa-engineer");
+    expect(job.agent).toBe("qa-engineer");
     expect(job.schedule).toBe("0 3 * * *");
     expect(job.flavor).toBe("scheduled");
   });

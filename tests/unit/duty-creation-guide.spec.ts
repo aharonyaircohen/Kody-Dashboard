@@ -21,7 +21,7 @@ describe("duty creation guide wiring", () => {
   it("documents the user-facing duty contract", () => {
     expect(DUTY_GUIDE).toContain("A **duty** is recurring work");
     expect(DUTY_GUIDE).toContain("`create_or_update_kody_duty`");
-    expect(DUTY_GUIDE).toContain("`runner`");
+    expect(DUTY_GUIDE).toContain("`agent`");
     expect(DUTY_GUIDE).toContain("`reviewer`");
     expect(DUTY_GUIDE).toContain("Runtime state");
     expect(DUTY_GUIDE).not.toContain("Progress types");
@@ -40,11 +40,11 @@ describe("duty creation guide wiring", () => {
   });
 
   it("creates usable duties without authoring raw state keys", () => {
-    // The dashboard writes the canonical staff slug to profile.json and
-    // mirrors it to runner for legacy readers. Both must be set when the
-    // tool is given a staff value.
-    expect(DUTY_TOOLS_SOURCE).toContain("staff: createStaff!");
-    expect(DUTY_TOOLS_SOURCE).toContain("staff: nextStaff");
+    // The dashboard writes the canonical agent slug to profile.json and
+    // mirrors it to agent for legacy readers. Both must be set when the
+    // tool is given an agent value.
+    expect(DUTY_TOOLS_SOURCE).toContain("agent: createAgent!");
+    expect(DUTY_TOOLS_SOURCE).toContain("agent: nextAgent");
     expect(DUTY_TOOLS_SOURCE).toContain("reviewer: input.reviewer");
     expect(DUTY_TOOLS_SOURCE).toContain("schedule: input.schedule");
     expect(DUTY_TOOLS_SOURCE).not.toContain("stage: input.stage");
@@ -72,9 +72,8 @@ describe("duty creation guide wiring", () => {
     expect(DUTY_TOOLS_SOURCE).toContain("existing.sha");
     expect(DUTY_TOOLS_SOURCE).toContain("chore(duties): update");
     expect(DUTY_TOOLS_SOURCE).toContain("feat(duties): add");
-    // staff/runner read-merge: prefer input.staff, fall back to input.runner,
-    // then to existing.runner. Either as one chain or split into steps.
-    expect(DUTY_TOOLS_SOURCE).toMatch(/input\.staff\s*\?\?\s*input\.runner/);
+    // agent read-merge: prefer input.agent, then existing.agent.
+    expect(DUTY_TOOLS_SOURCE).toContain("const agentProvided = input.agent");
     expect(DUTY_TOOLS_SOURCE).toMatch(
       /input\.schedule\s*\?\?\s*existing\.schedule\s*\?\?\s*undefined/,
     );
@@ -84,25 +83,17 @@ describe("duty creation guide wiring", () => {
     expect(DUTY_TOOLS_SOURCE).toContain("outputSwitched");
     expect(DUTY_TOOLS_SOURCE).toContain("nextBody = existing.body");
   });
-
-  it("accepts `staff` as the engine-aligned persona field, with `runner` as a deprecated alias", async () => {
-    // The tool schema exposes `staff` (primary) and `runner` (alias).
-    expect(DUTY_TOOLS_SOURCE).toMatch(/staff:\s*z[\s\S]*?\.string\(\)/);
-    expect(DUTY_TOOLS_SOURCE).toMatch(/runner:\s*z[\s\S]*?\.string\(\)/);
-    // The buildDutyProfile layer writes to BOTH profile.staff and
-    // profile.runner so the engine reads config.staff while legacy
-    // readers that look for `runner` still work.
-    expect(DUTY_FILES_SOURCE).toContain("profile.staff = staffSlug");
-    expect(DUTY_FILES_SOURCE).toContain("profile.runner = staffSlug");
-    expect(DUTY_FILES_SOURCE).toMatch(/opts\.staff\s*\?\?\s*opts\.runner/);
-    // The chat-defaults bundle's `create-duty` skill teaches the model
-    // the new field name.
+  it("accepts `agent` as the duty identity field", async () => {
+    expect(DUTY_TOOLS_SOURCE).toMatch(/agent:\s*z[\s\S]*?\.string\(\)/);
+    expect(DUTY_TOOLS_SOURCE).not.toContain("runner:");
+    expect(DUTY_FILES_SOURCE).toContain("profile.agent = agentSlug");
+    expect(DUTY_FILES_SOURCE).not.toContain("profile.runner");
+    expect(DUTY_FILES_SOURCE).toContain("const agentSlug = (opts.agent ?? \"\").trim()");
     const bundle = await loadChatDefaults("acme", "repo");
     const createDuty = bundle.skills["create-duty"];
     expect(createDuty).toBeDefined();
-    expect(createDuty!.body).toContain("`staff`");
-    expect(createDuty!.body).toContain("`runner`");
-    expect(createDuty!.body).toContain("`config.staff`");
+    expect(createDuty!.body).toContain("`agent`");
+    expect(createDuty!.body).toContain("`config.agent`");
   });
 
   it("supports multi-executable duties via the `executables` array", () => {
@@ -137,7 +128,7 @@ describe("duty creation guide wiring", () => {
     expect(DUTY_TOOLS_SOURCE).toContain("extraProfile: input.profile");
     // The buildDutyProfile layer merges extraProfile on top of the typed
     // fields, but typed values WIN for every key this function manages
-    // (identity + schedule/disabled/staff/runner/reviewer/etc.) — the
+    // (identity + schedule/disabled/agents/agent/reviewer/etc.) — the
     // override is for ADDING fields, not clobbering typed ones.
     expect(DUTY_FILES_SOURCE).toContain("opts.extraProfile");
     expect(DUTY_FILES_SOURCE).toContain("MANAGED_PROFILE_KEYS");

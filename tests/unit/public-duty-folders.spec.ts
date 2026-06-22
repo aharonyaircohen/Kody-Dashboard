@@ -35,8 +35,7 @@ describe("public Kody actions are duty folders", () => {
         action?: string;
         executable?: string;
         every?: string;
-        runner?: string;
-        staff?: string;
+        agent?: string;
       };
       const body = readFileSync(bodyPath, "utf8");
 
@@ -44,8 +43,8 @@ describe("public Kody actions are duty folders", () => {
       expect(profile.action).toBe(slug);
       expect(profile.executable).toBe(slug);
       expect(profile.every).toBe("manual");
-      expect(profile.runner).toBeTruthy();
-      expect(profile.staff).toBeUndefined();
+      expect(profile.agent).toBeTruthy();
+      expect(profile.agent).toBeUndefined();
       expect(body).toContain("## Job");
       expect(body).toContain("## Executable");
       expect(body).toContain("## Restrictions");

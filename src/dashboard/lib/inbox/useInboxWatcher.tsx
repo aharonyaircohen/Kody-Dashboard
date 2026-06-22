@@ -43,7 +43,7 @@ interface FeedEntry {
   sentAt: string;
   ctoAction?: string;
   ctoCommand?: string;
-  ctoStaff?: string;
+  ctoAgent?: string;
   ctoDuty?: string;
   category?: InboxEntry["category"];
 }
@@ -103,7 +103,7 @@ async function runOnce(opts: {
     readAt: null,
     ...(f.ctoAction ? { ctoAction: f.ctoAction } : {}),
     ...(f.ctoCommand ? { ctoCommand: f.ctoCommand } : {}),
-    ...(f.ctoStaff ? { ctoStaff: f.ctoStaff } : {}),
+    ...(f.ctoAgent ? { ctoAgent: f.ctoAgent } : {}),
     ...(f.ctoDuty ? { ctoDuty: f.ctoDuty } : {}),
     ...(f.category ? { category: f.category } : {}),
   }));

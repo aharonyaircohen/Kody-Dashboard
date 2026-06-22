@@ -38,8 +38,8 @@ export interface AuditSpec {
   resourceUrl?: string | null;
   /** Duty slug, when relevant. */
   duty?: string | null;
-  /** Staff (persona) slug that executed, when relevant. */
-  staff?: string | null;
+  /** Agent (agentIdentity) slug that executed, when relevant. */
+  agent?: string | null;
   /** Coarse result. Defaults to "ok". */
   outcome?: AuditOutcome;
   /** One-line human context (the sub-action, target name, etc.). */
@@ -66,7 +66,7 @@ export function recordAudit(req: NextRequest, spec: AuditSpec): void {
       detail: spec.detail?.trim() || null,
       actorType: "user",
       duty: spec.duty ?? null,
-      staff: spec.staff ?? null,
+      agent: spec.agent ?? null,
       outcome: spec.outcome ?? "ok",
       resourceUrl: spec.resourceUrl ?? null,
       source: "dashboard",

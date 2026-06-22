@@ -21,13 +21,13 @@ describe("splitFrontmatter", () => {
     expect(body).toBe("# Just a heading\n");
   });
 
-  it("parses every / disabled / runner and strips the block from the body", () => {
+  it("parses every / disabled / agent and strips the block from the body", () => {
     const raw =
-      "---\nevery: 1h\nrunner: triage-bot\ndisabled: true\n---\nDo the thing\n";
+      "---\nevery: 1h\nagent: triage-bot\ndisabled: true\n---\nDo the thing\n";
     const { frontmatter, body } = splitFrontmatter(raw);
     expect(frontmatter).toEqual({
       every: "1h",
-      runner: "triage-bot",
+      agent: "triage-bot",
       disabled: true,
     });
     expect(body).toBe("Do the thing\n");
@@ -67,10 +67,10 @@ describe("splitFrontmatter", () => {
 
   it("strips surrounding quotes from values", () => {
     expect(
-      splitFrontmatter('---\nrunner: "my-bot"\n---\nx').frontmatter.runner,
+      splitFrontmatter('---\nagent: "my-bot"\n---\nx').frontmatter.agent,
     ).toBe("my-bot");
     expect(
-      splitFrontmatter("---\nrunner: 'my-bot'\n---\nx").frontmatter.runner,
+      splitFrontmatter("---\nagent: 'my-bot'\n---\nx").frontmatter.agent,
     ).toBe("my-bot");
   });
 
@@ -132,9 +132,9 @@ describe("joinFrontmatter", () => {
   });
 
   it("emits a block with fields in a stable order, omitting disabled:false", () => {
-    const fm: TickFrontmatter = { every: "2h", runner: "bot", disabled: false };
+    const fm: TickFrontmatter = { every: "2h", agent: "bot", disabled: false };
     const out = joinFrontmatter(fm, "body");
-    expect(out).toBe("---\nevery: 2h\nrunner: bot\n---\n\nbody");
+    expect(out).toBe("---\nevery: 2h\nagent: bot\n---\n\nbody");
   });
 
   it("emits disabled:true explicitly", () => {
@@ -144,27 +144,27 @@ describe("joinFrontmatter", () => {
   });
 
   it("emits mentions as a comma-joined line after reviewer, no @", () => {
-    const fm: TickFrontmatter = { runner: "bot", mentions: ["alice", "bob"] };
+    const fm: TickFrontmatter = { agent: "bot", mentions: ["alice", "bob"] };
     expect(joinFrontmatter(fm, "body")).toBe(
-      "---\nrunner: bot\nmentions: alice, bob\n---\n\nbody",
+      "---\nagent: bot\nmentions: alice, bob\n---\n\nbody",
     );
   });
 
-  it("emits reviewer after runner and strips @", () => {
-    const fm: TickFrontmatter = { runner: "bot", reviewer: "@qa" };
+  it("emits reviewer after agent and strips @", () => {
+    const fm: TickFrontmatter = { agent: "bot", reviewer: "@qa" };
     expect(joinFrontmatter(fm, "body")).toBe(
-      "---\nrunner: bot\nreviewer: qa\n---\n\nbody",
+      "---\nagent: bot\nreviewer: qa\n---\n\nbody",
     );
     expect(
-      splitFrontmatter("---\nrunner: bot\nreviewer: @qa\n---\nbody")
+      splitFrontmatter("---\nagent: bot\nreviewer: @qa\n---\nbody")
         .frontmatter,
-    ).toMatchObject({ runner: "bot", reviewer: "qa" });
+    ).toMatchObject({ agent: "bot", reviewer: "qa" });
   });
 
-  it("reads legacy staff as runner but does not turn assignee into reviewer", () => {
+  it("reads agent but does not turn assignee into reviewer", () => {
     expect(
-      splitFrontmatter("---\nstaff: bot\nassignee: @qa\n---\nbody").frontmatter,
-    ).toEqual({ runner: "bot" });
+      splitFrontmatter("---\nagent: bot\nassignee: @qa\n---\nbody").frontmatter,
+    ).toEqual({ agent: "bot" });
   });
 
   it("omits the mentions line when the array is empty", () => {
@@ -177,7 +177,7 @@ describe("joinFrontmatter", () => {
   it("round-trips through splitFrontmatter", () => {
     const fm: TickFrontmatter = {
       every: "7d",
-      runner: "weekly",
+      agent: "weekly",
       disabled: true,
     };
     const { frontmatter } = splitFrontmatter(joinFrontmatter(fm, "the body"));
@@ -187,7 +187,7 @@ describe("joinFrontmatter", () => {
   it("round-trips mentions through splitFrontmatter", () => {
     const fm: TickFrontmatter = {
       every: "1d",
-      runner: "weekly",
+      agent: "weekly",
       mentions: ["alice", "bob"],
     };
     const { frontmatter } = splitFrontmatter(joinFrontmatter(fm, "the body"));
@@ -199,7 +199,7 @@ describe("joinFrontmatter", () => {
       action: "repo-graph",
       executable: "repo-graph-refresh",
       every: "1h",
-      runner: "kody",
+      agent: "kody",
       reviewer: "qa",
       mentions: ["alice"],
       executables: ["db-worker", "api-worker"],
@@ -215,7 +215,7 @@ describe("joinFrontmatter", () => {
         "action: repo-graph",
         "executable: repo-graph-refresh",
         "every: 1h",
-        "runner: kody",
+        "agent: kody",
         "reviewer: qa",
         "mentions: alice",
         "executables: db-worker, api-worker",

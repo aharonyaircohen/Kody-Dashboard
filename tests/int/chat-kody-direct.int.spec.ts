@@ -153,10 +153,10 @@ describe("POST /api/kody/chat/kody", () => {
     // Regression: model used to ignore ## Current task / Current duty /
     // Current page / Goals / Remembered context blocks and answer as if it
     // were a fresh session. Hard rule #2 now explicitly grounds answers
-    // in those blocks. Prompt lives in the chat-defaults bundle persona.
+    // in those blocks. Prompt lives in the chat-defaults bundle agentIdentity.
     const { loadChatDefaults } =
       await import("../../src/dashboard/lib/chat-defaults");
-    const prompt = (await loadChatDefaults("acme", "repo")).persona;
+    const prompt = (await loadChatDefaults("acme", "repo")).agentIdentity;
     expect(prompt).toMatch(/injected context block/i);
     expect(prompt).toMatch(/do NOT re-ask for facts the block already states/i);
     expect(prompt).toContain("## Current task");
@@ -171,10 +171,10 @@ describe("POST /api/kody/chat/kody", () => {
     // Regression: model used to read a tool result and then write a
     // confident summary that drifted. Hard rule #1 now requires the
     // prose to match the tool result and to prefix inferences. Prompt
-    // lives in the chat-defaults bundle persona.
+    // lives in the chat-defaults bundle agentIdentity.
     const { loadChatDefaults } =
       await import("../../src/dashboard/lib/chat-defaults");
-    const prompt = (await loadChatDefaults("acme", "repo")).persona;
+    const prompt = (await loadChatDefaults("acme", "repo")).agentIdentity;
     expect(prompt).toMatch(/Your prose must match the tool result/i);
     expect(prompt).toContain("my read:");
   });
@@ -185,7 +185,7 @@ describe("POST /api/kody/chat/kody", () => {
     // on non-trivial replies while still banning sycophantic openers.
     const { loadChatDefaults } =
       await import("../../src/dashboard/lib/chat-defaults");
-    const prompt = (await loadChatDefaults("acme", "repo")).persona;
+    const prompt = (await loadChatDefaults("acme", "repo")).agentIdentity;
     expect(prompt).toMatch(/End with direction when useful/i);
     expect(prompt).not.toMatch(/This applies to EVERY reply/i);
     for (const banned of [
@@ -205,14 +205,14 @@ describe("POST /api/kody/chat/kody", () => {
   });
 
   it("fallback kody prompt mirrors the answer-first contract", async () => {
-    const { DEFAULT_PERSONA_MD } =
+    const { DEFAULT_IDENTITY_MD } =
       await import("../../src/dashboard/lib/chat-defaults/defaults");
 
-    expect(DEFAULT_PERSONA_MD).toMatch(/Kody reply contract/i);
-    expect(DEFAULT_PERSONA_MD).toMatch(/Final replies start with one plain/i);
-    expect(DEFAULT_PERSONA_MD).toMatch(/Progress lines are not final answers/i);
-    expect(DEFAULT_PERSONA_MD).not.toMatch(/Emit a status line/i);
-    expect(DEFAULT_PERSONA_MD).not.toMatch(/This applies to EVERY reply/i);
+    expect(DEFAULT_IDENTITY_MD).toMatch(/Kody reply contract/i);
+    expect(DEFAULT_IDENTITY_MD).toMatch(/Final replies start with one plain/i);
+    expect(DEFAULT_IDENTITY_MD).toMatch(/Progress lines are not final answers/i);
+    expect(DEFAULT_IDENTITY_MD).not.toMatch(/Emit a status line/i);
+    expect(DEFAULT_IDENTITY_MD).not.toMatch(/This applies to EVERY reply/i);
   });
 
   it("critical reminders preserve answer-first style while enforcing safety", async () => {
@@ -245,14 +245,14 @@ describe("POST /api/kody/chat/kody", () => {
   it("base kody prompt disambiguates dispatch from 'implement this' and enumerates the full read-tool catalog", async () => {
     // Regression: model sometimes called kody_run_issue in response to
     // "implement X" (a request for change, not a dispatch ask). Tool
-    // policy now spells out the disambiguation. Also: the persona's
+    // policy now spells out the disambiguation. Also: the agentIdentity's
     // read-tools list must match the chat registry's actual tool names —
     // phantom tools in the prompt cause the model to call non-existent
     // tools and hallucinate the result. Prompt lives in the chat-defaults
-    // bundle persona.
+    // bundle agentIdentity.
     const { loadChatDefaults } =
       await import("../../src/dashboard/lib/chat-defaults");
-    const prompt = (await loadChatDefaults("acme", "repo")).persona;
+    const prompt = (await loadChatDefaults("acme", "repo")).agentIdentity;
     expect(prompt).toMatch(/Disambiguate dispatch vs\. create-issue/i);
     expect(prompt).toMatch(/implement this/i);
     expect(prompt).toMatch(/requests for change/i);
@@ -271,11 +271,11 @@ describe("POST /api/kody/chat/kody", () => {
     // bootstrap rule ("wait until 5+ memories exist") prevented growth.
     // Section now lists all 5 memory tools and inverts the bootstrap.
     // The memory section lives in the `memory` skill of the chat-defaults
-    // bundle (extracted out of the persona).
+    // bundle (extracted out of the agentIdentity).
     const { loadChatDefaults } =
       await import("../../src/dashboard/lib/chat-defaults");
     const bundle = await loadChatDefaults("acme", "repo");
-    const prompt = `${bundle.persona}\n${Object.values(bundle.skills)
+    const prompt = `${bundle.agentIdentity}\n${Object.values(bundle.skills)
       .map((s) => s.body)
       .join("\n")}`;
     expect(prompt).toMatch(/recall_search/);

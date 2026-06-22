@@ -1,5 +1,5 @@
 /**
- * Tests for the code-enforced pending-recommendation cap. The staff personas
+ * Tests for the code-enforced pending-recommendation cap. The agentIdentity identities
  * are *told* to stop at 10 but count by hand and drift; this gate makes the
  * cap deterministic at the inbox-feed write point. The cap is applied **per
  * duty slug** so a chatty duty can't crowd other duties out of the queue. Pure
@@ -51,7 +51,7 @@ function rec(
     url: `https://github.com/${REPO}/issues/${taskNumber}#issuecomment-${taskNumber}`,
     sentAt: new Date(2026, 0, 1, 0, taskNumber).toISOString(),
     ctoAction: action,
-    ctoStaff: duty,
+    ctoAgent: duty,
     ctoDuty: duty,
   };
 }
@@ -86,7 +86,7 @@ describe("ctoFeedKey", () => {
     });
   });
 
-  it("falls back from duty to staff, then to the CTO slug", () => {
+  it("falls back from duty to agent, then to the CTO slug", () => {
     const e = { ...ctoRec(42, "fix") };
     delete e.ctoDuty;
     expect(ctoFeedKey(e)).toEqual({
@@ -94,7 +94,7 @@ describe("ctoFeedKey", () => {
       taskNumber: 42,
       action: "fix",
     });
-    delete e.ctoStaff;
+    delete e.ctoAgent;
     expect(ctoFeedKey(e)).toEqual({
       duty: "cto",
       taskNumber: 42,
@@ -247,7 +247,7 @@ describe("applyCtoBackpressure", () => {
     expect(withheld).toHaveLength(1);
   });
 
-  it("lets mixed traffic through: mentions pass, recs gated per staff", () => {
+  it("lets mixed traffic through: mentions pass, recs gated per agent", () => {
     const current = Array.from({ length: 9 }, (_, i) => ctoRec(i + 1));
     const incoming = [
       plainMention(50),

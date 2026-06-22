@@ -25,7 +25,7 @@ describe("company store asset merge", () => {
     ]);
   });
 
-  it("lists markdown-backed store assets for staff", async () => {
+  it("lists markdown-backed store assets for agent", async () => {
     const octokit = {
       repos: {
         getContent: async () => ({
@@ -41,7 +41,7 @@ describe("company store asset merge", () => {
     };
 
     await expect(
-      listCompanyStoreMarkdownAssetSlugs(octokit as never, "staff", (slug) =>
+      listCompanyStoreMarkdownAssetSlugs(octokit as never, "agent", (slug) =>
         /^[a-z0-9][a-z0-9_-]*$/.test(slug),
       ),
     ).resolves.toEqual(["cto", "release-manager"]);

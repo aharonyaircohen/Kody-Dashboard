@@ -274,7 +274,7 @@ interface RowProps {
   /** Toggle the mute state of a notification category. */
   onToggleMute: (category: ServerNotificationType) => void;
   verdictFor: (
-    staff: string,
+    agent: string,
     taskNumber: number,
     action: CtoAction,
     sinceIso?: string,
@@ -1015,7 +1015,7 @@ interface SectionProps {
   isMuted: (category: ServerNotificationType) => boolean;
   onToggleMute: (category: ServerNotificationType) => void;
   verdictFor: (
-    staff: string,
+    agent: string,
     taskNumber: number,
     action: CtoAction,
     sinceIso?: string,

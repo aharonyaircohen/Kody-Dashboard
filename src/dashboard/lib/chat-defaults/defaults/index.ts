@@ -3,7 +3,7 @@
  * @domain kody
  * @pattern chat-defaults-bundle
  *
- * TS-embedded defaults for the Kody chat bundle. Re-exports the persona +
+ * TS-embedded defaults for the Kody chat bundle. Re-exports the agentIdentity +
  * executable + duties + skills so consumers can `import { ... } from
  * "./defaults"`. Step 1 of the refactor: the chat composer's prompt is
  * sourced from these TS strings (verbatim copies of the previous
@@ -28,18 +28,18 @@ export {
 export {
   DEFAULT_SKILL_CREATE_ISSUE,
   DEFAULT_SKILL_CREATE_DUTY,
-  DEFAULT_SKILL_CREATE_STAFF,
+  DEFAULT_SKILL_CREATE_AGENT,
 } from "./skills-operator";
 export { DEFAULT_SKILL_VIBE } from "./skills-vibe";
 export { DEFAULT_SKILL_MEMORY } from "./skills-mem";
-export { DEFAULT_PERSONA_MD } from "./persona";
+export { DEFAULT_IDENTITY_MD } from "./agent";
 
 import { DEFAULT_SKILL_DIAGNOSE_PR } from "./skills-analyzer";
 import { DEFAULT_SKILL_REPORT_ADVISE } from "./skills-analyzer";
 import { DEFAULT_SKILL_GOAL_PLANNER } from "./skills-analyzer";
 import { DEFAULT_SKILL_CREATE_ISSUE } from "./skills-operator";
 import { DEFAULT_SKILL_CREATE_DUTY } from "./skills-operator";
-import { DEFAULT_SKILL_CREATE_STAFF } from "./skills-operator";
+import { DEFAULT_SKILL_CREATE_AGENT } from "./skills-operator";
 import { DEFAULT_SKILL_VIBE } from "./skills-vibe";
 import { DEFAULT_SKILL_MEMORY } from "./skills-mem";
 import type { SkillEntry } from "./types";
@@ -50,7 +50,7 @@ export const DEFAULT_SKILLS: Record<string, SkillEntry> = {
   [DEFAULT_SKILL_GOAL_PLANNER.slug]: DEFAULT_SKILL_GOAL_PLANNER,
   [DEFAULT_SKILL_CREATE_ISSUE.slug]: DEFAULT_SKILL_CREATE_ISSUE,
   [DEFAULT_SKILL_CREATE_DUTY.slug]: DEFAULT_SKILL_CREATE_DUTY,
-  [DEFAULT_SKILL_CREATE_STAFF.slug]: DEFAULT_SKILL_CREATE_STAFF,
+  [DEFAULT_SKILL_CREATE_AGENT.slug]: DEFAULT_SKILL_CREATE_AGENT,
   [DEFAULT_SKILL_VIBE.slug]: DEFAULT_SKILL_VIBE,
   [DEFAULT_SKILL_MEMORY.slug]: DEFAULT_SKILL_MEMORY,
 };

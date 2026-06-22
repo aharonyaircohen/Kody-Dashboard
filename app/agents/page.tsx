@@ -1,13 +1,13 @@
 /**
  * @fileType page
  * @domain kody
- * @pattern staff-page
- * @ai-summary Staff entry point. Renders a tabbed shell hosting Staff
+ * @pattern agent-page
+ * @ai-summary Agent entry point. Renders a tabbed shell hosting Agent
  *   Control under a single route. Mirrors the Duties page; starts empty
- *   (no duties are copied — `.kody/staff/` is its own directory).
+ *   (no duties are copied — `.kody/agents/` is its own directory).
  */
 import { AuthGuard } from "@dashboard/lib/auth-guard";
-import { StaffPageTabs } from "@dashboard/lib/components/StaffPageTabs";
+import { AgentsPageTabs } from "@dashboard/lib/components/AgentsPageTabs";
 import { buildKodyMetadata } from "../metadata";
 
 export const dynamic = "force-static";
@@ -15,15 +15,15 @@ export const revalidate = false;
 export const fetchCache = "force-cache";
 
 export const metadata = buildKodyMetadata({
-  title: "Staff — Kody Operations Dashboard",
-  description: "Manage Kody staff.",
-  path: "/staff",
+  title: "Agent — Kody Operations Dashboard",
+  description: "Manage Kody agent.",
+  path: "/agents",
 });
 
-export default function StaffPage() {
+export default function AgentsPage() {
   return (
     <AuthGuard>
-      <StaffPageTabs />
+      <AgentsPageTabs />
     </AuthGuard>
   );
 }

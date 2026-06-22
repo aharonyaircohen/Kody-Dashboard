@@ -2,12 +2,12 @@ import { describe, it, expect } from "vitest";
 import {
   extractStaffMentions,
   hasStaffMention,
-} from "@dashboard/lib/mentions/staff-mentions";
+} from "@dashboard/lib/mentions/agent-mentions";
 
 describe("extractStaffMentions", () => {
   const known = ["cto", "qa-bot", "release-captain"];
 
-  it("returns only @tokens that match a known staff slug", () => {
+  it("returns only @tokens that match a known agent slug", () => {
     expect(
       extractStaffMentions("hey @cto and @octocat, see @qa-bot", known),
     ).toEqual(["cto", "qa-bot"]);
@@ -33,7 +33,7 @@ describe("extractStaffMentions", () => {
     ).toEqual([]);
   });
 
-  it("returns nothing when there are no known staff", () => {
+  it("returns nothing when there are no known agent", () => {
     expect(extractStaffMentions("@cto @qa-bot", [])).toEqual([]);
   });
 

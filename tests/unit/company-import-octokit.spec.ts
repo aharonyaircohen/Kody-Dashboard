@@ -15,7 +15,7 @@
  * passed octokit for ALL of its GitHub access and succeed.
  *
  * Unlike company.spec.ts this does NOT mock the file helpers — it exercises
- * the real `duties-files`/`staff-files`/`commands/files`/`instructions/files`
+ * the real `duties-files`/`agent-files`/`commands/files`/`instructions/files`
  * so the octokit-threading is genuinely under test. Only github-client (the
  * shared context) is mocked.
  */
@@ -150,14 +150,14 @@ const bundle = {
   kodyCompany: COMPANY_BUNDLE_VERSION,
   exportedAt: "",
   exportedFrom: "",
-  staff: [
+  agent: [
     {
       slug: "cto",
       title: "CTO",
       body: "x",
       schedule: null,
       disabled: false,
-      runner: null,
+      agent: null,
       reviewer: null,
       action: null,
       mentions: [],
@@ -176,7 +176,7 @@ const bundle = {
       body: "y",
       schedule: "1d" as const,
       disabled: false,
-      runner: "cto",
+      agent: "cto",
       reviewer: "qa",
       action: "nightly",
       mentions: [],
@@ -208,7 +208,7 @@ describe("company import survives a cleared/bad request-context octokit", () => 
 
     // Pre-fix: the existence-check read + confirm read used getOctokit()
     // (badOctokit) → 401 → every entry reported failed. Post-fix: all created.
-    expect(result.staff).toMatchObject({ created: 1, failed: 0 });
+    expect(result.agent).toMatchObject({ created: 1, failed: 0 });
     expect(result.duties).toMatchObject({ created: 1, failed: 0 });
     expect(result.commands).toMatchObject({ created: 1, failed: 0 });
     expect(result.instructions).toBe("created");
@@ -227,8 +227,8 @@ describe("company import survives a cleared/bad request-context octokit", () => 
     good.repos.createOrUpdateFileContents.mockRejectedValueOnce(badError());
 
     const result = await applyCompanyBundle(good as never, bundle, "skip");
-    // The one staff write genuinely failed; everything else still succeeded.
-    expect(result.staff).toMatchObject({ created: 0, failed: 1 });
+    // The one agent write genuinely failed; everything else still succeeded.
+    expect(result.agent).toMatchObject({ created: 0, failed: 1 });
     expect(result.duties).toMatchObject({ created: 1, failed: 0 });
     expect(result.notes.some((n) => n.includes("Bad credentials"))).toBe(true);
   });

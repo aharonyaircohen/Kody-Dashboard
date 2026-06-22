@@ -618,9 +618,9 @@ function autoTriggerBadge(trigger: "schedule" | "manual" | "event"): string {
 
 /**
  * "Auto" tab — the Company Activity feed: named, attributed actions the
- * engine performed (a staff member ran a duty, why, and the result), written
+ * engine performed (an agent ran a duty, why, and the result), written
  * by the engine to `.kody/activity/*.jsonl`. NOT derived from commits/PRs —
- * those carry no staff/duty/purpose.
+ * those carry no agent/duty/purpose.
  */
 function AutoView({ active }: { active: boolean }) {
   const { data, isLoading, error } = useAutonomousActivity(active);
@@ -633,7 +633,7 @@ function AutoView({ active }: { active: boolean }) {
     const q = query.trim().toLowerCase();
     if (q)
       all = all.filter((r) =>
-        [r.action, r.staff ?? "", r.staffTitle ?? "", r.duty, r.trigger]
+        [r.action, r.agent ?? "", r.staffTitle ?? "", r.duty, r.trigger]
           .join(" ")
           .toLowerCase()
           .includes(q),
@@ -667,7 +667,7 @@ function AutoView({ active }: { active: boolean }) {
             type="text"
             value={query}
             onChange={(e) => setQuery(e.target.value)}
-            placeholder="Search action, staff, duty…"
+            placeholder="Search action, agent, duty…"
             className="w-64 rounded-md border border-white/[0.08] bg-white/[0.02] py-1 pl-7 pr-2 text-xs placeholder:text-white/30 focus:border-white/20 focus:outline-none"
           />
         </div>
@@ -704,9 +704,9 @@ function AutoView({ active }: { active: boolean }) {
               <div className="min-w-0 flex-1">
                 <div className="text-sm truncate text-white/85">{r.action}</div>
                 <div className="mt-0.5 flex flex-wrap items-center gap-x-1.5 gap-y-1 text-[10px] text-white/40">
-                  {r.staffTitle || r.staff ? (
+                  {r.staffTitle || r.agent ? (
                     <span className="rounded bg-emerald-500/15 px-1 text-emerald-200/80">
-                      {r.staffTitle ?? r.staff}
+                      {r.staffTitle ?? r.agent}
                     </span>
                   ) : null}
                   <span className="rounded bg-violet-500/15 px-1 text-violet-200/80">
@@ -743,7 +743,7 @@ function AutoView({ active }: { active: boolean }) {
         </ul>
       )}
       <p className="mt-6 text-[10px] text-white/30">
-        Company activity — each line is one action the engine took: which staff
+        Company activity — each line is one action the engine took: which agent
         member ran which duty, why (schedule / manual), and the result. Written
         by the engine; the Log tab shows dashboard actions instead.
       </p>
@@ -780,7 +780,7 @@ function LogView({ active }: { active: boolean }) {
           e.repo ?? "",
           e.detail ?? "",
           e.duty ?? "",
-          e.staff ?? "",
+          e.agent ?? "",
         ]
           .join(" ")
           .toLowerCase()
@@ -876,9 +876,9 @@ function LogView({ active }: { active: boolean }) {
                       duty: {e.duty}
                     </span>
                   )}
-                  {e.staff && (
+                  {e.agent && (
                     <span className="rounded bg-emerald-500/15 px-1 text-emerald-200/80">
-                      staff: {e.staff}
+                      agent: {e.agent}
                     </span>
                   )}
                   {e.repo && <span>· {e.repo}</span>}
@@ -896,7 +896,7 @@ function LogView({ active }: { active: boolean }) {
       )}
       <p className="mt-6 text-[10px] text-white/30">
         Dashboard actions (duty runs/edits, task actions, vault writes,
-        staff/prompt/goal changes) attributed to the verified GitHub user who
+        agent/prompt/goal changes) attributed to the verified GitHub user who
         made them. Persisted durably in the repo&apos;s audit-log issue (newest{" "}
         {150} kept) and merged with this instance&apos;s in-memory ring —
         survives redeploys and is shared across instances.

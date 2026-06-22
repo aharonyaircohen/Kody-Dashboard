@@ -1,5 +1,5 @@
 ---
-staff: [kody]
+agent: [kody]
 ---
 
 - add memory page to manage memory

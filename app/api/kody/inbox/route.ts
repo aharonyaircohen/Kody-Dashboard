@@ -44,7 +44,7 @@ const entrySchema = z.object({
   readAt: z.string().nullable(),
   ctoAction: z.string().max(40).optional(),
   ctoCommand: z.string().max(300).optional(),
-  ctoStaff: z.string().max(40).optional(),
+  ctoAgent: z.string().max(40).optional(),
   ctoDuty: z.string().max(40).optional(),
 }) satisfies z.ZodType<InboxEntry>;
 

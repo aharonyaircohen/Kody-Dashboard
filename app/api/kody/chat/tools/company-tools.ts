@@ -3,7 +3,7 @@
  * @domain company
  * @pattern chat-tools
  * @ai-summary Chat tools for the "company" — the portable bundle of
- *   staff/duties/commands/executables/instructions/config, plus the operator
+ *   agent/duties/commands/executables/instructions/config, plus the operator
  *   handles that route recommendations to the inbox. Read config + operators,
  *   set operators, export the bundle, import a bundle. Mirrors the
  *   /api/kody/company routes.
@@ -57,7 +57,7 @@ export function createCompanyTools(ctx: Ctx) {
     }),
 
     export_company: tool({
-      description: `Export ${repoRef}'s company bundle — all staff, duties, context, commands, executables, instructions, and config — as a portable JSON object the user can save or import into another repo.`,
+      description: `Export ${repoRef}'s company bundle — all agent, duties, context, commands, executables, instructions, and config — as a portable JSON object the user can save or import into another repo.`,
       inputSchema: z.object({}),
       execute: async () => {
         try {

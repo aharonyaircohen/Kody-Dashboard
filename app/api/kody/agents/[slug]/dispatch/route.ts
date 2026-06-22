@@ -1,20 +1,20 @@
 /**
  * @fileType api-endpoint
  * @domain kody
- * @pattern staff-dispatch
- * @ai-summary POST /api/kody/staff/:slug/dispatch — manually send an ad-hoc
- *   message to a staff member and run it like a one-shot duty. Posts an
- *   `@kody worker-ask --worker <slug> --thread issue:<control>` directive on
+ * @pattern agent-dispatch
+ * @ai-summary POST /api/kody/agents/:slug/dispatch — manually send an ad-hoc
+ *   message to an agent and run it like a one-shot duty. Posts an
+ *   `@kody agent-ask --agent <slug> --thread issue:<control>` directive on
  *   the repo's "Kody control" issue (followed by the message verbatim); the
- *   engine's `issue_comment` trigger routes to the stateless `worker-ask`
- *   executable, which runs the persona and replies on the control issue.
+ *   engine's `issue_comment` trigger routes to the stateless `agent-ask`
+ *   executable, which runs the agentIdentity and replies on the control issue.
  *
- *   This is the explicit-button sibling of the `@staff`-mention path
- *   (`dispatchStaffMentions`): same `dispatchWorkerAsk` dispatch shape, just
- *   triggered from the Staff page instead of from a message body.
+ *   This is the explicit-button sibling of the `@agent`-mention path
+ *   (`dispatchAgentMentions`): same `dispatchAgentAsk` dispatch shape, just
+ *   triggered from the Agent page instead of from a message body.
  *
  *   Inbox: the reply only surfaces in an operator's inbox if it @-mentions
- *   them, so when we know the requester's login we instruct the persona to
+ *   them, so when we know the requester's login we instruct the agentIdentity to
  *   open its reply with that mention. The existing mention→inbox pipeline
  *   (`dispatchMentionPushes`) then turns the reply into an inbox item — no
  *   bot-author filtering on that path.
@@ -28,10 +28,10 @@ import {
   getRequestAuth,
   verifyActorLogin,
 } from "@dashboard/lib/auth";
-import { isValidSlug, readResolvedStaffFile } from "@dashboard/lib/staff-files";
+import { isValidSlug, readResolvedAgentFile } from "@dashboard/lib/agent-files";
 import {
   findOrCreateControlIssue,
-  dispatchWorkerAsk,
+  dispatchAgentAsk,
 } from "@dashboard/lib/control-issue";
 import { recordAudit } from "@dashboard/lib/activity/audit";
 
@@ -82,19 +82,19 @@ export async function POST(
       {
         error: "no_user_token",
         message:
-          "A signed-in GitHub token is required to dispatch a staff message.",
+          "A signed-in GitHub token is required to dispatch an agent message.",
       },
       { status: 401 },
     );
   }
 
   try {
-    const staffMember = await readResolvedStaffFile(slug, octokit);
-    if (!staffMember) {
+    const agentMember = await readResolvedAgentFile(slug, octokit);
+    if (!agentMember) {
       return NextResponse.json({ error: "not_found" }, { status: 404 });
     }
 
-    // Reply lands on the control issue. Idempotent — dispatchWorkerAsk
+    // Reply lands on the control issue. Idempotent — dispatchAgentAsk
     // resolves the same issue internally to post the directive.
     const issueNumber = await findOrCreateControlIssue(octokit, owner, repo);
 
@@ -102,16 +102,16 @@ export async function POST(
       ? `${payload.message}\n\n---\n_Dispatched from the dashboard by @${payload.actorLogin}. Open your reply by @-mentioning @${payload.actorLogin} so it reaches their inbox._`
       : payload.message;
 
-    const res = await dispatchWorkerAsk(octokit, owner, repo, {
+    const res = await dispatchAgentAsk(octokit, owner, repo, {
       slug,
       message,
       reply: { kind: "issue", number: issueNumber },
     });
 
     recordAudit(req, {
-      action: "staff.dispatch",
+      action: "agent.dispatch",
       resource: slug,
-      staff: slug,
+      agent: slug,
       resourceUrl: res.commentUrl,
       detail: "ad-hoc message dispatched",
     });
@@ -123,11 +123,11 @@ export async function POST(
       commentUrl: res.commentUrl,
     });
   } catch (err: any) {
-    console.error("[staff/dispatch] dispatch failed", err);
+    console.error("[agent/dispatch] dispatch failed", err);
     return NextResponse.json(
       {
         error: "dispatch_failed",
-        message: err?.message ?? "Failed to dispatch staff message",
+        message: err?.message ?? "Failed to dispatch agent message",
       },
       { status: 500 },
     );

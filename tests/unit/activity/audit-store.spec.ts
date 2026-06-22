@@ -47,7 +47,7 @@ function ev(id: string, detail: string | null = null): AuditEvent {
     repo: "acme/widgets",
     detail,
     duty: "changelog-verify",
-    staff: "qa-engineer",
+    agent: "qa-engineer",
     outcome: "ok",
     source: "dashboard",
   };

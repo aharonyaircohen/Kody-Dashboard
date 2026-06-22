@@ -22,15 +22,15 @@ A duty owns:
 - **Action name**: the public `@kody <action>` token that runs this duty.
 - **Purpose**: why the work exists and what outcome it maintains.
 - **Cadence**: how often the scheduler may run it.
-- **Runner**: which staff persona should run it.
-- **Reviewer**: which staff persona should treat the output after it exists.
+- **Agent**: which agent identity should run it.
+- **Reviewer**: which agent identity should treat the output after it exists.
 - **Output**: whether the duty only runs, or writes a report.
 - **Safety rules**: what it may and may not do.
 - **Executable link**: the implementation executable, when the duty needs one.
 
 A duty does **not** own:
 
-- A long staff/persona prompt. Put that in `.kody/staff/<slug>.md`.
+- A long agent identity prompt. Put that in `.kody/agents/<slug>.md`.
 - A reusable action implementation. Put that in `.kody/executables/<slug>/`.
 - A long step-by-step runbook. Put reusable method in executable skills.
 - Bash, Python, or API recipes. Put deterministic work in executable-owned
@@ -57,7 +57,7 @@ Use this shape:
   "action": "broken-links",
   "executable": "broken-link-report",
   "every": "1d",
-  "runner": "qa",
+  "agent": "qa",
   "reviewer": "cto",
   "writesTo": ["broken-link-report"]
 }
@@ -103,12 +103,12 @@ Do not put metadata frontmatter in `duty.md`. Metadata belongs in
 | `action`      | Public action token. `@kody <action>` runs this duty. Usually the duty slug.                     |
 | `executable`  | Optional implementation executable slug. Use this for the one executable that performs the work. |
 | `every`       | Optional cadence: `manual`, `1h`, `1d`, `7d`, etc.                                               |
-| `runner`      | Staff persona slug that performs the duty. A duty without a runner should not auto-run.          |
-| `reviewer`    | Optional staff persona slug responsible for reviewing or handling the duty output.               |
+| `agent`      | Agent identity slug that performs the duty. A duty without an agent should not auto-run.          |
+| `reviewer`    | Optional agent identity slug responsible for reviewing or handling the duty output.               |
 | `mentions`    | Optional GitHub logins to notify, without `@`.                                                   |
 | `executables` | Multi-run executable list. Prefer singular `executable` for normal duties.                       |
-| `tools`       | Optional duty tool names exposed to the tick runner.                                             |
-| `tickScript`  | Optional deterministic script path for a scripted duty runner.                                   |
+| `tools`       | Optional duty tool names exposed to the tick agent.                                             |
+| `tickScript`  | Optional deterministic script path for a scripted duty agent.                                   |
 | `readsFrom`   | Context, report, or duty slugs this duty reads.                                                  |
 | `writesTo`    | Report or context slugs this duty writes.                                                        |
 | `disabled`    | `true` pauses autonomous scheduling.                                                             |
@@ -167,14 +167,14 @@ Examples:
 - Do not edit source files.
 - Only update `.kody/reports/<slug>.md`.
 
-## Choosing between duty, executable, and staff
+## Choosing between duty, executable, and agent
 
 Use a **duty** when the work is recurring or public as an `@kody <action>`.
 
 Use an **executable** when you are defining implementation that a duty action
 can run, such as a deterministic graph refresh or an agent workflow.
 
-Use **staff** when you are defining who performs the work.
+Use **agent** when you are defining who performs the work.
 
 ## Creation checklist
 
@@ -183,8 +183,8 @@ Before creating a duty, Kody should know:
 - What should happen.
 - Which public action runs it. Usually this should match the slug.
 - How often it should happen.
-- Which staff member is the runner.
-- Which staff member is the reviewer, if anyone.
+- Which agent is the agent.
+- Which agent is the reviewer, if anyone.
 - Whether the output is `Run` or `Report`.
 - Which implementation executable runs the work, if needed.
 - Which reports or context entries it reads or writes, if any.

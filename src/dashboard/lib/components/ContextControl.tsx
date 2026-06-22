@@ -6,17 +6,17 @@
  *   entries. An entry is a markdown file at `.kody/context/<slug>.md` in the
  *   connected repo: the slug is the entry name (e.g. `company-profile`,
  *   `mission`, `products`) and the body is free-form markdown — curated
- *   context you write FOR Kody (company facts, brand, persona briefs).
+ *   context you write FOR Kody (company facts, brand, agentIdentity briefs).
  *   Reference docs that already live in the repo (README, DESIGN_SYSTEM.md)
- *   belong in the repo, not here. Each entry carries a `staff:` list of
- *   staff-member slugs that own it, deciding which consumers load it: entries
- *   owned by the built-in `kody` staff feed the kody chat system prompt;
+ *   belong in the repo, not here. Each entry carries a `agent:` list of
+ *   agent-member slugs that own it, deciding which consumers load it: entries
+ *   owned by the built-in `kody` agent feed the kody chat system prompt;
  *   `qa-engineer` entries feed the engine QA preflight. An empty list means
  *   the entry is unassigned (loaded by nobody).
  *
- *   Mirrors StaffControl's layout/UX (ListSearch + shared MarkdownPreview
+ *   Mirrors AgentsControl's layout/UX (ListSearch + shared MarkdownPreview
  *   view + MarkdownEditor dialogs), minus any schedule UI — entries are not
- *   scheduled — plus a per-entry staff multi-select and badges.
+ *   scheduled — plus a per-entry agent multi-select and badges.
  */
 "use client";
 
@@ -65,10 +65,10 @@ import {
   useContextEntries,
   useUpdateContextEntry,
 } from "../hooks/useContextEntries";
-import { useStaff } from "../hooks/useStaff";
+import { useAgents } from "../hooks/useAgents";
 import { useGitHubIdentity } from "../hooks/useGitHubIdentity";
 import type { ContextEntry } from "../api";
-import { KODY_CHAT_STAFF, QA_STAFF, ALL_STAFF } from "../context/frontmatter";
+import { KODY_CHAT_AGENT, QA_AGENT, ALL_AGENT } from "../context/frontmatter";
 import { ConfirmDialog } from "./ConfirmDialog";
 import { ListSearch } from "./ListSearch";
 import { MarkdownEditor } from "./MarkdownEditor";
@@ -79,72 +79,72 @@ const SLUG_RE = /^[a-z0-9][a-z0-9_-]{0,63}$/;
 
 type StaffOption = { slug: string; label: string; hint: string };
 
-const ALL_STAFF_FILTER = "__all_staff_filter__";
-const NO_STAFF_FILTER = "__no_staff_filter__";
+const ALL_AGENT_FILTER = "__all_staff_filter__";
+const NO_AGENT_FILTER = "__no_staff_filter__";
 
-/** The all-staff wildcard, offered as the first toggle in the picker. */
-const ALL_STAFF_OPTION: StaffOption = {
-  slug: ALL_STAFF,
-  label: "All staff",
-  hint: "Every staff member, including ones added later",
+/** The all-agent wildcard, offered as the first toggle in the picker. */
+const ALL_AGENT_OPTION: StaffOption = {
+  slug: ALL_AGENT,
+  label: "All agent",
+  hint: "Every agent, including ones added later",
 };
 
-/** Built-in staff members always offered, even with no matching `.kody/staff/*.md` file. */
-const BUILTIN_STAFF: StaffOption[] = [
+/** Built-in agents always offered, even with no matching `.kody/agents/*.md` file. */
+const BUILTIN_AGENT: StaffOption[] = [
   {
-    slug: KODY_CHAT_STAFF,
+    slug: KODY_CHAT_AGENT,
     label: "Kody",
-    hint: "Built-in assistant persona",
+    hint: "Built-in assistant agentIdentity",
   },
   {
-    slug: QA_STAFF,
+    slug: QA_AGENT,
     label: "QA Engineer",
-    hint: "Built-in QA reviewer persona",
+    hint: "Built-in QA reviewer agentIdentity",
   },
 ];
 
-const BUILTIN_STAFF_BADGE: Record<string, string> = {
-  [ALL_STAFF]: "bg-violet-500/15 text-violet-300 border-violet-500/30",
-  [KODY_CHAT_STAFF]: "bg-teal-500/15 text-teal-300 border-teal-500/30",
-  [QA_STAFF]: "bg-amber-500/15 text-amber-300 border-amber-500/30",
+const BUILTIN_AGENT_BADGE: Record<string, string> = {
+  [ALL_AGENT]: "bg-violet-500/15 text-violet-300 border-violet-500/30",
+  [KODY_CHAT_AGENT]: "bg-teal-500/15 text-teal-300 border-teal-500/30",
+  [QA_AGENT]: "bg-amber-500/15 text-amber-300 border-amber-500/30",
 };
-const STAFF_BADGE_FALLBACK =
+const AGENT_BADGE_FALLBACK =
   "bg-slate-500/15 text-slate-300 border-slate-500/30";
 
-/** Short badge label for a staff slug — friendly for built-ins, raw slug otherwise. */
+/** Short badge label for an agent slug — friendly for built-ins, raw slug otherwise. */
 function staffBadgeLabel(slug: string): string {
-  if (slug === ALL_STAFF) return "All staff";
-  if (slug === KODY_CHAT_STAFF) return "Kody";
-  if (slug === QA_STAFF) return "QA";
+  if (slug === ALL_AGENT) return "All agent";
+  if (slug === KODY_CHAT_AGENT) return "Kody";
+  if (slug === QA_AGENT) return "QA";
   return slug;
 }
 
 /**
- * The options offered in a staff multi-select: the built-ins (Kody, QA)
- * plus any `.kody/staff/*.md` members in the connected repo.
+ * The options offered in an agent multi-select: the built-ins (Kody, QA)
+ * plus any `.kody/agents/*.md` members in the connected repo.
  */
-function useStaffOptions(): StaffOption[] {
-  const { data: staff = [] } = useStaff();
+function useAgentsOptions(): StaffOption[] {
+  const { data: agent = [] } = useAgents();
   return useMemo(() => {
-    const builtinSlugs = new Set(BUILTIN_STAFF.map((s) => s.slug));
-    const extra: StaffOption[] = staff
+    const builtinSlugs = new Set(BUILTIN_AGENT.map((s) => s.slug));
+    const extra: StaffOption[] = agent
       .filter((s) => !builtinSlugs.has(s.slug))
       .map((s) => ({
         slug: s.slug,
         label: s.title || s.slug,
-        hint: "Custom staff member",
+        hint: "Custom agent",
       }));
-    return [...BUILTIN_STAFF, ...extra];
-  }, [staff]);
+    return [...BUILTIN_AGENT, ...extra];
+  }, [agent]);
 }
 
 /**
- * Render a badge per owning staff member. An empty list renders a single
+ * Render a badge per owning agent. An empty list renders a single
  * muted "Unassigned" badge — the entry is owned by nobody, loaded by no
  * consumer.
  */
-function StaffBadges({ staff }: { staff: string[] }) {
-  if (staff.length === 0) {
+function StaffBadges({ agent }: { agent: string[] }) {
+  if (agent.length === 0) {
     return (
       <span className="inline-flex items-center rounded border border-white/15 bg-white/[0.04] px-1.5 py-0.5 text-[10px] font-medium uppercase tracking-wide text-muted-foreground">
         Unassigned
@@ -153,12 +153,12 @@ function StaffBadges({ staff }: { staff: string[] }) {
   }
   return (
     <span className="inline-flex items-center gap-1 flex-wrap">
-      {staff.map((slug) => (
+      {agent.map((slug) => (
         <span
           key={slug}
           className={cn(
             "inline-flex items-center rounded border px-1.5 py-0.5 text-[10px] font-medium uppercase tracking-wide",
-            BUILTIN_STAFF_BADGE[slug] ?? STAFF_BADGE_FALLBACK,
+            BUILTIN_AGENT_BADGE[slug] ?? AGENT_BADGE_FALLBACK,
           )}
         >
           {staffBadgeLabel(slug)}
@@ -203,8 +203,8 @@ export function ContextControlInner({
   );
 
   const [search, setSearch] = useState("");
-  const [staffFilter, setStaffFilter] = useState(ALL_STAFF_FILTER);
-  const staffOptions = useStaffOptions();
+  const [staffFilter, setStaffFilter] = useState(ALL_AGENT_FILTER);
+  const staffOptions = useAgentsOptions();
   const staffTitleBySlug = useMemo(
     () => new Map(staffOptions.map((s) => [s.slug, s.label])),
     [staffOptions],
@@ -212,11 +212,11 @@ export function ContextControlInner({
   const staffFilterOptions = useMemo(() => {
     const slugs = new Set<string>();
     for (const option of staffOptions) {
-      if (option.slug !== ALL_STAFF) slugs.add(option.slug);
+      if (option.slug !== ALL_AGENT) slugs.add(option.slug);
     }
     for (const entry of entries) {
-      for (const slug of entry.staff) {
-        if (slug !== ALL_STAFF) slugs.add(slug);
+      for (const slug of entry.agent) {
+        if (slug !== ALL_AGENT) slugs.add(slug);
       }
     }
     return [...slugs].sort((a, b) =>
@@ -226,16 +226,16 @@ export function ContextControlInner({
     );
   }, [entries, staffOptions, staffTitleBySlug]);
   const hasUnassignedEntries = useMemo(
-    () => entries.some((entry) => entry.staff.length === 0),
+    () => entries.some((entry) => entry.agent.length === 0),
     [entries],
   );
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase();
     const matchesStaffFilter = (entry: ContextEntry) => {
-      if (staffFilter === ALL_STAFF_FILTER) return true;
-      if (staffFilter === NO_STAFF_FILTER) return entry.staff.length === 0;
+      if (staffFilter === ALL_AGENT_FILTER) return true;
+      if (staffFilter === NO_AGENT_FILTER) return entry.agent.length === 0;
       return (
-        entry.staff.includes(ALL_STAFF) || entry.staff.includes(staffFilter)
+        entry.agent.includes(ALL_AGENT) || entry.agent.includes(staffFilter)
       );
     };
     return entries.filter(
@@ -244,7 +244,7 @@ export function ContextControlInner({
         (!q ||
           entry.slug.toLowerCase().includes(q) ||
           entry.body.toLowerCase().includes(q) ||
-          entry.staff.some((slug) => slug.toLowerCase().includes(q))),
+          entry.agent.some((slug) => slug.toLowerCase().includes(q))),
     );
   }, [entries, search, staffFilter]);
 
@@ -335,7 +335,7 @@ export function ContextControlInner({
                 <ContextStaffFilter
                   value={staffFilter}
                   onChange={setStaffFilter}
-                  staffSlugs={staffFilterOptions}
+                  agentSlugs={staffFilterOptions}
                   staffTitleBySlug={staffTitleBySlug}
                   hasUnassignedEntries={hasUnassignedEntries}
                 />
@@ -347,7 +347,7 @@ export function ContextControlInner({
               <EmptyState
                 icon={<FileText />}
                 title="No context yet"
-                hint="Create your first entry — company facts, brand, tone, or a persona brief you want Kody to know."
+                hint="Create your first entry — company facts, brand, tone, or an agentIdentity brief you want Kody to know."
               />
             ) : filtered.length === 0 ? (
               <EmptyState
@@ -384,7 +384,7 @@ export function ContextControlInner({
                           <span className="font-mono text-sm truncate flex-1">
                             {entry.slug}
                           </span>
-                          <StaffBadges staff={entry.staff} />
+                          <StaffBadges agent={entry.agent} />
                         </div>
                         <div className="text-xs text-muted-foreground mt-1 flex items-center gap-2 flex-wrap">
                           <span className="inline-flex items-center gap-1">
@@ -418,7 +418,7 @@ export function ContextControlInner({
               <EmptyState
                 icon={<FileText />}
                 title="Select an entry"
-                hint="Pick an entry from the list to see its content and owning staff."
+                hint="Pick an entry from the list to see its content and owning agent."
               />
             )}
           </section>
@@ -503,7 +503,7 @@ function EntryDetail({
                 <h1 className="text-2xl md:text-3xl font-semibold tracking-tight break-words font-mono">
                   {entry.slug}
                 </h1>
-                <StaffBadges staff={entry.staff} />
+                <StaffBadges agent={entry.agent} />
               </div>
               <div className="text-xs text-muted-foreground flex items-center gap-3 flex-wrap">
                 <span className="inline-flex items-center gap-1">
@@ -599,30 +599,30 @@ function EntryDetail({
 function ContextStaffFilter({
   value,
   onChange,
-  staffSlugs,
+  agentSlugs,
   staffTitleBySlug,
   hasUnassignedEntries,
 }: {
   value: string;
   onChange: (next: string) => void;
-  staffSlugs: string[];
+  agentSlugs: string[];
   staffTitleBySlug: Map<string, string>;
   hasUnassignedEntries: boolean;
 }) {
   return (
     <Select value={value} onValueChange={onChange}>
       <SelectTrigger
-        aria-label="Filter context by staff"
+        aria-label="Filter context by agent"
         className="h-9 w-full min-w-0 bg-background/40"
       >
         <SelectValue />
       </SelectTrigger>
       <SelectContent>
-        <SelectItem value={ALL_STAFF_FILTER}>All staff</SelectItem>
+        <SelectItem value={ALL_AGENT_FILTER}>All agent</SelectItem>
         {hasUnassignedEntries ? (
-          <SelectItem value={NO_STAFF_FILTER}>Unassigned</SelectItem>
+          <SelectItem value={NO_AGENT_FILTER}>Unassigned</SelectItem>
         ) : null}
-        {staffSlugs.map((slug) => {
+        {agentSlugs.map((slug) => {
           const title = staffTitleBySlug.get(slug);
           return (
             <SelectItem key={slug} value={slug}>
@@ -637,20 +637,20 @@ function ContextStaffFilter({
 
 /** One-line summary of the current selection, shown on the dropdown trigger. */
 function staffSummary(value: string[], options: StaffOption[]): string {
-  if (value.includes(ALL_STAFF)) return "All staff";
+  if (value.includes(ALL_AGENT)) return "All agent";
   if (value.length === 0) return "Unassigned";
   if (value.length === 1) {
     return options.find((o) => o.slug === value[0])?.label ?? value[0];
   }
-  return `${value.length} staff members`;
+  return `${value.length} agents`;
 }
 
 /**
- * Attach an entry to staff members via a compact dropdown. The relation is
- * the only thing stored: each selected staff member owns the entry. Three
+ * Attach an entry to agents via a compact dropdown. The relation is
+ * the only thing stored: each selected agent owns the entry. Three
  * shapes:
- *   - one or more specific staff members,
- *   - "All staff" (the `*` wildcard) — mutually exclusive with specifics, and
+ *   - one or more specific agents,
+ *   - "All agent" (the `*` wildcard) — mutually exclusive with specifics, and
  *   - none selected → "Unassigned" (owned by nobody).
  * Any already-attached slug that isn't a known option is still listed so it
  * can be unchecked. The menu stays open across toggles (onSelect preventDefault).
@@ -664,20 +664,20 @@ function StaffSelect({
   options: StaffOption[];
   onChange: (next: string[]) => void;
 }) {
-  const allActive = value.includes(ALL_STAFF);
+  const allActive = value.includes(ALL_AGENT);
 
   const shown: StaffOption[] = [...options];
   for (const slug of value) {
-    if (slug !== ALL_STAFF && !options.some((o) => o.slug === slug)) {
-      shown.push({ slug, label: slug, hint: "Not a known staff member" });
+    if (slug !== ALL_AGENT && !options.some((o) => o.slug === slug)) {
+      shown.push({ slug, label: slug, hint: "Not a known agent" });
     }
   }
   const order = shown.map((o) => o.slug);
 
-  const setAll = (checked: boolean) => onChange(checked ? [ALL_STAFF] : []);
+  const setAll = (checked: boolean) => onChange(checked ? [ALL_AGENT] : []);
 
   const toggleSpecific = (slug: string, checked: boolean) => {
-    const base = value.filter((v) => v !== ALL_STAFF); // picking a specific drops the wildcard
+    const base = value.filter((v) => v !== ALL_AGENT); // picking a specific drops the wildcard
     if (checked) {
       const merged = new Set([...base, slug]);
       onChange(order.filter((s) => merged.has(s)));
@@ -708,7 +708,7 @@ function StaffSelect({
             onCheckedChange={setAll}
             onSelect={(e) => e.preventDefault()}
           >
-            {ALL_STAFF_OPTION.label}
+            {ALL_AGENT_OPTION.label}
           </DropdownMenuCheckboxItem>
           <DropdownMenuSeparator />
           {shown.map((opt) => (
@@ -725,10 +725,10 @@ function StaffSelect({
       </DropdownMenu>
       <p className="text-[11px] text-muted-foreground px-0.5">
         {allActive
-          ? "All staff — every staff member is attached to this entry."
+          ? "All agent — every agent is attached to this entry."
           : value.length === 0
-            ? "Unassigned — not attached to any staff member."
-            : "Attached to each selected staff member."}
+            ? "Unassigned — not attached to any agent."
+            : "Attached to each selected agent."}
       </p>
     </div>
   );
@@ -747,18 +747,18 @@ function CreateEntryDialog({
 }) {
   const { githubUser } = useGitHubIdentity();
   const createMutation = useCreateContextEntry(githubUser?.login);
-  const staffOptions = useStaffOptions();
+  const staffOptions = useAgentsOptions();
 
   const [slug, setSlug] = useState("");
   const [body, setBody] = useState("");
-  const [staff, setStaff] = useState<string[]>([KODY_CHAT_STAFF]);
+  const [agent, setStaff] = useState<string[]>([KODY_CHAT_AGENT]);
   const [touchedSlug, setTouchedSlug] = useState(false);
 
   useEffect(() => {
     if (open) {
       setSlug("");
       setBody("");
-      setStaff([KODY_CHAT_STAFF]);
+      setStaff([KODY_CHAT_AGENT]);
       setTouchedSlug(false);
     }
   }, [open]);
@@ -779,7 +779,7 @@ function CreateEntryDialog({
   const handleSubmit = () => {
     if (!canSave) return;
     createMutation.mutate(
-      { slug, body, staff },
+      { slug, body, agent },
       { onSuccess: (entry) => onCreated(entry) },
     );
   };
@@ -792,7 +792,7 @@ function CreateEntryDialog({
           <DialogDescription>
             Stored at .kody/context/&lt;slug&gt;.md. The slug is the entry name
             Kody sees (e.g. company-profile, mission, products); the body is
-            plain markdown. Staff decides which consumers load it — leave all
+            plain markdown. Agent decides which consumers load it — leave all
             unchecked to keep the entry unassigned.
           </DialogDescription>
         </DialogHeader>
@@ -814,9 +814,9 @@ function CreateEntryDialog({
             ) : null}
           </div>
           <div className="space-y-1.5">
-            <Label>Staff</Label>
+            <Label>Agent</Label>
             <StaffSelect
-              value={staff}
+              value={agent}
               options={staffOptions}
               onChange={setStaff}
             />
@@ -854,27 +854,27 @@ function EditEntryDialog({
 }) {
   const { githubUser } = useGitHubIdentity();
   const updateMutation = useUpdateContextEntry(entry.slug, githubUser?.login);
-  const staffOptions = useStaffOptions();
+  const staffOptions = useAgentsOptions();
 
   const [body, setBody] = useState(entry.body || "");
-  const [staff, setStaff] = useState<string[]>(entry.staff);
+  const [agent, setStaff] = useState<string[]>(entry.agent);
 
   useEffect(() => {
     setBody(entry.body || "");
-    setStaff(entry.staff);
+    setStaff(entry.agent);
   }, [entry]);
 
   const bodyError = body.trim().length === 0 ? "Required" : null;
 
   const staffChanged =
-    staff.length !== entry.staff.length ||
-    staff.some((s) => !entry.staff.includes(s));
+    agent.length !== entry.agent.length ||
+    agent.some((s) => !entry.agent.includes(s));
 
   const handleSubmit = () => {
     if (bodyError || updateMutation.isPending) return;
-    const patch: { body?: string; staff?: string[] } = {};
+    const patch: { body?: string; agent?: string[] } = {};
     if (body !== entry.body) patch.body = body;
-    if (staffChanged) patch.staff = staff;
+    if (staffChanged) patch.agent = agent;
     if (Object.keys(patch).length === 0) {
       onSaved();
       return;
@@ -888,7 +888,7 @@ function EditEntryDialog({
         <DialogHeader>
           <DialogTitle>Edit entry `{entry.slug}`</DialogTitle>
           <DialogDescription>
-            Update the entry body or owning staff. Saving commits the file to
+            Update the entry body or owning agent. Saving commits the file to
             the default branch.
           </DialogDescription>
         </DialogHeader>
@@ -911,9 +911,9 @@ function EditEntryDialog({
             </div>
           </div>
           <div className="space-y-1.5 max-w-[280px]">
-            <Label>Staff</Label>
+            <Label>Agent</Label>
             <StaffSelect
-              value={staff}
+              value={agent}
               options={staffOptions}
               onChange={setStaff}
             />

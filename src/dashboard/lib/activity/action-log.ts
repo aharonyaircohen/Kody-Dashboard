@@ -40,8 +40,8 @@ export interface AuditEvent {
   actorType?: AuditActorType;
   /** Duty slug, when the action targets or is performed by a duty. */
   duty?: string | null;
-  /** Staff (persona) slug that executed, when known. */
-  staff?: string | null;
+  /** Agent (agentIdentity) slug that executed, when known. */
+  agent?: string | null;
   /** Coarse result of the action. Defaults to "ok". */
   outcome?: AuditOutcome;
   /** Deep link to the acted-on resource (issue/PR/run URL), when known. */

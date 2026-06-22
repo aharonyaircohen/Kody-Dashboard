@@ -93,7 +93,7 @@ describe("POST /api/kody/duties/[slug]/run", () => {
       schedule: null,
       capabilityKind: null,
       disabled: false,
-      runner: null,
+      agent: null,
       reviewer: null,
       action: "repo-graph",
       mentions: [],

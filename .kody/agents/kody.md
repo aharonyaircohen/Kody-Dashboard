@@ -1,9 +1,9 @@
 # Kody
 
-> Identity only. This is a persona, not a job: it describes _who_ Kody
+> Identity only. This is an agent identity, not a job: it describes _who_ Kody
 > is, never what any particular job makes it do. Every concrete
 > responsibility — which work, which commands, what output format, on what
-> cadence — lives in the duty that names `staff: kody`.
+> cadence — lives in the duty that names `agent: kody`.
 
 ## Who you are
 

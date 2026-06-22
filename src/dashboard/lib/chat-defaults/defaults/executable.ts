@@ -21,7 +21,7 @@ export const DEFAULT_EXECUTABLE: ExecutableEntry = {
     // Names MUST match the registry in app/api/kody/chat/tools/*.ts. The
     // filterToolsByAllowlist call in the route drops any name in this list
     // that isn't in the registry's merged tools — phantom names here do
-    // nothing, but phantom names in the persona mislead the model into
+    // nothing, but phantom names in the agentIdentity mislead the model into
     // calling tools that don't exist, which is how the chat ends up
     // "hallucinating" file contents.
     "github_get_issue",
@@ -68,12 +68,12 @@ export const DEFAULT_EXECUTABLE: ExecutableEntry = {
     "run_duty",
     "read_duty_creation_guide",
     "create_or_update_kody_duty",
-    // ── Staff admin (actor-gated) ──────────────────────────────────────────
-    "list_staff",
-    "read_staff",
-    "delete_staff",
-    "dispatch_staff",
-    "create_kody_staff",
+    // ── Agent admin (actor-gated) ──────────────────────────────────────────
+    "list_agents",
+    "read_agent",
+    "delete_agent",
+    "dispatch_agent",
+    "create_kody_agent",
     // ── Executable admin (actor-gated) ─────────────────────────────────────
     "list_executables",
     "read_executable",
@@ -154,9 +154,9 @@ export const DEFAULT_EXECUTABLE: ExecutableEntry = {
     "goal-planner",
     "create-issue",
     "create-duty",
-    "create-staff",
+    "create-agent",
     "vibe",
     "memory",
   ],
-  prompt: `Kody chat — apply the persona, workflows, and skills below. The user connected a repo; treat its code as the source of truth and the tools allowlist as the only callables you may invoke.`,
+  prompt: `Kody chat — apply the agentIdentity, workflows, and skills below. The user connected a repo; treat its code as the source of truth and the tools allowlist as the only callables you may invoke.`,
 };

@@ -86,7 +86,7 @@ describe("duty create output choice", () => {
     expect(source).toContain("<OutputSelect");
     expect(source).toContain("Report target");
     expect(source).toContain("<DutyActionScheduleRow");
-    expect(source).toContain("<DutyStaffRoleRow");
+    expect(source).toContain("<DutyAgentRoleRow");
     expect(source).toContain("<DutyExecutableOutputRow");
     expect(source).toContain("writesTo: buildDutyWritesTo");
     expect(source).not.toContain("<MentionsInput");
@@ -107,10 +107,10 @@ describe("duty create output choice", () => {
     expect(DUTY_CONTROL_SOURCE).not.toContain('id="duty-enabled"');
   });
 
-  it("places runner and reviewer controls in one responsive row", () => {
-    expect(DUTY_CONTROL_SOURCE).toContain("function DutyStaffRoleRow");
+  it("places agent and reviewer controls in one responsive row", () => {
+    expect(DUTY_CONTROL_SOURCE).toContain("function DutyAgentRoleRow");
     expect(DUTY_CONTROL_SOURCE).toContain("md:grid-cols-2");
-    expect(DUTY_CONTROL_SOURCE).toContain("<RunnerSelect");
+    expect(DUTY_CONTROL_SOURCE).toContain("<AgentSelect");
     expect(DUTY_CONTROL_SOURCE).toContain("<ReviewerSelect");
   });
 
@@ -126,14 +126,10 @@ describe("duty create output choice", () => {
 
   it("uses searchable selects for long duty dropdowns", () => {
     expect(DUTY_CONTROL_SOURCE).toContain("SearchableSelect");
-    expect(DUTY_CONTROL_SOURCE).toContain('searchPlaceholder="Search staff…"');
+    expect(DUTY_CONTROL_SOURCE).toContain('searchPlaceholder="Search agent…"');
     expect(DUTY_CONTROL_SOURCE).toContain(
       'searchPlaceholder="Search executables…"',
-    );
-    expect(DUTY_CONTROL_SOURCE).toContain(
-      'searchPlaceholder="Search runners…"',
-    );
-  });
+    );  });
 
   it("keeps duty dialogs open when Escape closes a searchable dropdown", () => {
     expect(DUTY_CONTROL_SOURCE).toContain(

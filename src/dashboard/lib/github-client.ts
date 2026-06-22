@@ -215,16 +215,16 @@ export function invalidateDutiesCache(slug?: string): void {
 }
 
 /**
- * Invalidate cache entries for staff files. Pass a slug to scope to one
- * staff member, or omit to clear the listing cache (e.g. on bulk changes).
- * Mirrors `invalidateDutiesCache` — staff are an independent feature
- * stored at `.kody/staff/<slug>.md`.
+ * Invalidate cache entries for agent files. Pass a slug to scope to one
+ * agent, or omit to clear the listing cache (e.g. on bulk changes).
+ * Mirrors `invalidateDutiesCache` — agent are an independent feature
+ * stored at `.kody/agents/<slug>.md`.
  */
 export function invalidateStaffCache(slug?: string): void {
   if (typeof slug === "string" && slug.length > 0) {
-    // Repo-scoped key shape: `staff:owner:repo:slug`. Wipe across repos.
-    invalidateCache("staff:");
-    revalidateTagSafe(`gh:staff:${slug}`);
+    // Repo-scoped key shape: `agent:owner:repo:slug`. Wipe across repos.
+    invalidateCache("agent:");
+    revalidateTagSafe(`gh:agent:${slug}`);
   } else {
     invalidateCache("staffs:");
     revalidateTagSafe("gh:staffs");

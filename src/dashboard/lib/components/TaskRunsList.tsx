@@ -122,9 +122,9 @@ export function TaskRunsList({
                   </div>
                   <div className="mt-0.5 flex items-center gap-2 flex-wrap text-xs text-white/45">
                     <span>{formatRelativeTime(entry.timestamp)}</span>
-                    {entry.staff && (
-                      <span title="Ran as staff persona">
-                        · as {entry.staff}
+                    {entry.agent && (
+                      <span title="Ran as agentIdentity">
+                        · as {entry.agent}
                       </span>
                     )}
                     {entry.note && (

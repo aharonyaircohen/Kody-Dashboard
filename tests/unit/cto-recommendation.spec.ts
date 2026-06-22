@@ -1,14 +1,14 @@
 /**
- * Tests for the generalized staff-recommendation detector. Any staff member
+ * Tests for the generalized agent-recommendation detector. Any agent
  * (CTO, QA, …) can emit a recommendation; each tags itself with a hidden
- * `<!-- kody-staff: <slug> -->` line so the dashboard tallies its verdict
- * under that staff member's own trust ledger. Legacy recs (CTO marker, no
+ * `<!-- kody-agent: <slug> -->` line so the dashboard tallies its verdict
+ * under that agent's own trust ledger. Legacy recs (CTO marker, no
  * slug line) default to the CTO. The slug marker must never reach the user —
  * it's stripped from the inbox snippet.
  */
 import { describe, expect, it } from "vitest";
 import {
-  parseCtoStaff,
+  parseCtoAgent,
   parseCtoAction,
   parseCtoCommand,
   detectCtoRecommendation,
@@ -39,7 +39,7 @@ const CTO_BODY = [
   "Backlog task #42 is ready.",
   "",
   "<!-- kody-cmd: @kody -->",
-  "<!-- kody-staff: cto -->",
+  "<!-- kody-agent: cto -->",
 ].join("\n");
 
 const QA_BODY = [
@@ -48,34 +48,34 @@ const QA_BODY = [
   "Three findings on the checkout flow.",
   "",
   "<!-- kody-cmd: @kody fix --pr 42 -->",
-  "<!-- kody-staff: qa -->",
+  "<!-- kody-agent: qa -->",
 ].join("\n");
 
-describe("parseCtoStaff", () => {
-  it("reads the slug from the kody-staff line", () => {
-    expect(parseCtoStaff(QA_BODY)).toBe("qa");
-    expect(parseCtoStaff(CTO_BODY)).toBe("cto");
+describe("parseCtoAgent", () => {
+  it("reads the slug from the kody-agent line", () => {
+    expect(parseCtoAgent(QA_BODY)).toBe("qa");
+    expect(parseCtoAgent(CTO_BODY)).toBe("cto");
   });
 
   it("is case-insensitive and lowercases the slug", () => {
-    expect(parseCtoStaff("<!-- kody-staff: QA -->")).toBe("qa");
+    expect(parseCtoAgent("<!-- kody-agent: QA -->")).toBe("qa");
   });
 
   it("accepts hyphenated slugs", () => {
-    expect(parseCtoStaff("<!-- kody-staff: release-manager -->")).toBe(
+    expect(parseCtoAgent("<!-- kody-agent: release-manager -->")).toBe(
       "release-manager",
     );
   });
 
   it("returns null when the line is absent", () => {
-    expect(parseCtoStaff("just a normal comment")).toBeNull();
+    expect(parseCtoAgent("just a normal comment")).toBeNull();
   });
 });
 
 describe("parseCtoAction — generalized detection", () => {
-  it("detects a QA rec via the kody-staff line (no CTO marker present)", () => {
+  it("detects a QA rec via the kody-agent line (no CTO marker present)", () => {
     // The QA marker is "QA result", which the legacy MARKER never matched.
-    // The explicit kody-staff line is what makes it a recognised rec now.
+    // The explicit kody-agent line is what makes it a recognised rec now.
     expect(parseCtoAction(QA_BODY)).toBe("fix");
   });
 
@@ -86,37 +86,37 @@ describe("parseCtoAction — generalized detection", () => {
 
   it("returns 'other' when a rec is tagged but the verb is unrecoverable", () => {
     const body =
-      "<!-- kody-staff: qa -->\nsome freeform note with no known verb";
+      "<!-- kody-agent: qa -->\nsome freeform note with no known verb";
     expect(parseCtoAction(body)).toBe("other");
   });
 
-  it("returns null for a plain comment (no marker, no staff line)", () => {
+  it("returns null for a plain comment (no marker, no agent line)", () => {
     expect(
       parseCtoAction("hey @aguyaharonyair can you look at this?"),
     ).toBeNull();
   });
 });
 
-describe("detectCtoRecommendation — staff scoping", () => {
+describe("detectCtoRecommendation — agent scoping", () => {
   it("returns the QA slug for a QA rec", () => {
     const rec = detectCtoRecommendation(
       entry({
         ctoAction: "fix",
-        ctoStaff: "qa",
+        ctoAgent: "qa",
         ctoCommand: "@kody fix --pr 42",
       }),
     );
     expect(rec).not.toBeNull();
-    expect(rec!.staff).toBe("qa");
+    expect(rec!.agent).toBe("qa");
     expect(rec!.action).toBe("fix");
   });
 
-  it("defaults to the CTO slug for a legacy entry with no ctoStaff", () => {
+  it("defaults to the CTO slug for a legacy entry with no ctoAgent", () => {
     const rec = detectCtoRecommendation(
       entry({ ctoAction: "execute", snippet: "CTO recommendation" }),
     );
     expect(rec).not.toBeNull();
-    expect(rec!.staff).toBe("cto");
+    expect(rec!.agent).toBe("cto");
   });
 
   it("returns null for a non-recommendation mention", () => {
@@ -141,7 +141,7 @@ describe("non-engine verbs never get dispatched", () => {
   it("detectCtoRecommendation drops a stored `@kody approve` to read-only", () => {
     // A QA rec persisted before the fix carried `@kody approve` as its command.
     const rec = detectCtoRecommendation(
-      entry({ ctoAction: "fix", ctoStaff: "qa", ctoCommand: "@kody approve" }),
+      entry({ ctoAction: "fix", ctoAgent: "qa", ctoCommand: "@kody approve" }),
     );
     expect(rec).not.toBeNull();
     // Falls back to the verb→command map (fix → @kody), never the dead verb.
@@ -149,10 +149,10 @@ describe("non-engine verbs never get dispatched", () => {
   });
 });
 
-describe("the kody-staff marker stays hidden from the operator", () => {
-  it("buildSnippet strips the kody-staff HTML comment", () => {
+describe("the kody-agent marker stays hidden from the operator", () => {
+  it("buildSnippet strips the kody-agent HTML comment", () => {
     const snippet = buildSnippet(QA_BODY);
-    expect(snippet).not.toContain("kody-staff");
+    expect(snippet).not.toContain("kody-agent");
     expect(snippet).not.toContain("kody-cmd");
     expect(snippet).not.toContain("<!--");
     // The human-readable reason still survives.

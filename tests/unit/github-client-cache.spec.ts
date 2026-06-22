@@ -226,24 +226,24 @@ describe("invalidateDutiesCache", () => {
 
 describe("invalidateStaffCache", () => {
   it("clears only the per-item cache when a slug is given", () => {
-    setCache("staff:acme:widgets:jane", 60_000, { name: "Jane" });
+    setCache("agent:acme:widgets:jane", 60_000, { name: "Jane" });
     setCache("staffs:acme:widgets:{}", 60_000, [{ slug: "jane" }]);
 
     invalidateStaffCache("jane");
 
     const keys = getCacheStats().keys;
-    expect(keys.some((k) => k.startsWith("staff:"))).toBe(false);
+    expect(keys.some((k) => k.startsWith("agent:"))).toBe(false);
     expect(keys.some((k) => k.startsWith("staffs:"))).toBe(true);
   });
 
   it("clears only the listing cache when no slug is given", () => {
-    setCache("staff:acme:widgets:jane", 60_000, { name: "Jane" });
+    setCache("agent:acme:widgets:jane", 60_000, { name: "Jane" });
     setCache("staffs:acme:widgets:{}", 60_000, [{ slug: "jane" }]);
 
     invalidateStaffCache();
 
     const keys = getCacheStats().keys;
-    expect(keys.some((k) => k.startsWith("staff:"))).toBe(true);
+    expect(keys.some((k) => k.startsWith("agent:"))).toBe(true);
     expect(keys.some((k) => k.startsWith("staffs:"))).toBe(false);
   });
 });
