@@ -18,7 +18,9 @@ Next.js App Router application with:
 ```
 app/                              # Next.js App Router
   ├── api/kody/                   # API routes (auth, tasks, prs, chat, etc.)
-  ├── api/oauth/                  # GitHub OAuth flow
+  ├── api/webhooks/               # GitHub webhook receiver
+  ├── api/push/                   # Web-push VAPID + subscribe
+  ├── api/notifications/          # In-app notification fan-out
   ├── [issueNumber]/              # Task detail pages
   ├── chat/                       # Chat interface
   ├── scenario/                   # Scenario builder
@@ -26,7 +28,7 @@ app/                              # Next.js App Router
 src/dashboard/
   ├── lib/components/             # React components
   ├── lib/hooks/                  # Custom hooks
-  ├── lib/auth/                   # Auth utilities (OAuth, sessions)
+  ├── lib/auth/                   # Auth utilities (GitHub PAT session, header-based)
   ├── lib/notifications/          # Notification system
   ├── providers/                  # Theme provider
   └── ui/                         # shadcn/ui primitives

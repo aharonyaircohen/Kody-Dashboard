@@ -1,0 +1,26 @@
+[
+  {
+    "title": "KODY_SESSION_SECRET is dead — set in e2e workflow but never read in source",
+    "body": "`KODY_SESSION_SECRET` is set in `.github/workflows/e2e.yml` (line 38: `ci-test-secret-do-not-use-in-prod`) and listed in `.env.example`, but a repo-wide grep finds zero readers in `src/` or `app/`. Auth is now header-based PAT (no session JWT), so this secret serves no purpose. Remove from `.env.example` and the e2e workflow, then sanity-check the e2e test run.",
+    "rationale": "Dead config in CI and docs leads to copy-paste mistakes (operators setting it for no reason) and is a misleading signal about how auth works.",
+    "priority": "low"
+  },
+  {
+    "title": "Full audit of stale OAuth / session-JWT references in code comments",
+    "body": "This chore fixed the user-facing README, AGENTS, and docs/DEPLOY. A repo-wide grep for `OAuth`, `api/oauth`, `session JWT`, and `sign in with GitHub` still finds hits in code comments in: `playwright.config.ts`, `src/dashboard/lib/webhooks/register.ts`, `src/dashboard/lib/components/KodyDashboard.tsx`, `app/api/kody/chat/tools/feature-tools.ts`. Most are stale references to the removed OAuth flow; a small follow-up chore to triage and fix them would prevent future drift.",
+    "rationale": "Documentation and code-comment drift around auth is a recurring tax. A single audit + sweep is cheaper than fixing one file per chore.",
+    "priority": "medium"
+  },
+  {
+    "title": "126 pre-existing eslint warnings across tests and source",
+    "body": "The verify gate's lint step reports 126 pre-existing warnings, all in files unrelated to this chore's docs edits. None are errors. Triage as a separate chore (group by rule, fix the cheap ones in one PR).",
+    "rationale": "Linting debt accumulates quietly; a single sweep prevents the warning count from growing unbounded.",
+    "priority": "low"
+  },
+  {
+    "title": "Pin prettier and add a pre-commit format check",
+    "body": "70 files had format drift on `main` (just fixed). The repo has a husky `pre-commit` hook but it doesn't run `prettier --check`. Add `prettier --check` to the pre-commit hook (or to the format CI step) so format drift can't reach `main` again.",
+    "rationale": "Format drift on main is the root cause of this gate failure. Catching it pre-merge is cheaper than catching it on a chore retry.",
+    "priority": "medium"
+  }
+]

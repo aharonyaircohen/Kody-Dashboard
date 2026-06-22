@@ -34,7 +34,7 @@ EOF
 pnpm dev
 ```
 
-Open <http://localhost:3333>, sign in with GitHub, and point it at a repo where the [Kody Engine](https://github.com/aharonyaircohen/Kody-Engine) is installed. Add at least one LLM provider in the dashboard's Models manager (any OpenAI-compatible or Anthropic endpoint — Claude, GPT, Gemini, Groq, OpenRouter, Mistral, DeepSeek, xAI, or a custom endpoint).
+Open <http://localhost:3333>, paste a GitHub Personal Access Token in the Settings page, and point it at a repo where the [Kody Engine](https://github.com/aharonyaircohen/Kody-Engine) is installed. Auth is header-based: the token is stored in `localStorage` as `kody_auth` and sent on every API call as `x-kody-token` — there is no server-side session or OAuth flow. Add at least one LLM provider in the dashboard's Models manager (any OpenAI-compatible or Anthropic endpoint — Claude, GPT, Gemini, Groq, OpenRouter, Mistral, DeepSeek, xAI, or a custom endpoint).
 
 ---
 
@@ -51,7 +51,7 @@ Open <http://localhost:3333>, sign in with GitHub, and point it at a repo where 
 - Real-time pipeline status via GitHub webhooks (push-based, IP-verified)
 - Changelog & report aggregation from autonomous runs
 - Desktop + in-app notifications
-- GitHub OAuth authentication
+- GitHub PAT authentication (header-based, no OAuth flow)
 - Dark/light theme
 
 ---
@@ -60,28 +60,27 @@ Open <http://localhost:3333>, sign in with GitHub, and point it at a repo where 
 
 The dashboard intentionally keeps the env surface tiny. **One** secret is required; everything else is either a non-secret config knob or lives in the dashboard's Settings page (user-scoped, not deployment-scoped).
 
-| Variable                  | Required | Purpose                                                                                                                                                                                                                            |
-| ------------------------- | -------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `KODY_MASTER_KEY`         | Yes      | 32-byte hex/base64 secret. Powers per-repo secrets vault (AES-256-GCM), session JWT signing, and chat-ingest HMAC. Each consumer purpose-prefixes the key so they're cryptographically separated. Generate with `pnpm vault:init`. |
-| `GITHUB_TOKEN`            | Yes      | Server-side GitHub API token for cron/webhook flows. Needs `repo` + `workflow` scope.                                                                                                                                              |
-| `KODY_CHAT_WORKFLOW_REPO` | Optional | Central engine repo (default: connected repo).                                                                                                                                                                                     |
-| `KODY_CHAT_WORKFLOW_ID`   | Optional | Chat workflow filename (default: `kody.yml`).                                                                                                                                                                                      |
-| `JINA_API_KEY`            | Optional | Jina Reader key for the `fetch_url` tool.                                                                                                                                                                                          |
-| `NEXT_PUBLIC_SERVER_URL`  | Dev only | Public URL for callbacks.                                                                                                                                                                                                          |
+| Variable                  | Required | Purpose                                                                                                                                                                                                                                                     |
+| ------------------------- | -------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `KODY_MASTER_KEY`         | Yes      | 32-byte hex/base64 secret. Powers per-repo secrets vault (AES-256-GCM) and chat-ingest HMAC. Each consumer purpose-prefixes the key (`kody-chat-token:`, `kody-token-encryption:`) so they're cryptographically separated. Generate with `pnpm vault:init`. |
+| `GITHUB_TOKEN`            | Yes      | Server-side GitHub API token for cron/webhook flows. Needs `repo` + `workflow` scope.                                                                                                                                                                       |
+| `KODY_CHAT_WORKFLOW_REPO` | Optional | Central engine repo (default: connected repo).                                                                                                                                                                                                              |
+| `KODY_CHAT_WORKFLOW_ID`   | Optional | Chat workflow filename (default: `kody.yml`).                                                                                                                                                                                                               |
+| `JINA_API_KEY`            | Optional | Jina Reader key for the `fetch_url` tool.                                                                                                                                                                                                                   |
+| `NEXT_PUBLIC_SERVER_URL`  | Dev only | Public URL for callbacks.                                                                                                                                                                                                                                   |
 
 **Per-user credentials live in the dashboard's Settings page**, not as deployment env vars. This includes LLM API keys (configured per model entry in Models manager) and infra tokens like Fly. They're stored in the per-repo encrypted vault and sent per-request via headers. Same rule for any future per-user credential.
 
 ### GitHub token / PAT scopes
 
-| Scope        | Why                                                                      |
-| ------------ | ------------------------------------------------------------------------ |
-| `repo`       | Issues, PRs, comments, and webhooks (`repo` includes `admin:repo_hook`). |
-| `workflow`   | Dispatch and cancel GitHub Actions runs.                                 |
-| `user:email` | Identify the user on OAuth login.                                        |
+| Scope      | Why                                                                      |
+| ---------- | ------------------------------------------------------------------------ |
+| `repo`     | Issues, PRs, comments, and webhooks (`repo` includes `admin:repo_hook`). |
+| `workflow` | Dispatch and cancel GitHub Actions runs.                                 |
 
 A classic PAT with `repo` + `workflow` is the simplest setup. Create one at [github.com/settings/tokens](https://github.com/settings/tokens).
 
-The dashboard auto-registers a webhook on the connected repo at login (push-based cache invalidation, no shared secret — verified by GitHub's source IP CIDR list). If the user's token lacks `admin:repo_hook` on the repo, registration fails silently and the dashboard falls back to polling.
+The dashboard does **not** auto-register a webhook on the connected repo. After connecting a repo, POST to `/api/webhooks/register` once to install the GitHub webhook (push-based cache invalidation, no shared secret — verified by GitHub's source IP CIDR list). The user's PAT must include `admin:repo_hook` (already part of classic `repo`); without it, registration fails and the dashboard falls back to polling.
 
 ---
 
@@ -118,8 +117,9 @@ To restrict the server's working tree, export `BRAIN_REPOS_ROOT=/path/to/repos` 
 ```
 app/
   api/kody/           # Task, PR, chat, duty, secrets endpoints
-  api/oauth/          # GitHub OAuth flow
-  api/webhooks/       # GitHub webhook receiver
+  api/webhooks/       # GitHub webhook receiver (push-based invalidation)
+  api/push/           # Web-push VAPID public key + subscribe/unsubscribe
+  api/notifications/  # In-app notification fan-out
   [issueNumber]/      # Task detail pages
   chat/               # Chat UI
   scenario/           # Scenario builder
@@ -127,7 +127,7 @@ app/
 src/dashboard/lib/
   components/         # React UI
   hooks/              # Custom hooks
-  auth/               # GitHub OAuth + session
+  auth/               # GitHub PAT session (header-based, no OAuth)
   vault/              # Per-repo encrypted secrets
   webhooks/           # GitHub webhook handlers + registration
   changelog/          # Duty report aggregation
@@ -150,12 +150,6 @@ URL of that deployment so webhook registration and OG metadata use it):
 
 ```bash
 vercel --prod
-```
-
-The OAuth App callback URL must match your deployment:
-
-```
-https://<your-domain>/api/oauth/github/callback
 ```
 
 Set `KODY_MASTER_KEY`, `GITHUB_TOKEN`, and any optional keys in your hosting provider's env config. Everything user-scoped (Fly tokens, per-user API keys) is configured in the dashboard's Settings page at runtime.
