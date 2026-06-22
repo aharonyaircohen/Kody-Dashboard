@@ -1,0 +1,20 @@
+{
+  "version": 1,
+  "state": "active",
+  "type": "agentLoop",
+  "destination": {
+    "outcome": "test 1",
+    "evidence": []
+  },
+  "schedule": "1d",
+  "scheduleMode": "agentLoop",
+  "agentResponsibilities": [
+    "auto-fix-ci",
+    "approval-gate"
+  ],
+  "route": [],
+  "facts": {
+    "goalType": "agentLoop"
+  },
+  "blockers": []
+}
