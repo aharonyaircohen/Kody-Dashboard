@@ -28,7 +28,7 @@ describe("ManagedModelsView new model form", () => {
       "const showTypeSelect = !isRoutine && goalTypes.length > 1",
     );
     expect(dialog).toContain(
-      "Define a finish line and the evidence Kody must close.",
+      "Define the finish line and evidence Kody must close.",
     );
     expect(dialog).toContain(
       '<Label htmlFor="goal-type">Objective type</Label>',
@@ -37,9 +37,10 @@ describe("ManagedModelsView new model form", () => {
     expect(dialog).toContain("selectedGoalType.evidence.map");
     expect(dialog).toContain("selectedGoalType.route.map");
     expect(dialog).toContain('<Label htmlFor="goal-schedule">Cadence</Label>');
-    expect(dialog).toContain("Duties included");
-    expect(dialog).toContain("selectedGoalType.duties.map");
-    expect(dialog).toContain('isRoutine ? "Routine scope" : "Finish line"');
+    expect(dialog).toContain("Routine loop");
+    expect(dialog).toContain("Attached duties");
+    expect(dialog).toContain("routineDutyPreview.map");
+    expect(dialog).toContain('isRoutine ? "Scope" : "Finish line"');
     expect(dialog).not.toContain("goal-create-mode");
     expect(dialog).not.toContain("New instance");
     expect(dialog).not.toContain("goal-id");

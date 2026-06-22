@@ -365,13 +365,18 @@ function NewGoalDialog({
     : [];
   const canSubmit = outcome.trim().length > 0;
   const showTypeSelect = !isRoutine && goalTypes.length > 1;
-  const intentLabel = isRoutine ? "Routine scope" : "Finish line";
+  const intentLabel = isRoutine ? "Scope" : "Finish line";
   const dialogDescription = isRoutine
-    ? "Set cadence and operating scope for an ongoing loop."
-    : "Define a finish line and the evidence Kody must close.";
+    ? "Create one ongoing loop with a cadence and clear operating scope."
+    : "Define the finish line and evidence Kody must close.";
   const intentPlaceholder = isRoutine
-    ? "Example: Keep codebase healthy and report drift."
+    ? "Example: Keep codebase healthy and surface drift."
     : selectedGoalType.promptPlaceholder;
+  const routineDutyPreview = selectedGoalType.duties.slice(0, 6);
+  const remainingRoutineDuties = Math.max(
+    selectedGoalType.duties.length - routineDutyPreview.length,
+    0,
+  );
 
   useEffect(() => {
     if (!goalTypes.some((type) => type.id === goalType)) {
@@ -414,6 +419,24 @@ function NewGoalDialog({
           <DialogDescription>{dialogDescription}</DialogDescription>
         </DialogHeader>
 
+        {isRoutine ? (
+          <div className="rounded-lg border border-sky-500/20 bg-sky-500/[0.06] px-4 py-3">
+            <div className="flex flex-wrap items-center gap-2">
+                <span className="inline-flex h-8 w-8 items-center justify-center rounded-md bg-sky-500/15 text-sky-600 dark:text-sky-200">
+                  <RefreshCw className="h-4 w-4" />
+                </span>
+                <div className="min-w-0 flex-1">
+                  <p className="text-sm font-medium text-foreground">
+                    Routine loop
+                  </p>
+                <p className="text-xs text-muted-foreground">
+                  Runs on cadence, updates health state, keeps duties attached.
+                </p>
+              </div>
+            </div>
+          </div>
+        ) : null}
+
         <div className="space-y-4">
           <div className="grid gap-3 md:grid-cols-2">
             <div className="space-y-3">
@@ -440,16 +463,16 @@ function NewGoalDialog({
                 </div>
               ) : null}
 
-              <div className="space-y-2 rounded-md border border-white/[0.08] bg-white/[0.03] px-3 py-2 text-xs text-muted-foreground">
-                <p className="text-sm font-medium text-white/85">
+              <div className="space-y-2 rounded-md border border-border/70 bg-muted/30 px-3 py-2 text-xs text-muted-foreground">
+                <p className="text-sm font-medium text-foreground">
                   {selectedGoalType.description}
                 </p>
                 <p>
-                  <span className="text-white/65">Best for: </span>
+                  <span className="text-foreground/70">Best for: </span>
                   {selectedGoalType.bestFor}
                 </p>
                 <p>
-                  <span className="text-white/65">Kody will: </span>
+                  <span className="text-foreground/70">Kody will: </span>
                   {selectedGoalType.systemSummary}
                 </p>
               </div>
@@ -477,17 +500,24 @@ function NewGoalDialog({
                     </SelectContent>
                   </Select>
                 </div>
-                <div className="space-y-2 rounded-md border border-white/[0.08] bg-black/20 px-3 py-2 text-xs text-muted-foreground">
-                  <p className="text-white/65">Duties included</p>
-                  <div className="flex max-h-28 flex-wrap gap-1 overflow-auto pr-1">
-                    {selectedGoalType.duties.map((duty) => (
+                <div className="space-y-2 rounded-md border border-border/70 bg-muted/30 px-3 py-3 text-xs text-muted-foreground">
+                  <p className="font-medium uppercase tracking-wide text-muted-foreground">
+                    Attached duties
+                  </p>
+                  <div className="flex flex-wrap gap-1.5">
+                    {routineDutyPreview.map((duty) => (
                       <span
                         key={duty}
-                        className="rounded border border-white/[0.08] bg-black/25 px-2 py-1 font-mono text-[11px] text-white/65"
+                        className="rounded border border-border/70 bg-background/70 px-2 py-1 font-mono text-[11px] text-muted-foreground"
                       >
                         {duty}
                       </span>
                     ))}
+                    {remainingRoutineDuties > 0 ? (
+                      <span className="rounded border border-border/70 bg-background/70 px-2 py-1 text-[11px] text-muted-foreground">
+                        +{remainingRoutineDuties}
+                      </span>
+                    ) : null}
                   </div>
                 </div>
               </div>
@@ -577,7 +607,7 @@ function NewGoalDialog({
               ) : (
                 <Plus className="h-4 w-4" />
               )}
-              Create {label}
+              {isRoutine ? "Create routine" : `Create ${label}`}
             </Button>
           </div>
         </div>
