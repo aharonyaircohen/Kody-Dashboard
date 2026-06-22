@@ -1,0 +1,20 @@
+{
+  "version": 1,
+  "state": "active",
+  "type": "routine",
+  "destination": {
+    "outcome": "test",
+    "evidence": []
+  },
+  "schedule": "30d",
+  "scheduleMode": "duty-cadence",
+  "duties": [
+    "approval-gate",
+    "chore"
+  ],
+  "route": [],
+  "facts": {
+    "goalType": "routine"
+  },
+  "blockers": []
+}
