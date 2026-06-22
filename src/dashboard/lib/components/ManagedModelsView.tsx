@@ -547,18 +547,16 @@ function NewGoalDialog({
         </DialogHeader>
 
         <div className="min-w-0 space-y-4">
-          {isRoutine ? (
-            <div className="space-y-2">
-              <Label htmlFor="goal-outcome">{intentLabel}</Label>
-              <Textarea
-                id="goal-outcome"
-                value={outcome}
-                onChange={(event) => setOutcome(event.target.value)}
-                placeholder={intentPlaceholder}
-                rows={4}
-              />
-            </div>
-          ) : null}
+          <div className="space-y-2">
+            <Label htmlFor="goal-outcome">{intentLabel}</Label>
+            <Textarea
+              id="goal-outcome"
+              value={outcome}
+              onChange={(event) => setOutcome(event.target.value)}
+              placeholder={intentPlaceholder}
+              rows={4}
+            />
+          </div>
 
           <div className="grid min-w-0 gap-3 md:grid-cols-2">
             <div className="min-w-0 space-y-3">
@@ -639,19 +637,6 @@ function NewGoalDialog({
             )}
           </div>
 
-          {!isRoutine ? (
-            <div className="space-y-2">
-              <Label htmlFor="goal-outcome">{intentLabel}</Label>
-              <Textarea
-                id="goal-outcome"
-                value={outcome}
-                onChange={(event) => setOutcome(event.target.value)}
-                placeholder={intentPlaceholder}
-                rows={4}
-              />
-            </div>
-          ) : null}
-
           <div className="flex justify-end gap-2">
             <Button
               type="button"
@@ -694,10 +679,17 @@ function EditManagedGoalDialog({
 }) {
   const updateGoal = useUpdateManagedGoal(goal?.id ?? "");
   const isRoutine = goal ? managedGoalModel(goal) === "routine" : false;
+  const selectedGoalType = goal
+    ? MANAGED_GOAL_TYPES.find((type) => type.id === goal.state.type)
+    : null;
+  const objectiveGoalType =
+    !isRoutine && selectedGoalType?.model === "objective"
+      ? selectedGoalType
+      : null;
   const intentLabel = isRoutine ? "Scope" : "Finish line";
   const editDescription = isRoutine
     ? "Update routine scope, cadence, and duties."
-    : "Update finish line and schedule.";
+    : "Update objective finish line and evidence route.";
   const [outcome, setOutcome] = useState("");
   const [schedule, setSchedule] = useState<ManagedGoalSchedule>("manual");
   const [selectedDutySlugs, setSelectedDutySlugs] = useState<string[]>([]);
@@ -758,28 +750,44 @@ function EditManagedGoalDialog({
           </div>
 
           <div className="grid min-w-0 gap-3 md:grid-cols-2">
-            <div className="space-y-2">
-              <Label htmlFor="edit-goal-schedule">
-                {isRoutine ? "Cadence" : "Schedule"}
-              </Label>
-              <Select
-                value={schedule}
-                onValueChange={(value) =>
-                  setSchedule(value as ManagedGoalSchedule)
-                }
-              >
-                <SelectTrigger id="edit-goal-schedule">
-                  <SelectValue placeholder="Choose schedule" />
-                </SelectTrigger>
-                <SelectContent>
-                  {scheduleChoices.map((option) => (
-                    <SelectItem key={option.value} value={option.value}>
-                      {option.label}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
+            {isRoutine ? (
+              <div className="space-y-2">
+                <Label htmlFor="edit-goal-schedule">Cadence</Label>
+                <Select
+                  value={schedule}
+                  onValueChange={(value) =>
+                    setSchedule(value as ManagedGoalSchedule)
+                  }
+                >
+                  <SelectTrigger id="edit-goal-schedule">
+                    <SelectValue placeholder="Choose schedule" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {scheduleChoices.map((option) => (
+                      <SelectItem key={option.value} value={option.value}>
+                        {option.label}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            ) : (
+              <div className="min-w-0 space-y-2">
+                <Label>Objective type</Label>
+                {objectiveGoalType ? (
+                  <>
+                    <div className="rounded-md border border-border/70 bg-muted/30 px-3 py-2 text-sm font-medium text-foreground">
+                      {objectiveGoalType.label}
+                    </div>
+                    <ObjectiveTypeInfo goalType={objectiveGoalType} />
+                  </>
+                ) : (
+                  <div className="rounded-md border border-border/70 bg-muted/30 px-3 py-2 text-sm font-medium text-foreground">
+                    {goal?.state.type ?? "Objective"}
+                  </div>
+                )}
+              </div>
+            )}
 
             {isRoutine ? (
               <div className="min-w-0 space-y-2 md:col-span-2">
@@ -799,6 +807,8 @@ function EditManagedGoalDialog({
                   maxVisibleSelected={4}
                 />
               </div>
+            ) : objectiveGoalType ? (
+              <ObjectiveEvidenceRouteSummary goalType={objectiveGoalType} />
             ) : null}
           </div>
 

@@ -54,6 +54,9 @@ describe("ManagedModelsView new model form", () => {
     expect(dialog).toContain("md:col-span-2");
     expect(dialog).toContain("selectedDutySlugs.length");
     expect(dialog).toContain('isRoutine ? "Scope" : "Finish line"');
+    expect(dialog.indexOf('htmlFor="goal-outcome"')).toBeLessThan(
+      dialog.indexOf('className="grid min-w-0 gap-3 md:grid-cols-2"'),
+    );
     expect(dialog).not.toContain("goal-create-mode");
     expect(dialog).not.toContain("New instance");
     expect(dialog).not.toContain("goal-id");
@@ -72,7 +75,21 @@ describe("ManagedModelsView new model form", () => {
     expect(dialog).toContain(
       'const intentLabel = isRoutine ? "Scope" : "Finish line"',
     );
-    expect(dialog).toContain('{isRoutine ? "Cadence" : "Schedule"}');
+    expect(dialog).toContain(
+      "Update objective finish line and evidence route.",
+    );
+    expect(dialog).toContain("const objectiveGoalType =");
+    expect(dialog).toContain("<Label>Objective type</Label>");
+    expect(dialog).toContain(
+      "<ObjectiveTypeInfo goalType={objectiveGoalType} />",
+    );
+    expect(dialog).toContain(
+      "<ObjectiveEvidenceRouteSummary goalType={objectiveGoalType} />",
+    );
+    expect(dialog.indexOf('htmlFor="edit-goal-outcome"')).toBeLessThan(
+      dialog.indexOf('className="grid min-w-0 gap-3 md:grid-cols-2"'),
+    );
+    expect(dialog).not.toContain('{isRoutine ? "Cadence" : "Schedule"}');
     expect(dialog).not.toContain("Proof key");
     expect(dialog).not.toContain("Proof route");
     expect(dialog).not.toContain("Advanced");
