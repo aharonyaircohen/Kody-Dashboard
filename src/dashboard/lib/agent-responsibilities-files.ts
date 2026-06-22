@@ -16,7 +16,14 @@ import {
   getRepo,
   invalidateAgentResponsibilitiesCache,
 } from "./github-client";
-import { readStateText, resolveStateRepo, stateRepoPath } from "./state-repo";
+import {
+  deleteStateFile,
+  listStateDirectory,
+  readStateText,
+  resolveStateRepo,
+  stateRepoPath,
+  writeStateText,
+} from "./state-repo";
 import {
   latestActivityByAgentResponsibility,
   type CompanyActivityRecord,
@@ -36,7 +43,7 @@ import {
   readCompanyStoreText,
 } from "./company-store/assets";
 
-const DUTIES_DIR = ".kody/agent-responsibilities";
+const DUTIES_DIR = "agent-responsibilities";
 const DUTIES_STATE_DIR = "agent-responsibilities";
 const PROFILE_FILE = "profile.json";
 const BODY_FILE = "agent-responsibility.md";
@@ -155,23 +162,16 @@ function parseAgentResponsibilityProfile(raw: unknown, slug: string): AgentRespo
   };
 }
 
-async function getDefaultBranch(octokit: Octokit): Promise<string> {
-  const { data } = await octokit.repos.get({
-    owner: getOwner(),
-    repo: getRepo(),
-  });
-  return data.default_branch;
-}
-
 async function fetchLastCommitDate(
   octokit: Octokit,
   filePath: string,
 ): Promise<string> {
   try {
+    const target = await resolveStateRepo(octokit, getOwner(), getRepo());
     const { data } = await octokit.repos.listCommits({
-      owner: getOwner(),
-      repo: getRepo(),
-      path: filePath,
+      owner: target.owner,
+      repo: target.repo,
+      path: stateRepoPath(target, filePath),
       per_page: 1,
     });
     return (
@@ -281,32 +281,17 @@ function isSameOrNewer(candidate: string, current: string | null): boolean {
   return candidateMs >= currentMs;
 }
 
-function buildHtmlUrl(slug: string, branch: string | null): string {
-  const ref = branch ?? "HEAD";
-  return `https://github.com/${getOwner()}/${getRepo()}/tree/${ref}/${DUTIES_DIR}/${slug}`;
-}
-
 export async function listLocalAgentResponsibilityFiles(): Promise<
   AgentResponsibilityFile[]
 > {
   const octokit = getOctokit();
-  let entries: Array<{ name: string; type: string }> = [];
-  try {
-    const { data } = await octokit.repos.getContent({
-      owner: getOwner(),
-      repo: getRepo(),
-      path: DUTIES_DIR,
-    });
-    entries = Array.isArray(data)
-      ? (data as Array<{ name: string; type: string }>)
-      : [];
-  } catch (error: unknown) {
-    if ((error as { status?: number })?.status === 404) {
-      entries = [];
-    } else {
-      throw error;
-    }
-  }
+  const { entries } = await listStateDirectory(
+    octokit,
+    getOwner(),
+    getRepo(),
+    DUTIES_DIR,
+    { headers: { "If-None-Match": "" } },
+  );
   const agentResponsibilities = await Promise.all(
     entries
       .filter((e) => e.type === "dir" && isValidSlug(e.name))
@@ -319,23 +304,13 @@ export async function listLocalAgentResponsibilityFiles(): Promise<
 
 export async function listAgentResponsibilityFiles(): Promise<AgentResponsibilityFile[]> {
   const octokit = getOctokit();
-  let entries: Array<{ name: string; type: string }> = [];
-  try {
-    const { data } = await octokit.repos.getContent({
-      owner: getOwner(),
-      repo: getRepo(),
-      path: DUTIES_DIR,
-    });
-    entries = Array.isArray(data)
-      ? (data as Array<{ name: string; type: string }>)
-      : [];
-  } catch (error: unknown) {
-    if ((error as { status?: number })?.status === 404) {
-      entries = [];
-    } else {
-      throw error;
-    }
-  }
+  const { entries } = await listStateDirectory(
+    octokit,
+    getOwner(),
+    getRepo(),
+    DUTIES_DIR,
+    { headers: { "If-None-Match": "" } },
+  );
 
   const agentResponsibilities = await Promise.all(
     entries
@@ -382,7 +357,6 @@ export async function readAgentResponsibilityFile(
 ): Promise<AgentResponsibilityFile | null> {
   if (!isValidSlug(slug)) return null;
   const octokit = octokitOverride ?? getOctokit();
-  const branch = await getDefaultBranch(octokit).catch(() => null);
   const profilePath = `${DUTIES_DIR}/${slug}/${PROFILE_FILE}`;
   const bodyPath = `${DUTIES_DIR}/${slug}/${BODY_FILE}`;
 
@@ -395,38 +369,23 @@ export async function readAgentResponsibilityFile(
       tickState,
       activityByAgentResponsibility,
     ] = await Promise.all([
-      octokit.repos.getContent({
-        owner: getOwner(),
-        repo: getRepo(),
-        path: profilePath,
+      readStateText(octokit, getOwner(), getRepo(), profilePath, {
+        headers: { "If-None-Match": "" },
       }),
-      octokit.repos.getContent({
-        owner: getOwner(),
-        repo: getRepo(),
-        path: bodyPath,
+      readStateText(octokit, getOwner(), getRepo(), bodyPath, {
+        headers: { "If-None-Match": "" },
       }),
       fetchLastCommitDate(octokit, bodyPath),
         fetchStateLastCommitDate(octokit, slug),
       fetchTickState(octokit, slug),
       fetchRecentAgentResponsibilityActivity(),
     ]);
-    const profileData = profileResult.data;
-    const bodyData = bodyResult.data;
-    if (
-      Array.isArray(profileData) ||
-      Array.isArray(bodyData) ||
-      !("content" in profileData) ||
-      !("content" in bodyData) ||
-      !profileData.content ||
-      !bodyData.content
-    ) {
-      return null;
-    }
+    if (!profileResult || !bodyResult) return null;
     const profile = parseAgentResponsibilityProfile(
-      JSON.parse(Buffer.from(profileData.content, "base64").toString("utf-8")),
+      JSON.parse(profileResult.content),
       slug,
     );
-    const rawBody = Buffer.from(bodyData.content, "base64").toString("utf-8");
+    const rawBody = bodyResult.content;
     const { title, body } = parseTickedMarkdown(rawBody, slug);
     const activity = activityByAgentResponsibility.get(slug);
     const useActivity =
@@ -435,7 +394,7 @@ export async function readAgentResponsibilityFile(
       slug,
       title,
       body,
-      sha: bodyData.sha,
+      sha: bodyResult.sha,
       updatedAt,
       lastTickAt: useActivity ? activity.ts : lastTickAt,
       nextEligibleAt: tickState.nextEligibleAt,
@@ -463,7 +422,7 @@ export async function readAgentResponsibilityFile(
       tickScript: profile.tickScript ?? null,
       readsFrom: profile.readsFrom ?? [],
       writesTo: profile.writesTo ?? [],
-      htmlUrl: buildHtmlUrl(slug, branch),
+      htmlUrl: bodyResult.htmlUrl ?? "",
     };
   } catch (error: unknown) {
     if ((error as { status?: number })?.status === 404) return null;
@@ -526,22 +485,23 @@ export async function writeAgentResponsibilityFile(opts: TickWriteOptions): Prom
   const message =
     opts.message ??
     `${opts.sha ? "chore" : "feat"}(agentResponsibilities): ${opts.sha ? "update" : "add"} ${opts.slug}`;
-  const legacyPath = `${DUTIES_DIR}/${opts.slug}.md`;
-  const files: Array<{ path: string; content: string | null }> = [
-    {
-      path: `${DUTIES_DIR}/${opts.slug}/${PROFILE_FILE}`,
-      content: `${JSON.stringify(profile, null, 2)}\n`,
-    },
-    {
-      path: `${DUTIES_DIR}/${opts.slug}/${BODY_FILE}`,
-      content: body,
-    },
-  ];
-  if (await contentExists(opts.octokit, legacyPath)) {
-    files.push({ path: legacyPath, content: null });
-  }
-
-  await writeTreeCommit(opts.octokit, message, files);
+  await writeStateText({
+    octokit: opts.octokit,
+    owner: getOwner(),
+    repo: getRepo(),
+    path: `${DUTIES_DIR}/${opts.slug}/${PROFILE_FILE}`,
+    message,
+    content: `${JSON.stringify(profile, null, 2)}\n`,
+  });
+  await writeStateText({
+    octokit: opts.octokit,
+    owner: getOwner(),
+    repo: getRepo(),
+    path: `${DUTIES_DIR}/${opts.slug}/${BODY_FILE}`,
+    message,
+    content: body,
+    sha: opts.sha,
+  });
 
   invalidateAgentResponsibilitiesCache(opts.slug);
   const refreshed = await readAgentResponsibilityFile(opts.slug, opts.octokit);
@@ -557,103 +517,42 @@ export async function deleteAgentResponsibilityFile(
   octokit: Octokit,
   slug: string,
 ): Promise<void> {
-  if (!isValidSlug(slug)) throw new Error(`Invalid agentResponsibilities slug: "${slug}".`);
+  if (!isValidSlug(slug))
+    throw new Error(`Invalid agentResponsibilities slug: "${slug}".`);
   const existing = await readAgentResponsibilityFile(slug, octokit);
-  const legacyPath = `${DUTIES_DIR}/${slug}.md`;
-  const hasLegacy = await contentExists(octokit, legacyPath);
-  if (!existing && !hasLegacy) return;
-  const files: Array<{ path: string; content: string | null }> = [];
-  if (existing) {
-    files.push(
-      { path: `${DUTIES_DIR}/${slug}/${PROFILE_FILE}`, content: null },
-      { path: `${DUTIES_DIR}/${slug}/${BODY_FILE}`, content: null },
-    );
-  }
-  if (hasLegacy) files.push({ path: legacyPath, content: null });
-  await writeTreeCommit(octokit, `chore(agentResponsibilities): remove ${slug}`, files);
+  if (!existing) return;
+  const message = `chore(agentResponsibilities): remove ${slug}`;
+  await deleteStatePathIfExists(
+    octokit,
+    `${DUTIES_DIR}/${slug}/${PROFILE_FILE}`,
+    message,
+  );
+  await deleteStateFile({
+    octokit,
+    owner: getOwner(),
+    repo: getRepo(),
+    path: `${DUTIES_DIR}/${slug}/${BODY_FILE}`,
+    message,
+    sha: existing.sha,
+  });
   invalidateAgentResponsibilitiesCache(slug);
 }
-
-async function contentExists(
+async function deleteStatePathIfExists(
   octokit: Octokit,
   filePath: string,
-): Promise<boolean> {
-  try {
-    const { data } = await octokit.repos.getContent({
-      owner: getOwner(),
-      repo: getRepo(),
-      path: filePath,
-    });
-    return !Array.isArray(data) && "type" in data && data.type === "file";
-  } catch (error: unknown) {
-    if ((error as { status?: number })?.status === 404) return false;
-    throw error;
-  }
-}
-
-async function writeTreeCommit(
-  octokit: Octokit,
   message: string,
-  files: Array<{ path: string; content: string | null }>,
 ): Promise<void> {
-  const branch = await getDefaultBranch(octokit);
-  const refName = `heads/${branch}`;
-  const { data: ref } = await octokit.git.getRef({
+  const file = await readStateText(octokit, getOwner(), getRepo(), filePath);
+  if (!file) return;
+  await deleteStateFile({
+    octokit,
     owner: getOwner(),
     repo: getRepo(),
-    ref: refName,
-  });
-  const baseSha = ref.object.sha;
-  const { data: baseCommit } = await octokit.git.getCommit({
-    owner: getOwner(),
-    repo: getRepo(),
-    commit_sha: baseSha,
-  });
-  const tree = await Promise.all(
-    files.map(async (file) => {
-      if (file.content === null) {
-        return {
-          path: file.path,
-          mode: "100644" as const,
-          type: "blob" as const,
-          sha: null,
-        };
-      }
-      const { data: blob } = await octokit.git.createBlob({
-        owner: getOwner(),
-        repo: getRepo(),
-        content: file.content,
-        encoding: "utf-8",
-      });
-      return {
-        path: file.path,
-        mode: "100644" as const,
-        type: "blob" as const,
-        sha: blob.sha,
-      };
-    }),
-  );
-  const { data: newTree } = await octokit.git.createTree({
-    owner: getOwner(),
-    repo: getRepo(),
-    base_tree: baseCommit.tree.sha,
-    tree,
-  });
-  const { data: commit } = await octokit.git.createCommit({
-    owner: getOwner(),
-    repo: getRepo(),
+    path: filePath,
     message,
-    tree: newTree.sha,
-    parents: [baseSha],
-  });
-  await octokit.git.updateRef({
-    owner: getOwner(),
-    repo: getRepo(),
-    ref: refName,
-    sha: commit.sha,
+    sha: file.sha,
   });
 }
-
 function stripLeadingH1(body: string): string {
   const lines = body.replace(/^﻿/, "").split("\n");
   let i = 0;

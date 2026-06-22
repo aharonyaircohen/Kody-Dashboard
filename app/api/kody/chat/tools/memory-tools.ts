@@ -31,6 +31,7 @@ import {
   writeMemoryFile,
   type MemoryType,
 } from "@dashboard/lib/memory-files";
+import { resolveStateRepo, stateRepoPath } from "@dashboard/lib/state-repo";
 
 interface Ctx {
   octokit: Octokit;
@@ -373,7 +374,8 @@ export function createMemoryTools(ctx: Ctx) {
       }),
       execute: async ({ query }) => {
         try {
-          const scopedQuery = `${query} repo:${owner}/${repo} path:.kody/memory`;
+          const target = await resolveStateRepo(octokit, owner, repo);
+          const scopedQuery = `${query} repo:${target.owner}/${target.repo} path:${stateRepoPath(target, "memory")}`;
           const res = await octokit.rest.search.code({
             q: scopedQuery,
             per_page: 20,

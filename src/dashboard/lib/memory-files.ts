@@ -24,6 +24,14 @@ import {
   getRepo,
   invalidateMemoryCache,
 } from "./github-client";
+import {
+  deleteStateFile,
+  listStateDirectory,
+  readStateText,
+  resolveStateRepo,
+  stateRepoPath,
+  writeStateText,
+} from "./state-repo";
 
 export type MemoryType = "user" | "feedback" | "project" | "reference";
 
@@ -53,7 +61,7 @@ export interface MemoryFile {
   htmlUrl: string;
 }
 
-const MEMORY_DIR = ".kody/memory";
+const MEMORY_DIR = "memory";
 const INDEX_FILE = "INDEX.md";
 const MEMORY_TYPES: readonly MemoryType[] = [
   "user",
@@ -184,28 +192,16 @@ function parseMemoryFile(
 
 // ---------- GitHub helpers ----------
 
-function buildHtmlUrl(id: string, branch: string | null): string {
-  const ref = branch ?? "HEAD";
-  return `https://github.com/${getOwner()}/${getRepo()}/blob/${ref}/${MEMORY_DIR}/${id}.md`;
-}
-
-async function getDefaultBranch(octokit: Octokit): Promise<string> {
-  const { data } = await octokit.repos.get({
-    owner: getOwner(),
-    repo: getRepo(),
-  });
-  return data.default_branch;
-}
-
 async function fetchLastCommitDate(
   octokit: Octokit,
   filePath: string,
 ): Promise<string> {
   try {
+    const target = await resolveStateRepo(octokit, getOwner(), getRepo());
     const { data } = await octokit.repos.listCommits({
-      owner: getOwner(),
-      repo: getRepo(),
-      path: filePath,
+      owner: target.owner,
+      repo: target.repo,
+      path: stateRepoPath(target, filePath),
       per_page: 1,
     });
     return (
@@ -226,21 +222,14 @@ async function fetchLastCommitDate(
  */
 export async function listMemoryFiles(): Promise<MemoryFile[]> {
   const octokit = getOctokit();
-  const branch = await getDefaultBranch(octokit).catch(() => null);
 
-  let entries: Array<{ name: string; sha: string; type: string }> = [];
-  try {
-    const { data } = await octokit.repos.getContent({
-      owner: getOwner(),
-      repo: getRepo(),
-      path: MEMORY_DIR,
-    });
-    if (!Array.isArray(data)) return [];
-    entries = data as Array<{ name: string; sha: string; type: string }>;
-  } catch (error: unknown) {
-    if ((error as { status?: number })?.status === 404) return [];
-    throw error;
-  }
+  const { entries } = await listStateDirectory(
+    octokit,
+    getOwner(),
+    getRepo(),
+    MEMORY_DIR,
+    { headers: { "If-None-Match": "" } },
+  );
 
   const ids = entries
     .filter(
@@ -249,7 +238,6 @@ export async function listMemoryFiles(): Promise<MemoryFile[]> {
     )
     .map((e) => ({
       id: e.name.slice(0, -".md".length),
-      sha: e.sha,
       name: e.name,
     }))
     .filter((e) => isValidMemoryId(e.id));
@@ -258,14 +246,15 @@ export async function listMemoryFiles(): Promise<MemoryFile[]> {
     ids.map(async ({ id, name }) => {
       try {
         const filePath = `${MEMORY_DIR}/${name}`;
-        const { data } = await octokit.repos.getContent({
-          owner: getOwner(),
-          repo: getRepo(),
-          path: filePath,
-        });
-        if (Array.isArray(data) || !("content" in data) || !data.content)
-          return null;
-        const raw = Buffer.from(data.content, "base64").toString("utf-8");
+        const file = await readStateText(
+          octokit,
+          getOwner(),
+          getRepo(),
+          filePath,
+          { headers: { "If-None-Match": "" } },
+        );
+        if (!file) return null;
+        const raw = file.content;
         const parsed = parseMemoryFile(raw, id);
         if (!parsed) return null;
         const updatedAt = await fetchLastCommitDate(octokit, filePath);
@@ -273,9 +262,9 @@ export async function listMemoryFiles(): Promise<MemoryFile[]> {
           id,
           meta: parsed.meta,
           body: parsed.body,
-          sha: data.sha,
+          sha: file.sha,
           updatedAt,
-          htmlUrl: buildHtmlUrl(id, branch),
+          htmlUrl: file.htmlUrl ?? "",
         } satisfies MemoryFile;
       } catch {
         return null;
@@ -295,28 +284,22 @@ export async function listMemoryFiles(): Promise<MemoryFile[]> {
 export async function readMemoryFile(id: string): Promise<MemoryFile | null> {
   if (!isValidMemoryId(id)) return null;
   const octokit = getOctokit();
-  const branch = await getDefaultBranch(octokit).catch(() => null);
   const filePath = `${MEMORY_DIR}/${id}.md`;
-
   try {
-    const { data } = await octokit.repos.getContent({
-      owner: getOwner(),
-      repo: getRepo(),
-      path: filePath,
+    const file = await readStateText(octokit, getOwner(), getRepo(), filePath, {
+      headers: { "If-None-Match": "" },
     });
-    if (Array.isArray(data) || !("content" in data) || !data.content)
-      return null;
-    const raw = Buffer.from(data.content, "base64").toString("utf-8");
-    const parsed = parseMemoryFile(raw, id);
+    if (!file) return null;
+    const parsed = parseMemoryFile(file.content, id);
     if (!parsed) return null;
     const updatedAt = await fetchLastCommitDate(octokit, filePath);
     return {
       id,
       meta: parsed.meta,
       body: parsed.body,
-      sha: data.sha,
+      sha: file.sha,
       updatedAt,
-      htmlUrl: buildHtmlUrl(id, branch),
+      htmlUrl: file.htmlUrl ?? "",
     };
   } catch (error: unknown) {
     if ((error as { status?: number })?.status === 404) return null;
@@ -339,15 +322,11 @@ export async function readMemoryIndex(): Promise<{
   const octokit = getOctokit();
   const filePath = `${MEMORY_DIR}/${INDEX_FILE}`;
   try {
-    const { data } = await octokit.repos.getContent({
-      owner: getOwner(),
-      repo: getRepo(),
-      path: filePath,
+    const file = await readStateText(octokit, getOwner(), getRepo(), filePath, {
+      headers: { "If-None-Match": "" },
     });
-    if (Array.isArray(data) || !("content" in data) || !data.content)
-      return null;
-    const raw = Buffer.from(data.content, "base64").toString("utf-8");
-    return { body: raw, sha: data.sha };
+    if (!file) return null;
+    return { body: file.content, sha: file.sha };
   } catch (error: unknown) {
     if ((error as { status?: number })?.status === 404) return null;
     return null;
@@ -396,13 +375,13 @@ async function rebuildAndWriteIndex(opts: {
   const body = buildIndexBody(files);
   const existing = await readMemoryIndex();
   if (existing && existing.body === body) return;
-
-  await octokit.repos.createOrUpdateFileContents({
+  await writeStateText({
+    octokit,
     owner: getOwner(),
     repo: getRepo(),
     path: `${MEMORY_DIR}/${INDEX_FILE}`,
     message,
-    content: Buffer.from(body, "utf-8").toString("base64"),
+    content: body,
     sha: existing?.sha,
   });
 }
@@ -440,23 +419,22 @@ export async function writeMemoryFile(opts: WriteOptions): Promise<MemoryFile> {
   const verb = opts.sha ? "update" : "add";
   const message = opts.message ?? `chore(memory): ${verb} ${opts.id}`;
 
-  await opts.octokit.repos.createOrUpdateFileContents({
+  await writeStateText({
+    octokit: opts.octokit,
     owner: getOwner(),
     repo: getRepo(),
     path: filePath,
     message,
-    content: Buffer.from(content, "utf-8").toString("base64"),
+    content,
     sha: opts.sha,
   });
-
   invalidateMemoryCache(opts.id);
 
   await rebuildAndWriteIndex({
     octokit: opts.octokit,
     message: `chore(memory): refresh INDEX after ${verb} ${opts.id}`,
   }).catch(() => {
-    // Index rebuild is best-effort; the per-memory file is the source of
-    // truth. A stale INDEX recovers on the next write.
+    // Index rebuild is best-effort; per-memory files are source of truth.
   });
 
   const refreshed = await readMemoryFile(opts.id);
@@ -467,11 +445,6 @@ export async function writeMemoryFile(opts: WriteOptions): Promise<MemoryFile> {
   }
   return refreshed;
 }
-
-/**
- * Delete a memory file and rebuild INDEX.md. Idempotent on already-
- * missing files (no-op).
- */
 export async function deleteMemoryFile(
   octokit: Octokit,
   id: string,
@@ -481,7 +454,8 @@ export async function deleteMemoryFile(
   }
   const existing = await readMemoryFile(id);
   if (!existing) return;
-  await octokit.repos.deleteFile({
+  await deleteStateFile({
+    octokit,
     owner: getOwner(),
     repo: getRepo(),
     path: `${MEMORY_DIR}/${id}.md`,
@@ -496,7 +470,6 @@ export async function deleteMemoryFile(
     /* best-effort */
   });
 }
-
 // ---------- Cached system-prompt loader ----------
 
 interface CachedIndex {

@@ -20,10 +20,12 @@ import {
   getRepo,
 } from "../github-client";
 import {
+  deleteStateFile,
   listStateDirectory,
   readStateText,
   resolveStateRepo,
   stateRepoPath,
+  writeStateText,
 } from "../state-repo";
 import {
   latestActivityByAgentResponsibility,
@@ -267,64 +269,6 @@ export function parseTickedMarkdown(
   return { title, body, frontmatter };
 }
 
-async function getDefaultBranch(octokit: Octokit): Promise<string> {
-  const { data } = await octokit.repos.get({
-    owner: getOwner(),
-    repo: getRepo(),
-  });
-  return data.default_branch;
-}
-
-async function fetchLastCommitDate(
-  octokit: Octokit,
-  filePath: string,
-): Promise<string> {
-  try {
-    const { data } = await octokit.repos.listCommits({
-      owner: getOwner(),
-      repo: getRepo(),
-      path: filePath,
-      per_page: 1,
-    });
-    return (
-      data[0]?.commit.committer?.date ??
-      data[0]?.commit.author?.date ??
-      new Date().toISOString()
-    );
-  } catch {
-    return new Date().toISOString();
-  }
-}
-
-/**
- * Like `fetchLastCommitDate` but returns `null` when the file has no
- * commits (i.e. it doesn't exist yet). Used for `<slug>/state.json`
- * which is created by the engine on first tick — absence means
- * "never ticked," not an error.
- */
-async function fetchLastCommitDateOrNull(
-  octokit: Octokit,
-  filePath: string,
-  ref?: string,
-): Promise<string | null> {
-  try {
-    const { data } = await octokit.repos.listCommits({
-      owner: getOwner(),
-      repo: getRepo(),
-      path: filePath,
-      // State files live in the Kody state repo — look up their history there.
-      ...(ref ? { sha: ref } : {}),
-      per_page: 1,
-    });
-    if (data.length === 0) return null;
-    return (
-      data[0]?.commit.committer?.date ?? data[0]?.commit.author?.date ?? null
-    );
-  } catch {
-    return null;
-  }
-}
-
 export interface TickStateFields {
   /** `data.nextEligibleISO` — when the file next becomes eligible to act. */
   nextEligibleAt: string | null;
@@ -515,39 +459,26 @@ export function createTickedFiles(config: TickedFilesConfig): TickedFilesApi {
     );
   }
 
-  function buildHtmlUrl(slug: string, branch: string | null): string {
-    const ref = branch ?? "HEAD";
-    return `https://github.com/${getOwner()}/${getRepo()}/blob/${ref}/${dir}/${slug}.md`;
-  }
-
   /**
    * List every file under `<dir>/`. Returns `[]` if the directory does
    * not exist (fresh repo).
    */
   async function listFiles(): Promise<TickFile[]> {
     const octokit = getOctokit();
-    const branch = await getDefaultBranch(octokit).catch(() => null);
 
-    let entries: Array<{ name: string; sha: string; type: string }> = [];
-    try {
-      const { data } = await octokit.repos.getContent({
-        owner: getOwner(),
-        repo: getRepo(),
-        path: dir,
-      });
-      if (!Array.isArray(data)) return [];
-      entries = data as Array<{ name: string; sha: string; type: string }>;
-    } catch (error: unknown) {
-      if ((error as { status?: number })?.status === 404) return [];
-      throw error;
-    }
+    const { entries } = await listStateDirectory(
+      octokit,
+      getOwner(),
+      getRepo(),
+      stateDirPath(dir),
+      { headers: { "If-None-Match": "" } },
+    );
 
     const slugs = entries
       .filter((e) => e.type === "file")
-      .map((e) => ({ slug: slugFromName(e.name), sha: e.sha, name: e.name }))
+      .map((e) => ({ slug: slugFromName(e.name), name: e.name }))
       .filter(
-        (e): e is { slug: string; sha: string; name: string } =>
-          e.slug !== null,
+        (e): e is { slug: string; name: string } => e.slug !== null,
       );
 
     // Build a set of slugs that have state folders so we only pay for
@@ -571,21 +502,24 @@ export function createTickedFiles(config: TickedFilesConfig): TickedFilesApi {
         : new Map<string, CompanyActivityRecord>();
 
     const files = await Promise.all(
-  slugs.map(async ({ slug, sha, name }): Promise<TickFile | null> => {
+      slugs.map(async ({ slug, name }): Promise<TickFile | null> => {
         try {
-          const filePath = `${dir}/${name}`;
-          const { data } = await octokit.repos.getContent({
-            owner: getOwner(),
-            repo: getRepo(),
-            path: filePath,
-          });
-          if (Array.isArray(data) || !("content" in data) || !data.content)
-            return null;
-          const raw = Buffer.from(data.content, "base64").toString("utf-8");
+          const filePath = `${stateDirPath(dir)}/${name}`;
+          const file = await readStateText(
+            octokit,
+            getOwner(),
+            getRepo(),
+            filePath,
+            { headers: { "If-None-Match": "" } },
+          );
+          if (!file) return null;
+          const raw = file.content;
           const { title, body, frontmatter } = parseTickedMarkdown(raw, slug);
           const hasState = stateSlugs.has(slug);
           const [updatedAt, lastTickAt, tickState] = await Promise.all([
-            fetchLastCommitDate(octokit, filePath),
+            fetchStateLastCommitDate(octokit, filePath).then(
+              (date) => date ?? new Date().toISOString(),
+            ),
             hasState
               ? fetchStateLastCommitDate(octokit, tickStatePath(dir, slug))
               : Promise.resolve(null),
@@ -600,7 +534,7 @@ export function createTickedFiles(config: TickedFilesConfig): TickedFilesApi {
             slug,
             title,
             body,
-            sha,
+            sha: file.sha,
             updatedAt,
             lastTickAt: useActivity ? activity.ts : lastTickAt,
             nextEligibleAt: tickState.nextEligibleAt,
@@ -623,7 +557,7 @@ capabilityKind: null,
             tickScript: frontmatter.tickScript ?? null,
             readsFrom: frontmatter.readsFrom ?? [],
             writesTo: frontmatter.writesTo ?? [],
-            htmlUrl: buildHtmlUrl(slug, branch),
+            htmlUrl: file.htmlUrl ?? "",
           } satisfies TickFile;
         } catch {
           return null;
@@ -653,22 +587,24 @@ capabilityKind: null,
   ): Promise<TickFile | null> {
     if (!isValidSlug(slug)) return null;
     const octokit = octokitOverride ?? getOctokit();
-    const branch = await getDefaultBranch(octokit).catch(() => null);
-    const filePath = `${dir}/${slug}.md`;
+    const filePath = `${stateDirPath(dir)}/${slug}.md`;
 
     try {
-      const { data } = await octokit.repos.getContent({
-        owner: getOwner(),
-        repo: getRepo(),
-        path: filePath,
-      });
-      if (Array.isArray(data) || !("content" in data) || !data.content)
-        return null;
-      const raw = Buffer.from(data.content, "base64").toString("utf-8");
+      const file = await readStateText(
+        octokit,
+        getOwner(),
+        getRepo(),
+        filePath,
+        { headers: { "If-None-Match": "" } },
+      );
+      if (!file) return null;
+      const raw = file.content;
       const { title, body, frontmatter } = parseTickedMarkdown(raw, slug);
       const [updatedAt, lastTickAt, tickState, activityByAgentResponsibility] =
         await Promise.all([
-          fetchLastCommitDate(octokit, filePath),
+          fetchStateLastCommitDate(octokit, filePath).then(
+            (date) => date ?? new Date().toISOString(),
+          ),
           fetchStateLastCommitDate(octokit, tickStatePath(dir, slug)),
           fetchTickState(octokit, dir, slug),
           dir === ".kody/agent-responsibilities"
@@ -682,7 +618,7 @@ capabilityKind: null,
         slug,
         title,
         body,
-        sha: data.sha,
+        sha: file.sha,
         updatedAt,
         lastTickAt: useActivity ? activity.ts : lastTickAt,
         nextEligibleAt: tickState.nextEligibleAt,
@@ -705,7 +641,7 @@ capabilityKind: null,
         tickScript: frontmatter.tickScript ?? null,
         readsFrom: frontmatter.readsFrom ?? [],
         writesTo: frontmatter.writesTo ?? [],
-        htmlUrl: buildHtmlUrl(slug, branch),
+        htmlUrl: file.htmlUrl ?? "",
       };
     } catch (error: unknown) {
       if ((error as { status?: number })?.status === 404) return null;
@@ -723,7 +659,7 @@ capabilityKind: null,
         `Invalid ${commitScope} slug: "${opts.slug}". Use lowercase letters, digits, dashes, underscores.`,
       );
     }
-    const filePath = `${dir}/${opts.slug}.md`;
+    const filePath = `${stateDirPath(dir)}/${opts.slug}.md`;
     const content = buildFileContent(
       opts.title,
       opts.body,
@@ -744,12 +680,13 @@ capabilityKind: null,
       opts.message ??
       `${opts.sha ? "chore" : "feat"}(${commitScope}): ${opts.sha ? "update" : "add"} ${opts.slug}`;
 
-    await opts.octokit.repos.createOrUpdateFileContents({
+    await writeStateText({
+      octokit: opts.octokit,
       owner: getOwner(),
       repo: getRepo(),
       path: filePath,
       message,
-      content: Buffer.from(content, "utf-8").toString("base64"),
+      content,
       sha: opts.sha,
     });
 
@@ -776,8 +713,9 @@ capabilityKind: null,
     }
     const existing = await readFile(slug);
     if (!existing) return;
-    const filePath = `${dir}/${slug}.md`;
-    await octokit.repos.deleteFile({
+    const filePath = `${stateDirPath(dir)}/${slug}.md`;
+    await deleteStateFile({
+      octokit,
       owner: getOwner(),
       repo: getRepo(),
       path: filePath,

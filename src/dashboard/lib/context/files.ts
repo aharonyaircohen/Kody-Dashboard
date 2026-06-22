@@ -30,13 +30,21 @@
 import type { Octokit } from "@octokit/rest";
 import { getOctokit, getOwner, getRepo } from "../github-client";
 import {
+  deleteStateFile,
+  listStateDirectory,
+  readStateText,
+  resolveStateRepo,
+  stateRepoPath,
+  writeStateText,
+} from "../state-repo";
+import {
   splitContextFrontmatter,
   joinContextFrontmatter,
   KODY_CHAT_AGENT,
   ALL_AGENT,
 } from "./frontmatter";
 
-const CONTEXT_DIR = ".kody/context";
+const CONTEXT_DIR = "context";
 
 export interface ContextFile {
   /** Filename without `.md` — stable identity, also the entry heading. */
@@ -72,28 +80,16 @@ function slugFromName(name: string): string | null {
   return slug;
 }
 
-function buildHtmlUrl(slug: string, branch: string | null): string {
-  const ref = branch ?? "HEAD";
-  return `https://github.com/${getOwner()}/${getRepo()}/blob/${ref}/${CONTEXT_DIR}/${slug}.md`;
-}
-
-async function getDefaultBranch(octokit: Octokit): Promise<string> {
-  const { data } = await octokit.repos.get({
-    owner: getOwner(),
-    repo: getRepo(),
-  });
-  return data.default_branch;
-}
-
 async function fetchLastCommitDate(
   octokit: Octokit,
   filePath: string,
 ): Promise<string> {
   try {
+    const target = await resolveStateRepo(octokit, getOwner(), getRepo());
     const { data } = await octokit.repos.listCommits({
-      owner: getOwner(),
-      repo: getRepo(),
-      path: filePath,
+      owner: target.owner,
+      repo: target.repo,
+      path: stateRepoPath(target, filePath),
       per_page: 1,
     });
     return (
@@ -112,102 +108,82 @@ async function fetchLastCommitDate(
  */
 export async function listContextFiles(): Promise<ContextFile[]> {
   const octokit = getOctokit();
-  const branch = await getDefaultBranch(octokit).catch(() => null);
-
-  let entries: Array<{ name: string; sha: string; type: string }> = [];
-  try {
-    const { data } = await octokit.repos.getContent({
-      owner: getOwner(),
-      repo: getRepo(),
-      path: CONTEXT_DIR,
-    });
-    if (!Array.isArray(data)) return [];
-    entries = data as Array<{ name: string; sha: string; type: string }>;
-  } catch (error: unknown) {
-    if ((error as { status?: number })?.status === 404) return [];
-    throw error;
-  }
+  const { entries } = await listStateDirectory(
+    octokit,
+    getOwner(),
+    getRepo(),
+    CONTEXT_DIR,
+    { headers: { "If-None-Match": "" } },
+  );
 
   const slugs = entries
     .filter((e) => e.type === "file")
-    .map((e) => ({ slug: slugFromName(e.name), sha: e.sha, name: e.name }))
+    .map((e) => ({ slug: slugFromName(e.name), name: e.name }))
     .filter(
-      (e): e is { slug: string; sha: string; name: string } => e.slug !== null,
+      (e): e is { slug: string; name: string } =>
+        e.slug !== null && isValidSlug(e.slug),
     );
 
   const files = await Promise.all(
-    slugs.map(async ({ slug, sha, name }) => {
+    slugs.map(async ({ slug, name }): Promise<ContextFile | null> => {
       try {
         const filePath = `${CONTEXT_DIR}/${name}`;
-        const { data } = await octokit.repos.getContent({
-          owner: getOwner(),
-          repo: getRepo(),
-          path: filePath,
-        });
-        if (Array.isArray(data) || !("content" in data) || !data.content)
-          return null;
-        const raw = Buffer.from(data.content, "base64")
-          .toString("utf-8")
-          .replace(/^\s+/, "");
+        const file = await readStateText(
+          octokit,
+          getOwner(),
+          getRepo(),
+          filePath,
+          { headers: { "If-None-Match": "" } },
+        );
+        if (!file) return null;
+        const raw = file.content.replace(/^s+/, "");
         const { frontmatter, body } = splitContextFrontmatter(raw);
         const updatedAt = await fetchLastCommitDate(octokit, filePath);
         return {
           slug,
-          body: body.replace(/^\s+/, ""),
+          body: body.replace(/^s+/, ""),
           agent: frontmatter.agent,
-          sha,
+          sha: file.sha,
           updatedAt,
-          htmlUrl: buildHtmlUrl(slug, branch),
+          htmlUrl: file.htmlUrl ?? "",
         } satisfies ContextFile;
       } catch {
         return null;
       }
     }),
   );
-
-  const nonNull: ContextFile[] = files.filter(
-    (f): f is NonNullable<typeof f> => f !== null,
-  );
-  nonNull.sort((a, b) => a.slug.localeCompare(b.slug));
-  return nonNull;
+  return files
+    .filter((f): f is ContextFile => f !== null)
+    .sort((a, b) => a.slug.localeCompare(b.slug));
 }
-
 export async function readContextFile(
   slug: string,
   octokitOverride?: Octokit,
 ): Promise<ContextFile | null> {
   if (!isValidSlug(slug)) return null;
   const octokit = octokitOverride ?? getOctokit();
-  const branch = await getDefaultBranch(octokit).catch(() => null);
   const filePath = `${CONTEXT_DIR}/${slug}.md`;
-
   try {
-    const { data } = await octokit.repos.getContent({
-      owner: getOwner(),
-      repo: getRepo(),
-      path: filePath,
+    const file = await readStateText(octokit, getOwner(), getRepo(), filePath, {
+      headers: { "If-None-Match": "" },
     });
-    if (Array.isArray(data) || !("content" in data) || !data.content)
-      return null;
-    const raw = Buffer.from(data.content, "base64")
-      .toString("utf-8")
-      .replace(/^\s+/, "");
+    if (!file) return null;
+    const raw = file.content.replace(/^s+/, "");
     const { frontmatter, body } = splitContextFrontmatter(raw);
     const updatedAt = await fetchLastCommitDate(octokit, filePath);
     return {
       slug,
-      body: body.replace(/^\s+/, ""),
+      body: body.replace(/^s+/, ""),
       agent: frontmatter.agent,
-      sha: data.sha,
+      sha: file.sha,
       updatedAt,
-      htmlUrl: buildHtmlUrl(slug, branch),
+      htmlUrl: file.htmlUrl ?? "",
     };
   } catch (error: unknown) {
     if ((error as { status?: number })?.status === 404) return null;
     throw error;
   }
 }
-
 interface WriteOptions {
   octokit: Octokit;
   slug: string;
@@ -239,18 +215,17 @@ export async function writeContextFile(
     opts.message ??
     `${opts.sha ? "chore" : "feat"}(context): ${opts.sha ? "update" : "add"} ${opts.slug}`;
 
-  await opts.octokit.repos.createOrUpdateFileContents({
+  await writeStateText({
+    octokit: opts.octokit,
     owner: getOwner(),
     repo: getRepo(),
     path: filePath,
     message,
-    content: Buffer.from(content, "utf-8").toString("base64"),
+    content,
     sha: opts.sha,
   });
-
   invalidateContextPromptCache();
-  // Confirm with the same octokit that wrote — not the per-request global,
-  // which a concurrent request may have cleared (→ 401 "Bad credentials").
+
   const refreshed = await readContextFile(opts.slug, opts.octokit);
   if (!refreshed) {
     throw new Error(
@@ -259,27 +234,23 @@ export async function writeContextFile(
   }
   return refreshed;
 }
-
 export async function deleteContextFile(
   octokit: Octokit,
   slug: string,
 ): Promise<void> {
-  if (!isValidSlug(slug)) {
-    throw new Error(`Invalid context slug: "${slug}".`);
-  }
+  if (!isValidSlug(slug)) throw new Error(`Invalid context slug: "${slug}".`);
   const existing = await readContextFile(slug);
   if (!existing) return;
-  const filePath = `${CONTEXT_DIR}/${slug}.md`;
-  await octokit.repos.deleteFile({
+  await deleteStateFile({
+    octokit,
     owner: getOwner(),
     repo: getRepo(),
-    path: filePath,
+    path: `${CONTEXT_DIR}/${slug}.md`,
     message: `chore(context): remove ${slug}`,
     sha: existing.sha,
   });
   invalidateContextPromptCache();
 }
-
 // ─── Hot-path loader (chat system prompt) ──────────────────────────────────
 
 interface CachedContext {

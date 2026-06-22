@@ -8,6 +8,21 @@ vi.mock("@dashboard/lib/github-client", () => ({
   invalidateAgentResponsibilitiesCache: vi.fn(),
 }));
 
+vi.mock("@dashboard/lib/state-repo", () => ({
+  deleteStateFile: vi.fn(),
+  listStateDirectory: vi.fn(async () => ({ entries: [], targetPath: "repo/agent-responsibilities" })),
+  readStateText: vi.fn(async () => null),
+  resolveStateRepo: vi.fn(async () => ({
+    owner: "owner",
+    repo: "kody-state",
+    basePath: "repo",
+  })),
+  stateRepoPath: vi.fn((target: { basePath: string }, path: string) =>
+    [target.basePath, path].filter(Boolean).join("/"),
+  ),
+  writeStateText: vi.fn(),
+}));
+
 vi.mock("@dashboard/lib/company-store/assets", () => ({
   buildCompanyStoreHtmlUrl: vi.fn(
     (kind: string, slug: string) => `https://store.example/${kind}/${slug}`,
@@ -27,8 +42,9 @@ vi.mock("@dashboard/lib/company-store/assets", () => ({
         describe: "Check PR CI health.",
       });
     }
-    if (path.endsWith("/agent-responsibility.md"))
+    if (path.endsWith("/agent-responsibility.md")) {
       return "# CI Health\n\nCheck PR CI health.\n";
+    }
     return null;
   }),
 }));
@@ -40,31 +56,18 @@ const getOctokitMock = vi.mocked(getOctokit);
 
 describe("listAgentResponsibilityFiles", () => {
   beforeEach(() => {
-    getOctokitMock.mockReturnValue({
-      repos: {
-        get: vi.fn(async () => ({ data: { default_branch: "main" } })),
-        getContent: vi.fn(async ({ path }: { path: string }) => {
-          if (path === ".kody/agent-responsibilities") {
-            const error = new Error("not found") as Error & { status: number };
-            error.status = 404;
-            throw error;
-          }
-          throw new Error(`unexpected path: ${path}`);
-        }),
-        listCommits: vi.fn(async () => ({ data: [] })),
-      },
-    } as never);
+    getOctokitMock.mockReturnValue({} as never);
   });
 
-  it("shows Store agentResponsibilities when the repo has no local agentResponsibilities folder", async () => {
-    const agentResponsibilities = await listAgentResponsibilityFiles();
+  it("shows Store agentResponsibilities when the state repo has no local agentResponsibilities folder", async () => {
+    const files = await listAgentResponsibilityFiles();
 
-    expect(agentResponsibilities).toHaveLength(1);
-    expect(agentResponsibilities[0]).toMatchObject({
+    expect(files).toHaveLength(1);
+    expect(files[0]).toMatchObject({
       slug: "ci-health",
+      title: "CI Health",
       source: "store",
       readOnly: true,
-      action: "ci-health",
       agentAction: "ci-check",
     });
   });
