@@ -49,5 +49,9 @@
   "defaultPrAgentAction": "fix",
   "agentActions": {
     "default": "run"
+  },
+  "state": {
+    "repo": "https://github.com/aharonyaircohen/kody-state",
+    "path": "Kody-Dashboard"
   }
 }
