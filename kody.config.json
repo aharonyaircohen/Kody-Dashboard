@@ -21,7 +21,7 @@
   },
   "company": {
     "activeGoals": [
-      "codebase-health"
+      "npm-release"
     ],
     "activeAgents": [
       "ceo"
