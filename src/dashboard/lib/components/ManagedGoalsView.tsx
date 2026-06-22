@@ -62,7 +62,9 @@ import {
   MANAGED_GOAL_TYPES,
   buildSimpleManagedGoalCreateInput,
   isStoreBackedManagedGoal,
+  managedGoalModel,
   type ManagedGoalInstanceSummary,
+  type ManagedGoalModel,
   type ManagedGoalRecord,
   type ManagedGoalSchedule,
   type ManagedGoalTypeId,
@@ -73,6 +75,57 @@ import { EmptyState } from "./EmptyState";
 import { MasterDetailShell } from "./MasterDetailShell";
 
 const defaultGoalType = MANAGED_GOAL_TYPES[0]!;
+
+type ManagedGoalsViewModel = ManagedGoalModel | "all";
+
+const viewCopy: Record<
+  ManagedGoalsViewModel,
+  {
+    title: string;
+    singular: string;
+    plural: string;
+    selectTitle: string;
+    selectHint: string;
+    emptyTitle: string;
+    emptyHint: string;
+    searchPlaceholder: string;
+    newLabel: string;
+  }
+> = {
+  all: {
+    title: "Goals",
+    singular: "goal",
+    plural: "goals",
+    selectTitle: "Select a goal",
+    selectHint: "Choose a goal from list.",
+    emptyTitle: "No goals yet",
+    emptyHint: "Create first engine-managed goal for repo.",
+    searchPlaceholder: "Search goals...",
+    newLabel: "New goal",
+  },
+  objective: {
+    title: "Objectives",
+    singular: "objective",
+    plural: "objectives",
+    selectTitle: "Select an objective",
+    selectHint: "Choose an objective from list.",
+    emptyTitle: "No objectives yet",
+    emptyHint: "Create first evidence-driven objective for repo.",
+    searchPlaceholder: "Search objectives...",
+    newLabel: "New objective",
+  },
+  routine: {
+    title: "Routines",
+    singular: "routine",
+    plural: "routines",
+    selectTitle: "Select a routine",
+    selectHint: "Choose a routine from list.",
+    emptyTitle: "No routines yet",
+    emptyHint: "Create first schedule-driven routine for repo.",
+    searchPlaceholder: "Search routines...",
+    newLabel: "New routine",
+  },
+};
 
 const scheduleOptions = [
   { value: "manual", label: "Manual" },
@@ -108,7 +161,9 @@ function currentRouteStep(goal: ManagedGoalRecord) {
   return next ? goal.state.route.find((step) => step.evidence === next) : null;
 }
 
-function instanceSummaries(goal: ManagedGoalRecord): ManagedGoalInstanceSummary[] {
+function instanceSummaries(
+  goal: ManagedGoalRecord,
+): ManagedGoalInstanceSummary[] {
   if (Array.isArray(goal.state.instances)) {
     return goal.state.instances.filter(
       (instance): instance is ManagedGoalInstanceSummary =>
@@ -124,7 +179,9 @@ function instanceSummaries(goal: ManagedGoalRecord): ManagedGoalInstanceSummary[
   }
 
   const ids = Array.isArray(goal.state.instanceIds)
-    ? goal.state.instanceIds.filter((id): id is string => typeof id === "string")
+    ? goal.state.instanceIds.filter(
+        (id): id is string => typeof id === "string",
+      )
     : [];
 
   return ids.map((id) => ({
@@ -273,23 +330,39 @@ function goalSearchText(goal: ManagedGoalRecord): string {
 function NewGoalDialog({
   open,
   onOpenChange,
+  model = "all",
+  label = "goal",
 }: {
   open: boolean;
   onOpenChange: (open: boolean) => void;
+  model?: ManagedGoalsViewModel;
+  label?: string;
 }) {
   const createGoal = useCreateManagedGoal();
-  const [goalType, setGoalType] = useState<ManagedGoalTypeId>(
-    defaultGoalType.id,
+  const goalTypes = useMemo(
+    () =>
+      model === "all"
+        ? MANAGED_GOAL_TYPES
+        : MANAGED_GOAL_TYPES.filter((type) => type.model === model),
+    [model],
   );
+  const defaultType = goalTypes[0] ?? defaultGoalType;
+  const [goalType, setGoalType] = useState<ManagedGoalTypeId>(defaultType.id);
   const [schedule, setSchedule] = useState<ManagedGoalSchedule>("manual");
   const [outcome, setOutcome] = useState("");
 
   const selectedGoalType =
-    MANAGED_GOAL_TYPES.find((type) => type.id === goalType) ?? defaultGoalType;
+    goalTypes.find((type) => type.id === goalType) ?? defaultType;
   const canSubmit = outcome.trim().length > 0;
 
+  useEffect(() => {
+    if (!goalTypes.some((type) => type.id === goalType)) {
+      setGoalType(defaultType.id);
+    }
+  }, [defaultType.id, goalType, goalTypes]);
+
   const reset = () => {
-    setGoalType(defaultGoalType.id);
+    setGoalType(defaultType.id);
     setSchedule("manual");
     setOutcome("");
   };
@@ -310,9 +383,9 @@ function NewGoalDialog({
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-xl">
         <DialogHeader>
-          <DialogTitle>New goal</DialogTitle>
+          <DialogTitle>New {label}</DialogTitle>
           <DialogDescription>
-            Choose type and schedule, then describe the finish line.
+            Choose type and schedule, then describe the operating intent.
           </DialogDescription>
         </DialogHeader>
 
@@ -322,13 +395,15 @@ function NewGoalDialog({
               <Label htmlFor="goal-type">Type</Label>
               <Select
                 value={goalType}
-                onValueChange={(value) => setGoalType(value as ManagedGoalTypeId)}
+                onValueChange={(value) =>
+                  setGoalType(value as ManagedGoalTypeId)
+                }
               >
                 <SelectTrigger id="goal-type">
                   <SelectValue placeholder="Choose type" />
                 </SelectTrigger>
                 <SelectContent>
-                  {MANAGED_GOAL_TYPES.map((type) => (
+                  {goalTypes.map((type) => (
                     <SelectItem key={type.id} value={type.id}>
                       {type.label}
                     </SelectItem>
@@ -384,7 +459,11 @@ function NewGoalDialog({
           </div>
 
           <div className="flex justify-end gap-2">
-            <Button type="button" variant="ghost" onClick={() => onOpenChange(false)}>
+            <Button
+              type="button"
+              variant="ghost"
+              onClick={() => onOpenChange(false)}
+            >
               Cancel
             </Button>
             <Button
@@ -446,7 +525,9 @@ function EditManagedGoalDialog({
       <DialogContent className="max-w-xl">
         <DialogHeader>
           <DialogTitle>Edit goal</DialogTitle>
-          <DialogDescription>Update finish line and schedule.</DialogDescription>
+          <DialogDescription>
+            Update finish line and schedule.
+          </DialogDescription>
         </DialogHeader>
         <div className="space-y-4">
           <div className="space-y-2">
@@ -463,7 +544,9 @@ function EditManagedGoalDialog({
             <Label htmlFor="edit-goal-schedule">Schedule</Label>
             <Select
               value={schedule}
-              onValueChange={(value) => setSchedule(value as ManagedGoalSchedule)}
+              onValueChange={(value) =>
+                setSchedule(value as ManagedGoalSchedule)
+              }
             >
               <SelectTrigger id="edit-goal-schedule">
                 <SelectValue placeholder="Choose schedule" />
@@ -479,7 +562,11 @@ function EditManagedGoalDialog({
           </div>
 
           <div className="flex justify-end gap-2">
-            <Button type="button" variant="ghost" onClick={() => onOpenChange(false)}>
+            <Button
+              type="button"
+              variant="ghost"
+              onClick={() => onOpenChange(false)}
+            >
               Cancel
             </Button>
             <Button
@@ -626,9 +713,13 @@ function GoalInstancesSection({ goal }: { goal: ManagedGoalRecord }) {
                 </div>
                 <div className="flex items-center gap-3 text-xs text-muted-foreground md:justify-end">
                   <span>{instance.state}</span>
-                  <span>{done}/{totalEvidence} evidence</span>
+                  <span>
+                    {done}/{totalEvidence} evidence
+                  </span>
                   {blockers ? (
-                    <span className="text-amber-300">{blockers} blocker(s)</span>
+                    <span className="text-amber-300">
+                      {blockers} blocker(s)
+                    </span>
                   ) : null}
                 </div>
               </div>
@@ -645,25 +736,25 @@ function GoalInstancesSection({ goal }: { goal: ManagedGoalRecord }) {
 function GoalDetail({
   goal,
   duties,
- onBack,
- onActivate,
- onPause,
- onRun,
- onEdit,
- onDelete,
- isUpdating,
- isRunning,
+  onBack,
+  onActivate,
+  onPause,
+  onRun,
+  onEdit,
+  onDelete,
+  isUpdating,
+  isRunning,
 }: {
   goal: ManagedGoalRecord;
   duties: Duty[];
- onBack: () => void;
- onActivate: () => void;
- onPause: () => void;
- onRun: () => void;
- onEdit: () => void;
- onDelete: () => void;
- isUpdating: boolean;
- isRunning: boolean;
+  onBack: () => void;
+  onActivate: () => void;
+  onPause: () => void;
+  onRun: () => void;
+  onEdit: () => void;
+  onDelete: () => void;
+  isUpdating: boolean;
+  isRunning: boolean;
 }) {
   const done = completedEvidence(goal);
   const total = goal.state.destination.evidence.length;
@@ -675,7 +766,7 @@ function GoalDetail({
   const canPause = goal.state.state === "active";
   const canRun =
     goal.state.state === "active" || goal.state.state === "inactive";
- const runDuty = useRunDuty();
+  const runDuty = useRunDuty();
 
   return (
     <article className="min-h-full">
@@ -721,24 +812,24 @@ function GoalDetail({
                 <span className="font-mono opacity-80">{goal.path}</span>
               </div>
             </div>
-          <div className="flex items-center gap-2 shrink-0">
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={onRun}
-              disabled={!canRun || isRunning}
-              className="h-8 w-8 px-0"
-              title={canRun ? "Run goal now" : "Goal cannot be run"}
-              aria-label="Run goal now"
-            >
-              {isRunning ? (
-                <Loader2 className="w-3.5 h-3.5 animate-spin" />
-              ) : (
-                <Play className="w-3.5 h-3.5" />
-              )}
-            </Button>
+            <div className="flex items-center gap-2 shrink-0">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={onRun}
+                disabled={!canRun || isRunning}
+                className="h-8 w-8 px-0"
+                title={canRun ? "Run goal now" : "Goal cannot be run"}
+                aria-label="Run goal now"
+              >
+                {isRunning ? (
+                  <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                ) : (
+                  <Play className="w-3.5 h-3.5" />
+                )}
+              </Button>
 
-            {!storeBacked ? (
+              {!storeBacked ? (
                 <>
                   <Button
                     variant="outline"
@@ -1125,7 +1216,11 @@ function EmptyHint({ text }: { text: string }) {
   return <p className="text-sm text-muted-foreground">{text}</p>;
 }
 
-export function ManagedGoalsView() {
+export function ManagedGoalsView({
+  model = "all",
+}: {
+  model?: ManagedGoalsViewModel;
+}) {
   const [createOpen, setCreateOpen] = useState(false);
   const [editingGoal, setEditingGoal] = useState<ManagedGoalRecord | null>(
     null,
@@ -1144,16 +1239,24 @@ export function ManagedGoalsView() {
   const setGoalState = useSetManagedGoalState();
   const runManagedGoal = useRunManagedGoal();
   const deleteManagedGoal = useDeleteManagedGoal();
+  const copy = viewCopy[model];
+  const modelGoals = useMemo(
+    () =>
+      model === "all"
+        ? goals
+        : goals.filter((goal) => managedGoalModel(goal) === model),
+    [goals, model],
+  );
 
   const filtered = useMemo(() => {
     const query = search.trim().toLowerCase();
-    if (!query) return goals;
-    return goals.filter((goal) => goalSearchText(goal).includes(query));
-  }, [goals, search]);
+    if (!query) return modelGoals;
+    return modelGoals.filter((goal) => goalSearchText(goal).includes(query));
+  }, [modelGoals, search]);
 
   const selectedGoal = useMemo(
-    () => goals.find((goal) => goal.id === selectedId) ?? null,
-    [goals, selectedId],
+    () => modelGoals.find((goal) => goal.id === selectedId) ?? null,
+    [modelGoals, selectedId],
   );
 
   useEffect(() => {
@@ -1169,17 +1272,19 @@ export function ManagedGoalsView() {
   return (
     <>
       <MasterDetailShell
-        title="Goals"
+        title={copy.title}
         icon={Target}
         iconClassName="text-sky-400"
-        subtitle={`${goals.length} ${goals.length === 1 ? "goal" : "goals"}`}
+        subtitle={`${modelGoals.length} ${
+          modelGoals.length === 1 ? copy.singular : copy.plural
+        }`}
         error={
           error ? `Failed to load goals: ${(error as Error).message}` : null
         }
         search={search}
         onSearch={setSearch}
-        searchPlaceholder="Search goals..."
-        searchAriaLabel="Search goals"
+        searchPlaceholder={copy.searchPlaceholder}
+        searchAriaLabel={copy.searchPlaceholder}
         accent="sky"
         hasSelection={!!selectedGoal}
         actions={
@@ -1199,8 +1304,8 @@ export function ManagedGoalsView() {
               size="sm"
               className="w-9 px-0"
               onClick={() => setCreateOpen(true)}
-              title="New goal"
-              aria-label="New goal"
+              title={copy.newLabel}
+              aria-label={copy.newLabel}
             >
               <Plus className="h-4 w-4" />
             </Button>
@@ -1236,30 +1341,30 @@ export function ManagedGoalsView() {
           ) : (
             <EmptyState
               icon={<Target />}
-              title="Select a goal"
-              hint="Choose a goal from the list."
+              title={copy.selectTitle}
+              hint={copy.selectHint}
             />
           )
         }
       >
         {isLoading ? (
-          <EmptyState icon={<FileText />} title="Loading goals..." />
-        ) : goals.length === 0 ? (
+          <EmptyState icon={<FileText />} title={`Loading ${copy.plural}...`} />
+        ) : modelGoals.length === 0 ? (
           <EmptyState
             icon={<CircleDot />}
-            title="No goals yet"
-            hint="Create the first engine-managed goal for this repo."
+            title={copy.emptyTitle}
+            hint={copy.emptyHint}
             action={
               <Button size="sm" onClick={() => setCreateOpen(true)}>
                 <Plus className="h-4 w-4" />
-                New goal
+                {copy.newLabel}
               </Button>
             }
           />
         ) : filtered.length === 0 ? (
           <EmptyState
             icon={<Target />}
-            title="No matching goals"
+            title={`No matching ${copy.plural}`}
             hint={`Nothing matched "${search}".`}
           />
         ) : (
@@ -1281,6 +1386,8 @@ export function ManagedGoalsView() {
       <NewGoalDialog
         open={createOpen}
         onOpenChange={setCreateOpen}
+        model={model}
+        label={copy.singular}
       />
       <EditManagedGoalDialog
         goal={editingGoal}

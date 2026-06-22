@@ -204,11 +204,27 @@ export const SETTINGS_NAV_SECTIONS: readonly SettingsNavSection[] = [
     title: "Automation",
     items: [
       {
+        href: "/objectives",
+        label: "Objectives",
+        icon: Target,
+        exact: true,
+        description: "Finite goals driven by missing evidence.",
+        tint: "text-sky-300 bg-sky-500/10",
+      },
+      {
+        href: "/routines",
+        label: "Routines",
+        icon: History,
+        exact: true,
+        description: "Operational loops driven by schedule and health.",
+        tint: "text-emerald-300 bg-emerald-500/10",
+      },
+      {
         href: "/goals",
         label: "Goals",
         icon: Target,
         exact: true,
-        description: "Company goals driven by Kody engine.",
+        description: "All managed goals across models.",
         tint: "text-sky-300 bg-sky-500/10",
       },
       {

@@ -16,6 +16,7 @@ import {
   collapseManagedGoalRecordsForList,
   isStoreBackedManagedGoal,
   isManagedGoalState,
+  managedGoalModel,
   managedGoalPath,
   type ManagedGoalRecord,
 } from "../../src/dashboard/lib/managed-goals";
@@ -179,6 +180,59 @@ describe("isStoreBackedManagedGoal", () => {
     };
 
     expect(isStoreBackedManagedGoal(goal)).toBe(true);
+  });
+});
+
+describe("managedGoalModel", () => {
+  function goal(
+    overrides: Partial<ManagedGoalRecord["state"]>,
+  ): ManagedGoalRecord {
+    return {
+      id: "model-test",
+      path: ".kody/goals/instances/model-test/state.json",
+      source: "local",
+      recordType: "instance",
+      state: {
+        version: 1,
+        state: "active",
+        type: "release",
+        destination: {
+          outcome: "Release safely.",
+          evidence: ["releasePrExists"],
+        },
+        duties: ["release"],
+        route: [
+          {
+            stage: "release",
+            evidence: "releasePrExists",
+            duty: "release",
+          },
+        ],
+        facts: {},
+        blockers: [],
+        ...overrides,
+      },
+    };
+  }
+
+  it("classifies routed evidence goals as objectives", () => {
+    expect(managedGoalModel(goal({ type: "release" }))).toBe("objective");
+  });
+
+  it("classifies duty-cadence goals as routines", () => {
+    expect(
+      managedGoalModel(
+        goal({
+          type: "release",
+          scheduleMode: "duty-cadence",
+        }),
+      ),
+    ).toBe("routine");
+  });
+
+  it("classifies maintenance and monitor types as routines", () => {
+    expect(managedGoalModel(goal({ type: "maintain" }))).toBe("routine");
+    expect(managedGoalModel(goal({ type: "monitor" }))).toBe("routine");
   });
 });
 
