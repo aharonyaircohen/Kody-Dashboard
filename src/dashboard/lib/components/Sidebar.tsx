@@ -128,6 +128,7 @@ const ENGINEER_MODE_SECTIONS: Array<{
   settingsSection("Monitoring"),
   settingsSection("Fly"),
   settingsSection("Agent"),
+  settingsSection("Engine"),
   settingsSection("Company"),
   settingsSection("Infrastructure"),
   settingsSection("Alerts"),
