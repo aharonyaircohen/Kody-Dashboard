@@ -21,7 +21,7 @@
   },
   "company": {
     "activeGoals": [
-      "hourly-monitor-goal-smoke"
+      "npm-release"
     ]
   },
   "agent-actions": {
@@ -37,5 +37,8 @@
     ]
   },
   "defaultAgentAction": "classify",
-  "defaultPrAgentAction": "fix"
+  "defaultPrAgentAction": "fix",
+  "agentActions": {
+    "default": "run"
+  }
 }
