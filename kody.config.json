@@ -25,6 +25,9 @@
     ],
     "activeAgents": [
       "ceo"
+    ],
+    "activeAgentResponsibilities": [
+      "agent-responsibility-call"
     ]
   },
   "agent-actions": {
