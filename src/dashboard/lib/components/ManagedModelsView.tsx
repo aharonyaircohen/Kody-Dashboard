@@ -30,6 +30,7 @@ import {
 
 import { Button } from "@dashboard/ui/button";
 import { Card, CardContent } from "@dashboard/ui/card";
+import { Checkbox } from "@dashboard/ui/checkbox";
 import {
   Dialog,
   DialogContent,
@@ -346,6 +347,7 @@ function NewGoalDialog({
   label: string;
 }) {
   const createGoal = useCreateManagedGoal();
+  const { data: duties = [], isLoading: dutiesLoading } = useDuties();
   const goalTypes = useMemo(
     () => MANAGED_GOAL_TYPES.filter((type) => type.model === model),
     [model],
@@ -357,32 +359,57 @@ function NewGoalDialog({
   const [schedule, setSchedule] =
     useState<ManagedGoalSchedule>(defaultSchedule);
   const [outcome, setOutcome] = useState("");
+  const [selectedDutySlugs, setSelectedDutySlugs] = useState<string[]>(
+    defaultType.duties,
+  );
 
   const selectedGoalType =
     goalTypes.find((type) => type.id === goalType) ?? defaultType;
   const scheduleChoices = isRoutine
     ? scheduleOptions.filter((option) => option.value !== "manual")
-    : [];
-  const canSubmit = outcome.trim().length > 0;
+    : scheduleOptions;
+  const availableRoutineDuties = useMemo(() => {
+    const bySlug = new Map<string, Pick<Duty, "slug" | "title" | "source">>();
+    for (const slug of selectedGoalType.duties) {
+      bySlug.set(slug, { slug, title: slug });
+    }
+    for (const duty of duties) {
+      bySlug.set(duty.slug, {
+        slug: duty.slug,
+        title: duty.title || duty.slug,
+        source: duty.source,
+      });
+    }
+    return Array.from(bySlug.values()).sort((a, b) =>
+      a.slug.localeCompare(b.slug),
+    );
+  }, [duties, selectedGoalType.duties]);
+  const selectedDutySet = useMemo(
+    () => new Set(selectedDutySlugs),
+    [selectedDutySlugs],
+  );
+  const canSubmit =
+    outcome.trim().length > 0 && (!isRoutine || selectedDutySlugs.length > 0);
   const showTypeSelect = !isRoutine && goalTypes.length > 1;
   const intentLabel = isRoutine ? "Scope" : "Finish line";
   const dialogDescription = isRoutine
-    ? "Create one ongoing loop with a cadence and clear operating scope."
+    ? "Create one ongoing loop with a clear scope, cadence, and duties."
     : "Define the finish line and evidence Kody must close.";
   const intentPlaceholder = isRoutine
     ? "Example: Keep codebase healthy and surface drift."
     : selectedGoalType.promptPlaceholder;
-  const routineDutyPreview = selectedGoalType.duties.slice(0, 6);
-  const remainingRoutineDuties = Math.max(
-    selectedGoalType.duties.length - routineDutyPreview.length,
-    0,
-  );
 
   useEffect(() => {
     if (!goalTypes.some((type) => type.id === goalType)) {
       setGoalType(defaultType.id);
     }
   }, [defaultType.id, goalType, goalTypes]);
+
+  useEffect(() => {
+    if (isRoutine) {
+      setSelectedDutySlugs(selectedGoalType.duties);
+    }
+  }, [isRoutine, selectedGoalType]);
 
   useEffect(() => {
     if (isRoutine && schedule === "manual") {
@@ -397,6 +424,15 @@ function NewGoalDialog({
     setGoalType(defaultType.id);
     setSchedule(defaultSchedule);
     setOutcome("");
+    setSelectedDutySlugs(defaultType.duties);
+  };
+
+  const toggleRoutineDuty = (slug: string) => {
+    setSelectedDutySlugs((current) =>
+      current.includes(slug)
+        ? current.filter((item) => item !== slug)
+        : [...current, slug].sort(),
+    );
   };
 
   const submit = async () => {
@@ -405,6 +441,7 @@ function NewGoalDialog({
         goalType,
         schedule,
         prompt: outcome,
+        ...(isRoutine ? { duties: selectedDutySlugs } : {}),
       }),
     );
     reset();
@@ -438,6 +475,19 @@ function NewGoalDialog({
         ) : null}
 
         <div className="space-y-4">
+          {isRoutine ? (
+            <div className="space-y-2">
+              <Label htmlFor="goal-outcome">{intentLabel}</Label>
+              <Textarea
+                id="goal-outcome"
+                value={outcome}
+                onChange={(event) => setOutcome(event.target.value)}
+                placeholder={intentPlaceholder}
+                rows={4}
+              />
+            </div>
+          ) : null}
+
           <div className="grid gap-3 md:grid-cols-2">
             <div className="space-y-3">
               {showTypeSelect ? (
@@ -463,23 +513,7 @@ function NewGoalDialog({
                 </div>
               ) : null}
 
-              <div className="space-y-2 rounded-md border border-border/70 bg-muted/30 px-3 py-2 text-xs text-muted-foreground">
-                <p className="text-sm font-medium text-foreground">
-                  {selectedGoalType.description}
-                </p>
-                <p>
-                  <span className="text-foreground/70">Best for: </span>
-                  {selectedGoalType.bestFor}
-                </p>
-                <p>
-                  <span className="text-foreground/70">Kody will: </span>
-                  {selectedGoalType.systemSummary}
-                </p>
-              </div>
-            </div>
-
-            {isRoutine ? (
-              <div className="space-y-3">
+              {isRoutine ? (
                 <div className="space-y-2">
                   <Label htmlFor="goal-schedule">Cadence</Label>
                   <Select
@@ -500,24 +534,79 @@ function NewGoalDialog({
                     </SelectContent>
                   </Select>
                 </div>
-                <div className="space-y-2 rounded-md border border-border/70 bg-muted/30 px-3 py-3 text-xs text-muted-foreground">
-                  <p className="font-medium uppercase tracking-wide text-muted-foreground">
-                    Attached duties
+              ) : (
+                <div className="space-y-2 rounded-md border border-border/70 bg-muted/30 px-3 py-2 text-xs text-muted-foreground">
+                  <p className="text-sm font-medium text-foreground">
+                    {selectedGoalType.description}
                   </p>
-                  <div className="flex flex-wrap gap-1.5">
-                    {routineDutyPreview.map((duty) => (
-                      <span
-                        key={duty}
-                        className="rounded border border-border/70 bg-background/70 px-2 py-1 font-mono text-[11px] text-muted-foreground"
-                      >
-                        {duty}
-                      </span>
-                    ))}
-                    {remainingRoutineDuties > 0 ? (
-                      <span className="rounded border border-border/70 bg-background/70 px-2 py-1 text-[11px] text-muted-foreground">
-                        +{remainingRoutineDuties}
-                      </span>
-                    ) : null}
+                  <p>
+                    <span className="text-foreground/70">Best for: </span>
+                    {selectedGoalType.bestFor}
+                  </p>
+                  <p>
+                    <span className="text-foreground/70">Kody will: </span>
+                    {selectedGoalType.systemSummary}
+                  </p>
+                </div>
+              )}
+            </div>
+
+            {isRoutine ? (
+              <div className="space-y-3">
+                <div className="space-y-2 rounded-md border border-border/70 bg-muted/30 px-3 py-3 text-xs text-muted-foreground">
+                  <div className="flex items-center justify-between gap-3">
+                    <Label className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
+                      Duties
+                    </Label>
+                    <span className="font-mono text-[11px] text-muted-foreground">
+                      {selectedDutySlugs.length} selected
+                    </span>
+                  </div>
+                  <div className="max-h-48 space-y-1 overflow-auto pr-1">
+                    {dutiesLoading ? (
+                      <div className="rounded border border-border/70 bg-background/70 px-2 py-2">
+                        Loading duties...
+                      </div>
+                    ) : availableRoutineDuties.length ? (
+                      availableRoutineDuties.map((duty) => {
+                        const checked = selectedDutySet.has(duty.slug);
+                        return (
+                          <button
+                            key={duty.slug}
+                            type="button"
+                            onClick={() => toggleRoutineDuty(duty.slug)}
+                            className={cn(
+                              "flex w-full items-start gap-2 rounded border px-2 py-2 text-left transition-colors",
+                              checked
+                                ? "border-sky-500/40 bg-sky-500/10"
+                                : "border-border/70 bg-background/70 hover:bg-muted",
+                            )}
+                          >
+                            <Checkbox
+                              checked={checked}
+                              onCheckedChange={() =>
+                                toggleRoutineDuty(duty.slug)
+                              }
+                              onClick={(event) => event.stopPropagation()}
+                              className="mt-0.5"
+                            />
+                            <span className="min-w-0 flex-1">
+                              <span className="block truncate text-sm text-foreground">
+                                {duty.title}
+                              </span>
+                              <span className="block truncate font-mono text-[11px] text-muted-foreground">
+                                {duty.slug}
+                                {duty.source ? ` / ${duty.source}` : ""}
+                              </span>
+                            </span>
+                          </button>
+                        );
+                      })
+                    ) : (
+                      <div className="rounded border border-border/70 bg-background/70 px-2 py-2">
+                        No duties found.
+                      </div>
+                    )}
                   </div>
                 </div>
               </div>
@@ -578,16 +667,18 @@ function NewGoalDialog({
             )}
           </div>
 
-          <div className="space-y-2">
-            <Label htmlFor="goal-outcome">{intentLabel}</Label>
-            <Textarea
-              id="goal-outcome"
-              value={outcome}
-              onChange={(event) => setOutcome(event.target.value)}
-              placeholder={intentPlaceholder}
-              rows={4}
-            />
-          </div>
+          {!isRoutine ? (
+            <div className="space-y-2">
+              <Label htmlFor="goal-outcome">{intentLabel}</Label>
+              <Textarea
+                id="goal-outcome"
+                value={outcome}
+                onChange={(event) => setOutcome(event.target.value)}
+                placeholder={intentPlaceholder}
+                rows={4}
+              />
+            </div>
+          ) : null}
 
           <div className="flex justify-end gap-2">
             <Button

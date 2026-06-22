@@ -157,6 +157,19 @@ describe("simple managed goal creation", () => {
     expect(state.duties).toContain("health-check");
   });
 
+  it("uses selected duties when creating a routine", () => {
+    const state = buildManagedGoalState(
+      buildSimpleManagedGoalCreateInput({
+        goalType: "routine",
+        schedule: "1d",
+        prompt: "Keep docs healthy.",
+        duties: ["docs-health", "qa-sweep"],
+      }),
+    );
+
+    expect(state.duties).toEqual(["docs-health", "qa-sweep"]);
+  });
+
   it("keeps legacy simple template goals route-free", () => {
     const state = buildManagedGoalState({
       templateId: SIMPLE_MANAGED_GOAL_TEMPLATE,

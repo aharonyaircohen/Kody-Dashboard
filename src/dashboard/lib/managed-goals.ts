@@ -356,6 +356,7 @@ export interface CreateManagedGoalInput {
   type: string;
   outcome: string;
   schedule?: ManagedGoalSchedule;
+  duties?: string[];
   evidence?: string[];
   route?: ManagedGoalRouteStep[];
 }
@@ -365,6 +366,7 @@ export interface SimpleManagedGoalCreateFields {
   goalType: ManagedGoalTypeId;
   schedule: ManagedGoalSchedule;
   prompt: string;
+  duties?: string[];
 }
 
 export interface UpdateManagedGoalInput {
@@ -440,6 +442,7 @@ export function buildSimpleManagedGoalCreateInput(
     type: fields.goalType,
     schedule: fields.schedule,
     outcome: fields.prompt.trim(),
+    ...(fields.duties ? { duties: fields.duties } : {}),
   };
 }
 
@@ -482,7 +485,9 @@ export function buildManagedGoalState(
     : null;
   const evidenceInput = input.evidence ?? selectedGoalType?.evidence ?? [];
   const routeInput = input.route ?? selectedGoalType?.route ?? [];
-  const dutyInput = selectedGoalType?.duties ?? [];
+  const dutyInput = input.duties?.length
+    ? input.duties
+    : (selectedGoalType?.duties ?? []);
   const evidence = evidenceInput.map(normalizeEvidenceKey).filter(Boolean);
   const evidenceSet = new Set(evidence);
   const route = routeInput

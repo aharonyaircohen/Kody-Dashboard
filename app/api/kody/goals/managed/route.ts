@@ -72,6 +72,7 @@ const createManagedGoalSchema = z.object({
   type: z.string().min(1).max(80).default("general"),
   outcome: z.string().min(1).max(500),
   schedule: managedGoalScheduleSchema.default("manual"),
+  duties: z.array(z.string().min(1).max(80)).optional(),
   evidence: z.array(z.string().min(1).max(80)).default([]),
   route: z.array(routeStepSchema).default([]),
   actorLogin: z.string().optional(),
