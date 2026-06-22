@@ -5,7 +5,7 @@ import { DEFAULT_EXECUTABLE } from "../../src/dashboard/lib/chat-defaults/defaul
 
 const DUTY_GUIDE = readFileSync("docs/agent-responsibilities.md", "utf8");
 const DUTY_TOOLS_SOURCE = readFileSync(
-  "app/api/kody/chat/tools/agentResponsibility-tools.ts",
+  "app/api/kody/chat/tools/agent-responsibility-tools.ts",
   "utf8",
 );
 const DUTY_FILES_SOURCE = readFileSync(
@@ -29,14 +29,18 @@ describe("agentResponsibility creation guide wiring", () => {
   });
 
   it("exposes a guide tool before agentResponsibility creation", () => {
-    expect(DUTY_TOOLS_SOURCE).toContain("read_agent_responsibility_creation_guide");
+    expect(DUTY_TOOLS_SOURCE).toContain(
+      "read_agent_responsibility_creation_guide",
+    );
     expect(DUTY_TOOLS_SOURCE).toContain("canCreateAgentResponsibility: true");
     expect(DUTY_TOOLS_SOURCE).toContain("docs/agent-responsibilities.md");
     expect(DUTY_TOOLS_SOURCE).toContain(
       "Before calling it, call read_agent_responsibility_creation_guide",
     );
     // The bundle's agentAction declares the tool the agent should call.
-    expect(DEFAULT_EXECUTABLE.tools).toContain("read_agent_responsibility_creation_guide");
+    expect(DEFAULT_EXECUTABLE.tools).toContain(
+      "read_agent_responsibility_creation_guide",
+    );
   });
 
   it("creates usable agentResponsibilities without authoring raw state keys", () => {
@@ -54,12 +58,22 @@ describe("agentResponsibility creation guide wiring", () => {
   });
 
   it("exposes a unified create-or-update tool, not a create-only tool", () => {
-    expect(DUTY_TOOLS_SOURCE).toContain("create_or_update_agent_responsibility");
-    expect(DUTY_TOOLS_SOURCE).not.toContain('"create_kody_agentResponsibility"');
-    expect(DUTY_TOOLS_SOURCE).not.toContain("'create_kody_agentResponsibility'");
+    expect(DUTY_TOOLS_SOURCE).toContain(
+      "create_or_update_agent_responsibility",
+    );
+    expect(DUTY_TOOLS_SOURCE).not.toContain(
+      '"create_kody_agentResponsibility"',
+    );
+    expect(DUTY_TOOLS_SOURCE).not.toContain(
+      "'create_kody_agentResponsibility'",
+    );
     // The bundle's agentAction declares the tool the agent should call.
-    expect(DEFAULT_EXECUTABLE.tools).toContain("create_or_update_agent_responsibility");
-    expect(DEFAULT_EXECUTABLE.tools).not.toContain("create_kody_agentResponsibility");
+    expect(DEFAULT_EXECUTABLE.tools).toContain(
+      "create_or_update_agent_responsibility",
+    );
+    expect(DEFAULT_EXECUTABLE.tools).not.toContain(
+      "create_kody_agentResponsibility",
+    );
   });
 
   it("branches on existing-folder presence to choose create vs update", () => {
@@ -88,9 +102,12 @@ describe("agentResponsibility creation guide wiring", () => {
     expect(DUTY_TOOLS_SOURCE).not.toContain("runner:");
     expect(DUTY_FILES_SOURCE).toContain("profile.agent = agentSlug");
     expect(DUTY_FILES_SOURCE).not.toContain("profile.runner");
-    expect(DUTY_FILES_SOURCE).toContain("const agentSlug = (opts.agent ?? \"\").trim()");
+    expect(DUTY_FILES_SOURCE).toContain(
+      'const agentSlug = (opts.agent ?? "").trim()',
+    );
     const bundle = await loadChatDefaults("acme", "repo");
-    const createAgentResponsibility = bundle.skills["create-agentResponsibility"];
+    const createAgentResponsibility =
+      bundle.skills["create-agentResponsibility"];
     expect(createAgentResponsibility).toBeDefined();
     expect(createAgentResponsibility!.body).toContain("`agent`");
     expect(createAgentResponsibility!.body).toContain("`config.agent`");
@@ -99,7 +116,7 @@ describe("agentResponsibility creation guide wiring", () => {
   it("supports multi-agentAction agentResponsibilities via the `agentActions` array", () => {
     // Schema exposes the plural array as a first-class field.
     expect(DUTY_TOOLS_SOURCE).toMatch(
-      /agent-actions:\s*z[\s\S]*?\.array\(z\.string/,
+      /agentActions:\s*z[\s\S]*?\.array\(z\.string/,
     );
     // The body builder produces a `## AgentActions` (plural) section when
     // more than one agentAction is supplied, and stays on the singular
@@ -108,7 +125,7 @@ describe("agentResponsibility creation guide wiring", () => {
     expect(DUTY_TOOLS_SOURCE).toContain("## AgentActions");
     // The create path forwards the validated array to writeAgentResponsibilityFile.
     expect(DUTY_TOOLS_SOURCE).toMatch(
-      /agent-actions:\s*agentActions\.length\s*>\s*0/,
+      /agentActions:\s*agentActions\.length\s*>\s*0/,
     );
     // The update path forwards nextAgentActions (read-merged with
     // existing.agentActions) to writeAgentResponsibilityFile.
@@ -169,7 +186,7 @@ describe("agentResponsibility creation guide wiring", () => {
   });
 
   it("auto-detects `run` output mode when `agentActions` has 2+ items", () => {
-    expect(DUTY_TOOLS_SOURCE).toMatch(/agent-actions\.length\s*>\s*1/);
+    expect(DUTY_TOOLS_SOURCE).toMatch(/agentActions\.length\s*>\s*1/);
   });
 });
 

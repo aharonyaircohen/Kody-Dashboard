@@ -22,7 +22,10 @@ function createDialogSource(): string {
   const match = DUTY_CONTROL_SOURCE.match(
     /function CreateAgentResponsibilityDialog[\s\S]*?\nfunction EditAgentResponsibilityDialog/,
   );
-  expect(match, "CreateAgentResponsibilityDialog source should be present").not.toBeNull();
+  expect(
+    match,
+    "CreateAgentResponsibilityDialog source should be present",
+  ).not.toBeNull();
   return match![0];
 }
 
@@ -30,7 +33,10 @@ function editDialogSource(): string {
   const match = DUTY_CONTROL_SOURCE.match(
     /function EditAgentResponsibilityDialog[\s\S]*?\n\/\*\*\n \* Inline "last run"/,
   );
-  expect(match, "EditAgentResponsibilityDialog source should be present").not.toBeNull();
+  expect(
+    match,
+    "EditAgentResponsibilityDialog source should be present",
+  ).not.toBeNull();
   return match![0];
 }
 
@@ -38,7 +44,10 @@ function agentResponsibilityFormSource(): string {
   const match = DUTY_CONTROL_SOURCE.match(
     /function AgentResponsibilityForm[\s\S]*?\nfunction OutputSelect/,
   );
-  expect(match, "AgentResponsibilityForm source should be present").not.toBeNull();
+  expect(
+    match,
+    "AgentResponsibilityForm source should be present",
+  ).not.toBeNull();
   return match![0];
 }
 
@@ -52,13 +61,15 @@ describe("agentResponsibility create output choice", () => {
 
   it("maps output choice to agentResponsibility writesTo metadata", () => {
     expect(buildAgentResponsibilityWritesTo("run", "ci-health")).toEqual([]);
-    expect(buildAgentResponsibilityWritesTo("report", "ci-health")).toEqual(["ci-health"]);
+    expect(buildAgentResponsibilityWritesTo("report", "ci-health")).toEqual([
+      "ci-health",
+    ]);
   });
 
   it("derives the edit output choice from existing writesTo metadata", () => {
     expect(agentResponsibilityOutputFromWritesTo([])).toEqual({
       outputKind: "run",
-      reportSlug: "agentResponsibility-report",
+      reportSlug: "agentresponsibility-report",
     });
     expect(agentResponsibilityOutputFromWritesTo(["ci-health-graph"])).toEqual({
       outputKind: "report",
@@ -67,10 +78,12 @@ describe("agentResponsibility create output choice", () => {
   });
 
   it("builds a report body only when report output is selected", () => {
-    expect(buildDefaultAgentResponsibilityBody("run", "ci-health")).not.toContain("## Output");
-    expect(buildDefaultAgentResponsibilityBody("report", "ci-health")).toContain(
-      "Refresh `.kody/reports/ci-health.md`.",
-    );
+    expect(
+      buildDefaultAgentResponsibilityBody("run", "ci-health"),
+    ).not.toContain("## Output");
+    expect(
+      buildDefaultAgentResponsibilityBody("report", "ci-health"),
+    ).toContain("Refresh `.kody/reports/ci-health.md`.");
   });
 
   it("create and edit dialogs use the same agentResponsibility form", () => {
@@ -78,7 +91,9 @@ describe("agentResponsibility create output choice", () => {
     const editSource = editDialogSource();
     expect(source).toContain("<AgentResponsibilityForm");
     expect(editSource).toContain("<AgentResponsibilityForm");
-    expect(DUTY_CONTROL_SOURCE.match(/function AgentResponsibilityForm\(/g)).toHaveLength(1);
+    expect(
+      DUTY_CONTROL_SOURCE.match(/function AgentResponsibilityForm\(/g),
+    ).toHaveLength(1);
   });
 
   it("shared agentResponsibility form exposes output and report target, not an enabled checkbox", () => {
@@ -96,29 +111,43 @@ describe("agentResponsibility create output choice", () => {
 
   it("edit dialog includes output in its initial state and patch", () => {
     const source = editDialogSource();
-    expect(source).toContain("agentResponsibilityOutputFromWritesTo(agentResponsibility.writesTo)");
+    expect(source).toContain(
+      "agentResponsibilityOutputFromWritesTo(agentResponsibility.writesTo)",
+    );
     expect(source).toContain("writesTo");
     expect(source).toContain("outputKind !== initialOutput.outputKind");
   });
 
   it("does not expose an enabled checkbox anywhere in agentResponsibility forms", () => {
-    expect(DUTY_CONTROL_SOURCE).not.toContain("function AgentResponsibilityEnabledCheckbox");
-    expect(DUTY_CONTROL_SOURCE).not.toContain("<AgentResponsibilityEnabledCheckbox");
-    expect(DUTY_CONTROL_SOURCE).not.toContain('id="agentResponsibility-enabled"');
+    expect(DUTY_CONTROL_SOURCE).not.toContain(
+      "function AgentResponsibilityEnabledCheckbox",
+    );
+    expect(DUTY_CONTROL_SOURCE).not.toContain(
+      "<AgentResponsibilityEnabledCheckbox",
+    );
+    expect(DUTY_CONTROL_SOURCE).not.toContain(
+      'id="agentResponsibility-enabled"',
+    );
   });
 
   it("places agent and reviewer controls in one responsive row", () => {
-    expect(DUTY_CONTROL_SOURCE).toContain("function AgentResponsibilityAgentRoleRow");
+    expect(DUTY_CONTROL_SOURCE).toContain(
+      "function AgentResponsibilityAgentRoleRow",
+    );
     expect(DUTY_CONTROL_SOURCE).toContain("md:grid-cols-2");
     expect(DUTY_CONTROL_SOURCE).toContain("<AgentSelect");
     expect(DUTY_CONTROL_SOURCE).toContain("<ReviewerSelect");
   });
 
   it("places action with schedule and agentAction with output", () => {
-    expect(DUTY_CONTROL_SOURCE).toContain("function AgentResponsibilityActionScheduleRow");
+    expect(DUTY_CONTROL_SOURCE).toContain(
+      "function AgentResponsibilityActionScheduleRow",
+    );
     expect(DUTY_CONTROL_SOURCE).toContain("actionId");
     expect(DUTY_CONTROL_SOURCE).toContain("<ScheduleSelect");
-    expect(DUTY_CONTROL_SOURCE).toContain("function AgentResponsibilityAgentActionOutputRow");
+    expect(DUTY_CONTROL_SOURCE).toContain(
+      "function AgentResponsibilityAgentActionOutputRow",
+    );
     expect(DUTY_CONTROL_SOURCE).toContain("<AgentActionSelect");
     expect(DUTY_CONTROL_SOURCE).toContain("<OutputSelect");
     expect(DUTY_CONTROL_SOURCE).not.toContain("function MentionsInput");
@@ -129,7 +158,8 @@ describe("agentResponsibility create output choice", () => {
     expect(DUTY_CONTROL_SOURCE).toContain('searchPlaceholder="Search agent…"');
     expect(DUTY_CONTROL_SOURCE).toContain(
       'searchPlaceholder="Search agentActions…"',
-    );  });
+    );
+  });
 
   it("keeps agentResponsibility dialogs open when Escape closes a searchable dropdown", () => {
     expect(DUTY_CONTROL_SOURCE).toContain(

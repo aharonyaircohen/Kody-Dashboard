@@ -10,7 +10,12 @@
 import type { Octokit } from "@octokit/rest";
 import { getStoreRef, getStoreRepoUrl } from "../github-client";
 
-export type StoreAssetKind = "agent-responsibilities" | "agent-actions" | "agent";
+export type StoreAssetKind =
+  | "agent-responsibilities"
+  | "agent-actions"
+  | "agent"
+  | "agents";
+type StoreManifestKind = "agent-responsibilities" | "agent-actions" | "agent";
 export type AssetSource = "local" | "store";
 
 export interface CompanyStoreTarget {
@@ -31,7 +36,7 @@ interface StoreManifestAsset {
 interface StoreManifest {
   kinds?: Partial<
     Record<
-      StoreAssetKind,
+      StoreManifestKind,
       {
         selected?: Record<string, StoreManifestAsset>;
       }
@@ -205,7 +210,8 @@ export async function companyStoreUpdatedAt(
   slug: string,
 ): Promise<string> {
   const manifest = await readCompanyStoreManifest(octokit);
-  const mtime = manifest?.kinds?.[kind]?.selected?.[slug]?.mtime;
+  const manifestKind: StoreManifestKind = kind === "agents" ? "agent" : kind;
+  const mtime = manifest?.kinds?.[manifestKind]?.selected?.[slug]?.mtime;
   return typeof mtime === "string" && mtime
     ? mtime
     : "1970-01-01T00:00:00.000Z";

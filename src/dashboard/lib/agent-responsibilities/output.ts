@@ -1,7 +1,7 @@
 export type AgentResponsibilityOutputKind = "run" | "report";
 
 export const DEFAULT_DUTY_OUTPUT_KIND: AgentResponsibilityOutputKind = "run";
-export const FALLBACK_REPORT_SLUG = "agentResponsibility-report";
+export const FALLBACK_REPORT_SLUG = "agentresponsibility-report";
 
 export function normalizeReportSlug(value: string): string {
   const slug = value
@@ -25,7 +25,9 @@ export function buildAgentResponsibilityWritesTo(
   return outputKind === "report" ? [normalizeReportSlug(reportSlug)] : [];
 }
 
-export function agentResponsibilityOutputFromWritesTo(writesTo: string[] | null | undefined): {
+export function agentResponsibilityOutputFromWritesTo(
+  writesTo: string[] | null | undefined,
+): {
   outputKind: AgentResponsibilityOutputKind;
   reportSlug: string;
 } {

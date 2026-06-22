@@ -147,7 +147,7 @@ export async function GET(req: NextRequest) {
         "agent-actions",
         isValidAgentActionSlug,
       ),
-      listCompanyStoreMarkdownAssetSlugs(octokit, "agent", isValidAgentSlug),
+      listCompanyStoreMarkdownAssetSlugs(octokit, "agents", isValidAgentSlug),
       listAgentResponsibilityFiles(),
       listAgentActionFiles(),
       listResolvedAgentFiles(),

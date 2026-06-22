@@ -9,7 +9,7 @@ describe("explicit memory requests", () => {
     );
 
     expect(draft).toMatchObject({
-      id: "for-this-repo-chat-prompt-workflows-should-live-3d4cdcbc",
+      id: "for-this-repo-chat-prompt-workflows-should-live-4c95b47a",
       type: "project",
     });
     expect(draft?.body).toContain(

@@ -25,20 +25,25 @@ describe("chat-defaults bundle", () => {
   it("loads repo-backed chat agentResponsibilities when present, otherwise uses defaults", async () => {
     const bundle = await loadChatDefaults("acme", "widget");
     const agentActionPath = ".kody/agent-actions/kody-chat/profile.json";
-    const analyzerPath = ".kody/agent-responsibilities/kody-analyzer/profile.json";
+    const analyzerPath =
+      ".kody/agent-responsibilities/kody-analyzer/profile.json";
 
     expect(bundle.agentAction.slug).toBe("kody-chat");
     if (existsSync(agentActionPath) && existsSync(analyzerPath)) {
-      const agentActionProfile = JSON.parse(readFileSync(agentActionPath, "utf8"));
+      const agentActionProfile = JSON.parse(
+        readFileSync(agentActionPath, "utf8"),
+      );
       const analyzerProfile = JSON.parse(readFileSync(analyzerPath, "utf8"));
       expect(bundle.agentAction).toMatchObject(agentActionProfile);
       expect(analyzerProfile.agentAction).toBe("kody-chat");
     } else {
       expect(bundle.agentAction).toMatchObject(DEFAULT_EXECUTABLE);
     }
-    expect(bundle.agentResponsibilities.some((agentResponsibility) => agentResponsibility.slug === "kody-analyzer")).toBe(
-      true,
-    );
+    expect(
+      bundle.agentResponsibilities.some(
+        (agentResponsibility) => agentResponsibility.slug === "kody-analyzer",
+      ),
+    ).toBe(true);
     expect(bundle.skills["diagnose-pr"]?.body).toContain(
       'Triggers: "diagnose PR #N"',
     );
@@ -103,11 +108,11 @@ describe("chat-defaults bundle", () => {
       "app/api/kody/chat/tools/task-tools.ts",
       "app/api/kody/chat/tools/bug-tools.ts",
       "app/api/kody/chat/tools/goal-tools.ts",
-      "app/api/kody/chat/tools/agentResponsibility-tools.ts",
-      "app/api/kody/chat/tools/agentResponsibility-admin-tools.ts",
+      "app/api/kody/chat/tools/agent-responsibility-tools.ts",
+      "app/api/kody/chat/tools/agent-responsibility-admin-tools.ts",
       "app/api/kody/chat/tools/agent-tools.ts",
       "app/api/kody/chat/tools/agent-admin-tools.ts",
-      "app/api/kody/chat/tools/agentAction-tools.ts",
+      "app/api/kody/chat/tools/agent-action-tools.ts",
       "app/api/kody/chat/tools/commands-tools.ts",
       "app/api/kody/chat/tools/context-tools.ts",
       "app/api/kody/chat/tools/instructions-tools.ts",
@@ -207,7 +212,9 @@ describe("chat-defaults bundle", () => {
     );
     expect(bundle.skills.memory.body).toContain(trigger);
     expect(
-      bundle.agentResponsibilities.find((agentResponsibility) => agentResponsibility.slug === "kody-mem")!.body,
+      bundle.agentResponsibilities.find(
+        (agentResponsibility) => agentResponsibility.slug === "kody-mem",
+      )!.body,
     ).toContain("explicit memory command");
   });
 
@@ -405,7 +412,9 @@ describe("CRITICAL_REMINDERS_MD", () => {
     expect(CRITICAL_REMINDERS_MD).toContain("Verify before claiming");
     expect(CRITICAL_REMINDERS_MD).toContain("No fabrication");
     expect(CRITICAL_REMINDERS_MD).toContain("Cite your evidence");
-    expect(CRITICAL_REMINDERS_MD).toContain("one direct proceed-style question");
+    expect(CRITICAL_REMINDERS_MD).toContain(
+      "one direct proceed-style question",
+    );
     expect(CRITICAL_REMINDERS_MD).toContain("No sycophantic openers");
   });
 });

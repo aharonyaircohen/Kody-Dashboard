@@ -65,7 +65,7 @@ async function listStoreAgentFiles(
 ): Promise<AgentFile[]> {
   const slugs = await listCompanyStoreMarkdownAssetSlugs(
     octokit,
-    "agent",
+    "agents",
     isValidSlug,
   );
   const agent = await Promise.all(
@@ -84,7 +84,7 @@ async function readStoreAgentFile(
   const path = `.kody/agents/${slug}.md`;
   const [raw, updatedAt] = await Promise.all([
     readCompanyStoreText(octokit, path),
-    companyStoreUpdatedAt(octokit, "agent", slug),
+    companyStoreUpdatedAt(octokit, "agents", slug),
   ]);
   if (raw === null) return null;
   const { title, body } = parseTickedMarkdown(raw, slug);
