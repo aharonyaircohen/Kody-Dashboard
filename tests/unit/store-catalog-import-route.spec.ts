@@ -33,6 +33,12 @@ const managedGoals = vi.hoisted(() => ({
   writeManagedGoalFile: vi.fn(),
 }));
 
+const stateRepo = vi.hoisted(() => ({
+  listStateDirectory: vi.fn(),
+  readStateText: vi.fn(),
+  writeStateText: vi.fn(),
+}));
+
 vi.mock("@dashboard/lib/auth", () => ({
   requireKodyAuth: auth.requireKodyAuth,
   getRequestAuth: auth.getRequestAuth,
@@ -54,6 +60,12 @@ vi.mock("@dashboard/lib/managed-goals-files", () => ({
     managedGoals.listCompanyStoreGoalTemplateFiles,
   readManagedGoalFile: managedGoals.readManagedGoalFile,
   writeManagedGoalFile: managedGoals.writeManagedGoalFile,
+}));
+
+vi.mock("@dashboard/lib/state-repo", () => ({
+  listStateDirectory: stateRepo.listStateDirectory,
+  readStateText: stateRepo.readStateText,
+  writeStateText: stateRepo.writeStateText,
 }));
 
 import { POST } from "../../app/api/kody/store-catalog/import/route";
@@ -130,7 +142,28 @@ function makeOctokit() {
             ],
           };
         }
+        if (opts.path === ".kody/agent-responsibilities/release-watch") {
+          return {
+            data: [
+              {
+                name: "profile.json",
+                path: ".kody/agent-responsibilities/release-watch/profile.json",
+                type: "file",
+              },
+              {
+                name: "agent-responsibility.md",
+                path: ".kody/agent-responsibilities/release-watch/agent-responsibility.md",
+                type: "file",
+              },
+            ],
+          };
+        }
         const files: Record<string, string> = {
+          ".kody/agents/atlas-agent.md": "# Atlas Agent\nCoordinates work.\n",
+          ".kody/agent-responsibilities/release-watch/profile.json":
+            '{"name":"Release Watch","agent":"atlas-agent"}\n',
+          ".kody/agent-responsibilities/release-watch/agent-responsibility.md":
+            "# Release Watch\nKeep release work moving.\n",
           ".kody/agent-actions/ship-feature/profile.json":
             '{"describe":"Ship feature"}\n',
           ".kody/agent-actions/ship-feature/prompt.md": "Do the work.\n",
@@ -160,6 +193,79 @@ describe("store catalog import route", () => {
     vi.clearAllMocks();
     managedGoals.readManagedGoalFile.mockResolvedValue(null);
     managedGoals.writeManagedGoalFile.mockResolvedValue(undefined);
+    stateRepo.readStateText.mockResolvedValue(null);
+    stateRepo.listStateDirectory.mockResolvedValue({ entries: [] });
+    stateRepo.writeStateText.mockResolvedValue(undefined);
+  });
+
+  it("imports a store agent into the configured state repo", async () => {
+    const octokit = makeOctokit();
+    auth.getUserOctokit.mockResolvedValue(octokit);
+
+    const res = await POST(req({ kind: "agent", slug: "atlas-agent" }));
+
+    expect(res.status).toBe(200);
+    await expect(res.json()).resolves.toMatchObject({
+      kind: "agent",
+      slug: "atlas-agent",
+      imported: true,
+      path: "agents/atlas-agent.md",
+    });
+    expect(stateRepo.readStateText).toHaveBeenCalledWith(
+      octokit,
+      "acme",
+      "widgets",
+      "agents/atlas-agent.md",
+    );
+    expect(stateRepo.writeStateText).toHaveBeenCalledWith({
+      octokit,
+      owner: "acme",
+      repo: "widgets",
+      path: "agents/atlas-agent.md",
+      content: "# Atlas Agent\nCoordinates work.\n",
+      message: "feat(store): import atlas-agent",
+    });
+    expect(octokit.git.createTree).not.toHaveBeenCalled();
+  });
+
+  it("imports a store responsibility folder into the configured state repo", async () => {
+    const octokit = makeOctokit();
+    auth.getUserOctokit.mockResolvedValue(octokit);
+
+    const res = await POST(
+      req({ kind: "agentResponsibility", slug: "release-watch" }),
+    );
+
+    expect(res.status).toBe(200);
+    await expect(res.json()).resolves.toMatchObject({
+      kind: "agentResponsibility",
+      slug: "release-watch",
+      imported: true,
+      path: "agent-responsibilities/release-watch",
+    });
+    expect(stateRepo.listStateDirectory).toHaveBeenCalledWith(
+      octokit,
+      "acme",
+      "widgets",
+      "agent-responsibilities/release-watch",
+    );
+    expect(stateRepo.writeStateText).toHaveBeenCalledWith({
+      octokit,
+      owner: "acme",
+      repo: "widgets",
+      path: "agent-responsibilities/release-watch/profile.json",
+      content: '{"name":"Release Watch","agent":"atlas-agent"}\n',
+      message: "feat(store): import release-watch",
+    });
+    expect(stateRepo.writeStateText).toHaveBeenCalledWith({
+      octokit,
+      owner: "acme",
+      repo: "widgets",
+      path: "agent-responsibilities/release-watch/agent-responsibility.md",
+      content: "# Release Watch\nKeep release work moving.\n",
+      message: "feat(store): import release-watch",
+    });
+    expect(octokit.git.createTree).not.toHaveBeenCalled();
   });
 
   it("copies a store agentAction folder into the connected repo", async () => {

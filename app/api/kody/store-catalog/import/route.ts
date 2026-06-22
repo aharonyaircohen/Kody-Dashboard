@@ -28,6 +28,11 @@ import {
   managedGoalPath,
   type ManagedGoalState,
 } from "@dashboard/lib/managed-goals";
+import {
+  listStateDirectory,
+  readStateText,
+  writeStateText,
+} from "@dashboard/lib/state-repo";
 
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
@@ -79,6 +84,12 @@ function targetPathFor(kind: ImportKind, slug: string): string {
     return `.kody/agent-responsibilities/${slug}`;
   }
   return managedGoalPath(slug);
+}
+
+function stateTargetPathFor(kind: ImportKind, slug: string): string {
+  if (kind === "agent") return `agents/${slug}.md`;
+  if (kind === "agentResponsibility") return `agent-responsibilities/${slug}`;
+  return targetPathFor(kind, slug);
 }
 
 function instantiateStoreGoalState(
@@ -316,6 +327,80 @@ async function importRawStoreAsset({
   };
 }
 
+async function stateAssetExists({
+  octokit,
+  owner,
+  repo,
+  kind,
+  path,
+}: {
+  octokit: Octokit;
+  owner: string;
+  repo: string;
+  kind: ImportKind;
+  path: string;
+}): Promise<boolean> {
+  if (kind === "agent") {
+    return (await readStateText(octokit, owner, repo, path)) !== null;
+  }
+
+  const { entries } = await listStateDirectory(octokit, owner, repo, path);
+  return entries.length > 0;
+}
+
+async function importStateStoreAsset({
+  octokit,
+  owner,
+  repo,
+  kind,
+  slug,
+}: {
+  octokit: Octokit;
+  owner: string;
+  repo: string;
+  kind: ImportKind;
+  slug: string;
+}) {
+  const targetPath = stateTargetPathFor(kind, slug);
+  if (
+    await stateAssetExists({ octokit, owner, repo, kind, path: targetPath })
+  ) {
+    return {
+      imported: false,
+      status: "already_local",
+      path: targetPath,
+    };
+  }
+
+  const files = await readStoreFiles(
+    octokit,
+    storePathFor(kind, slug),
+    targetPath,
+  );
+  if (files.length === 0) {
+    throw Object.assign(new Error(`Store item "${slug}" was not found.`), {
+      status: 404,
+    });
+  }
+
+  for (const file of files) {
+    await writeStateText({
+      octokit,
+      owner,
+      repo,
+      path: file.path,
+      content: file.content,
+      message: `feat(store): import ${slug}`,
+    });
+  }
+
+  return {
+    imported: true,
+    status: "imported",
+    path: targetPath,
+  };
+}
+
 function errorResponse(error: unknown) {
   const status = (error as { status?: number })?.status;
   if (status === 401) {
@@ -387,13 +472,21 @@ export async function POST(req: NextRequest) {
             repo: auth.repo,
             slug,
           })
-        : await importRawStoreAsset({
-            octokit,
-            owner: auth.owner,
-            repo: auth.repo,
-            kind,
-            slug,
-          });
+        : kind === "agent" || kind === "agentResponsibility"
+          ? await importStateStoreAsset({
+              octokit,
+              owner: auth.owner,
+              repo: auth.repo,
+              kind,
+              slug,
+            })
+          : await importRawStoreAsset({
+              octokit,
+              owner: auth.owner,
+              repo: auth.repo,
+              kind,
+              slug,
+            });
 
     return NextResponse.json({
       kind,
