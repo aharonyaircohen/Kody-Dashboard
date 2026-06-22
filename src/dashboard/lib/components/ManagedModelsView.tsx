@@ -362,14 +362,13 @@ function NewGoalDialog({
     goalTypes.find((type) => type.id === goalType) ?? defaultType;
   const scheduleChoices = isRoutine
     ? scheduleOptions.filter((option) => option.value !== "manual")
-    : scheduleOptions;
+    : [];
   const canSubmit = outcome.trim().length > 0;
-  const kindLabel = isRoutine ? "Routine type" : "Objective type";
   const showTypeSelect = !isRoutine && goalTypes.length > 1;
   const intentLabel = isRoutine ? "Routine scope" : "Finish line";
   const dialogDescription = isRoutine
-    ? "Set the cadence and operating scope for an ongoing loop."
-    : "Choose schedule, then describe the finish line.";
+    ? "Set cadence and operating scope for an ongoing loop."
+    : "Define a finish line and the evidence Kody must close.";
   const intentPlaceholder = isRoutine
     ? "Example: Keep codebase healthy and report drift."
     : selectedGoalType.promptPlaceholder;
@@ -383,6 +382,9 @@ function NewGoalDialog({
   useEffect(() => {
     if (isRoutine && schedule === "manual") {
       setSchedule(defaultSchedule);
+    }
+    if (!isRoutine && schedule !== "manual") {
+      setSchedule("manual");
     }
   }, [defaultSchedule, isRoutine, schedule]);
 
@@ -406,7 +408,7 @@ function NewGoalDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-xl">
+      <DialogContent className="max-w-2xl">
         <DialogHeader>
           <DialogTitle>New {label}</DialogTitle>
           <DialogDescription>{dialogDescription}</DialogDescription>
@@ -414,10 +416,10 @@ function NewGoalDialog({
 
         <div className="space-y-4">
           <div className="grid gap-3 md:grid-cols-2">
-            <div className="space-y-2">
+            <div className="space-y-3">
               {showTypeSelect ? (
-                <>
-                  <Label htmlFor="goal-type">{kindLabel}</Label>
+                <div className="space-y-2">
+                  <Label htmlFor="goal-type">Objective type</Label>
                   <Select
                     value={goalType}
                     onValueChange={(value) =>
@@ -435,8 +437,9 @@ function NewGoalDialog({
                       ))}
                     </SelectContent>
                   </Select>
-                </>
+                </div>
               ) : null}
+
               <div className="space-y-2 rounded-md border border-white/[0.08] bg-white/[0.03] px-3 py-2 text-xs text-muted-foreground">
                 <p className="text-sm font-medium text-white/85">
                   {selectedGoalType.description}
@@ -449,46 +452,100 @@ function NewGoalDialog({
                   <span className="text-white/65">Kody will: </span>
                   {selectedGoalType.systemSummary}
                 </p>
-                {isRoutine ? (
-                  <div className="space-y-2 pt-1">
-                    <p className="text-white/65">Duties included</p>
-                    <div className="flex max-h-28 flex-wrap gap-1 overflow-auto pr-1">
-                      {selectedGoalType.duties.map((duty) => (
-                        <span
-                          key={duty}
-                          className="rounded border border-white/[0.08] bg-black/25 px-2 py-1 font-mono text-[11px] text-white/65"
-                        >
-                          {duty}
-                        </span>
-                      ))}
-                    </div>
-                  </div>
-                ) : null}
               </div>
             </div>
 
-            <div className="space-y-2">
-              <Label htmlFor="goal-schedule">
-                {isRoutine ? "Cadence" : "Schedule"}
-              </Label>
-              <Select
-                value={schedule}
-                onValueChange={(value) =>
-                  setSchedule(value as ManagedGoalSchedule)
-                }
-              >
-                <SelectTrigger id="goal-schedule">
-                  <SelectValue placeholder="Choose cadence" />
-                </SelectTrigger>
-                <SelectContent>
-                  {scheduleChoices.map((option) => (
-                    <SelectItem key={option.value} value={option.value}>
-                      {option.label}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
+            {isRoutine ? (
+              <div className="space-y-3">
+                <div className="space-y-2">
+                  <Label htmlFor="goal-schedule">Cadence</Label>
+                  <Select
+                    value={schedule}
+                    onValueChange={(value) =>
+                      setSchedule(value as ManagedGoalSchedule)
+                    }
+                  >
+                    <SelectTrigger id="goal-schedule">
+                      <SelectValue placeholder="Choose cadence" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {scheduleChoices.map((option) => (
+                        <SelectItem key={option.value} value={option.value}>
+                          {option.label}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="space-y-2 rounded-md border border-white/[0.08] bg-black/20 px-3 py-2 text-xs text-muted-foreground">
+                  <p className="text-white/65">Duties included</p>
+                  <div className="flex max-h-28 flex-wrap gap-1 overflow-auto pr-1">
+                    {selectedGoalType.duties.map((duty) => (
+                      <span
+                        key={duty}
+                        className="rounded border border-white/[0.08] bg-black/25 px-2 py-1 font-mono text-[11px] text-white/65"
+                      >
+                        {duty}
+                      </span>
+                    ))}
+                  </div>
+                </div>
+              </div>
+            ) : (
+              <div className="space-y-3">
+                <div className="space-y-2 rounded-md border border-white/[0.08] bg-black/20 px-3 py-2 text-xs text-muted-foreground">
+                  <div className="flex items-center justify-between gap-2">
+                    <p className="text-white/65">Missing evidence</p>
+                    <span className="font-mono text-white/45">
+                      {selectedGoalType.evidence.length}
+                    </span>
+                  </div>
+                  <div className="space-y-1.5">
+                    {selectedGoalType.evidence.map((evidence) => (
+                      <div
+                        key={evidence}
+                        className="flex items-center gap-2 rounded border border-white/[0.06] bg-white/[0.02] px-2 py-1.5"
+                      >
+                        <CircleDot className="h-3.5 w-3.5 shrink-0 text-sky-300" />
+                        <span className="font-mono text-white/70">
+                          {evidence}
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+
+                <div className="space-y-2 rounded-md border border-white/[0.08] bg-black/20 px-3 py-2 text-xs text-muted-foreground">
+                  <div className="flex items-center justify-between gap-2">
+                    <p className="text-white/65">Route</p>
+                    <span className="font-mono text-white/45">
+                      {selectedGoalType.route.length}
+                    </span>
+                  </div>
+                  <div className="space-y-1.5">
+                    {selectedGoalType.route.map((step) => (
+                      <div
+                        key={`${step.stage}:${step.evidence}`}
+                        className="rounded border border-white/[0.06] bg-white/[0.02] px-2 py-1.5"
+                      >
+                        <div className="flex items-center gap-2 text-white/75">
+                          <Route className="h-3.5 w-3.5 shrink-0 text-emerald-300" />
+                          <span>{step.stage}</span>
+                          <span className="text-white/30">{"->"}</span>
+                          <span className="font-mono">{step.evidence}</span>
+                        </div>
+                        <div className="mt-1 text-[11px] text-white/45">
+                          duty: {step.duty}
+                          {step.executable
+                            ? ` · executable: ${step.executable}`
+                            : ""}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              </div>
+            )}
           </div>
 
           <div className="space-y-2">

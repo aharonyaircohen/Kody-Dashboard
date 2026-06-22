@@ -14,7 +14,7 @@ const source = readFileSync(
 );
 
 describe("ManagedModelsView new model form", () => {
-  it("keeps objective creation simple and routine creation routine-shaped", () => {
+  it("keeps objective creation evidence-driven and routine creation cadence-driven", () => {
     const dialog = source.slice(
       source.indexOf("function NewGoalDialog"),
       source.indexOf("function EditManagedGoalDialog"),
@@ -27,12 +27,19 @@ describe("ManagedModelsView new model form", () => {
     expect(dialog).toContain(
       "const showTypeSelect = !isRoutine && goalTypes.length > 1",
     );
-    expect(dialog).toContain('isRoutine ? "Cadence" : "Schedule"');
-    expect(dialog).toContain('isRoutine ? "Routine scope" : "Finish line"');
-    expect(dialog).toContain("selectedGoalType.description");
-    expect(dialog).toContain("selectedGoalType.bestFor");
-    expect(dialog).toContain("selectedGoalType.systemSummary");
+    expect(dialog).toContain(
+      "Define a finish line and the evidence Kody must close.",
+    );
+    expect(dialog).toContain(
+      '<Label htmlFor="goal-type">Objective type</Label>',
+    );
+    expect(dialog).toContain("Missing evidence");
+    expect(dialog).toContain("selectedGoalType.evidence.map");
+    expect(dialog).toContain("selectedGoalType.route.map");
+    expect(dialog).toContain('<Label htmlFor="goal-schedule">Cadence</Label>');
+    expect(dialog).toContain("Duties included");
     expect(dialog).toContain("selectedGoalType.duties.map");
+    expect(dialog).toContain('isRoutine ? "Routine scope" : "Finish line"');
     expect(dialog).not.toContain("goal-create-mode");
     expect(dialog).not.toContain("New instance");
     expect(dialog).not.toContain("goal-id");
