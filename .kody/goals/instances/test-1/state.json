@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "state": "active",
+  "state": "inactive",
   "type": "agentLoop",
   "destination": {
     "outcome": "test 1",
@@ -13,8 +13,6 @@
     "approval-gate"
   ],
   "route": [],
-  "facts": {
-    "goalType": "agentLoop"
-  },
+  "facts": {},
   "blockers": []
 }
