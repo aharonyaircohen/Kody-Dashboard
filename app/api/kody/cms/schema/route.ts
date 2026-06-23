@@ -156,6 +156,7 @@ export async function POST(req: NextRequest) {
       octokit,
       headerAuth.owner,
       headerAuth.repo,
+      actorRole,
     );
 
     return NextResponse.json(

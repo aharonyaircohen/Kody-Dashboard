@@ -201,6 +201,7 @@ export interface CmsPublicConfig {
   environment: string;
   defaultAdapter?: string;
   writePolicy: CmsWritePolicy;
+  actorRole?: CmsRole;
   permissions: CmsPermissionsConfig;
   collections: CmsCollectionConfig[];
 }

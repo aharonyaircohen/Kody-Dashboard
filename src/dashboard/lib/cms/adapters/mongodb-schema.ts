@@ -304,8 +304,11 @@ function inferFieldStorage(
     if (arrayLooksLikeEnum(fieldStats)) return { kind: "stringArray" };
     return { kind: "array" };
   }
-  if (fieldStats.types.has("date") || looksLikeDateField(fieldName)) {
+  if (fieldStats.types.has("date")) {
     return { kind: "date" };
+  }
+  if (looksLikeDateField(fieldName) && fieldStats.types.has("string")) {
+    return { kind: "dateString" };
   }
   if (fieldStats.types.has("boolean")) return { kind: "boolean" };
   if (fieldStats.types.has("number")) return { kind: "number" };
@@ -448,17 +451,30 @@ function inferRelationTarget(
 ): string | null {
   if (fieldType !== "relation" && fieldType !== "relationMany") return null;
   const normalized = normalizeRelationName(fieldName);
-  const variants = [
-    normalized,
-    `${normalized}s`,
-    `${normalized}es`,
-    normalized.replace(/y$/, "ies"),
-  ];
+  const variants = relationNameVariants(normalized);
   for (const collection of collectionNames) {
     const normalizedCollection = normalizeRelationName(collection);
     if (variants.includes(normalizedCollection)) return collection;
   }
   return null;
+}
+
+function relationNameVariants(normalized: string): string[] {
+  const names = new Set<string>();
+  const add = (value: string) => {
+    if (!value) return;
+    names.add(value);
+    names.add(`${value}s`);
+    names.add(`${value}es`);
+    names.add(value.replace(/y$/, "ies"));
+  };
+  add(normalized);
+  for (const prefix of ["related", "linked", "selected", "assigned"]) {
+    if (normalized.startsWith(prefix)) {
+      add(normalized.slice(prefix.length));
+    }
+  }
+  return [...names];
 }
 
 function analyzeCollection(

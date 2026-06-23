@@ -117,6 +117,7 @@ import {
   PATCH as indexPATCH,
   POST as indexPOST,
 } from "../app/api/kody/cms/route";
+import { POST as mcpPOST } from "../app/api/kody/cms/mcp/route";
 import { POST as schemaPOST } from "../app/api/kody/cms/schema/route";
 
 function request(url = "https://dash.test/api/kody/cms") {
@@ -650,6 +651,68 @@ describe("CMS API routes", () => {
     await expect(res.json()).resolves.toMatchObject({
       error: "cms_not_configured",
       message: "CMS is not configured for this repo",
+    });
+  });
+
+  it("lists schema-generated CMS MCP tools", async () => {
+    service.listCmsCollections.mockResolvedValueOnce({
+      configured: true,
+      version: 1,
+      name: "Example CMS",
+      environment: "default",
+      writePolicy: "enabled",
+      actorRole: "admin",
+      permissions: {},
+      collections: [
+        {
+          name: "lessons",
+          label: "Lessons",
+          adapter: "mongodb",
+          mcpName: "lessons",
+          searchFields: ["title"],
+          writePolicy: "enabled",
+          permissions: {},
+          source: { collection: "lessons", idField: "_id" },
+          operations: {
+            list: true,
+            get: true,
+            search: true,
+            create: true,
+            update: true,
+            delete: true,
+          },
+          defaultSort: [],
+          fields: [
+            { name: "_id", type: "id", readOnly: true },
+            { name: "title", type: "text", required: true },
+          ],
+          filters: [],
+        },
+      ],
+    });
+
+    const res = await mcpPOST(
+      jsonRequest("https://dash.test/api/kody/cms/mcp", "POST", {
+        jsonrpc: "2.0",
+        id: 1,
+        method: "tools/list",
+      }),
+    );
+
+    expect(res.status).toBe(200);
+    await expect(res.json()).resolves.toMatchObject({
+      jsonrpc: "2.0",
+      id: 1,
+      result: {
+        tools: [
+          { name: "cms_list_collections" },
+          { name: "cms_list_lessons" },
+          { name: "cms_get_lessons" },
+          { name: "cms_create_lessons" },
+          { name: "cms_update_lessons" },
+          { name: "cms_delete_lessons" },
+        ],
+      },
     });
   });
 });

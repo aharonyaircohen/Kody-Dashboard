@@ -61,10 +61,17 @@ export async function GET(req: NextRequest) {
       return NextResponse.json({ error: "no_user_token" }, { status: 401 });
     }
 
+    const actorRole = await getCmsActorRole(
+      req,
+      octokit,
+      headerAuth.owner,
+      headerAuth.repo,
+    );
     const cms = await listCmsCollections(
       octokit,
       headerAuth.owner,
       headerAuth.repo,
+      actorRole,
     );
     return NextResponse.json({ cms }, { headers: NO_STORE_HEADERS });
   } catch (error) {
@@ -115,12 +122,19 @@ export async function POST(req: NextRequest) {
       );
     }
 
+    const actorRole = await getCmsActorRole(
+      req,
+      octokit,
+      headerAuth.owner,
+      headerAuth.repo,
+    );
     const cms = {
       configured: true as const,
       version: 1 as const,
       name,
       environment: "default",
       writePolicy: "read-only" as const,
+      actorRole,
       collections: [],
     };
 
@@ -221,6 +235,7 @@ export async function PATCH(req: NextRequest) {
       octokit,
       headerAuth.owner,
       headerAuth.repo,
+      actorRole,
     );
     return NextResponse.json({ cms }, { headers: NO_STORE_HEADERS });
   } catch (error) {

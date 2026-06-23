@@ -272,7 +272,10 @@ function assertRoleAllowed(
   });
 }
 
-export function toPublicCmsConfig(config: CmsRuntimeConfig): CmsPublicConfig {
+export function toPublicCmsConfig(
+  config: CmsRuntimeConfig,
+  actorRole?: CmsRole,
+): CmsPublicConfig {
   return {
     configured: true,
     version: config.version,
@@ -280,6 +283,7 @@ export function toPublicCmsConfig(config: CmsRuntimeConfig): CmsPublicConfig {
     environment: config.environment,
     defaultAdapter: config.defaultAdapter,
     writePolicy: config.writePolicy,
+    actorRole,
     permissions: config.permissions,
     collections: Object.values(config.collections),
   };

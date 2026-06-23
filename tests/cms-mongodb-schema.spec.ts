@@ -59,6 +59,10 @@ describe("Mongo CMS schema generation", () => {
         grid: chapterId.toHexString(),
         relatedLessons: [lessonId],
         tags: ["math", "science"],
+        status: "draft",
+        publishedAt: "2026-01-03T04:05:06.000Z",
+        metadata: { duration: 12 },
+        blocks: [{ type: "text", value: "Intro" }],
         updatedAt: new Date("2026-01-02T03:04:05.000Z"),
       },
     ]);
@@ -107,12 +111,29 @@ describe("Mongo CMS schema generation", () => {
       storage: { kind: "objectId" },
     });
     expect(fields.get("relatedLessons")).toMatchObject({
-      type: "array",
+      type: "relationMany",
+      target: "lessons",
       storage: { kind: "objectIdArray" },
     });
     expect(fields.get("tags")).toMatchObject({
       type: "multiSelect",
       storage: { kind: "stringArray" },
+    });
+    expect(fields.get("status")).toMatchObject({
+      type: "select",
+    });
+    expect(fields.get("status")?.storage).toBeUndefined();
+    expect(fields.get("publishedAt")).toMatchObject({
+      type: "date",
+      storage: { kind: "dateString" },
+    });
+    expect(fields.get("metadata")).toMatchObject({
+      type: "object",
+      storage: { kind: "object" },
+    });
+    expect(fields.get("blocks")).toMatchObject({
+      type: "array",
+      storage: { kind: "array" },
     });
     expect(fields.get("updatedAt")).toMatchObject({
       type: "date",

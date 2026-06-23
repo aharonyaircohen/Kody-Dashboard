@@ -28,6 +28,7 @@ import type {
   CmsListQuery,
   CmsListResult,
   CmsConfigState,
+  CmsRole,
   CmsRuntimeConfig,
 } from "./types";
 
@@ -47,12 +48,13 @@ export async function listCmsCollections(
   octokit: Octokit,
   owner: string,
   repo: string,
+  actorRole?: CmsRole,
 ): Promise<CmsConfigState> {
   const config = await loadCmsConfigFromState(octokit, owner, repo);
   if (!config) {
     return toUnconfiguredCmsConfig();
   }
-  return toPublicCmsConfig(config);
+  return toPublicCmsConfig(config, actorRole);
 }
 
 export async function listCmsDocuments(

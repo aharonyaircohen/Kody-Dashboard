@@ -227,6 +227,12 @@ function CmsListPage() {
     () => (cmsConfigured ? (cmsQuery.data?.collections ?? []) : []),
     [cmsConfigured, cmsQuery.data?.collections],
   );
+  const actorRole =
+    cmsQuery.data?.configured === true
+      ? (cmsQuery.data.actorRole ?? "viewer")
+      : "viewer";
+  const cmsPermissions =
+    cmsQuery.data?.configured === true ? cmsQuery.data.permissions : undefined;
 
   const selectedCollection =
     collections.find(
@@ -330,6 +336,7 @@ function CmsListPage() {
           writePolicy={
             cmsQuery.data?.configured ? cmsQuery.data.writePolicy : undefined
           }
+          actorRole={cmsQuery.data?.configured ? actorRole : undefined}
           onRefresh={() => {
             void cmsQuery.refetch();
             void documentsQuery.refetch();
@@ -367,6 +374,8 @@ function CmsListPage() {
               fetching={documentsQuery.isFetching}
               filterValues={filterValues}
               sort={activeSort}
+              actorRole={actorRole}
+              permissions={cmsPermissions}
               onFilterChange={(next) => {
                 setFilterValues(next);
                 setOffset(0);
@@ -446,6 +455,12 @@ function CmsItemPage({
 
   const collections =
     cmsQuery.data?.configured === true ? cmsQuery.data.collections : [];
+  const actorRole =
+    cmsQuery.data?.configured === true
+      ? (cmsQuery.data.actorRole ?? "viewer")
+      : "viewer";
+  const cmsPermissions =
+    cmsQuery.data?.configured === true ? cmsQuery.data.permissions : undefined;
   const collection =
     collections.find((candidate) => candidate.name === collectionName) ?? null;
 
@@ -499,8 +514,10 @@ function CmsItemPage({
         ? deleteMutation.error.message
         : null;
   const editBlockedReason =
-    editing && collection && !canWriteOperation(collection, "update")
-      ? writeDisabledReason(collection)
+    editing &&
+    collection &&
+    !canWriteOperation(collection, "update", actorRole, cmsPermissions)
+      ? writeDisabledReason(collection, "update", actorRole, cmsPermissions)
       : null;
 
   return (
@@ -525,6 +542,8 @@ function CmsItemPage({
               compact={false}
               editing={editing}
               loading={updateMutation.isPending || deleteMutation.isPending}
+              actorRole={actorRole}
+              permissions={cmsPermissions}
               onEdit={() => {
                 setEditing(true);
                 router.push(editPath);
@@ -602,6 +621,12 @@ function CmsCreatePage({ collectionName }: { collectionName: string }) {
 
   const collections =
     cmsQuery.data?.configured === true ? cmsQuery.data.collections : [];
+  const actorRole =
+    cmsQuery.data?.configured === true
+      ? (cmsQuery.data.actorRole ?? "viewer")
+      : "viewer";
+  const cmsPermissions =
+    cmsQuery.data?.configured === true ? cmsQuery.data.permissions : undefined;
   const collection =
     collections.find((candidate) => candidate.name === collectionName) ?? null;
 
@@ -650,10 +675,20 @@ function CmsCreatePage({ collectionName }: { collectionName: string }) {
           title="Collection unavailable"
           detail="The collection config was not found."
         />
-      ) : !canWriteOperation(collection, "create") ? (
+      ) : !canWriteOperation(
+          collection,
+          "create",
+          actorRole,
+          cmsPermissions,
+        ) ? (
         <EmptyState
           title="Create unavailable"
-          detail={writeDisabledReason(collection)}
+          detail={writeDisabledReason(
+            collection,
+            "create",
+            actorRole,
+            cmsPermissions,
+          )}
         />
       ) : (
         <CmsRelationProvider
@@ -767,10 +802,17 @@ function CmsRelationProvider({
   );
 }
 
+function roleLabel(role: CmsRole): string {
+  if (role === "admin") return "Admin";
+  if (role === "editor") return "Editor";
+  return "Viewer";
+}
+
 function CmsHeaderActions({
   loading,
   schemaLoading,
   writePolicy,
+  actorRole,
   onRefresh,
   onUpdateSchema,
   onOpenPermissions,
@@ -778,12 +820,18 @@ function CmsHeaderActions({
   loading: boolean;
   schemaLoading: boolean;
   writePolicy?: string;
+  actorRole?: CmsRole;
   onRefresh: () => void;
   onUpdateSchema: () => void;
   onOpenPermissions: () => void;
 }) {
   return (
     <div className="flex items-center gap-2">
+      {actorRole ? (
+        <Badge variant="secondary" className="rounded border border-border">
+          {roleLabel(actorRole)}
+        </Badge>
+      ) : null}
       <Badge
         variant="secondary"
         className="rounded border border-border bg-muted text-foreground"
@@ -820,6 +868,7 @@ function CmsHeaderActions({
 }
 
 type CmsWriteRolePreset = "admin" | "editor";
+type CmsPermissionPolicyPreset = "open" | "editorial" | "locked";
 
 type CmsPermissionOperation = Extract<
   CmsContentOperation,
@@ -833,6 +882,32 @@ const CMS_WRITE_PERMISSION_OPERATIONS: Array<{
   { operation: "create", label: "Create" },
   { operation: "update", label: "Update" },
   { operation: "delete", label: "Delete" },
+];
+
+const CMS_PERMISSION_POLICY_PRESETS: Array<{
+  value: CmsPermissionPolicyPreset;
+  label: string;
+  description: string;
+  roles: Record<CmsPermissionOperation, CmsWriteRolePreset>;
+}> = [
+  {
+    value: "open",
+    label: "Open",
+    description: "Editors can create, update, and delete.",
+    roles: { create: "editor", update: "editor", delete: "editor" },
+  },
+  {
+    value: "editorial",
+    label: "Editorial",
+    description: "Editors write content; admins delete.",
+    roles: { create: "editor", update: "editor", delete: "admin" },
+  },
+  {
+    value: "locked",
+    label: "Locked",
+    description: "Only admins can change content.",
+    roles: { create: "admin", update: "admin", delete: "admin" },
+  },
 ];
 
 function CmsPermissionsDialog({
@@ -885,6 +960,13 @@ function CmsPermissionsDialog({
       ...current,
       [permissionPresetKey(collection, operation)]: preset,
     }));
+  };
+  const applyPolicyPreset = (preset: CmsPermissionPolicyPreset) => {
+    const next = CMS_PERMISSION_POLICY_PRESETS.find(
+      (item) => item.value === preset,
+    )?.roles;
+    if (!next) return;
+    setGlobalPresets(next);
   };
 
   const activeOverrideCollections = config.collections.filter(
@@ -969,8 +1051,36 @@ function CmsPermissionsDialog({
 
         <div className="min-h-0 flex-1 overflow-y-auto border-y border-border">
           <div className="border-b border-border px-4 py-4">
-            <div className="text-sm font-medium text-foreground">
-              Default policy
+            <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
+              <div>
+                <div className="text-sm font-medium text-foreground">
+                  Default policy
+                </div>
+                <div className="text-xs text-muted-foreground">
+                  Apply a preset or tune each write action.
+                </div>
+              </div>
+              <div className="grid grid-cols-1 gap-2 sm:grid-cols-3">
+                {CMS_PERMISSION_POLICY_PRESETS.map((preset) => (
+                  <Button
+                    key={preset.value}
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    className="h-auto justify-start px-3 py-2 text-left"
+                    onClick={() => applyPolicyPreset(preset.value)}
+                  >
+                    <span className="flex min-w-0 flex-col">
+                      <span className="text-sm font-medium">
+                        {preset.label}
+                      </span>
+                      <span className="text-xs font-normal text-muted-foreground">
+                        {preset.description}
+                      </span>
+                    </span>
+                  </Button>
+                ))}
+              </div>
             </div>
             <div className="mt-3 grid grid-cols-1 gap-3 md:grid-cols-3">
               {CMS_WRITE_PERMISSION_OPERATIONS.map((item) => (
@@ -1347,6 +1457,8 @@ function CollectionWorkspace({
   fetching,
   filterValues,
   sort,
+  actorRole,
+  permissions,
   onFilterChange,
   onSortChange,
   onOpenDocument,
@@ -1365,6 +1477,8 @@ function CollectionWorkspace({
   fetching: boolean;
   filterValues: FilterValues;
   sort: CmsSortEntry[];
+  actorRole: CmsRole;
+  permissions?: CmsPermissionsConfig;
   onFilterChange: (next: FilterValues) => void;
   onSortChange: (next: CmsSortEntry[]) => void;
   onOpenDocument: (id: string) => void;
@@ -1422,12 +1536,29 @@ function CollectionWorkspace({
             {collection.operations.create ? (
               <Button
                 type="button"
-                disabled={!canWriteOperation(collection, "create")}
+                disabled={
+                  !canWriteOperation(
+                    collection,
+                    "create",
+                    actorRole,
+                    permissions,
+                  )
+                }
                 size="sm"
                 title={
-                  canWriteOperation(collection, "create")
+                  canWriteOperation(
+                    collection,
+                    "create",
+                    actorRole,
+                    permissions,
+                  )
                     ? "New"
-                    : writeDisabledReason(collection)
+                    : writeDisabledReason(
+                        collection,
+                        "create",
+                        actorRole,
+                        permissions,
+                      )
                 }
                 onClick={onCreateDocument}
               >
@@ -1512,6 +1643,8 @@ function CrudActions({
   compact,
   editing,
   loading,
+  actorRole,
+  permissions,
   onEdit,
   onCancelEdit,
   onDelete,
@@ -1520,13 +1653,36 @@ function CrudActions({
   compact: boolean;
   editing?: boolean;
   loading?: boolean;
+  actorRole: CmsRole;
+  permissions?: CmsPermissionsConfig;
   onEdit?: () => void;
   onCancelEdit?: () => void;
   onDelete?: () => void;
 }) {
-  const disabledReason = writeDisabledReason(collection);
-  const canUpdate = canWriteOperation(collection, "update");
-  const canDelete = canWriteOperation(collection, "delete");
+  const updateDisabledReason = writeDisabledReason(
+    collection,
+    "update",
+    actorRole,
+    permissions,
+  );
+  const deleteDisabledReason = writeDisabledReason(
+    collection,
+    "delete",
+    actorRole,
+    permissions,
+  );
+  const canUpdate = canWriteOperation(
+    collection,
+    "update",
+    actorRole,
+    permissions,
+  );
+  const canDelete = canWriteOperation(
+    collection,
+    "delete",
+    actorRole,
+    permissions,
+  );
 
   return (
     <div className="flex items-center gap-2">
@@ -1534,7 +1690,7 @@ function CrudActions({
         type="button"
         size={compact ? "icon" : "sm"}
         disabled={loading || (!editing && !canUpdate)}
-        title={canUpdate ? "Edit" : disabledReason}
+        title={canUpdate ? "Edit" : updateDisabledReason}
         variant="default"
         onClick={editing ? onCancelEdit : onEdit}
       >
@@ -1551,7 +1707,7 @@ function CrudActions({
         type="button"
         size={compact ? "icon" : "sm"}
         disabled={loading || !canDelete}
-        title={canDelete ? "Delete" : disabledReason}
+        title={canDelete ? "Delete" : deleteDisabledReason}
         variant="outline"
         onClick={onDelete}
       >
