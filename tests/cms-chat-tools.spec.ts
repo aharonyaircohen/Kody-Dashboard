@@ -51,9 +51,9 @@ const service = vi.hoisted(() => ({
     limit: 10,
     offset: 0,
   })),
-  getCmsDocument: vi.fn(),
+  getCmsDocument: vi.fn(async () => ({ _id: "1", title: "Intro" })),
   createCmsDocument: vi.fn(),
-  updateCmsDocument: vi.fn(),
+  updateCmsDocument: vi.fn(async () => ({ _id: "1", title: "Updated" })),
   deleteCmsDocument: vi.fn(),
 }));
 
@@ -63,7 +63,7 @@ vi.mock("@dashboard/lib/cms/service", () => service);
 import { createCmsTools } from "../app/api/kody/chat/tools/cms-tools";
 
 describe("CMS chat tools", () => {
-  it("generates request-scoped chat tools from CMS schema", async () => {
+  it("exposes compact generic CMS tools to Kody chat", async () => {
     const req = new NextRequest("https://dash.test/api/kody/chat/kody", {
       headers: {
         "x-kody-token": "ghp_test",
@@ -71,6 +71,7 @@ describe("CMS chat tools", () => {
         "x-kody-repo": "A-Guy-Web",
       },
     });
+
     const tools = await createCmsTools({
       req,
       octokit: {} as never,
@@ -80,17 +81,17 @@ describe("CMS chat tools", () => {
 
     expect(Object.keys(tools)).toEqual([
       "cms_list_collections",
-      "cms_list_lessons",
-      "cms_get_lessons",
-      "cms_create_lessons",
-      "cms_update_lessons",
-      "cms_delete_lessons",
+      "cms_describe_collection",
+      "cms_list_documents",
+      "cms_get_document",
+      "cms_mutate_document",
     ]);
 
-    const result = await tools.cms_list_lessons.execute?.(
-      { q: "intro", limit: 10 },
+    const result = await tools.cms_list_documents.execute?.(
+      { collection: "lessons", q: "intro", limit: 10 },
       { toolCallId: "call-1", messages: [] },
     );
+
     expect(result).toMatchObject({
       docs: [{ _id: "1", title: "Intro" }],
       total: 1,
@@ -105,6 +106,37 @@ describe("CMS chat tools", () => {
         search: { query: "intro" },
         limit: 10,
       }),
+    );
+  });
+
+  it("routes writes through the generic mutation tool", async () => {
+    const req = new NextRequest("https://dash.test/api/kody/chat/kody");
+    const tools = await createCmsTools({
+      req,
+      octokit: {} as never,
+      owner: "A-Guy-educ",
+      repo: "A-Guy-Web",
+    });
+
+    const result = await tools.cms_mutate_document.execute?.(
+      {
+        collection: "lessons",
+        operation: "update",
+        id: "1",
+        data: { title: "Updated" },
+      },
+      { toolCallId: "call-2", messages: [] },
+    );
+
+    expect(result).toEqual({ document: { _id: "1", title: "Updated" } });
+    expect(service.updateCmsDocument).toHaveBeenCalledWith(
+      req,
+      expect.anything(),
+      "A-Guy-educ",
+      "A-Guy-Web",
+      "lessons",
+      "1",
+      { title: "Updated" },
     );
   });
 });

@@ -1,6 +1,7 @@
-import { dynamicTool, jsonSchema, type ToolSet } from "ai";
+import { tool, type ToolSet } from "ai";
 import type { NextRequest } from "next/server";
 import type { Octokit } from "@octokit/rest";
+import { z } from "zod";
 
 import { getCmsActorRole } from "@dashboard/lib/cms/roles";
 import {
@@ -11,8 +12,8 @@ import {
   listCmsDocuments,
   updateCmsDocument,
 } from "@dashboard/lib/cms/service";
-import { generateCmsMcpTools, resolveCmsMcpTool } from "@dashboard/lib/cms/mcp";
 import type {
+  CmsCollectionConfig,
   CmsConfigState,
   CmsDocument,
   CmsListQuery,
@@ -26,6 +27,49 @@ interface Ctx {
   repo: string;
 }
 
+type ConfiguredCms = Extract<CmsConfigState, { configured: true }>;
+
+const collectionInput = z.object({
+  collection: z.string().trim().min(1).describe("CMS collection name."),
+});
+
+const listDocumentsInput = collectionInput.extend({
+  q: z.string().trim().min(1).optional().describe("Optional search query."),
+  filters: z
+    .record(z.string(), z.unknown())
+    .optional()
+    .describe("Optional CMS filter object keyed by field."),
+  sort: z
+    .array(
+      z.object({
+        field: z.string().trim().min(1),
+        direction: z.enum(["asc", "desc"]).default("desc"),
+      }),
+    )
+    .optional()
+    .describe("Optional sort entries."),
+  limit: z.number().int().min(1).max(100).optional(),
+  offset: z.number().int().min(0).optional(),
+});
+
+const documentInput = collectionInput.extend({
+  id: z.string().trim().min(1).describe("Document id."),
+});
+
+const mutateDocumentInput = collectionInput.extend({
+  operation: z.enum(["create", "update", "delete"]),
+  id: z
+    .string()
+    .trim()
+    .min(1)
+    .optional()
+    .describe("Required for update and delete."),
+  data: z
+    .record(z.string(), z.unknown())
+    .optional()
+    .describe("Required for create and update."),
+});
+
 export async function createCmsTools({
   req,
   octokit,
@@ -36,101 +80,97 @@ export async function createCmsTools({
   const cms = await listCmsCollections(octokit, owner, repo, actorRole);
   if (cms.configured === false) return {};
 
-  const result: ToolSet = {};
-  for (const definition of generateCmsMcpTools(cms)) {
-    result[definition.name] = dynamicTool({
-      description: definition.description,
-      inputSchema: jsonSchema(definition.inputSchema),
-      execute: async (args) =>
-        executeCmsTool({
+  return {
+    cms_list_collections: tool({
+      description:
+        "List configured CMS collections and their supported operations.",
+      inputSchema: z.object({}),
+      execute: async () => ({
+        collections: cms.collections.map(toCollectionSummary),
+      }),
+    }),
+
+    cms_describe_collection: tool({
+      description:
+        "Describe one CMS collection, including fields, filters, and operations.",
+      inputSchema: collectionInput,
+      execute: async (input) => {
+        const collection = findCollection(cms, input.collection);
+        return { collection };
+      },
+    }),
+
+    cms_list_documents: tool({
+      description:
+        "List or search CMS documents from any configured collection.",
+      inputSchema: listDocumentsInput,
+      execute: async (input) =>
+        listCmsDocuments(req, octokit, owner, repo, input.collection, {
+          search: input.q ? { query: input.q } : undefined,
+          filters: input.filters as CmsListQuery["filters"],
+          sort: input.sort as CmsSortEntry[] | undefined,
+          limit: input.limit,
+          offset: input.offset,
+        }),
+    }),
+
+    cms_get_document: tool({
+      description: "Get one CMS document by collection and id.",
+      inputSchema: documentInput,
+      execute: async (input) => ({
+        document: await getCmsDocument(
           req,
           octokit,
           owner,
           repo,
-          cms,
-          name: definition.name,
-          args: args as Record<string, unknown>,
-        }),
-    });
-  }
-  return result;
+          input.collection,
+          input.id,
+        ),
+      }),
+    }),
+
+    cms_mutate_document: tool({
+      description:
+        "Create, update, or delete one CMS document by collection using the configured CMS adapter.",
+      inputSchema: mutateDocumentInput,
+      execute: async (input) =>
+        mutateCmsDocument({ req, octokit, owner, repo, input }),
+    }),
+  };
 }
 
-async function executeCmsTool({
+async function mutateCmsDocument({
   req,
   octokit,
   owner,
   repo,
-  cms,
-  name,
-  args,
-}: Ctx & {
-  cms: Extract<CmsConfigState, { configured: true }>;
-  name: string;
-  args: Record<string, unknown>;
-}): Promise<unknown> {
-  const ref = resolveCmsMcpTool(cms, name);
-  if (!ref) return { error: `unknown CMS tool: ${name}` };
-
-  if (name === "cms_list_collections") {
-    return {
-      collections: cms.collections.map((collection) => ({
-        name: collection.name,
-        label: collection.label,
-        operations: collection.operations,
-      })),
-    };
-  }
-
-  if (ref.action === "list") {
-    return listCmsDocuments(req, octokit, owner, repo, ref.collection, {
-      filters: filtersValue(args.filters),
-      search:
-        typeof args.q === "string" && args.q.trim()
-          ? { query: args.q.trim() }
-          : undefined,
-      sort: sortValue(args.sort),
-      limit: numberValue(args.limit),
-      offset: numberValue(args.offset),
-    });
-  }
-
-  if (ref.action === "get") {
-    return {
-      document: await getCmsDocument(
-        req,
-        octokit,
-        owner,
-        repo,
-        ref.collection,
-        requiredString(args.id, "id"),
-      ),
-    };
-  }
-
-  if (ref.action === "create") {
+  input,
+}: Ctx & { input: z.infer<typeof mutateDocumentInput> }): Promise<unknown> {
+  if (input.operation === "create") {
     return {
       document: await createCmsDocument(
         req,
         octokit,
         owner,
         repo,
-        ref.collection,
-        documentValue(args.data),
+        input.collection,
+        documentValue(input.data),
       ),
     };
   }
 
-  if (ref.action === "update") {
+  if (!input.id) throw new Error("id is required for update and delete");
+
+  if (input.operation === "update") {
     return {
       document: await updateCmsDocument(
         req,
         octokit,
         owner,
         repo,
-        ref.collection,
-        requiredString(args.id, "id"),
-        documentValue(args.data),
+        input.collection,
+        input.id,
+        documentValue(input.data),
       ),
     };
   }
@@ -141,25 +181,41 @@ async function executeCmsTool({
       octokit,
       owner,
       repo,
-      ref.collection,
-      requiredString(args.id, "id"),
+      input.collection,
+      input.id,
     ),
   };
 }
 
-function requiredString(value: unknown, field: string): string {
-  if (typeof value === "string" && value.trim()) return value.trim();
-  throw new Error(`${field} is required`);
+function findCollection(
+  cms: ConfiguredCms,
+  collectionName: string,
+): CmsCollectionConfig {
+  const collection = cms.collections.find(
+    (candidate) => candidate.name === collectionName,
+  );
+  if (!collection) throw new Error(`unknown CMS collection: ${collectionName}`);
+  return collection;
 }
 
-function objectValue(value: unknown): Record<string, unknown> | undefined {
-  return value && typeof value === "object" && !Array.isArray(value)
-    ? (value as Record<string, unknown>)
-    : undefined;
-}
-
-function filtersValue(value: unknown): CmsListQuery["filters"] {
-  return objectValue(value) as CmsListQuery["filters"];
+function toCollectionSummary(collection: CmsCollectionConfig) {
+  return {
+    name: collection.name,
+    label: collection.label,
+    adapter: collection.adapter,
+    titleField: collection.titleField,
+    searchFields: collection.searchFields,
+    operations: collection.operations,
+    fields: collection.fields.map((field) => ({
+      name: field.name,
+      type: field.type,
+      label: field.label,
+      required: field.required,
+      readOnly: field.readOnly,
+      hidden: field.hidden,
+      target: field.target,
+    })),
+  };
 }
 
 function documentValue(value: unknown): CmsDocument {
@@ -167,27 +223,4 @@ function documentValue(value: unknown): CmsDocument {
     throw new Error("data must be an object");
   }
   return value as CmsDocument;
-}
-
-function numberValue(value: unknown): number | undefined {
-  const parsed = typeof value === "number" ? value : Number(value);
-  return Number.isFinite(parsed) ? parsed : undefined;
-}
-
-function sortValue(value: unknown): CmsSortEntry[] | undefined {
-  if (!Array.isArray(value)) return undefined;
-  return value.flatMap((entry) => {
-    if (!entry || typeof entry !== "object") return [];
-    const field = (entry as Record<string, unknown>).field;
-    if (typeof field !== "string" || !field.trim()) return [];
-    return [
-      {
-        field: field.trim(),
-        direction:
-          (entry as Record<string, unknown>).direction === "asc"
-            ? "asc"
-            : "desc",
-      } satisfies CmsSortEntry,
-    ];
-  });
 }

@@ -61,6 +61,12 @@ export const DEFAULT_EXECUTABLE: AgentActionEntry = {
     "switch_agent",
     "list_dashboard_features",
     "describe_feature",
+    // ── CMS (repo-gated, schema-driven) ──────────────────────────────────
+    "cms_list_collections",
+    "cms_describe_collection",
+    "cms_list_documents",
+    "cms_get_document",
+    "cms_mutate_document",
     // ── AgentResponsibility admin (actor-gated) ───────────────────────────────────────────
     "list_agentResponsibilities",
     "read_agent_responsibility",
