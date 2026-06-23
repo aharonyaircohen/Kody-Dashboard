@@ -26,4 +26,15 @@ describe("CMS UI routes", () => {
     expect(source).toContain("onCancel");
     expect(source).toContain("Cancel");
   });
+
+  it("keeps CMS table filters mounted while documents load", () => {
+    const source = readRepoFile("src/dashboard/lib/components/CmsManager.tsx");
+    const start = source.indexOf("function CollectionWorkspace");
+    const end = source.indexOf("function CrudActions");
+    const workspace = source.slice(start, end);
+
+    expect(workspace).toContain("loading={loading}");
+    expect(workspace).not.toContain("{loading ? (");
+    expect(source).toContain(") : documents.length === 0 ? (");
+  });
 });

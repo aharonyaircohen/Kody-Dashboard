@@ -922,19 +922,16 @@ function CollectionWorkspace({
       </div>
 
       <div className="min-h-0 flex-1 overflow-auto">
-        {loading ? (
-          <LoadingRows />
-        ) : (
-          <DocumentTable
-            collection={collection}
-            documents={documents}
-            filterValues={filterValues}
-            sort={sort}
-            onFilterChange={onFilterChange}
-            onSortChange={onSortChange}
-            onOpen={onOpenDocument}
-          />
-        )}
+        <DocumentTable
+          collection={collection}
+          documents={documents}
+          loading={loading}
+          filterValues={filterValues}
+          sort={sort}
+          onFilterChange={onFilterChange}
+          onSortChange={onSortChange}
+          onOpen={onOpenDocument}
+        />
       </div>
 
       <DocumentPager
@@ -1350,6 +1347,7 @@ function buildRelationBatches(
 function DocumentTable({
   collection,
   documents,
+  loading,
   filterValues,
   sort,
   onFilterChange,
@@ -1358,6 +1356,7 @@ function DocumentTable({
 }: {
   collection: CmsCollectionConfig;
   documents: CmsDocument[];
+  loading: boolean;
   filterValues: FilterValues;
   sort: CmsSortEntry[];
   onFilterChange: (next: FilterValues) => void;
@@ -1515,7 +1514,9 @@ function DocumentTable({
           })}
         </div>
 
-        {documents.length === 0 ? (
+        {loading ? (
+          <LoadingRows />
+        ) : documents.length === 0 ? (
           <EmptyState title="No items" detail="Try a different filter." />
         ) : (
           documents.map((document) => {
