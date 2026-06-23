@@ -234,7 +234,6 @@ function getAdapterContext(
   return {
     adapter,
     context: {
-      req,
       config,
       collection,
       settings: config.adapters[collection.adapter] ?? {},

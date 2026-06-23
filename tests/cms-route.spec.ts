@@ -174,161 +174,16 @@ describe("CMS API routes", () => {
     });
   });
 
-  it("creates writable CMS config files in state repo", async () => {
-    service.listCmsCollections.mockResolvedValueOnce({
-      configured: true,
-      version: 1,
-      name: "A-Guy Web CMS",
-      environment: "dev",
-      defaultAdapter: "mongodb",
-      writePolicy: "enabled",
-      collections: [],
-    });
+  it("does not create CMS config from the Dashboard route", async () => {
+    const res = await indexPOST(postRequest({ name: "Example CMS" }));
 
-    const res = await indexPOST(
-      postRequest({
-        name: "A-Guy Web CMS",
-        databaseUriSecret: "DATABASE_URL",
-        databaseName: "A-Guy-Dev",
-        collectionName: "lessons",
-        collectionLabel: "Lessons",
-        idField: "_id",
-        titleField: "title",
-        actorLogin: "aguy",
-      }),
-    );
-
-    expect(res.status).toBe(201);
-    expect(stateRepo.writeStateText).toHaveBeenCalledTimes(3);
-    expect(stateRepo.writeStateText).toHaveBeenCalledWith(
-      expect.objectContaining({
-        path: "cms/config.json",
-        message: "chore(cms): Configure lessons",
-      }),
-    );
-    expect(stateRepo.writeStateText).toHaveBeenCalledWith(
-      expect.objectContaining({ path: "cms/environments/dev.json" }),
-    );
-    expect(stateRepo.writeStateText).toHaveBeenCalledWith(
-      expect.objectContaining({ path: "cms/collections/lessons.json" }),
-    );
-    const collectionWrite = stateRepo.writeStateText.mock.calls
-      .map((call) => call[0] as { path: string; content: string })
-      .find((call) => call.path === "cms/collections/lessons.json");
-    expect(collectionWrite).toBeTruthy();
-    expect(JSON.parse(collectionWrite!.content)).toMatchObject({
-      name: "lessons",
-      source: { collection: "lessons", idField: "_id" },
-      titleField: "title",
-      writePolicy: "enabled",
-      operations: { create: true, update: true, delete: true },
-    });
-  });
-
-  it("returns a useful setup validation message", async () => {
-    const res = await indexPOST(
-      postRequest({
-        name: "A-Guy Web CMS",
-        databaseUriSecret: "database_url",
-        databaseName: "A-Guy-Dev",
-        collectionName: "lessons",
-      }),
-    );
-
-    expect(res.status).toBe(400);
+    expect(res.status).toBe(405);
     await expect(res.json()).resolves.toMatchObject({
-      error: "invalid_body",
-      message: "databaseUriSecret: Use an env secret name like DATABASE_URL.",
+      error: "cms_setup_not_supported",
+      message: "CMS configuration is managed in the state repo.",
     });
     expect(stateRepo.writeStateText).not.toHaveBeenCalled();
-  });
-
-  it("trims pasted setup values before creating config", async () => {
-    service.listCmsCollections.mockResolvedValueOnce({
-      configured: true,
-      version: 1,
-      name: "A-Guy Web CMS",
-      environment: "dev",
-      defaultAdapter: "mongodb",
-      writePolicy: "read-only",
-      collections: [],
-    });
-
-    const res = await indexPOST(
-      postRequest({
-        name: " A-Guy Web CMS ",
-        databaseUriSecret: " DATABASE_URL ",
-        databaseName: " A-Guy-Dev ",
-        collectionName: " lessons ",
-        collectionLabel: " Lessons ",
-        idField: " _id ",
-        titleField: " title ",
-        actorLogin: " stale-login ",
-      }),
-    );
-
-    expect(res.status).toBe(201);
-    const environmentWrite = stateRepo.writeStateText.mock.calls
-      .map((call) => call[0] as { path: string; content: string })
-      .find((call) => call.path === "cms/environments/dev.json");
-    expect(environmentWrite).toBeTruthy();
-    expect(JSON.parse(environmentWrite!.content)).toMatchObject({
-      databaseUriSecret: "DATABASE_URL",
-      databaseName: "A-Guy-Dev",
-    });
-  });
-
-  it("omits databaseName when setup should use database from URI", async () => {
-    service.listCmsCollections.mockResolvedValueOnce({
-      configured: true,
-      version: 1,
-      name: "A-Guy Web CMS",
-      environment: "dev",
-      defaultAdapter: "mongodb",
-      writePolicy: "read-only",
-      collections: [],
-    });
-
-    const res = await indexPOST(
-      postRequest({
-        name: "A-Guy Web CMS",
-        databaseUriSecret: "DATABASE_URL",
-        databaseName: " ",
-        collectionName: "lessons",
-      }),
-    );
-
-    expect(res.status).toBe(201);
-    const environmentWrite = stateRepo.writeStateText.mock.calls
-      .map((call) => call[0] as { path: string; content: string })
-      .find((call) => call.path === "cms/environments/dev.json");
-    expect(environmentWrite).toBeTruthy();
-    expect(JSON.parse(environmentWrite!.content)).toMatchObject({
-      databaseUriSecret: "DATABASE_URL",
-    });
-    expect(JSON.parse(environmentWrite!.content)).not.toHaveProperty(
-      "databaseName",
-    );
-  });
-
-  it("does not overwrite an existing CMS config", async () => {
-    stateRepo.readStateText.mockResolvedValueOnce({
-      path: "A-Guy-Web/cms/config.json",
-      sha: "sha",
-      content: "{}",
-    });
-
-    const res = await indexPOST(
-      postRequest({
-        name: "A-Guy Web CMS",
-        databaseUriSecret: "DATABASE_URL",
-        databaseName: "A-Guy-Dev",
-        collectionName: "lessons",
-      }),
-    );
-
-    expect(res.status).toBe(409);
-    expect(stateRepo.writeStateText).not.toHaveBeenCalled();
+    expect(auth.verifyActorLogin).not.toHaveBeenCalled();
   });
 
   it("creates a CMS document through collection route", async () => {

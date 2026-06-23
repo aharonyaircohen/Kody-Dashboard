@@ -46,6 +46,6 @@ function readAdapter(args) {
 
 function printUsage() {
   console.log(`Usage:
-  pnpm cms:generate-schema -- --adapter mongodb --state-root /path/to/kody-state --repo A-Guy-Web --env-file /path/to/.env
+  pnpm cms:generate-schema -- --adapter mongodb --state-root /path/to/kody-state --repo my-repo --env-file /path/to/.env
 `);
 }

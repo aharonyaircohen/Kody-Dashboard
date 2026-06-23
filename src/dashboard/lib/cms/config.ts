@@ -284,8 +284,7 @@ export async function loadCmsConfigFromState(
       defaultAdapter:
         stringOr(environment.adapter) ??
         stringOr(config.defaultAdapter) ??
-        stringOr(config.adapter) ??
-        "mongodb",
+        stringOr(config.adapter),
       writePolicy:
         stringOr(environment.writePolicy) ??
         stringOr(config.writePolicy) ??
@@ -293,12 +292,7 @@ export async function loadCmsConfigFromState(
       adapters: {
         ...(isRecord(config.adapters) ? config.adapters : {}),
         ...(typeof environment.adapter === "string"
-          ? {
-              [environment.adapter]: {
-                databaseUriSecret: stringOr(environment.databaseUriSecret),
-                databaseName: stringOr(environment.databaseName),
-              },
-            }
+          ? { [environment.adapter]: adapterSettingsFromEnvironment(environment) }
           : {}),
       },
       collections,
@@ -322,7 +316,7 @@ export function normalizeCmsConfig(rawConfig: unknown): CmsRuntimeConfig {
     errors.push(`version must be ${CMS_CONFIG_VERSION}`);
   }
 
-  const defaultAdapter = stringOr(raw.defaultAdapter) ?? "mongodb";
+  const defaultAdapter = stringOr(raw.defaultAdapter);
   const writePolicy = normalizeWritePolicy(raw.writePolicy, errors);
   const collections = normalizeCollections(
     raw.collections,
@@ -492,9 +486,22 @@ async function readStateJson(
   }
 }
 
+function adapterSettingsFromEnvironment(
+  environment: Record<string, unknown>,
+): Record<string, unknown> {
+  const settings: Record<string, unknown> = {};
+  for (const [key, value] of Object.entries(environment)) {
+    if (key === "name" || key === "adapter" || key === "writePolicy") {
+      continue;
+    }
+    if (value !== undefined) settings[key] = value;
+  }
+  return settings;
+}
+
 function normalizeCollections(
   rawCollections: unknown,
-  defaultAdapter: string,
+  defaultAdapter: string | undefined,
   writePolicy: CmsWritePolicy,
   errors: string[],
 ): Record<string, CmsCollectionConfig> {
@@ -518,7 +525,7 @@ function normalizeCollections(
 
 function normalizeCollection(
   rawCollection: unknown,
-  defaultAdapter: string,
+  defaultAdapter: string | undefined,
   defaultWritePolicy: CmsWritePolicy,
   errors: string[],
 ): CmsCollectionConfig | null {
@@ -533,6 +540,10 @@ function normalizeCollection(
       "collection name must use letters, digits, dashes, underscores, or dots",
     );
     return null;
+  }
+  const adapter = stringOr(rawCollection.adapter) ?? defaultAdapter;
+  if (!adapter) {
+    errors.push(`${name}.adapter required when defaultAdapter is not set`);
   }
 
   const fields = normalizeFields(
@@ -563,7 +574,7 @@ function normalizeCollection(
   return {
     name,
     label: stringOr(rawCollection.label) ?? name,
-    adapter: stringOr(rawCollection.adapter) ?? defaultAdapter,
+    adapter: adapter ?? "",
     mcpName: stringOr(rawCollection.mcpName),
     titleField: stringOr(rawCollection.titleField),
     searchFields,

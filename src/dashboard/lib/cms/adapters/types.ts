@@ -1,9 +1,6 @@
-import type { NextRequest } from "next/server";
-
 import type {
   CmsAdapterSettings,
   CmsCollectionConfig,
-  CmsConfigState,
   CmsDocument,
   CmsListQuery,
   CmsListResult,
@@ -23,7 +20,6 @@ export class CmsAdapterError extends Error {
 }
 
 export interface CmsAdapterContext {
-  req: NextRequest;
   config: CmsRuntimeConfig;
   collection: CmsCollectionConfig;
   settings: CmsAdapterSettings;
@@ -48,38 +44,4 @@ export interface CmsAdapter {
     data: CmsDocument,
   ) => Promise<CmsDocument | null>;
   delete: (context: CmsAdapterContext, id: string) => Promise<boolean>;
-}
-
-export interface CmsSetupFile {
-  path: string;
-  content: unknown;
-}
-
-export interface CmsSetupResult {
-  cms: CmsConfigState;
-  files: CmsSetupFile[];
-  commitMessage: string;
-}
-
-export class CmsAdapterSetupError extends Error {
-  readonly code: string;
-  readonly status: number;
-  readonly issues?: unknown;
-
-  constructor(
-    code: string,
-    message: string,
-    options?: { status?: number; issues?: unknown },
-  ) {
-    super(message);
-    this.name = "CmsAdapterSetupError";
-    this.code = code;
-    this.status = options?.status ?? 400;
-    this.issues = options?.issues;
-  }
-}
-
-export interface CmsSetupAdapter {
-  name: string;
-  create: (payload: unknown) => CmsSetupResult;
 }

@@ -65,6 +65,7 @@ describe("CMS config contract", () => {
       sha: "config-sha",
       content: JSON.stringify({
         version: 1,
+        defaultAdapter: "memory",
         collections: {
           lessons: {
             name: "lessons",
@@ -86,14 +87,14 @@ describe("CMS config contract", () => {
   it("normalizes environment-materialized collection maps", () => {
     const config = normalizeCmsConfig({
       version: 1,
-      name: "A-Guy Admin CMS",
+      name: "Example CMS",
       environment: "dev",
-      defaultAdapter: "mongodb",
+      defaultAdapter: "content-store",
       writePolicy: "read-only",
       adapters: {
-        mongodb: {
-          databaseUriSecret: "DATABASE_URL",
-          databaseName: "A-Guy-Dev",
+        "content-store": {
+          endpointSecret: "DATABASE_URL",
+          workspace: "development",
         },
       },
       collections: {
@@ -134,7 +135,7 @@ describe("CMS config contract", () => {
       },
     });
 
-    expect(config.collections.lessons.adapter).toBe("mongodb");
+    expect(config.collections.lessons.adapter).toBe("content-store");
     expect(config.collections.lessons.writePolicy).toBe("read-only");
     expect(config.collections.lessons.searchFields).toEqual(["title"]);
     expect(config.collections.lessons.listFields).toEqual([
@@ -166,19 +167,21 @@ describe("CMS config contract", () => {
       update: false,
       delete: false,
     });
-    expect(config.adapters.mongodb.databaseName).toBe("A-Guy-Dev");
+    expect(config.adapters["content-store"].workspace).toBe("development");
   });
 
-  it("allows Mongo databaseName to be omitted when URI selects the database", () => {
+  it("preserves opaque adapter settings", () => {
     const config = normalizeCmsConfig({
       version: 1,
-      name: "A-Guy Admin CMS",
+      name: "Example CMS",
       environment: "dev",
-      defaultAdapter: "mongodb",
+      defaultAdapter: "example",
       writePolicy: "read-only",
       adapters: {
-        mongodb: {
-          databaseUriSecret: "DATABASE_URL",
+        example: {
+          secretName: "DATABASE_URL",
+          region: "local",
+          preview: true,
         },
       },
       collections: {
@@ -189,8 +192,25 @@ describe("CMS config contract", () => {
       },
     });
 
-    expect(config.adapters.mongodb.databaseUriSecret).toBe("DATABASE_URL");
-    expect(config.adapters.mongodb.databaseName).toBeUndefined();
+    expect(config.adapters.example).toEqual({
+      secretName: "DATABASE_URL",
+      region: "local",
+      preview: true,
+    });
+  });
+
+  it("requires collection adapter when no default adapter is set", () => {
+    expect(() =>
+      normalizeCmsConfig({
+        version: 1,
+        collections: {
+          lessons: {
+            name: "lessons",
+            fields: [{ name: "title", type: "text" }],
+          },
+        },
+      }),
+    ).toThrow(/lessons\.adapter required when defaultAdapter is not set/);
   });
 
   it("rejects unknown field types", () => {
@@ -270,6 +290,7 @@ describe("CMS config contract", () => {
   it("validates runtime sort query fields against collection fields", () => {
     const config = normalizeCmsConfig({
       version: 1,
+      defaultAdapter: "memory",
       collections: {
         lessons: {
           name: "lessons",
@@ -296,6 +317,7 @@ describe("CMS config contract", () => {
   it("validates runtime search query fields against collection fields", () => {
     const config = normalizeCmsConfig({
       version: 1,
+      defaultAdapter: "memory",
       collections: {
         courses: {
           name: "courses",

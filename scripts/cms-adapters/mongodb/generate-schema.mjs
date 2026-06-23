@@ -5,15 +5,7 @@ import path from "node:path";
 import process from "node:process";
 import { MongoClient, ObjectId } from "mongodb";
 
-const DEFAULT_INTERNAL_COLLECTIONS = new Set([
-  "A",
-  "payload-jobs",
-  "payload-kvs",
-  "payload-locked-documents",
-  "payload-mcp-api-keys",
-  "payload-migrations",
-  "payload-preferences",
-]);
+const DEFAULT_INTERNAL_COLLECTIONS = new Set();
 
 const SYSTEM_FIELDS = new Set(["_id", "__v", "createdAt", "updatedAt"]);
 const SENSITIVE_RE = /(password|secret|token|hash|salt|session|ipHash|userAgentHash)/i;
@@ -31,56 +23,6 @@ const TITLE_FIELD_CANDIDATES = [
   "_id",
 ];
 
-const COMMON_RELATIONS = new Map([
-  ["actor", "users"],
-  ["author", "users"],
-  ["createdby", "users"],
-  ["updatedby", "users"],
-  ["owner", "users"],
-  ["student", "users"],
-  ["teacher", "users"],
-  ["user", "users"],
-  ["users", "users"],
-  ["tenant", "tenants"],
-  ["tenants", "tenants"],
-  ["category", "categories"],
-  ["categories", "categories"],
-  ["course", "courses"],
-  ["courses", "courses"],
-  ["chapter", "chapters"],
-  ["chapters", "chapters"],
-  ["lesson", "lessons"],
-  ["lessons", "lessons"],
-  ["sourcelesson", "lessons"],
-  ["outputlesson", "lessons"],
-  ["translatedfrom", "__self__"],
-  ["exercise", "exercises"],
-  ["exercises", "exercises"],
-  ["media", "media"],
-  ["mediafile", "media"],
-  ["mediafiles", "media"],
-  ["contentfile", "media"],
-  ["intromedia", "media"],
-  ["file", "media"],
-  ["files", "media"],
-  ["asset", "media"],
-  ["assets", "media"],
-  ["prompt", "prompts"],
-  ["prompts", "prompts"],
-  ["teacherprofile", "teacher_profiles"],
-  ["product", "products"],
-  ["products", "products"],
-  ["coupon", "coupons"],
-  ["coupons", "coupons"],
-  ["form", "forms"],
-  ["forms", "forms"],
-  ["formulasheet", "formula-sheets"],
-  ["formulasheets", "formula-sheets"],
-  ["transaction", "transactions"],
-  ["transactions", "transactions"],
-  ["subscription", "subscriptions"],
-  ["subscriptions", "subscriptions"],
-]);
 
 const args = parseArgs(process.argv.slice(2));
 
@@ -198,7 +140,7 @@ function buildCollectionConfig({
     : titleFields.get(collectionName);
   const fields = stats.fields.map((fieldStats) =>
     mergeExistingField(
-      buildFieldConfig(fieldStats, collectionName, collectionNames, titleFields),
+      buildFieldConfig(fieldStats, collectionNames, titleFields),
       existing,
     ),
   );
@@ -246,7 +188,7 @@ function buildCollectionConfig({
   };
 }
 
-function buildFieldConfig(fieldStats, collectionName, collectionNames, titleFields) {
+function buildFieldConfig(fieldStats, collectionNames, titleFields) {
   const name = fieldStats.name;
   const base = {
     name,
@@ -259,7 +201,7 @@ function buildFieldConfig(fieldStats, collectionName, collectionNames, titleFiel
   if (name === "createdAt" || name === "updatedAt") return { ...base, type: "date", readOnly: true };
   if (SENSITIVE_RE.test(name)) base.hidden = true;
 
-  const relationTarget = inferRelationTarget(name, base.type, collectionName, collectionNames);
+  const relationTarget = inferRelationTarget(name, base.type, collectionNames);
   if (relationTarget) {
     const targetTitleField = titleFields.get(relationTarget);
     return {
@@ -360,28 +302,33 @@ function inferListFields(fields, titleField, searchFields) {
 
   add(titleField, { role: "primary", width: "fill" });
 
-  for (const name of searchFields) {
-    if (name !== titleField && /label$/i.test(name)) add(name);
+  for (const field of fields
+    .filter((field) => !SYSTEM_FIELDS.has(field.name))
+    .filter((field) => field.name !== titleField)
+    .filter((field) => !field.hidden && isCompactListField(field))
+    .sort((left, right) => compareListFieldPriority(left, right, searchFields))) {
+    if (result.length >= 6) break;
+    add(field.name);
   }
-  for (const name of searchFields) {
-    if (name !== titleField && /(status|type|kind|access|visibility|state|locale)$/i.test(name)) {
-      add(name);
-    }
-  }
-  for (const name of ["tenant", "course", "chapter", "lesson", "user"]) add(name);
+
   for (const name of ["updatedAt", "createdAt"]) add(name);
 
-  for (const name of searchFields) {
-    if (result.length >= 6) break;
-    if (name !== titleField && /adminTitle|slug|code|key|email|name/i.test(name)) add(name);
-  }
-
-  for (const field of fields) {
-    if (result.length >= 6) break;
-    if (!SYSTEM_FIELDS.has(field.name)) add(field.name);
-  }
-
   return result.slice(0, 6);
+}
+
+function compareListFieldPriority(left, right, searchFields) {
+  const leftScore = listFieldPriority(left, searchFields);
+  const rightScore = listFieldPriority(right, searchFields);
+  if (leftScore !== rightScore) return leftScore - rightScore;
+  return left.name.localeCompare(right.name);
+}
+
+function listFieldPriority(field, searchFields) {
+  if (searchFields.includes(field.name)) return 0;
+  if (field.type === "relation") return 10;
+  if (field.type === "select" || field.type === "boolean") return 20;
+  if (field.type === "date" || field.type === "number") return 30;
+  return 40;
 }
 
 function inferFilters(fields) {
@@ -418,12 +365,9 @@ function inferDefaultSort(fieldByName) {
   return [];
 }
 
-function inferRelationTarget(fieldName, fieldType, collectionName, collectionNames) {
+function inferRelationTarget(fieldName, fieldType, collectionNames) {
   if (fieldType !== "relation" && fieldType !== "relationMany") return null;
   const normalized = normalizeRelationName(fieldName);
-  const commonTarget = COMMON_RELATIONS.get(normalized);
-  if (commonTarget === "__self__") return collectionName;
-  if (commonTarget && collectionNames.includes(commonTarget)) return commonTarget;
 
   const variants = [
     normalized,
@@ -439,7 +383,6 @@ function inferRelationTarget(fieldName, fieldType, collectionName, collectionNam
 }
 
 function relationLabelField(targetCollection, titleField) {
-  if (targetCollection === "users") return "email";
   return titleField ?? "_id";
 }
 
@@ -514,7 +457,7 @@ function recordValue(field, value) {
 }
 
 function compareFields(a, b) {
-  const priority = ["_id", "title", "name", "label", "chapterLabel", "courseLabel", "status", "order"];
+  const priority = ["_id", "title", "name", "label", "status", "order"];
   const aIndex = priority.indexOf(a.name);
   const bIndex = priority.indexOf(b.name);
   if (aIndex !== -1 || bIndex !== -1) {
@@ -707,7 +650,7 @@ function toMcpName(collectionName) {
 
 function printUsage() {
   console.log(`Usage:
-  pnpm cms:generate-schema -- --adapter mongodb --state-root /path/to/kody-state --repo A-Guy-Web --env-file /path/to/.env
+  pnpm cms:generate-schema -- --adapter mongodb --state-root /path/to/kody-state --repo my-repo --env-file /path/to/.env
 
 Options:
   --database-uri-env NAME    Env var holding the MongoDB URI. Default: DATABASE_URL

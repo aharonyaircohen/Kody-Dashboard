@@ -128,17 +128,13 @@ export interface CmsCollectionConfig {
   filters: CmsFilterConfig[];
 }
 
-export interface CmsAdapterSettings {
-  databaseUriSecret?: string;
-  databaseName?: string;
-  [key: string]: unknown;
-}
+export type CmsAdapterSettings = Record<string, unknown>;
 
 export interface CmsRuntimeConfig {
   version: 1;
   name: string;
   environment: string;
-  defaultAdapter: string;
+  defaultAdapter?: string;
   writePolicy: CmsWritePolicy;
   adapters: Record<string, CmsAdapterSettings>;
   collections: Record<string, CmsCollectionConfig>;
@@ -149,7 +145,7 @@ export interface CmsPublicConfig {
   version: 1;
   name: string;
   environment: string;
-  defaultAdapter: string;
+  defaultAdapter?: string;
   writePolicy: CmsWritePolicy;
   collections: CmsCollectionConfig[];
 }

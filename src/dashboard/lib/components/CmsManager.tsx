@@ -54,49 +54,30 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@dashboard/ui/tabs";
 import { Textarea } from "@dashboard/ui/textarea";
 
 import { PageHeader } from "./PageShell";
+import {
+  createCmsDocument,
+  deleteCmsDocument,
+  fetchCmsConfig,
+  fetchCmsDocument,
+  fetchCmsDocuments,
+  fetchCmsDocumentsByIds,
+  updateCmsDocument,
+} from "./cms/client";
+import { canWriteOperation, writeDisabledReason } from "./cms/operations";
+import { cmsDocumentEditPath, cmsDocumentPath } from "./cms/paths";
 import type {
   CmsCollectionConfig,
-  CmsConfigState,
   CmsDocument,
   CmsFieldConfig,
   CmsFieldOption,
   CmsFilterConfig,
   CmsFilterOperator,
-  CmsListResult,
   CmsSearchQuery,
   CmsSortEntry,
   CmsViewFieldConfig,
 } from "../cms/types";
 
 const PAGE_SIZE = 25;
-
-interface CmsIndexResponse {
-  cms?: CmsConfigState;
-  error?: string;
-  message?: string;
-}
-
-interface CmsDocumentResponse {
-  document?: CmsDocument;
-  error?: string;
-  message?: string;
-}
-
-interface CmsDeleteResponse {
-  deleted?: boolean;
-  error?: string;
-  message?: string;
-}
-
-interface CmsSetupPayload {
-  name: string;
-  databaseUriSecret: string;
-  databaseName: string;
-  collectionName: string;
-  collectionLabel: string;
-  idField: string;
-  titleField: string;
-}
 
 type FilterValue = {
   operator: CmsFilterOperator;
@@ -122,14 +103,6 @@ const CmsRelationContext = createContext<CmsRelationContextValue | null>(null);
 
 function relationDocumentCacheKey(collection: string, id: string): string {
   return `${collection}\u001f${id}`;
-}
-
-function cmsDocumentPath(collection: string, id: string): string {
-  return `/cms/${encodeURIComponent(collection)}/${encodeURIComponent(id)}`;
-}
-
-function cmsDocumentEditPath(collection: string, id: string): string {
-  return `${cmsDocumentPath(collection, id)}/edit`;
 }
 
 export function CmsManager() {
@@ -191,7 +164,6 @@ export function CmsCreateManager({
 function CmsListPage() {
   const router = useRouter();
   const { auth } = useAuth();
-  const queryClient = useQueryClient();
   const headers = useMemo(() => buildAuthHeaders(auth), [auth]);
   const scope = `${auth?.owner ?? ""}/${auth?.repo ?? ""}`;
   const cmsQueryKey = ["cms-config", scope] as const;
@@ -207,13 +179,6 @@ function CmsListPage() {
     queryKey: cmsQueryKey,
     queryFn: () => fetchCmsConfig(headers),
     enabled: Boolean(auth),
-  });
-
-  const setupMutation = useMutation({
-    mutationFn: (payload: CmsSetupPayload) => setupCms(headers, payload),
-    onSuccess: async () => {
-      await queryClient.invalidateQueries({ queryKey: cmsQueryKey });
-    },
   });
 
   const cmsConfigured = cmsQuery.data?.configured !== false;
@@ -293,15 +258,9 @@ function CmsListPage() {
         error={null}
       >
         <div className="flex flex-1 items-center justify-center overflow-y-auto px-4 py-6 md:px-8">
-          <CmsSetupPanel
-            repoName={auth?.repo ?? "Repo"}
-            loading={setupMutation.isPending}
-            error={
-              setupMutation.error instanceof Error
-                ? setupMutation.error.message
-                : null
-            }
-            onSubmit={(payload) => setupMutation.mutate(payload)}
+          <EmptyState
+            title="CMS is not configured"
+            detail="Add cms/config.json in the state repo to enable this view."
           />
         </div>
       </CmsShell>
@@ -1062,22 +1021,6 @@ function DeleteConfirmDialog({
       </DialogContent>
     </Dialog>
   );
-}
-
-function canWriteOperation(
-  collection: CmsCollectionConfig,
-  operation: "create" | "update" | "delete",
-): boolean {
-  return (
-    collection.operations[operation] && collection.writePolicy === "enabled"
-  );
-}
-
-function writeDisabledReason(collection: CmsCollectionConfig): string {
-  if (collection.writePolicy === "approval-required")
-    return "Approval required";
-  if (collection.writePolicy === "read-only") return "Read-only";
-  return "Operation disabled";
 }
 
 function _CollectionFilters({
@@ -2362,166 +2305,6 @@ function FieldPanel({
   );
 }
 
-function CmsSetupPanel({
-  repoName,
-  loading,
-  error,
-  onSubmit,
-}: {
-  repoName: string;
-  loading: boolean;
-  error: string | null;
-  onSubmit: (payload: CmsSetupPayload) => void;
-}) {
-  const [form, setForm] = useState<CmsSetupPayload>({
-    name: `${repoName} CMS`,
-    databaseUriSecret: "DATABASE_URL",
-    databaseName: "",
-    collectionName: "",
-    collectionLabel: "",
-    idField: "_id",
-    titleField: "title",
-  });
-
-  useEffect(() => {
-    setForm((current) => ({
-      ...current,
-      name: current.name || `${repoName} CMS`,
-    }));
-  }, [repoName]);
-
-  const canSubmit =
-    form.name.trim() &&
-    form.databaseUriSecret.trim() &&
-    form.collectionName.trim() &&
-    form.idField.trim() &&
-    form.titleField.trim();
-
-  return (
-    <form
-      className="w-full max-w-2xl rounded border border-border bg-card p-5"
-      onSubmit={(event) => {
-        event.preventDefault();
-        if (!canSubmit || loading) return;
-        onSubmit({
-          ...form,
-          name: form.name.trim(),
-          databaseUriSecret: form.databaseUriSecret.trim(),
-          databaseName: form.databaseName.trim(),
-          collectionName: form.collectionName.trim(),
-          collectionLabel: form.collectionLabel.trim(),
-          idField: form.idField.trim(),
-          titleField: form.titleField.trim(),
-        });
-      }}
-    >
-      <div className="flex items-start justify-between gap-4">
-        <div>
-          <div className="text-lg font-medium text-foreground">
-            CMS is not configured
-          </div>
-          <div className="mt-1 text-sm text-muted-foreground">
-            Create a read-only Mongo CMS config in the state repo.
-          </div>
-        </div>
-        <Database className="h-5 w-5 shrink-0 text-primary" />
-      </div>
-
-      <div className="mt-5 grid grid-cols-1 gap-3 md:grid-cols-2">
-        <CmsSetupInput
-          label="CMS name"
-          value={form.name}
-          onChange={(name) => setForm((current) => ({ ...current, name }))}
-        />
-        <CmsSetupInput
-          label="Database secret"
-          value={form.databaseUriSecret}
-          onChange={(databaseUriSecret) =>
-            setForm((current) => ({ ...current, databaseUriSecret }))
-          }
-        />
-        <CmsSetupInput
-          label="Database name (optional)"
-          value={form.databaseName}
-          onChange={(databaseName) =>
-            setForm((current) => ({ ...current, databaseName }))
-          }
-        />
-        <CmsSetupInput
-          label="Collection"
-          value={form.collectionName}
-          onChange={(collectionName) =>
-            setForm((current) => ({
-              ...current,
-              collectionName,
-              collectionLabel: current.collectionLabel || collectionName,
-            }))
-          }
-        />
-        <CmsSetupInput
-          label="Collection label"
-          value={form.collectionLabel}
-          onChange={(collectionLabel) =>
-            setForm((current) => ({ ...current, collectionLabel }))
-          }
-        />
-        <CmsSetupInput
-          label="ID field"
-          value={form.idField}
-          onChange={(idField) =>
-            setForm((current) => ({ ...current, idField }))
-          }
-        />
-        <CmsSetupInput
-          label="Title field"
-          value={form.titleField}
-          onChange={(titleField) =>
-            setForm((current) => ({ ...current, titleField }))
-          }
-        />
-      </div>
-
-      {error ? (
-        <div className="mt-4 rounded border border-destructive/30 bg-destructive/10 px-3 py-2 text-sm text-destructive">
-          {error}
-        </div>
-      ) : null}
-
-      <div className="mt-5 flex items-center justify-end">
-        <Button type="submit" disabled={!canSubmit || loading}>
-          {loading ? (
-            <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-          ) : (
-            <Plus className="mr-2 h-4 w-4" />
-          )}
-          Configure CMS
-        </Button>
-      </div>
-    </form>
-  );
-}
-
-function CmsSetupInput({
-  label,
-  value,
-  onChange,
-}: {
-  label: string;
-  value: string;
-  onChange: (value: string) => void;
-}) {
-  return (
-    <label className="space-y-1">
-      <span className="text-[11px] text-muted-foreground">{label}</span>
-      <Input
-        value={value}
-        onChange={(event) => onChange(event.target.value)}
-        className="h-9"
-      />
-    </label>
-  );
-}
-
 function buildFormValues(
   fields: ResolvedViewField[],
   document?: CmsDocument,
@@ -3046,15 +2829,6 @@ function isBlankFilterValue(value: string | string[]): boolean {
   return value.trim() === "";
 }
 
-function serializeSort(sort: CmsSortEntry[]): string {
-  return sort
-    .filter((entry) => entry.field)
-    .map(
-      (entry) => `${entry.field}:${entry.direction === "asc" ? "asc" : "desc"}`,
-    )
-    .join(",");
-}
-
 function nextSort(sort: CmsSortEntry[], field: string): CmsSortEntry[] {
   const current = sort.find((entry) => entry.field === field);
   if (!current) return [{ field, direction: "asc" }];
@@ -3163,171 +2937,6 @@ function relationOptionId(
 ): string {
   const idField = field.valueField ?? targetCollection.source.idField ?? "_id";
   return getDocumentId(document, idField);
-}
-
-async function fetchCmsConfig(
-  headers: Record<string, string>,
-): Promise<CmsConfigState> {
-  const res = await fetch("/api/kody/cms", { headers, cache: "no-store" });
-  const json = (await res.json().catch(() => ({}))) as CmsIndexResponse;
-  if (!res.ok || !json.cms) {
-    throw new Error(json.message || json.error || `HTTP ${res.status}`);
-  }
-  return json.cms;
-}
-
-async function setupCms(
-  headers: Record<string, string>,
-  payload: CmsSetupPayload,
-): Promise<CmsConfigState> {
-  const res = await fetch("/api/kody/cms", {
-    method: "POST",
-    headers: { "Content-Type": "application/json", ...headers },
-    body: JSON.stringify(payload),
-  });
-  const json = (await res.json().catch(() => ({}))) as CmsIndexResponse;
-  if (!res.ok || !json.cms) {
-    throw new Error(json.message || json.error || `HTTP ${res.status}`);
-  }
-  return json.cms;
-}
-
-async function fetchCmsDocuments(
-  headers: Record<string, string>,
-  collection: string,
-  filters: Record<string, Record<string, unknown>>,
-  search: CmsSearchQuery | undefined,
-  sort: CmsSortEntry[],
-  limit: number,
-  offset: number,
-  ids: string[] = [],
-): Promise<CmsListResult> {
-  const params = new URLSearchParams({
-    limit: String(limit),
-    offset: String(offset),
-  });
-  for (const id of ids) {
-    params.append("ids", id);
-  }
-
-  if (Object.keys(filters).length > 0) {
-    params.set("filters", JSON.stringify(filters));
-  }
-  if (search?.query) {
-    params.set("q", search.query);
-    if (search.fields?.length) {
-      params.set("searchFields", search.fields.join(","));
-    }
-  }
-  if (sort.length > 0) {
-    params.set("sort", serializeSort(sort));
-  }
-
-  const res = await fetch(
-    `/api/kody/cms/${encodeURIComponent(collection)}?${params.toString()}`,
-    { headers, cache: "no-store" },
-  );
-  const json = (await res.json().catch(() => ({}))) as CmsListResult & {
-    error?: string;
-    message?: string;
-  };
-  if (!res.ok) {
-    throw new Error(json.message || json.error || `HTTP ${res.status}`);
-  }
-  return json;
-}
-
-async function fetchCmsDocumentsByIds(
-  headers: Record<string, string>,
-  collection: string,
-  ids: string[],
-): Promise<CmsListResult> {
-  return fetchCmsDocuments(
-    headers,
-    collection,
-    {},
-    undefined,
-    [],
-    ids.length,
-    0,
-    ids,
-  );
-}
-
-async function fetchCmsDocument(
-  headers: Record<string, string>,
-  collection: string,
-  id: string,
-): Promise<CmsDocument> {
-  const res = await fetch(
-    `/api/kody/cms/${encodeURIComponent(collection)}/${encodeURIComponent(id)}`,
-    { headers, cache: "no-store" },
-  );
-  const json = (await res.json().catch(() => ({}))) as CmsDocumentResponse;
-  if (!res.ok || !json.document) {
-    throw new Error(json.message || json.error || `HTTP ${res.status}`);
-  }
-  return json.document;
-}
-
-async function createCmsDocument(
-  headers: Record<string, string>,
-  collection: string,
-  payload: CmsDocument,
-): Promise<CmsDocument> {
-  const res = await fetch(`/api/kody/cms/${encodeURIComponent(collection)}`, {
-    method: "POST",
-    headers: { ...headers, "content-type": "application/json" },
-    cache: "no-store",
-    body: JSON.stringify(payload),
-  });
-  const json = (await res.json().catch(() => ({}))) as CmsDocumentResponse;
-  if (!res.ok || !json.document) {
-    throw new Error(json.message || json.error || `HTTP ${res.status}`);
-  }
-  return json.document;
-}
-
-async function updateCmsDocument(
-  headers: Record<string, string>,
-  collection: string,
-  id: string,
-  payload: CmsDocument,
-): Promise<CmsDocument> {
-  const res = await fetch(
-    `/api/kody/cms/${encodeURIComponent(collection)}/${encodeURIComponent(id)}`,
-    {
-      method: "PATCH",
-      headers: { ...headers, "content-type": "application/json" },
-      cache: "no-store",
-      body: JSON.stringify(payload),
-    },
-  );
-  const json = (await res.json().catch(() => ({}))) as CmsDocumentResponse;
-  if (!res.ok || !json.document) {
-    throw new Error(json.message || json.error || `HTTP ${res.status}`);
-  }
-  return json.document;
-}
-
-async function deleteCmsDocument(
-  headers: Record<string, string>,
-  collection: string,
-  id: string,
-): Promise<boolean> {
-  const res = await fetch(
-    `/api/kody/cms/${encodeURIComponent(collection)}/${encodeURIComponent(id)}`,
-    {
-      method: "DELETE",
-      headers,
-      cache: "no-store",
-    },
-  );
-  const json = (await res.json().catch(() => ({}))) as CmsDeleteResponse;
-  if (!res.ok) {
-    throw new Error(json.message || json.error || `HTTP ${res.status}`);
-  }
-  return Boolean(json.deleted);
 }
 
 function visibleFields(collection: CmsCollectionConfig): CmsFieldConfig[] {
