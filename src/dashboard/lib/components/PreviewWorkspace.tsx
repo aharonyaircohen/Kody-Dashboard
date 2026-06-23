@@ -25,6 +25,7 @@ import {
   addEnvironment,
   addRepoViewEnvironment,
   expiredUploads,
+  normalizeEnvUrl,
   repoViewIdFromPath,
   resolveEnvironments,
   setEnvExpiry,
@@ -33,6 +34,7 @@ import {
 } from "../preview-environments";
 import { destroyStaticPreview } from "../previews/static-preview-client";
 import {
+  deleteRepoView,
   mintRepoViewTicket,
   tokenizeRepoViewUrl,
   uploadRepoView,
@@ -61,6 +63,40 @@ function repoViewUrlLooksLikePdf(url: string | undefined): boolean {
     return parsed.pathname.toLowerCase().endsWith(".pdf");
   } catch {
     return /\.pdf(?:[?#]|$)/i.test(url);
+  }
+}
+
+function isTransientRepoViewUrl(url: string): boolean {
+  try {
+    const parsed = new URL(
+      url,
+      typeof window === "undefined"
+        ? "http://kody.local"
+        : window.location.origin,
+    );
+    return parsed.pathname.startsWith("/api/kody/views/_t/");
+  } catch {
+    return url.startsWith("/api/kody/views/_t/");
+  }
+}
+
+function labelFromPreviewUrl(url: string): string {
+  try {
+    const parsed = new URL(
+      url,
+      typeof window === "undefined"
+        ? "http://kody.local"
+        : window.location.origin,
+    );
+    const host = parsed.hostname.replace(/^www\./, "");
+    const path = parsed.pathname.replace(/\/+$/, "");
+    if (!path || path === "/") return host || "Saved URL";
+    const segments = path.split("/").filter(Boolean);
+    const last = segments[segments.length - 1] ?? "";
+    const suffix = last.replace(/[-_]+/g, " ").trim();
+    return suffix ? `${host} ${suffix}` : host || "Saved URL";
+  } catch {
+    return "Saved URL";
   }
 }
 
@@ -181,6 +217,39 @@ export function PreviewWorkspace() {
     if (created) selectEnv(created);
   };
 
+  const saveCurrentUrlAsEnvironment = async (url: string): Promise<void> => {
+    if (isTransientRepoViewUrl(url)) {
+      toast.info("Repo-backed views are already saved as environments");
+      return;
+    }
+    const normalizedUrl = normalizeEnvUrl(url);
+    if (!normalizedUrl) {
+      toast.error("Couldn't save current URL");
+      return;
+    }
+    const existing = environments.find(
+      (env) => normalizeEnvUrl(env.url) === normalizedUrl,
+    );
+    if (existing) {
+      selectEnv(existing);
+      toast.info(`"${existing.label}" is already saved`);
+      return;
+    }
+    const next = addEnvironment(
+      environments,
+      labelFromPreviewUrl(normalizedUrl),
+      normalizedUrl,
+    );
+    const created = next[next.length - 1];
+    if (!created || created.url !== normalizedUrl) {
+      toast.error("Couldn't save current URL");
+      return;
+    }
+    await persist(next);
+    selectEnv(created);
+    toast.success(`Saved "${created.label}"`);
+  };
+
   // Upload file(s) into the connected repo under .kody/views/<id> and
   // add the dashboard-served URL as a named preview environment.
   const uploadFiles = async (files: File[]): Promise<void> => {
@@ -216,6 +285,16 @@ export function PreviewWorkspace() {
     } catch (err) {
       toast.error(
         err instanceof Error ? err.message : "Failed to destroy preview",
+      );
+    }
+  };
+
+  const removeRepoView = async (repoViewPath: string): Promise<void> => {
+    try {
+      await deleteRepoView(repoViewPath);
+    } catch (err) {
+      toast.error(
+        err instanceof Error ? err.message : "Failed to delete stored view",
       );
     }
   };
@@ -263,7 +342,7 @@ export function PreviewWorkspace() {
         isResolving={!!repoViewId && viewTicketQuery.isLoading}
         owner={owner}
         repo={repo}
-        hideViewSwitcher={!!repoViewId}
+        showBrowserChrome
         iframeSandbox={
           isRepoViewPdf
             ? null
@@ -273,6 +352,8 @@ export function PreviewWorkspace() {
         }
         onComposerInjection={setComposerInjection}
         onAttachmentInjection={setAttachmentInjection}
+        onSaveCurrentUrl={saveCurrentUrlAsEnvironment}
+        isSavingCurrentUrl={saveMutation.isPending}
         leadingToolbar={
           environments.length > 0 ? (
             <PreviewEnvSwitcher
@@ -283,8 +364,10 @@ export function PreviewWorkspace() {
               onAdd={addFirst}
               onUpload={uploadFiles}
               onRemoveStatic={removeStatic}
+              onRemoveRepoView={removeRepoView}
               onExtend={extendEnv}
               isSaving={saveMutation.isPending}
+              variant="address"
             />
           ) : null
         }

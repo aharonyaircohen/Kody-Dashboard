@@ -141,7 +141,7 @@ export function resolveEnvironments(
   config: LegacyConfigShape | null | undefined,
 ): PreviewEnvironment[] {
   const list = config?.namedPreviews;
-  if (Array.isArray(list) && list.length > 0) {
+  if (Array.isArray(list)) {
     return list
       .filter(
         (e): e is PreviewEnvironment =>

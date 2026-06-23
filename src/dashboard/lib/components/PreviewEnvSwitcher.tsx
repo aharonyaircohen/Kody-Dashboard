@@ -55,9 +55,12 @@ interface PreviewEnvSwitcherProps {
   onUpload: (files: File[]) => Promise<void>;
   /** Destroy the Fly app behind an uploaded environment, if it has one. */
   onRemoveStatic?: (staticId: string) => Promise<void>;
+  /** Delete repo-backed view files behind uploaded view, if any. */
+  onRemoveRepoView?: (repoViewPath: string) => Promise<void>;
   /** Push an uploaded environment's expiry out by another TTL. */
   onExtend?: (id: string) => Promise<void>;
   isSaving: boolean;
+  variant?: "toolbar" | "address";
 }
 
 export function PreviewEnvSwitcher({
@@ -68,8 +71,10 @@ export function PreviewEnvSwitcher({
   onAdd,
   onUpload,
   onRemoveStatic,
+  onRemoveRepoView,
   onExtend,
   isSaving,
+  variant = "toolbar",
 }: PreviewEnvSwitcherProps) {
   const [menuOpen, setMenuOpen] = useState(false);
   const [addOpen, setAddOpen] = useState(false);
@@ -133,6 +138,9 @@ export function PreviewEnvSwitcher({
     if (removed?.staticId && onRemoveStatic) {
       await onRemoveStatic(removed.staticId);
     }
+    if (removed?.repoViewPath && onRemoveRepoView) {
+      await onRemoveRepoView(removed.repoViewPath);
+    }
   };
 
   const handleUpload = async (files: File[]): Promise<void> => {
@@ -164,13 +172,29 @@ export function PreviewEnvSwitcher({
         onClick={() => setMenuOpen((v) => !v)}
         aria-haspopup="listbox"
         aria-expanded={menuOpen}
-        title="Switch preview environment"
-        className="inline-flex items-center gap-1 px-2.5 py-1 text-xs font-medium rounded-md bg-sky-500/15 text-sky-300 border border-sky-500/20 hover:bg-sky-500/25 transition-colors"
+        title={
+          active
+            ? `Switch preview environment: ${active.label}`
+            : "Switch preview environment"
+        }
+        className={cn(
+          "inline-flex items-center gap-1 text-xs font-medium transition-colors",
+          variant === "address"
+            ? "h-7 w-7 justify-center rounded-sm text-zinc-500 hover:bg-zinc-800 hover:text-white"
+            : "rounded-md border border-sky-500/20 bg-sky-500/15 px-2.5 py-1 text-sky-300 hover:bg-sky-500/25",
+        )}
       >
-        <span className="truncate max-w-[10rem]">
+        <span
+          className={cn(
+            "truncate",
+            variant === "address" ? "sr-only" : "max-w-[10rem]",
+          )}
+        >
           {active ? active.label : "Environment"}
         </span>
-        <ChevronDown className="w-3 h-3" />
+        <ChevronDown
+          className={cn(variant === "address" ? "h-4 w-4" : "h-3 w-3")}
+        />
       </button>
 
       {menuOpen && (

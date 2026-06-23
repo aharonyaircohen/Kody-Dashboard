@@ -374,3 +374,83 @@ export async function deleteStateFile({
     sha,
   });
 }
+
+export async function deleteStateDirectory({
+  octokit,
+  owner,
+  repo,
+  path,
+  message,
+}: {
+  octokit: Octokit;
+  owner: string;
+  repo: string;
+  path: string;
+  message: string;
+}): Promise<{ deleted: number }> {
+  const target = await resolveStateRepo(octokit, owner, repo);
+  const repoInfo = await octokit.repos.get({
+    owner: target.owner,
+    repo: target.repo,
+  });
+  const branch = repoInfo.data.default_branch;
+  const ref = await octokit.git.getRef({
+    owner: target.owner,
+    repo: target.repo,
+    ref: `heads/${branch}`,
+  });
+  const baseSha = ref.data.object.sha;
+  const baseCommit = await octokit.git.getCommit({
+    owner: target.owner,
+    repo: target.repo,
+    commit_sha: baseSha,
+  });
+  const currentTree = await octokit.git.getTree({
+    owner: target.owner,
+    repo: target.repo,
+    tree_sha: baseCommit.data.tree.sha,
+    recursive: "true",
+  });
+  if (currentTree.data.truncated) {
+    throw new Error("State repo tree is too large to delete safely");
+  }
+
+  const prefix = `${stateRepoPath(target, path).replace(/\/+$/g, "")}/`;
+  const deletions = currentTree.data.tree
+    .filter(
+      (entry) =>
+        entry.type === "blob" &&
+        typeof entry.path === "string" &&
+        entry.path.startsWith(prefix),
+    )
+    .map((entry) => ({
+      path: entry.path!,
+      mode: "100644" as const,
+      type: "blob" as const,
+      sha: null,
+    }));
+
+  if (deletions.length === 0) return { deleted: 0 };
+
+  const tree = await octokit.git.createTree({
+    owner: target.owner,
+    repo: target.repo,
+    base_tree: baseCommit.data.tree.sha,
+    tree: deletions,
+  });
+  const commit = await octokit.git.createCommit({
+    owner: target.owner,
+    repo: target.repo,
+    message,
+    tree: tree.data.sha,
+    parents: [baseSha],
+  });
+  await octokit.git.updateRef({
+    owner: target.owner,
+    repo: target.repo,
+    ref: `heads/${branch}`,
+    sha: commit.data.sha,
+  });
+
+  return { deleted: deletions.length };
+}

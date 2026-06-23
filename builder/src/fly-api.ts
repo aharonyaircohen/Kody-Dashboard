@@ -125,6 +125,22 @@ export async function destroyMachine(
   await expectOk(res, "destroyMachine");
 }
 
+export async function destroyApp(
+  appName: string,
+  token: string,
+): Promise<void> {
+  const res = await fetch(
+    `${FLY_MACHINES_BASE}/apps/${encodeURIComponent(appName)}`,
+    {
+      method: "DELETE",
+      headers: authHeader(token),
+      signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
+    },
+  );
+  if (res.status === 404) return;
+  await expectOk(res, "destroyApp");
+}
+
 export interface CreatePreviewMachineInput {
   appName: string;
   region: string;

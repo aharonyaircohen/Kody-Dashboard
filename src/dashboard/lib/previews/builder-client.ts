@@ -82,6 +82,13 @@ export interface SpawnBuilderResult {
   expectedUrl: string;
 }
 
+export interface PreviewBuilderStatus {
+  state: "building" | "failed";
+  machineId?: string;
+  machineState?: string;
+  createdAt?: string;
+}
+
 function defaultTagFor(repo: string, ref: string): string {
   return createHash("sha256")
     .update(`${repo}@${ref}`)
@@ -121,6 +128,51 @@ function shouldDestroyBuilder(
   if (!machine.id || !isDestroyableBuilderState(machine.state)) return false;
   const samePreview = machine.config?.env?.APP_NAME === targetAppName;
   return samePreview || isStaleBuilder(machine, now);
+}
+
+function isActiveBuilderState(state?: string): boolean {
+  return (
+    state !== "destroyed" &&
+    state !== "destroying" &&
+    state !== "stopped" &&
+    state !== "failed"
+  );
+}
+
+function newestFirst(a: BuilderMachineInfo, b: BuilderMachineInfo): number {
+  const aTime = a.created_at ? Date.parse(a.created_at) : 0;
+  const bTime = b.created_at ? Date.parse(b.created_at) : 0;
+  return bTime - aTime;
+}
+
+export async function getPreviewBuilderStatus(
+  appName: string,
+  token: string,
+): Promise<PreviewBuilderStatus | null> {
+  try {
+    const res = await fetch(builderMachinesUrl(), {
+      method: "GET",
+      headers: builderAuthHeaders(token),
+      signal: AbortSignal.timeout(BUILDER_MAINTENANCE_TIMEOUT_MS),
+    });
+    if (!res.ok) return null;
+
+    const machines = ((await res.json()) as BuilderMachineInfo[])
+      .filter((m) => m.config?.env?.APP_NAME === appName)
+      .sort(newestFirst);
+    const latest = machines[0];
+    if (!latest) return null;
+
+    return {
+      state: isActiveBuilderState(latest.state) ? "building" : "failed",
+      machineId: latest.id,
+      machineState: latest.state,
+      createdAt: latest.created_at,
+    };
+  } catch (err) {
+    logger.warn({ err, appName }, "previews.builder: status lookup failed");
+    return null;
+  }
 }
 
 async function destroyBuilderMachine(

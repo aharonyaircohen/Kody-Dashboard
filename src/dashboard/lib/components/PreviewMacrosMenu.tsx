@@ -39,6 +39,7 @@ interface PreviewMacrosMenuProps {
   /** picker.act — fires a single PreviewAction in the preview frame. */
   act: (action: PreviewAction) => Promise<PreviewActResult>;
   pickerAvailable: boolean;
+  variant?: "toolbar" | "menu";
 }
 
 const newId = () => `${Date.now()}-${Math.random().toString(36).slice(2)}`;
@@ -52,6 +53,7 @@ export function PreviewMacrosMenu({
   onContext,
   act,
   pickerAvailable,
+  variant = "toolbar",
 }: PreviewMacrosMenuProps) {
   const { auth } = useAuth();
   const [macros, setMacros] = useState<Macro[]>([]);
@@ -230,7 +232,10 @@ export function PreviewMacrosMenu({
   };
 
   return (
-    <div ref={rootRef} className="relative inline-flex">
+    <div
+      ref={rootRef}
+      className={cn("relative inline-flex", variant === "menu" && "w-full")}
+    >
       <button
         type="button"
         onClick={() => setMenuOpen((v) => !v)}
@@ -242,13 +247,21 @@ export function PreviewMacrosMenu({
         aria-haspopup="menu"
         aria-expanded={menuOpen}
         className={cn(
-          "inline-flex items-center gap-1 text-xs font-medium px-2 py-1.5 rounded-md border transition-colors",
+          "inline-flex items-center gap-1 text-xs font-medium transition-colors",
+          variant === "menu"
+            ? "w-full rounded px-2 py-1.5 text-left"
+            : "px-2 py-1.5 rounded-md border",
           macros.length > 0 || pendingSteps
-            ? "text-blue-200 bg-blue-500/15 border-blue-400/40 hover:bg-blue-500/25"
-            : "text-blue-300/80 hover:text-blue-200 hover:bg-blue-500/15 border-transparent",
+            ? variant === "menu"
+              ? "text-blue-200 hover:bg-blue-500/15"
+              : "text-blue-200 bg-blue-500/15 border-blue-400/40 hover:bg-blue-500/25"
+            : variant === "menu"
+              ? "text-zinc-300 hover:bg-zinc-800 hover:text-white"
+              : "text-blue-300/80 hover:text-blue-200 hover:bg-blue-500/15 border-transparent",
         )}
       >
         <ListVideo className="w-3 h-3" />
+        {variant === "menu" && <span className="flex-1">Saved macros</span>}
         {macros.length > 0 && (
           <span className="tabular-nums">{macros.length}</span>
         )}

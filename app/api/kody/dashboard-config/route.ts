@@ -171,7 +171,7 @@ export async function PUT(req: NextRequest) {
     }
     if ("namedPreviews" in bodyKeys) {
       const list = parsed.data.namedPreviews ?? [];
-      next.namedPreviews = list.length > 0 ? list : undefined;
+      next.namedPreviews = list;
       commitMessage = `chore(dashboard): update preview environments`;
     }
     if ("brainFlyChatEnabled" in bodyKeys) {

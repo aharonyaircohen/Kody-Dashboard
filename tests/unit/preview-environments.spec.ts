@@ -5,6 +5,7 @@ import {
   addUploadedEnvironment,
   daysUntilExpiry,
   expiredUploads,
+  normalizeEnvUrl,
   normalizeRepoViewPath,
   repoViewIdFromPath,
   resolveEnvironments,
@@ -110,6 +111,14 @@ describe("repo view paths", () => {
   });
 });
 
+describe("normalizeEnvUrl", () => {
+  it("accepts dashboard-served view URLs", () => {
+    expect(normalizeEnvUrl("/api/kody/views/mobile-html-1234/index.html")).toBe(
+      "/api/kody/views/mobile-html-1234/index.html",
+    );
+  });
+});
+
 describe("expiredUploads", () => {
   it("returns only uploaded envs at/past expiry", () => {
     const list: PreviewEnvironment[] = [
@@ -141,6 +150,15 @@ describe("setEnvExpiry", () => {
 });
 
 describe("resolveEnvironments", () => {
+  it("treats an explicit empty list as empty instead of falling back", () => {
+    expect(
+      resolveEnvironments({
+        namedPreviews: [],
+        defaultPreviewUrl: "https://legacy.example.com",
+      }),
+    ).toEqual([]);
+  });
+
   it("preserves staticId + expiresAt through the read mapping", () => {
     const out = resolveEnvironments({
       namedPreviews: [uploaded("up", NOW + DAY)],

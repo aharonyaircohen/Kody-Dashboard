@@ -28,7 +28,11 @@ const githubClient = vi.hoisted(() => ({
 const store = vi.hoisted(() => ({
   invalidateDashboardConfigCache: vi.fn(),
   readDashboardConfig: vi.fn(async () => ({
-    doc: { version: 1, namedPreviews: [] },
+    doc: {
+      version: 1,
+      defaultPreviewUrl: undefined as string | undefined,
+      namedPreviews: [] as Array<{ id: string; label: string; url: string }>,
+    },
     sha: "sha-1",
   })),
   writeDashboardConfig: vi.fn(),
@@ -59,10 +63,11 @@ vi.mock("@dashboard/lib/logger", () => ({
   logger: { error: vi.fn(), warn: vi.fn(), info: vi.fn() },
 }));
 
-import { GET } from "../../app/api/kody/dashboard-config/route";
+import { GET, PUT } from "../../app/api/kody/dashboard-config/route";
 
 beforeEach(() => {
   vi.clearAllMocks();
+  auth.verifyActorLogin.mockResolvedValue({ identity: { login: "alice" } });
 });
 
 describe("GET /api/kody/dashboard-config", () => {
@@ -103,6 +108,43 @@ describe("GET /api/kody/dashboard-config", () => {
       { marker: "viewer-octokit" },
       "acme",
       "widgets",
+    );
+  });
+});
+
+describe("PUT /api/kody/dashboard-config", () => {
+  it("preserves an explicit empty preview environment list", async () => {
+    store.readDashboardConfig.mockResolvedValueOnce({
+      doc: {
+        version: 1,
+        defaultPreviewUrl: "https://legacy.example.com",
+        namedPreviews: [{ id: "prod", label: "Prod", url: "https://prod.dev" }],
+      },
+      sha: "sha-1",
+    });
+
+    const res = await PUT(
+      new NextRequest("http://localhost/api/kody/dashboard-config", {
+        method: "PUT",
+        body: JSON.stringify({
+          namedPreviews: [],
+          actorLogin: "alice",
+        }),
+      }),
+    );
+
+    expect(res.status).toBe(200);
+    expect(store.writeDashboardConfig).toHaveBeenCalledWith(
+      { marker: "viewer-octokit" },
+      "acme",
+      "widgets",
+      {
+        version: 1,
+        defaultPreviewUrl: "https://legacy.example.com",
+        namedPreviews: [],
+      },
+      "sha-1",
+      "chore(dashboard): update preview environments",
     );
   });
 });

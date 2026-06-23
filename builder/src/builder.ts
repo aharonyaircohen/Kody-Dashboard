@@ -49,6 +49,7 @@ import {
   appExists,
   createApp,
   createPreviewMachine,
+  destroyApp,
   destroyMachine,
   listMachines,
 } from "./fly-api.ts";
@@ -97,7 +98,16 @@ function run(
       cwd: opts.cwd,
       env: { ...process.env, ...(opts.env ?? {}) },
       stdio: "inherit",
+      detached: true,
     });
+    const killChildGroup = (signal: NodeJS.Signals): void => {
+      if (!child.pid) return;
+      try {
+        process.kill(-child.pid, signal);
+      } catch {
+        child.kill(signal);
+      }
+    };
     const timeoutMs = opts.timeoutMs;
     let timeout: ReturnType<typeof setTimeout> | undefined;
     if (timeoutMs && timeoutMs > 0) {
@@ -105,8 +115,8 @@ function run(
         console.error(
           `[builder] ${cmd} timed out after ${Math.round(timeoutMs / 1000)}s`,
         );
-        child.kill("SIGTERM");
-        const forceKill = setTimeout(() => child.kill("SIGKILL"), 10_000);
+        killChildGroup("SIGTERM");
+        const forceKill = setTimeout(() => killChildGroup("SIGKILL"), 10_000);
         forceKill.unref?.();
       }, timeoutMs);
       timeout.unref?.();
@@ -441,7 +451,24 @@ async function pushPreviewImage(
       await new Promise((r) => setTimeout(r, (attempt + 1) * 15_000));
     }
   }
-  if (built !== 0) process.exit(3);
+  if (built !== 0) {
+    const err = new Error(
+      `flyctl deploy failed after 4 attempts (last exit ${built})`,
+    ) as Error & { exitCode?: number };
+    err.exitCode = 3;
+    throw err;
+  }
+}
+
+async function destroyEmptyPreviewApp(
+  appName: string,
+  flyToken: string,
+): Promise<void> {
+  if (appName.endsWith("-base")) return;
+  const machines = await listMachines(appName, flyToken).catch(() => []);
+  if (machines.length > 0) return;
+  console.warn(`[builder] destroying empty failed preview app ${appName}`);
+  await destroyApp(appName, flyToken);
 }
 
 async function main() {
@@ -623,7 +650,10 @@ async function main() {
     process.exit(0);
   } catch (err) {
     console.error("[builder] orchestration failed:", err);
-    process.exit(4);
+    await destroyEmptyPreviewApp(appName, flyToken).catch((cleanupErr) => {
+      console.warn("[builder] failed preview cleanup failed:", cleanupErr);
+    });
+    process.exit((err as { exitCode?: number }).exitCode ?? 4);
   }
 }
 

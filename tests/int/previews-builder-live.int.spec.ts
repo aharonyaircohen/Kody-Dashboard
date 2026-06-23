@@ -75,6 +75,7 @@ describe.skipIf(!FLY_TOKEN || !MASTER_KEY)(
         );
 
         expect(created.appName).toBe(previewAppName(KEY));
+        expect(created.url).toBeTruthy();
         expect(created.url).toMatch(/^https:\/\/kp-.+\.fly\.dev$/);
         // createPreview now returns immediately after spawning the
         // builder machine — the URL isn't reachable yet. Pending state
@@ -89,7 +90,7 @@ describe.skipIf(!FLY_TOKEN || !MASTER_KEY)(
         let lastBody = "";
         for (let attempt = 0; attempt < 90; attempt++) {
           try {
-            const res = await fetch(created.url, {
+            const res = await fetch(created.url!, {
               redirect: "follow",
               signal: AbortSignal.timeout(10_000),
             });

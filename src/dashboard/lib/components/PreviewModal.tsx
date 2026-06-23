@@ -31,14 +31,7 @@ import {
 } from "./PreviewIframe";
 import { cn, getPreviewBypassUrl } from "../utils";
 import { PreviewInspector } from "../picker/PreviewInspector";
-import { PreviewViewsBar } from "./PreviewViewsBar";
 import { autoDirProps } from "../text-direction";
-import {
-  DEFAULT_PREVIEW_VIEWS,
-  joinPreviewUrl,
-  readPreviewViews,
-  type PreviewView,
-} from "../preview-views";
 import { useAuth } from "../auth-context";
 import {
   ArrowLeft,
@@ -52,12 +45,19 @@ import {
   Monitor,
   Smartphone,
   Tablet,
+  Check,
   ChevronRight,
   ChevronDown,
 } from "lucide-react";
 import { Button } from "@dashboard/ui/button";
 
 type PreviewTab = "preview" | "changes" | "comments";
+
+const PREVIEW_DEVICE_OPTIONS = [
+  { id: "mobile", icon: Smartphone, label: "Mobile" },
+  { id: "tablet", icon: Tablet, label: "Tablet" },
+  { id: "desktop", icon: Monitor, label: "Desktop" },
+] as const;
 
 interface PreviewModalProps {
   task: KodyTask;
@@ -89,22 +89,14 @@ export function PreviewModal({
   const [loading, setLoading] = useState(false);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [commentCount, setCommentCount] = useState<number | null>(null);
-  // User-managed preview views — replaces the hardcoded Web/Admin pair.
-  // Stored per-repo in localStorage; defaults seeded with Web/Admin so
-  // existing repos look identical until the user adds something new.
   const { auth } = useAuth();
   const ownerRepo = {
     owner: auth?.owner ?? "",
     repo: auth?.repo ?? "",
   };
-  const initialViews =
-    ownerRepo.owner && ownerRepo.repo
-      ? readPreviewViews(ownerRepo.owner, ownerRepo.repo)
-      : DEFAULT_PREVIEW_VIEWS;
-  const [selectedView, setSelectedView] = useState<PreviewView>(
-    initialViews[0] ?? DEFAULT_PREVIEW_VIEWS[0]!,
-  );
   const [previewDevice, setPreviewDevice] = useState<PreviewDevice>("desktop");
+  const viewportMenuRef = useRef<HTMLDivElement>(null);
+  const [viewportMenuOpen, setViewportMenuOpen] = useState(false);
   const [previewKey, setPreviewKey] = useState(0); // Bump to force iframe remount/refresh
   const [commentsKey, setCommentsKey] = useState(0); // Used to force-refresh comment list
   const [changesKey, setChangesKey] = useState(0); // Bump to force re-fetch of changed files
@@ -115,17 +107,43 @@ export function PreviewModal({
   // the Kody Preview Inspector extension — the preview is a cross-origin iframe
   // the page can't reach into. Results land in the chat composer/attachments.
   const previewRef = useRef<HTMLDivElement>(null);
-  const [composerInjection, setComposerInjection] = useState<{
+  const [, setComposerInjection] = useState<{
     id: string;
     label: string;
     context: string;
   } | null>(null);
-  const [attachmentInjection, setAttachmentInjection] = useState<{
+  const [, setAttachmentInjection] = useState<{
     id: string;
     name: string;
     dataUrl: string;
     mimeType: string;
   } | null>(null);
+
+  useEffect(() => {
+    if (!viewportMenuOpen) return;
+
+    const onDocumentClick = (event: MouseEvent): void => {
+      if (!viewportMenuRef.current) return;
+      if (
+        event.target instanceof Node &&
+        viewportMenuRef.current.contains(event.target)
+      ) {
+        return;
+      }
+      setViewportMenuOpen(false);
+    };
+
+    const onKeyDown = (event: KeyboardEvent): void => {
+      if (event.key === "Escape") setViewportMenuOpen(false);
+    };
+
+    document.addEventListener("mousedown", onDocumentClick);
+    document.addEventListener("keydown", onKeyDown);
+    return () => {
+      document.removeEventListener("mousedown", onDocumentClick);
+      document.removeEventListener("keydown", onKeyDown);
+    };
+  }, [viewportMenuOpen]);
 
   const handleRefreshAll = useCallback(async () => {
     setLocalRefreshing(true);
@@ -166,12 +184,9 @@ export function PreviewModal({
       throw err; // re-throw so dialog stays open
     }
   };
-
-  // Get preview URL based on current view — now driven by the
-  // user-configurable list (defaults: Web → /, Admin → /admin).
   const getPreviewUrl = () => {
     if (!effectivePreviewUrl) return null;
-    return joinPreviewUrl(effectivePreviewUrl, selectedView.path);
+    return effectivePreviewUrl;
   };
 
   // Load tab data on demand
@@ -269,6 +284,11 @@ export function PreviewModal({
       count: commentCount ?? undefined,
     },
   ];
+
+  const activePreviewDevice =
+    PREVIEW_DEVICE_OPTIONS.find((option) => option.id === previewDevice) ??
+    PREVIEW_DEVICE_OPTIONS[2];
+  const ActivePreviewDeviceIcon = activePreviewDevice.icon;
 
   return (
     <div className="flex flex-col h-full w-full bg-zinc-950/95">
@@ -400,43 +420,65 @@ export function PreviewModal({
               <div className="h-full flex flex-col">
                 {/* Preview actions header */}
                 {effectivePreviewUrl && (
-                  <div className="shrink-0 flex items-center justify-between gap-2 px-4 py-2.5 border-b border-zinc-800 bg-zinc-900/50">
-                    <PreviewViewsBar
-                      owner={ownerRepo.owner}
-                      repo={ownerRepo.repo}
-                      selectedId={selectedView.id}
-                      onSelect={setSelectedView}
-                    />
+                  <div className="shrink-0 flex items-center justify-end gap-2 px-4 py-2.5 border-b border-zinc-800 bg-zinc-900/50">
                     <div className="flex items-center gap-2">
-                      <div className="flex items-center gap-0.5 rounded-md border border-zinc-700 bg-zinc-800/50 p-0.5">
-                        {(
-                          [
-                            { id: "mobile", icon: Smartphone, label: "Mobile" },
-                            { id: "tablet", icon: Tablet, label: "Tablet" },
-                            {
-                              id: "desktop",
-                              icon: Monitor,
-                              label: "Desktop",
-                            },
-                          ] as const
-                        ).map(({ id, icon: Icon, label }) => (
-                          <button
-                            key={id}
-                            type="button"
-                            onClick={() => setPreviewDevice(id)}
-                            title={label}
-                            aria-label={`${label} viewport`}
-                            aria-pressed={previewDevice === id}
-                            className={cn(
-                              "inline-flex items-center justify-center rounded p-1.5 transition-colors",
-                              previewDevice === id
-                                ? "bg-zinc-700 text-white"
-                                : "text-zinc-400 hover:text-white hover:bg-zinc-700/50",
-                            )}
+                      <div
+                        ref={viewportMenuRef}
+                        className="relative inline-flex"
+                      >
+                        <button
+                          type="button"
+                          onClick={() => setViewportMenuOpen((open) => !open)}
+                          title={`Viewport: ${activePreviewDevice.label}`}
+                          aria-label="Switch preview viewport"
+                          aria-haspopup="listbox"
+                          aria-expanded={viewportMenuOpen}
+                          className="inline-flex items-center gap-1 rounded-md border border-zinc-700 bg-zinc-800/50 px-2 py-1.5 text-xs font-medium text-zinc-300 transition-colors hover:bg-zinc-700 hover:text-white"
+                        >
+                          <ActivePreviewDeviceIcon className="w-3.5 h-3.5" />
+                          <ChevronDown className="w-3 h-3" />
+                        </button>
+
+                        {viewportMenuOpen && (
+                          <div
+                            role="listbox"
+                            aria-label="Preview viewport"
+                            className="absolute right-0 top-full z-50 mt-1 min-w-36 rounded-md border border-zinc-700 bg-zinc-900 py-1 shadow-lg"
                           >
-                            <Icon className="w-3.5 h-3.5" />
-                          </button>
-                        ))}
+                            {PREVIEW_DEVICE_OPTIONS.map(
+                              ({ id, icon: Icon, label }) => {
+                                const selected = previewDevice === id;
+                                return (
+                                  <button
+                                    key={id}
+                                    type="button"
+                                    role="option"
+                                    aria-selected={selected}
+                                    onClick={() => {
+                                      setPreviewDevice(id);
+                                      setViewportMenuOpen(false);
+                                    }}
+                                    className={cn(
+                                      "flex w-full items-center gap-2 px-2 py-1.5 text-left text-xs transition-colors",
+                                      selected
+                                        ? "text-zinc-100"
+                                        : "text-zinc-400 hover:bg-zinc-800 hover:text-white",
+                                    )}
+                                  >
+                                    <Check
+                                      className={cn(
+                                        "w-3 h-3",
+                                        selected ? "opacity-100" : "opacity-0",
+                                      )}
+                                    />
+                                    <Icon className="w-3.5 h-3.5" />
+                                    <span>{label}</span>
+                                  </button>
+                                );
+                              },
+                            )}
+                          </div>
+                        )}
                       </div>
                       <PreviewInspector
                         previewRef={previewRef}
@@ -473,7 +515,7 @@ export function PreviewModal({
                     <PreviewIframe
                       src={getPreviewBypassUrl(getPreviewUrl()) || undefined}
                       title="Preview Deployment"
-                      reloadKey={`${selectedView.id}-${previewKey}`}
+                      reloadKey={`${previewKey}`}
                       maxWidthPx={DEVICE_WIDTHS[previewDevice]}
                     />
                   ) : (

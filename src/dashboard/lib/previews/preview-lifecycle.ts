@@ -110,6 +110,7 @@
 
 import { logger } from "@dashboard/lib/logger";
 import {
+  getPreviewBuilderStatus,
   spawnPreviewBuilder,
   type SpawnBuilderResult,
 } from "@dashboard/lib/previews/builder-client";
@@ -144,9 +145,9 @@ export type CreatePreviewInput = (PrPreviewKey | BranchPreviewKey) & {
 export interface PreviewInfo {
   key: PreviewKey;
   appName: string;
-  url: string;
+  url: string | null;
   machineId?: string;
-  state: "pending" | "starting" | "running" | "unknown";
+  state: "building" | "failed" | "pending" | "starting" | "running" | "unknown";
   region: string;
   /** Builder machine spawned for this run; useful for debugging logs. */
   builderMachineId?: string;
@@ -241,6 +242,18 @@ export async function getPreview(
 
   const machines = await listMachines(appName, cfg);
   const first = machines[0];
+  if (!first) {
+    const builder = await getPreviewBuilderStatus(appName, cfg.token);
+    return {
+      key,
+      appName,
+      url: null,
+      state: builder?.state ?? "failed",
+      region: cfg.defaultRegion,
+      builderMachineId: builder?.machineId,
+    };
+  }
+
   return {
     key,
     appName,

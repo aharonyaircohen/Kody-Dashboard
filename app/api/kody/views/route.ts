@@ -13,11 +13,16 @@ import {
   requireKodyAuth,
 } from "@dashboard/lib/auth";
 import { logger } from "@dashboard/lib/logger";
-import { resolveStateRepo, stateRepoPath } from "@dashboard/lib/state-repo";
+import {
+  deleteStateDirectory,
+  resolveStateRepo,
+  stateRepoPath,
+} from "@dashboard/lib/state-repo";
 
 export const runtime = "nodejs";
 
 const VIEW_ROOT = "views";
+const VIEW_ID_RE = /^[a-z0-9][a-z0-9-]{0,63}$/;
 const MAX_BYTES = 5 * 1024 * 1024;
 const MAX_TOTAL_BYTES = 10 * 1024 * 1024;
 const MAX_FILES = 50;
@@ -319,6 +324,44 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
     );
     return NextResponse.json(
       { error: "view_upload_failed", message: (err as Error).message },
+      { status: 500 },
+    );
+  }
+}
+
+export async function DELETE(req: NextRequest): Promise<NextResponse> {
+  const authError = await requireKodyAuth(req);
+  if (authError) return authError;
+  const auth = getRequestAuth(req);
+  if (!auth) {
+    return NextResponse.json({ error: "no_repo_context" }, { status: 400 });
+  }
+  const octokit = await getUserOctokit(req);
+  if (!octokit) {
+    return NextResponse.json({ error: "no_octokit" }, { status: 401 });
+  }
+
+  const viewId = new URL(req.url).searchParams.get("view")?.trim() ?? "";
+  if (!VIEW_ID_RE.test(viewId)) {
+    return NextResponse.json({ error: "invalid_view" }, { status: 400 });
+  }
+
+  try {
+    const result = await deleteStateDirectory({
+      octokit,
+      owner: auth.owner,
+      repo: auth.repo,
+      path: `${VIEW_ROOT}/${viewId}`,
+      message: `chore(dashboard): remove static view ${viewId}`,
+    });
+    return NextResponse.json({ ok: true, ...result });
+  } catch (err) {
+    logger.error(
+      { err, owner: auth.owner, repo: auth.repo, viewId },
+      "views: delete failed",
+    );
+    return NextResponse.json(
+      { error: "view_delete_failed", message: (err as Error).message },
       { status: 500 },
     );
   }

@@ -4,7 +4,7 @@
  * @pattern controlled-form
  * @ai-summary Small label + URL form for a named preview environment. Reused by
  *   the env switcher's add/edit rows and by the Preview workspace's empty state
- *   ("add your first environment"). Validates a non-empty name and an http(s)
+ *   ("add your first environment"). Validates a non-empty name and a preview
  *   URL before calling onSubmit; presentation only — the parent persists.
  */
 "use client";
@@ -13,6 +13,7 @@ import { useState } from "react";
 import { Button } from "@dashboard/ui/button";
 import { Input } from "@dashboard/ui/input";
 import { Loader2, Save } from "lucide-react";
+import { normalizeEnvUrl } from "../preview-environments";
 
 interface PreviewEnvFormProps {
   initialLabel?: string;
@@ -43,14 +44,13 @@ export function PreviewEnvForm({
       setError("Name is required");
       return;
     }
-    try {
-      new URL(url.trim());
-    } catch {
-      setError("Enter a valid URL (https://…)");
+    const cleanUrl = normalizeEnvUrl(url);
+    if (!cleanUrl) {
+      setError("Enter a valid URL");
       return;
     }
     try {
-      await onSubmit(cleanLabel, url.trim());
+      await onSubmit(cleanLabel, cleanUrl);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to save");
     }
@@ -68,7 +68,8 @@ export function PreviewEnvForm({
         aria-label="Environment name"
       />
       <Input
-        type="url"
+        type="text"
+        inputMode="url"
         placeholder="https://your-app.example.com"
         value={url}
         onChange={(e) => setUrl(e.target.value)}

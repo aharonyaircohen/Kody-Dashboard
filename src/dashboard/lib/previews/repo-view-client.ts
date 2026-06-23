@@ -8,6 +8,7 @@
 "use client";
 
 import { getStoredAuth, NoTokenError } from "../api";
+import { repoViewIdFromPath } from "../preview-environments";
 
 export interface UploadedRepoView {
   id: string;
@@ -62,6 +63,27 @@ export async function uploadRepoView(
     );
   }
   return (await res.json()) as UploadedRepoView;
+}
+
+export async function deleteRepoView(repoViewPath: string): Promise<void> {
+  const viewId = repoViewIdFromPath(repoViewPath);
+  if (!viewId) return;
+  const res = await fetch(
+    `/api/kody/views?view=${encodeURIComponent(viewId)}`,
+    {
+      method: "DELETE",
+      headers: authHeaders(),
+    },
+  );
+  if (!res.ok) {
+    const body = (await res.json().catch(() => ({}))) as {
+      error?: string;
+      message?: string;
+    };
+    throw new Error(
+      body.message ?? body.error ?? `View delete failed (${res.status})`,
+    );
+  }
 }
 
 export async function mintRepoViewTicket(
