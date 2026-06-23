@@ -12,7 +12,14 @@
  */
 "use client";
 
-import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type ReactNode,
+} from "react";
 import {
   ArrowLeft,
   ArrowRight,
@@ -29,6 +36,7 @@ import {
 import { cn, getPreviewBypassUrl } from "../utils";
 import { PreviewInspector } from "../picker/PreviewInspector";
 import { useElementPicker } from "../picker/useElementPicker";
+import { PICKER_EXT_SOURCE, type PickerExtMessage } from "../picker/protocol";
 import {
   PreviewIframe,
   DEVICE_WIDTHS,
@@ -201,10 +209,32 @@ export function PreviewPane({
   const [browserUrl, setBrowserUrl] = useState(
     toBrowserAddress(activePreviewUrl),
   );
+  const syncBrowserHistoryUrl = useCallback(
+    (url: string | null | undefined): void => {
+      const nextUrl = toBrowserAddress(url ?? null);
+      if (!nextUrl) return;
+      setBrowserHistory((state) => pushBrowserHistory(state, nextUrl));
+    },
+    [],
+  );
   useEffect(() => {
     if (browserInputFocusedRef.current) return;
     setBrowserUrl(toBrowserAddress(activePreviewUrl));
   }, [activePreviewUrl]);
+  useEffect(() => {
+    if (!showBrowserChrome || !activePreviewUrl) return;
+
+    const onMessage = (event: MessageEvent): void => {
+      if (event.source !== window) return;
+      const data = event.data as PickerExtMessage | undefined;
+      if (!data || data.source !== PICKER_EXT_SOURCE) return;
+      if (data.type !== "page") return;
+      syncBrowserHistoryUrl(data.info.url);
+    };
+
+    window.addEventListener("message", onMessage);
+    return () => window.removeEventListener("message", onMessage);
+  }, [activePreviewUrl, showBrowserChrome, syncBrowserHistoryUrl]);
   useEffect(() => {
     if (
       !showBrowserChrome ||
@@ -228,7 +258,7 @@ export function PreviewPane({
 
         const nextUrl = toBrowserAddress(info.url);
         if (!nextUrl) return;
-        setBrowserHistory((state) => pushBrowserHistory(state, nextUrl));
+        syncBrowserHistoryUrl(nextUrl);
       } finally {
         busy = false;
       }
@@ -247,6 +277,7 @@ export function PreviewPane({
     pageProbeAvailable,
     previewLoadKey,
     showBrowserChrome,
+    syncBrowserHistoryUrl,
   ]);
 
   useEffect(() => {
