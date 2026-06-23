@@ -2,6 +2,7 @@ import type {
   CmsConfigState,
   CmsDocument,
   CmsListResult,
+  CmsPermissionsConfig,
   CmsSearchQuery,
   CmsSortEntry,
 } from "../../cms/types";
@@ -35,6 +36,14 @@ export interface GenerateCmsSchemaPayload {
   adapter: "mongodb";
   name?: string;
   refresh?: boolean;
+}
+
+export interface SaveCmsPermissionsPayload {
+  permissions?: CmsPermissionsConfig;
+  collections: Array<{
+    name: string;
+    permissions: CmsPermissionsConfig;
+  }>;
 }
 
 export async function fetchCmsConfig(
@@ -71,6 +80,23 @@ export async function createCmsConfig(
 ): Promise<CmsConfigState> {
   const res = await fetch("/api/kody/cms", {
     method: "POST",
+    headers: { ...headers, "content-type": "application/json" },
+    cache: "no-store",
+    body: JSON.stringify(payload),
+  });
+  const json = (await res.json().catch(() => ({}))) as CmsIndexResponse;
+  if (!res.ok || !json.cms) {
+    throw new Error(json.message || json.error || `HTTP ${res.status}`);
+  }
+  return json.cms;
+}
+
+export async function saveCmsPermissions(
+  headers: Record<string, string>,
+  payload: SaveCmsPermissionsPayload,
+): Promise<CmsConfigState> {
+  const res = await fetch("/api/kody/cms", {
+    method: "PATCH",
     headers: { ...headers, "content-type": "application/json" },
     cache: "no-store",
     body: JSON.stringify(payload),

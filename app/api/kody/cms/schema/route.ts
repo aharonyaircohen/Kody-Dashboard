@@ -12,8 +12,10 @@ import {
 } from "@dashboard/lib/github-client";
 import { logger } from "@dashboard/lib/logger";
 import {
+  assertSchemaOperationAllowed,
   CmsConfigError,
   invalidateCmsConfigCache,
+  loadCmsConfigFromState,
 } from "@dashboard/lib/cms/config";
 import { generateMongoCmsSchemaFiles } from "@dashboard/lib/cms/adapters/mongodb-schema";
 import {
@@ -22,6 +24,7 @@ import {
 } from "@dashboard/lib/cms/service";
 import { readStateText, writeStateFiles } from "@dashboard/lib/state-repo";
 import { getSecret } from "@dashboard/lib/vault/get-secret";
+import { getCmsActorRole } from "@dashboard/lib/cms/roles";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -68,6 +71,32 @@ export async function POST(req: NextRequest) {
       await req.json().catch(() => ({})),
       headerAuth.repo,
     );
+    const actorRole = await getCmsActorRole(
+      req,
+      octokit,
+      headerAuth.owner,
+      headerAuth.repo,
+    );
+    const currentConfig = await loadCmsConfigFromState(
+      octokit,
+      headerAuth.owner,
+      headerAuth.repo,
+    );
+    if (currentConfig) {
+      assertSchemaOperationAllowed(
+        currentConfig,
+        payload.refresh ? "refresh" : "generate",
+        actorRole,
+      );
+    } else if (actorRole !== "admin") {
+      throw new CmsConfigError(
+        ["generate CMS schema is not allowed for viewer"],
+        {
+          code: "cms_forbidden",
+          status: 403,
+        },
+      );
+    }
     const schemaAlreadyHasCollections = await cmsSchemaHasCollections(
       octokit,
       headerAuth.owner,

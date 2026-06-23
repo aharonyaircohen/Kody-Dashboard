@@ -26,6 +26,40 @@ export type CmsFilterOperator =
 
 export type CmsWritePolicy = "read-only" | "approval-required" | "enabled";
 
+export type CmsRole = "viewer" | "editor" | "admin";
+
+export type CmsContentOperation =
+  | "list"
+  | "get"
+  | "search"
+  | "create"
+  | "update"
+  | "delete";
+
+export type CmsSchemaOperation = "generate" | "refresh" | "edit";
+
+export type CmsRoleList = CmsRole[];
+
+export interface CmsContentPermissions {
+  list?: CmsRoleList;
+  get?: CmsRoleList;
+  search?: CmsRoleList;
+  create?: CmsRoleList;
+  update?: CmsRoleList;
+  delete?: CmsRoleList;
+}
+
+export interface CmsSchemaPermissions {
+  generate?: CmsRoleList;
+  refresh?: CmsRoleList;
+  edit?: CmsRoleList;
+}
+
+export interface CmsPermissionsConfig {
+  content?: CmsContentPermissions;
+  schema?: CmsSchemaPermissions;
+}
+
 export interface CmsFieldOption {
   label: string;
   value: string;
@@ -139,6 +173,7 @@ export interface CmsCollectionConfig {
   /** @deprecated Use views.list.fields. Kept for existing CMS state files. */
   listFields?: string[];
   writePolicy: CmsWritePolicy;
+  permissions?: CmsPermissionsConfig;
   source: CmsCollectionSource;
   operations: CmsCollectionOperations;
   defaultSort: CmsSortEntry[];
@@ -154,6 +189,7 @@ export interface CmsRuntimeConfig {
   environment: string;
   defaultAdapter?: string;
   writePolicy: CmsWritePolicy;
+  permissions: CmsPermissionsConfig;
   adapters: Record<string, CmsAdapterSettings>;
   collections: Record<string, CmsCollectionConfig>;
 }
@@ -165,6 +201,7 @@ export interface CmsPublicConfig {
   environment: string;
   defaultAdapter?: string;
   writePolicy: CmsWritePolicy;
+  permissions: CmsPermissionsConfig;
   collections: CmsCollectionConfig[];
 }
 

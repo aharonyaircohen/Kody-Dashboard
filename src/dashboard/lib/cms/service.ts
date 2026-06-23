@@ -21,6 +21,7 @@ import {
   type CmsAdapter,
   type CmsAdapterContext,
 } from "./adapters";
+import { getCmsActorRole } from "./roles";
 import type {
   CmsCollectionConfig,
   CmsDocument,
@@ -70,12 +71,15 @@ export async function listCmsDocuments(
     });
   }
   const collection = getCollection(config, collectionName);
+  const actorRole = await getCmsActorRole(req, octokit, owner, repo);
   assertReadOperationAllowed(
     collection,
     hasSearchQuery(query) ||
       (query.filters && Object.keys(query.filters).length > 0)
       ? "search"
       : "list",
+    actorRole,
+    config.permissions,
   );
 
   const { adapter, context } = getAdapterContext(req, config, collection);
@@ -117,7 +121,8 @@ export async function getCmsDocument(
     });
   }
   const collection = getCollection(config, collectionName);
-  assertReadOperationAllowed(collection, "get");
+  const actorRole = await getCmsActorRole(req, octokit, owner, repo);
+  assertReadOperationAllowed(collection, "get", actorRole, config.permissions);
 
   const { adapter, context } = getAdapterContext(req, config, collection);
   return callCmsAdapter(() => adapter.get(context, id));
@@ -139,7 +144,13 @@ export async function createCmsDocument(
     });
   }
   const collection = getCollection(config, collectionName);
-  assertWriteOperationAllowed(collection, "create");
+  const actorRole = await getCmsActorRole(req, octokit, owner, repo);
+  assertWriteOperationAllowed(
+    collection,
+    "create",
+    actorRole,
+    config.permissions,
+  );
 
   const { adapter, context } = getAdapterContext(req, config, collection);
   return callCmsAdapter(() => adapter.create(context, data));
@@ -162,7 +173,13 @@ export async function updateCmsDocument(
     });
   }
   const collection = getCollection(config, collectionName);
-  assertWriteOperationAllowed(collection, "update");
+  const actorRole = await getCmsActorRole(req, octokit, owner, repo);
+  assertWriteOperationAllowed(
+    collection,
+    "update",
+    actorRole,
+    config.permissions,
+  );
 
   const { adapter, context } = getAdapterContext(req, config, collection);
   return callCmsAdapter(() => adapter.update(context, id, data));
@@ -184,7 +201,13 @@ export async function deleteCmsDocument(
     });
   }
   const collection = getCollection(config, collectionName);
-  assertWriteOperationAllowed(collection, "delete");
+  const actorRole = await getCmsActorRole(req, octokit, owner, repo);
+  assertWriteOperationAllowed(
+    collection,
+    "delete",
+    actorRole,
+    config.permissions,
+  );
 
   const { adapter, context } = getAdapterContext(req, config, collection);
   return callCmsAdapter(() => adapter.delete(context, id));

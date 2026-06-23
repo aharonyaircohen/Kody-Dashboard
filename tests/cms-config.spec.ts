@@ -480,4 +480,62 @@ describe("CMS config contract", () => {
       }),
     ).toThrow(/lessons\.fields\._id\.storage\.kind is invalid/);
   });
+
+  it("normalizes CMS role permissions with admin lockout protection", () => {
+    const config = normalizeCmsConfig({
+      version: 1,
+      defaultAdapter: "memory",
+      permissions: {
+        schema: { refresh: ["editor"] },
+      },
+      collections: {
+        lessons: {
+          name: "lessons",
+          permissions: {
+            content: { update: ["editor"], delete: [] },
+          },
+          fields: [{ name: "_id", type: "id" }],
+        },
+      },
+    });
+
+    expect(config.permissions.schema?.refresh).toEqual(["editor", "admin"]);
+    expect(config.collections.lessons.permissions?.content?.update).toEqual([
+      "editor",
+      "admin",
+    ]);
+    expect(config.collections.lessons.permissions?.content?.delete).toEqual([
+      "admin",
+    ]);
+  });
+
+  it("rejects invalid CMS permission roles", () => {
+    expect(() =>
+      normalizeCmsConfig({
+        version: 1,
+        defaultAdapter: "memory",
+        permissions: { schema: { refresh: ["owner"] } },
+        collections: {},
+      }),
+    ).toThrow(/permissions\.schema\.refresh has invalid role/);
+  });
+
+  it("keeps collection permissions as sparse overrides", () => {
+    const config = normalizeCmsConfig({
+      version: 1,
+      defaultAdapter: "memory",
+      permissions: {
+        content: { update: ["editor"] },
+      },
+      collections: {
+        lessons: {
+          name: "lessons",
+          fields: [{ name: "_id", type: "id" }],
+        },
+      },
+    });
+
+    expect(config.permissions.content?.update).toEqual(["editor", "admin"]);
+    expect(config.collections.lessons.permissions).toBeUndefined();
+  });
 });

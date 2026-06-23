@@ -26,6 +26,7 @@ import {
   RefreshCw,
   Save,
   Search,
+  ShieldCheck,
   Trash2,
   X,
 } from "lucide-react";
@@ -64,18 +65,24 @@ import {
   fetchCmsDocuments,
   fetchCmsDocumentsByIds,
   generateCmsSchema,
+  saveCmsPermissions,
   updateCmsDocument,
   type GenerateCmsSchemaPayload,
+  type SaveCmsPermissionsPayload,
 } from "./cms/client";
 import { canWriteOperation, writeDisabledReason } from "./cms/operations";
 import { cmsDocumentEditPath, cmsDocumentPath } from "./cms/paths";
 import type {
   CmsCollectionConfig,
+  CmsContentOperation,
   CmsDocument,
   CmsFieldConfig,
   CmsFieldOption,
   CmsFilterConfig,
   CmsFilterOperator,
+  CmsPermissionsConfig,
+  CmsPublicConfig,
+  CmsRole,
   CmsSearchQuery,
   CmsSortEntry,
   CmsViewFieldConfig,
@@ -176,6 +183,7 @@ function CmsListPage() {
   const [selectedCollectionName, setSelectedCollectionName] =
     useState<string>("");
   const [collectionSearch, setCollectionSearch] = useState("");
+  const [permissionsOpen, setPermissionsOpen] = useState(false);
   const [filterValues, setFilterValues] = useState<FilterValues>({});
   const [sort, setSort] = useState<CmsSortEntry[]>([]);
   const [offset, setOffset] = useState(0);
@@ -203,6 +211,14 @@ function CmsListPage() {
       queryClient.setQueryData(cmsQueryKey, cms);
       await queryClient.invalidateQueries({ queryKey: cmsQueryKey });
       await queryClient.invalidateQueries({ queryKey: ["cms-documents"] });
+    },
+  });
+  const savePermissionsMutation = useMutation({
+    mutationFn: (payload: SaveCmsPermissionsPayload) =>
+      saveCmsPermissions(headers, payload),
+    onSuccess: async (cms) => {
+      queryClient.setQueryData(cmsQueryKey, cms);
+      await queryClient.invalidateQueries({ queryKey: cmsQueryKey });
     },
   });
 
@@ -321,6 +337,7 @@ function CmsListPage() {
           onUpdateSchema={() =>
             generateSchemaMutation.mutate({ refresh: true })
           }
+          onOpenPermissions={() => setPermissionsOpen(true)}
         />
       }
     >
@@ -380,6 +397,20 @@ function CmsListPage() {
           </main>
         </div>
       </CmsRelationProvider>
+      {cmsQuery.data?.configured ? (
+        <CmsPermissionsDialog
+          open={permissionsOpen}
+          config={cmsQuery.data}
+          saving={savePermissionsMutation.isPending}
+          error={
+            savePermissionsMutation.error instanceof Error
+              ? savePermissionsMutation.error.message
+              : null
+          }
+          onOpenChange={setPermissionsOpen}
+          onSave={(payload) => savePermissionsMutation.mutate(payload)}
+        />
+      ) : null}
     </CmsShell>
   );
 }
@@ -742,12 +773,14 @@ function CmsHeaderActions({
   writePolicy,
   onRefresh,
   onUpdateSchema,
+  onOpenPermissions,
 }: {
   loading: boolean;
   schemaLoading: boolean;
   writePolicy?: string;
   onRefresh: () => void;
   onUpdateSchema: () => void;
+  onOpenPermissions: () => void;
 }) {
   return (
     <div className="flex items-center gap-2">
@@ -765,6 +798,10 @@ function CmsHeaderActions({
         )}
         Refresh
       </Button>
+      <Button variant="outline" size="sm" onClick={onOpenPermissions}>
+        <ShieldCheck className="mr-2 h-4 w-4" />
+        Permissions
+      </Button>
       <Button
         variant="outline"
         size="sm"
@@ -780,6 +817,425 @@ function CmsHeaderActions({
       </Button>
     </div>
   );
+}
+
+type CmsWriteRolePreset = "admin" | "editor";
+
+type CmsPermissionOperation = Extract<
+  CmsContentOperation,
+  "create" | "update" | "delete"
+>;
+
+const CMS_WRITE_PERMISSION_OPERATIONS: Array<{
+  operation: CmsPermissionOperation;
+  label: string;
+}> = [
+  { operation: "create", label: "Create" },
+  { operation: "update", label: "Update" },
+  { operation: "delete", label: "Delete" },
+];
+
+function CmsPermissionsDialog({
+  open,
+  config,
+  saving,
+  error,
+  onOpenChange,
+  onSave,
+}: {
+  open: boolean;
+  config: CmsPublicConfig;
+  saving: boolean;
+  error: string | null;
+  onOpenChange: (open: boolean) => void;
+  onSave: (payload: SaveCmsPermissionsPayload) => void;
+}) {
+  const [globalPresets, setGlobalPresets] = useState<
+    Record<CmsPermissionOperation, CmsWriteRolePreset>
+  >(() => buildGlobalPermissionPresets(config.permissions));
+  const [overrides, setOverrides] = useState<Record<string, boolean>>(() =>
+    buildOverrideState(config.collections),
+  );
+  const [collectionPresets, setCollectionPresets] = useState<
+    Record<string, CmsWriteRolePreset>
+  >(() => buildCollectionPermissionPresets(config.collections));
+  const [newOverrideCollection, setNewOverrideCollection] = useState("");
+
+  useEffect(() => {
+    if (!open) return;
+    setGlobalPresets(buildGlobalPermissionPresets(config.permissions));
+    setOverrides(buildOverrideState(config.collections));
+    setCollectionPresets(buildCollectionPermissionPresets(config.collections));
+    setNewOverrideCollection("");
+  }, [config.collections, config.permissions, open]);
+
+  const updateGlobalPreset = (
+    operation: CmsPermissionOperation,
+    preset: CmsWriteRolePreset,
+  ) => {
+    setGlobalPresets((current) => ({ ...current, [operation]: preset }));
+  };
+
+  const updateCollectionPreset = (
+    collection: string,
+    operation: CmsPermissionOperation,
+    preset: CmsWriteRolePreset,
+  ) => {
+    setCollectionPresets((current) => ({
+      ...current,
+      [permissionPresetKey(collection, operation)]: preset,
+    }));
+  };
+
+  const activeOverrideCollections = config.collections.filter(
+    (collection) => overrides[collection.name] === true,
+  );
+  const availableOverrideCollections = config.collections.filter(
+    (collection) => overrides[collection.name] !== true,
+  );
+
+  const addCollectionOverride = () => {
+    if (!newOverrideCollection) return;
+    setOverrides((current) => ({
+      ...current,
+      [newOverrideCollection]: true,
+    }));
+    setNewOverrideCollection("");
+  };
+
+  const removeCollectionOverride = (collectionName: string) => {
+    setOverrides((current) => {
+      const next = { ...current };
+      delete next[collectionName];
+      return next;
+    });
+  };
+
+  const submit = () => {
+    onSave({
+      permissions: {
+        ...config.permissions,
+        content: {
+          ...config.permissions.content,
+          create: rolesForWritePreset(globalPresets.create),
+          update: rolesForWritePreset(globalPresets.update),
+          delete: rolesForWritePreset(globalPresets.delete),
+        },
+      },
+      collections: config.collections.map((collection) => {
+        const enabled = overrides[collection.name] === true;
+        return {
+          name: collection.name,
+          permissions: enabled
+            ? {
+                ...collection.permissions,
+                content: {
+                  ...collection.permissions?.content,
+                  create: rolesForWritePreset(
+                    collectionPresets[
+                      permissionPresetKey(collection.name, "create")
+                    ] ?? globalPresets.create,
+                  ),
+                  update: rolesForWritePreset(
+                    collectionPresets[
+                      permissionPresetKey(collection.name, "update")
+                    ] ?? globalPresets.update,
+                  ),
+                  delete: rolesForWritePreset(
+                    collectionPresets[
+                      permissionPresetKey(collection.name, "delete")
+                    ] ?? globalPresets.delete,
+                  ),
+                },
+              }
+            : clearWritePermissionOverrides(collection.permissions),
+        };
+      }),
+    });
+  };
+
+  const overrideCount = Object.values(overrides).filter(Boolean).length;
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="flex max-h-[82vh] max-w-4xl flex-col overflow-hidden">
+        <DialogHeader>
+          <DialogTitle>CMS permissions</DialogTitle>
+          <DialogDescription>
+            Set the default CMS access policy once. Use collection overrides
+            only for exceptions.
+          </DialogDescription>
+        </DialogHeader>
+
+        <div className="min-h-0 flex-1 overflow-y-auto border-y border-border">
+          <div className="border-b border-border px-4 py-4">
+            <div className="text-sm font-medium text-foreground">
+              Default policy
+            </div>
+            <div className="mt-3 grid grid-cols-1 gap-3 md:grid-cols-3">
+              {CMS_WRITE_PERMISSION_OPERATIONS.map((item) => (
+                <label key={item.operation} className="space-y-1">
+                  <span className="text-xs font-medium uppercase text-muted-foreground">
+                    {item.label}
+                  </span>
+                  <Select
+                    value={globalPresets[item.operation]}
+                    onValueChange={(value) =>
+                      updateGlobalPreset(
+                        item.operation,
+                        value as CmsWriteRolePreset,
+                      )
+                    }
+                  >
+                    <SelectTrigger className="h-9">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="admin">Admins</SelectItem>
+                      <SelectItem value="editor">Editors</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </label>
+              ))}
+            </div>
+          </div>
+
+          <div className="px-4 py-3">
+            <div className="flex flex-col gap-3 md:flex-row md:items-end md:justify-between">
+              <div>
+                <div className="text-sm font-medium text-foreground">
+                  Collection overrides
+                </div>
+                <div className="text-xs text-muted-foreground">
+                  Add an override only when one collection needs different write
+                  access.
+                </div>
+              </div>
+              <div className="flex w-full flex-col gap-2 sm:flex-row md:w-auto">
+                <Select
+                  value={newOverrideCollection}
+                  onValueChange={setNewOverrideCollection}
+                  disabled={availableOverrideCollections.length === 0}
+                >
+                  <SelectTrigger className="h-9 min-w-56">
+                    <SelectValue
+                      placeholder={
+                        availableOverrideCollections.length === 0
+                          ? "All collections overridden"
+                          : "Add collection override"
+                      }
+                    />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {availableOverrideCollections.map((collection) => (
+                      <SelectItem key={collection.name} value={collection.name}>
+                        {collection.label}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  disabled={!newOverrideCollection}
+                  onClick={addCollectionOverride}
+                >
+                  <Plus className="mr-2 h-4 w-4" />
+                  Add override
+                </Button>
+                {overrideCount > 0 ? (
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setOverrides({})}
+                  >
+                    Clear overrides
+                  </Button>
+                ) : null}
+              </div>
+            </div>
+          </div>
+
+          {activeOverrideCollections.length > 0 ? (
+            <div className="border-y border-border">
+              <div className="grid grid-cols-[minmax(180px,1fr)_120px_120px_120px_44px] bg-muted/50 px-4 py-2 text-xs font-semibold uppercase text-muted-foreground">
+                <div>Collection</div>
+                {CMS_WRITE_PERMISSION_OPERATIONS.map((item) => (
+                  <div key={item.operation}>{item.label}</div>
+                ))}
+                <div />
+              </div>
+              {activeOverrideCollections.map((collection) => (
+                <div
+                  key={collection.name}
+                  className="grid grid-cols-[minmax(180px,1fr)_120px_120px_120px_44px] items-center border-t border-border px-4 py-3"
+                >
+                  <div className="min-w-0 pr-4">
+                    <div className="truncate text-sm font-medium text-foreground">
+                      {collection.label}
+                    </div>
+                    <div className="truncate text-xs text-muted-foreground">
+                      {collection.name}
+                    </div>
+                  </div>
+                  {CMS_WRITE_PERMISSION_OPERATIONS.map((item) => (
+                    <Select
+                      key={item.operation}
+                      value={
+                        collectionPresets[
+                          permissionPresetKey(collection.name, item.operation)
+                        ] ?? globalPresets[item.operation]
+                      }
+                      onValueChange={(value) =>
+                        updateCollectionPreset(
+                          collection.name,
+                          item.operation,
+                          value as CmsWriteRolePreset,
+                        )
+                      }
+                    >
+                      <SelectTrigger className="h-9 rounded-none border-0 bg-transparent px-2 shadow-none focus:ring-1">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="admin">Admins</SelectItem>
+                        <SelectItem value="editor">Editors</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  ))}
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="icon"
+                    onClick={() => removeCollectionOverride(collection.name)}
+                    aria-label={`Remove ${collection.label} override`}
+                  >
+                    <X className="h-4 w-4" />
+                  </Button>
+                </div>
+              ))}
+            </div>
+          ) : (
+            <div className="border-y border-border px-4 py-8 text-sm text-muted-foreground">
+              No collection overrides. All collections use the default policy.
+            </div>
+          )}
+        </div>
+
+        {error ? (
+          <div className="rounded border border-destructive/30 bg-destructive/10 px-3 py-2 text-sm text-destructive">
+            {error}
+          </div>
+        ) : null}
+
+        <div className="flex items-center justify-between gap-3">
+          <div className="text-xs text-muted-foreground">
+            Admins always keep access to prevent lockout.
+          </div>
+          <div className="flex items-center gap-2">
+            <Button
+              type="button"
+              variant="outline"
+              disabled={saving}
+              onClick={() => onOpenChange(false)}
+            >
+              Cancel
+            </Button>
+            <Button type="button" disabled={saving} onClick={submit}>
+              {saving ? (
+                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+              ) : (
+                <Save className="mr-2 h-4 w-4" />
+              )}
+              Save permissions
+            </Button>
+          </div>
+        </div>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+function buildGlobalPermissionPresets(
+  permissions: CmsPermissionsConfig,
+): Record<CmsPermissionOperation, CmsWriteRolePreset> {
+  return {
+    create: presetForRoles(permissions.content?.create),
+    update: presetForRoles(permissions.content?.update),
+    delete: presetForRoles(permissions.content?.delete),
+  };
+}
+
+function buildOverrideState(
+  collections: CmsCollectionConfig[],
+): Record<string, boolean> {
+  const result: Record<string, boolean> = {};
+  for (const collection of collections) {
+    if (hasWritePermissionOverride(collection.permissions)) {
+      result[collection.name] = true;
+    }
+  }
+  return result;
+}
+
+function buildCollectionPermissionPresets(
+  collections: CmsCollectionConfig[],
+): Record<string, CmsWriteRolePreset> {
+  const result: Record<string, CmsWriteRolePreset> = {};
+  for (const collection of collections) {
+    for (const { operation } of CMS_WRITE_PERMISSION_OPERATIONS) {
+      const roles = collection.permissions?.content?.[operation];
+      if (roles) {
+        result[permissionPresetKey(collection.name, operation)] =
+          presetForRoles(roles);
+      }
+    }
+  }
+  return result;
+}
+
+function hasWritePermissionOverride(
+  permissions: CmsPermissionsConfig | undefined,
+): boolean {
+  return Boolean(
+    permissions?.content?.create ||
+    permissions?.content?.update ||
+    permissions?.content?.delete,
+  );
+}
+
+function clearWritePermissionOverrides(
+  permissions: CmsPermissionsConfig | undefined,
+): CmsPermissionsConfig {
+  const nextContent = { ...(permissions?.content ?? {}) };
+  delete nextContent.create;
+  delete nextContent.update;
+  delete nextContent.delete;
+
+  const next: CmsPermissionsConfig = { ...(permissions ?? {}) };
+  if (Object.keys(nextContent).length > 0) {
+    next.content = nextContent;
+  } else {
+    delete next.content;
+  }
+  return next;
+}
+
+function permissionPresetKey(
+  collection: string,
+  operation: CmsPermissionOperation,
+): string {
+  return `${collection}:${operation}`;
+}
+
+function presetForRoles(roles: CmsRole[] | undefined): CmsWriteRolePreset {
+  return roles?.includes("editor") ? "editor" : "admin";
+}
+
+function rolesForWritePreset(preset: CmsWriteRolePreset): CmsRole[] {
+  return preset === "editor" ? ["editor", "admin"] : ["admin"];
 }
 
 function CollectionRail({

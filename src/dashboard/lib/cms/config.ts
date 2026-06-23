@@ -5,6 +5,7 @@ import type { Octokit } from "@octokit/rest";
 import { readStateText } from "@dashboard/lib/state-repo";
 import type {
   CmsCollectionConfig,
+  CmsContentOperation,
   CmsCollectionOperations,
   CmsCollectionViewsConfig,
   CmsFieldConfig,
@@ -13,7 +14,10 @@ import type {
   CmsFilterConfig,
   CmsFilterOperator,
   CmsPublicConfig,
+  CmsPermissionsConfig,
+  CmsRole,
   CmsRuntimeConfig,
+  CmsSchemaOperation,
   CmsSearchQuery,
   CmsSortEntry,
   CmsUnconfiguredConfig,
@@ -80,6 +84,38 @@ const WRITE_POLICIES = new Set<CmsWritePolicy>([
   "approval-required",
   "enabled",
 ]);
+
+const CMS_ROLES = new Set<CmsRole>(["viewer", "editor", "admin"]);
+
+const CONTENT_OPERATIONS: CmsContentOperation[] = [
+  "list",
+  "get",
+  "search",
+  "create",
+  "update",
+  "delete",
+];
+
+const SCHEMA_OPERATIONS: CmsSchemaOperation[] = ["generate", "refresh", "edit"];
+
+export const DEFAULT_CMS_PERMISSIONS: {
+  content: Record<CmsContentOperation, CmsRole[]>;
+  schema: Record<CmsSchemaOperation, CmsRole[]>;
+} = {
+  content: {
+    list: ["viewer", "editor", "admin"],
+    get: ["viewer", "editor", "admin"],
+    search: ["viewer", "editor", "admin"],
+    create: ["editor", "admin"],
+    update: ["editor", "admin"],
+    delete: ["admin"],
+  },
+  schema: {
+    generate: ["admin"],
+    refresh: ["admin"],
+    edit: ["admin"],
+  },
+};
 
 const VIEW_FIELD_ROLES = new Set<CmsViewFieldRole>([
   "primary",
@@ -168,26 +204,72 @@ export function getCollectionIdField(collection: CmsCollectionConfig): string {
 export function assertReadOperationAllowed(
   collection: CmsCollectionConfig,
   operation: "list" | "get" | "search",
+  actorRole: CmsRole = "admin",
+  permissions: CmsPermissionsConfig = DEFAULT_CMS_PERMISSIONS,
 ): void {
   if (!collection.operations[operation]) {
-    throw new CmsConfigError([`${operation} disabled for ${collection.name}`]);
+    throw new CmsConfigError([`${operation} disabled ${collection.name}`]);
   }
+  assertRoleAllowed(
+    actorRole,
+    collection.permissions?.content?.[operation] ??
+      permissions.content?.[operation] ??
+      DEFAULT_CMS_PERMISSIONS.content[operation],
+    `${operation} ${collection.name}`,
+  );
 }
 
 export function assertWriteOperationAllowed(
   collection: CmsCollectionConfig,
   operation: "create" | "update" | "delete",
+  actorRole: CmsRole = "admin",
+  permissions: CmsPermissionsConfig = DEFAULT_CMS_PERMISSIONS,
 ): void {
   if (!collection.operations[operation]) {
-    throw new CmsConfigError([`${operation} disabled for ${collection.name}`]);
+    throw new CmsConfigError([`${operation} disabled ${collection.name}`]);
   }
 
   if (collection.writePolicy !== "enabled") {
     throw new CmsConfigError(
-      [`${operation} requires writePolicy enabled for ${collection.name}`],
+      [`${operation} requires writePolicy enabled ${collection.name}`],
       { code: "cms_write_disabled", status: 403 },
     );
   }
+
+  assertRoleAllowed(
+    actorRole,
+    collection.permissions?.content?.[operation] ??
+      permissions.content?.[operation] ??
+      DEFAULT_CMS_PERMISSIONS.content[operation],
+    `${operation} ${collection.name}`,
+  );
+}
+
+export function assertSchemaOperationAllowed(
+  config: CmsRuntimeConfig,
+  operation: CmsSchemaOperation,
+  actorRole: CmsRole,
+): void {
+  assertRoleAllowed(
+    actorRole,
+    config.permissions.schema?.[operation] ??
+      DEFAULT_CMS_PERMISSIONS.schema[operation],
+    `${operation} CMS schema`,
+  );
+}
+
+function assertRoleAllowed(
+  actorRole: CmsRole,
+  allowedRoles: CmsRole[] | undefined,
+  action: string,
+): void {
+  if (actorRole === "admin") return;
+  if ((allowedRoles ?? []).includes(actorRole)) return;
+
+  throw new CmsConfigError([`${action} is not allowed for ${actorRole}`], {
+    code: "cms_forbidden",
+    status: 403,
+  });
 }
 
 export function toPublicCmsConfig(config: CmsRuntimeConfig): CmsPublicConfig {
@@ -198,6 +280,7 @@ export function toPublicCmsConfig(config: CmsRuntimeConfig): CmsPublicConfig {
     environment: config.environment,
     defaultAdapter: config.defaultAdapter,
     writePolicy: config.writePolicy,
+    permissions: config.permissions,
     collections: Object.values(config.collections),
   };
 }
@@ -347,6 +430,14 @@ export function normalizeCmsConfig(rawConfig: unknown): CmsRuntimeConfig {
     writePolicy,
     errors,
   );
+  const permissions = normalizePermissions(
+    raw.permissions,
+    "permissions",
+    errors,
+  ) ?? {
+    content: { ...DEFAULT_CMS_PERMISSIONS.content },
+    schema: { ...DEFAULT_CMS_PERMISSIONS.schema },
+  };
 
   if (false && Object.keys(collections).length === 0) {
     errors.push("at least one collection is required");
@@ -362,6 +453,7 @@ export function normalizeCmsConfig(rawConfig: unknown): CmsRuntimeConfig {
     environment: stringOr(raw.environment) ?? "default",
     defaultAdapter,
     writePolicy,
+    permissions,
     adapters: normalizeAdapters(raw.adapters),
     collections,
   };
@@ -634,6 +726,12 @@ function normalizeCollection(
       rawCollection.writePolicy,
       errors,
       defaultWritePolicy,
+    ),
+    permissions: normalizePermissions(
+      rawCollection.permissions,
+      `${name}.permissions`,
+      errors,
+      { fillDefaults: false },
     ),
     source: normalizeSource(rawCollection.source),
     operations: normalizeOperations(rawCollection.operations),
@@ -1041,6 +1139,91 @@ function normalizeWritePolicy(
     return fallback;
   }
   return rawValue as CmsWritePolicy;
+}
+
+function normalizePermissions(
+  rawPermissions: unknown,
+  label: string,
+  errors: string[],
+  options: { fillDefaults?: boolean } = { fillDefaults: true },
+): CmsPermissionsConfig | undefined {
+  const fillDefaults = options.fillDefaults !== false;
+  if (!isRecord(rawPermissions)) {
+    return fillDefaults
+      ? {
+          content: { ...DEFAULT_CMS_PERMISSIONS.content },
+          schema: { ...DEFAULT_CMS_PERMISSIONS.schema },
+        }
+      : undefined;
+  }
+
+  const content = normalizeRoleMap(
+    rawPermissions.content,
+    CONTENT_OPERATIONS,
+    DEFAULT_CMS_PERMISSIONS.content,
+    `${label}.content`,
+    errors,
+    { fillDefaults },
+  );
+  const schema = normalizeRoleMap(
+    rawPermissions.schema,
+    SCHEMA_OPERATIONS,
+    DEFAULT_CMS_PERMISSIONS.schema,
+    `${label}.schema`,
+    errors,
+    { fillDefaults },
+  );
+
+  const permissions: CmsPermissionsConfig = {};
+  if (content && Object.keys(content).length > 0) permissions.content = content;
+  if (schema && Object.keys(schema).length > 0) permissions.schema = schema;
+  return permissions;
+}
+
+function normalizeRoleMap<T extends string>(
+  rawMap: unknown,
+  operations: readonly T[],
+  defaults: Record<T, CmsRole[]>,
+  label: string,
+  errors: string[],
+  options: { fillDefaults: boolean },
+): Partial<Record<T, CmsRole[]>> | undefined {
+  if (!isRecord(rawMap)) {
+    return options.fillDefaults ? { ...defaults } : undefined;
+  }
+
+  const result: Partial<Record<T, CmsRole[]>> = {};
+  for (const operation of operations) {
+    if (operation in rawMap || options.fillDefaults) {
+      result[operation] = normalizeRoles(
+        rawMap[operation],
+        defaults[operation],
+        {
+          label: `${label}.${operation}`,
+          errors,
+        },
+      );
+    }
+  }
+  return result;
+}
+
+function normalizeRoles(
+  rawRoles: unknown,
+  fallback: CmsRole[],
+  options: { label: string; errors: string[] },
+): CmsRole[] {
+  if (!Array.isArray(rawRoles)) return [...fallback];
+  const roles: CmsRole[] = [];
+  for (const role of rawRoles) {
+    if (!CMS_ROLES.has(role as CmsRole)) {
+      options.errors.push(`${options.label} has invalid role: ${String(role)}`);
+      continue;
+    }
+    if (!roles.includes(role as CmsRole)) roles.push(role as CmsRole);
+  }
+  if (!roles.includes("admin")) roles.push("admin");
+  return roles;
 }
 
 function normalizeFilterValue(

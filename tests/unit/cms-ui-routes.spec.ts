@@ -95,4 +95,18 @@ describe("CMS UI routes", () => {
     expect(manager).toContain('htmlStyle.overflow = "hidden"');
     expect(shell).not.toContain('bodyStyle.position = "fixed"');
   });
+
+  it("offers CMS permissions management from the CMS header", () => {
+    const manager = readRepoFile("src/dashboard/lib/components/CmsManager.tsx");
+    const client = readRepoFile("src/dashboard/lib/components/cms/client.ts");
+
+    expect(manager).toContain("CMS permissions");
+    expect(manager).toContain("Default policy");
+    expect(manager).toContain("Collection overrides");
+    expect(manager).toContain("Clear overrides");
+    expect(manager).toContain("Save permissions");
+    expect(manager).toContain("onOpenPermissions");
+    expect(client).toContain("saveCmsPermissions");
+    expect(client).toContain('method: "PATCH"');
+  });
 });

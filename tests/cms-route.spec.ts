@@ -13,9 +13,21 @@ const auth = vi.hoisted(() => ({
     storeRepoUrl: "https://github.com/A-Guy-educ/kody-state",
     storeRef: "main",
   })),
-  getUserOctokit: vi.fn(async () => ({ __octokit: true })),
+  getUserOctokit: vi.fn(async () => ({
+    __octokit: true,
+    repos: {
+      getCollaboratorPermissionLevel: vi.fn(async () => ({
+        data: { permission: "admin" },
+      })),
+    },
+  })),
   verifyActorLogin: vi.fn(async () => ({
     identity: { login: "aguy", avatar_url: "", githubId: 1 },
+  })),
+  resolveActorFromToken: vi.fn(async () => ({
+    login: "aguy",
+    avatarUrl: "",
+    githubId: 1,
   })),
 }));
 
@@ -100,7 +112,11 @@ import {
   GET as documentGET,
   PATCH as documentPATCH,
 } from "../app/api/kody/cms/[collection]/[id]/route";
-import { GET as indexGET, POST as indexPOST } from "../app/api/kody/cms/route";
+import {
+  GET as indexGET,
+  PATCH as indexPATCH,
+  POST as indexPOST,
+} from "../app/api/kody/cms/route";
 import { POST as schemaPOST } from "../app/api/kody/cms/schema/route";
 
 function request(url = "https://dash.test/api/kody/cms") {
@@ -234,6 +250,93 @@ describe("CMS API routes", () => {
     expect(auth.verifyActorLogin).not.toHaveBeenCalled();
   });
 
+  it("updates CMS permissions in state repo", async () => {
+    const rootConfig = {
+      path: "cms/config.json",
+      sha: "config-sha",
+      content: JSON.stringify({
+        version: 1,
+        name: "Example CMS",
+        environment: "default",
+        defaultAdapter: "mongodb",
+        writePolicy: "enabled",
+        collections: ["collections/lessons.json"],
+      }),
+    };
+    const lessonsConfig = {
+      path: "cms/collections/lessons.json",
+      sha: "lessons-sha",
+      content: JSON.stringify({
+        name: "lessons",
+        label: "Lessons",
+        adapter: "mongodb",
+        writePolicy: "enabled",
+        source: { collection: "lessons", idField: "_id" },
+        operations: {
+          list: true,
+          get: true,
+          search: true,
+          create: true,
+          update: true,
+          delete: true,
+        },
+        fields: [{ name: "_id", type: "id" }],
+        filters: [],
+      }),
+    };
+    stateRepo.readStateText
+      .mockResolvedValueOnce(rootConfig)
+      .mockResolvedValueOnce(lessonsConfig)
+      .mockResolvedValueOnce(rootConfig)
+      .mockResolvedValueOnce(lessonsConfig);
+    service.listCmsCollections.mockResolvedValueOnce({
+      configured: true,
+      version: 1,
+      name: "Example CMS",
+      environment: "default",
+      writePolicy: "enabled",
+      permissions: {
+        content: {
+          list: ["viewer", "editor", "admin"],
+          get: ["viewer", "editor", "admin"],
+          search: ["viewer", "editor", "admin"],
+          create: ["editor", "admin"],
+          update: ["editor", "admin"],
+          delete: ["admin"],
+        },
+        schema: { generate: ["admin"], refresh: ["admin"], edit: ["admin"] },
+      },
+      collections: [],
+    });
+
+    const res = await indexPATCH(
+      jsonRequest("https://dash.test/api/kody/cms", "PATCH", {
+        collections: [
+          {
+            name: "lessons",
+            permissions: {
+              content: { update: ["editor"], delete: ["admin"] },
+            },
+          },
+        ],
+      }),
+    );
+
+    expect(res.status).toBe(200);
+    const write = stateRepo.writeStateFiles.mock.calls[0][0] as {
+      message: string;
+      files: Array<{ path: string; content: string }>;
+    };
+    expect(write.message).toBe("chore(cms): update CMS permissions");
+    const lessonFile = write.files.find(
+      (file: { path: string }) => file.path === "cms/collections/lessons.json",
+    );
+    expect(JSON.parse(lessonFile!.content).permissions.content).toMatchObject({
+      update: ["editor", "admin"],
+      delete: ["admin"],
+    });
+  });
+
   it("does not overwrite an existing CMS config", async () => {
     stateRepo.readStateText.mockResolvedValueOnce({
       path: "A-Guy-Web/cms/config.json",
@@ -271,6 +374,21 @@ describe("CMS API routes", () => {
       environment: "default",
       defaultAdapter: "mongodb",
       writePolicy: "enabled",
+      permissions: {
+        content: {
+          list: ["viewer", "editor", "admin"],
+          get: ["viewer", "editor", "admin"],
+          search: ["viewer", "editor", "admin"],
+          create: ["editor", "admin"],
+          update: ["editor", "admin"],
+          delete: ["admin"],
+        },
+        schema: {
+          generate: ["admin"],
+          refresh: ["admin"],
+          edit: ["admin"],
+        },
+      },
       collections: [
         {
           name: "lessons",
