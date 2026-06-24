@@ -29,7 +29,6 @@ import {
   type ModelMessage,
 } from "ai";
 import {
-  AGENT_KODY,
   getAgent,
   isValidAgentId,
   type AgentConfig,
@@ -111,7 +110,10 @@ import {
   isValidSlug as isValidAgentSlug,
   readResolvedAgentFile,
 } from "@dashboard/lib/agent-files";
-import { buildAgentChatIdentity } from "@dashboard/lib/agent-chat-identity";
+import {
+  appendAgentChatSpeakerOverride,
+  buildAgentChatIdentity,
+} from "@dashboard/lib/agent-chat-identity";
 
 export const runtime = "nodejs";
 // Research turns can chain up to ~10 tool rounds (search → read → blame → …)
@@ -519,7 +521,7 @@ export async function POST(req: NextRequest) {
   // not affect model selection; it's a per-turn prompt overlay only.
   const resolution = await resolveChatModel(req, body.model);
   if ("error" in resolution) return resolution.error;
-  const { model, resolvedModel, apiKey } = resolution;
+  const { model, resolvedModel } = resolution;
   const modelId = resolvedModel.id;
   const actorResult = await verifyActorLogin(req, body.actorLogin);
   if (actorResult instanceof NextResponse) return actorResult;
@@ -655,9 +657,6 @@ export async function POST(req: NextRequest) {
       ];
     }
   }
-  const agent: AgentConfig =
-    requestedAgent.backend === "kody-direct" ? requestedAgent : AGENT_KODY;
-
   const vibeMode = body.vibeMode === true;
 
   // In vibe mode the agent decides Fly vs. Live without asking. Probe
@@ -682,6 +681,8 @@ export async function POST(req: NextRequest) {
   const agentSlug =
     typeof body.agentSlug === "string" ? body.agentSlug.trim() : "";
   let activeAgentIdentity = chatBundle.agentIdentity;
+  let addressedAgentMember: Awaited<ReturnType<typeof readResolvedAgentFile>> =
+    null;
   if (agentSlug) {
     if (!isValidAgentSlug(agentSlug)) {
       clearGitHubContext();
@@ -708,6 +709,7 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "agent_not_found" }, { status: 404 });
     }
     activeAgentIdentity = buildAgentChatIdentity(agentMember);
+    addressedAgentMember = agentMember;
   }
 
   // Build the per-request tool set FIRST. The tool list feeds into the
@@ -959,6 +961,10 @@ export async function POST(req: NextRequest) {
   const promptWithReminders = voiceMode
     ? assembledPrompt
     : `${assembledPrompt}\n\n${CRITICAL_REMINDERS_MD}`;
+  const promptWithSpeakerOverride = appendAgentChatSpeakerOverride(
+    promptWithReminders,
+    addressedAgentMember,
+  );
 
   // Voice modality is layered onto the FULLY-ASSEMBLED prompt, appended
   // LAST so its rules ("no markdown, short sentences, symbols-as-words")
@@ -966,7 +972,7 @@ export async function POST(req: NextRequest) {
   // which otherwise teach the model to reply in bullet-heavy markdown.
   // The agent's brain and tools are untouched — the user picks the brain
   // in the dropdown; only the output shape changes.
-  const systemPrompt = applyVoiceOverlay(promptWithReminders, voiceMode);
+  const systemPrompt = applyVoiceOverlay(promptWithSpeakerOverride, voiceMode);
 
   // Build a tool-name → description map from the merged tool set. Every
   // tool in this repo calls `tool({ description, inputSchema, execute })`

@@ -23,3 +23,27 @@ export function buildAgentChatIdentity(
     body,
   ].join("\n\n");
 }
+
+export function buildAgentChatSpeakerOverride(
+  agent: Pick<AgentFile, "slug" | "title" | "body">,
+): string {
+  const body = agent.body?.trim() || "(No agent profile body configured.)";
+
+  return [
+    "## Addressed agent speaker override",
+    `The user addressed @${agent.slug}. The assistant speaker for this turn is ${agent.title}.`,
+    "Reply in first person as this agent. Do not describe this agent from Kody's point of view.",
+    "Do not call tools just to learn who you are; the profile below is authoritative for identity questions.",
+    "Do not dispatch a GitHub run, create a control issue, or tell the user to wait for a runner.",
+    "## Addressed agent profile",
+    body,
+  ].join("\n\n");
+}
+
+export function appendAgentChatSpeakerOverride(
+  prompt: string,
+  agent: Pick<AgentFile, "slug" | "title" | "body"> | null,
+): string {
+  if (!agent) return prompt;
+  return `${prompt}\n\n${buildAgentChatSpeakerOverride(agent)}`;
+}
