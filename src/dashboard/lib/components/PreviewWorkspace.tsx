@@ -23,21 +23,28 @@ import { PreviewEnvSwitcher } from "./PreviewEnvSwitcher";
 import { PreviewEnvForm } from "./PreviewEnvForm";
 import {
   addEnvironment,
-  addUploadedEnvironment,
+  addRepoViewEnvironment,
   expiredUploads,
+  normalizeEnvUrl,
+  repoViewIdFromPath,
   resolveEnvironments,
   setEnvExpiry,
   STATIC_PREVIEW_TTL_MS,
   type PreviewEnvironment,
 } from "../preview-environments";
+import { destroyStaticPreview } from "../previews/static-preview-client";
 import {
-  destroyStaticPreview,
-  uploadStaticPreview,
-} from "../previews/static-preview-client";
+  deleteRepoView,
+  mintRepoViewTicket,
+  tokenizeRepoViewUrl,
+  uploadRepoView,
+} from "../previews/repo-view-client";
+import { createUploadContext } from "../previews/upload-context";
 import {
   fetchDashboardConfig,
   saveDashboardConfig,
 } from "../dashboard-config/client";
+import { previewChatContextBlock } from "../chat/preview-context";
 import {
   getStoredAuth,
   RateLimitError,
@@ -49,10 +56,55 @@ function selectionKey(owner: string, repo: string): string {
   return `kody.previewEnv.${owner}/${repo}`;
 }
 
+function repoViewUrlLooksLikePdf(url: string | undefined): boolean {
+  if (!url) return false;
+  try {
+    const parsed = new URL(url, "http://kody.local");
+    return parsed.pathname.toLowerCase().endsWith(".pdf");
+  } catch {
+    return /\.pdf(?:[?#]|$)/i.test(url);
+  }
+}
+
+function isTransientRepoViewUrl(url: string): boolean {
+  try {
+    const parsed = new URL(
+      url,
+      typeof window === "undefined"
+        ? "http://kody.local"
+        : window.location.origin,
+    );
+    return parsed.pathname.startsWith("/api/kody/views/_t/");
+  } catch {
+    return url.startsWith("/api/kody/views/_t/");
+  }
+}
+
+function labelFromPreviewUrl(url: string): string {
+  try {
+    const parsed = new URL(
+      url,
+      typeof window === "undefined"
+        ? "http://kody.local"
+        : window.location.origin,
+    );
+    const host = parsed.hostname.replace(/^www\./, "");
+    const path = parsed.pathname.replace(/\/+$/, "");
+    if (!path || path === "/") return host || "Saved URL";
+    const segments = path.split("/").filter(Boolean);
+    const last = segments[segments.length - 1] ?? "";
+    const suffix = last.replace(/[-_]+/g, " ").trim();
+    return suffix ? `${host} ${suffix}` : host || "Saved URL";
+  } catch {
+    return "Saved URL";
+  }
+}
+
 export function PreviewWorkspace() {
   const queryClient = useQueryClient();
   const { githubUser } = useGitHubIdentity();
-  const { setComposerInjection, setAttachmentInjection } = useChatScope();
+  const { setComposerInjection, setAttachmentInjection, setPreviewContext } =
+    useChatScope();
 
   const owner = getStoredAuth()?.owner ?? "";
   const repo = getStoredAuth()?.repo ?? "";
@@ -106,7 +158,37 @@ export function PreviewWorkspace() {
 
   const selectedEnv =
     environments.find((e) => e.id === selectedId) ?? environments[0] ?? null;
-  const baseUrl = selectedEnv?.url ?? null;
+  const repoViewId = repoViewIdFromPath(selectedEnv?.repoViewPath);
+  const isRepoViewPdf =
+    !!repoViewId && repoViewUrlLooksLikePdf(selectedEnv?.url);
+  const viewTicketQuery = useQuery({
+    queryKey: ["kody-repo-view-ticket", owner, repo, repoViewId],
+    queryFn: () => mintRepoViewTicket(repoViewId!),
+    enabled: !!repoViewId && !!owner && !!repo,
+    staleTime: 15 * 60 * 1000,
+    retry: false,
+  });
+  const baseUrl =
+    selectedEnv?.url && repoViewId
+      ? viewTicketQuery.data
+        ? tokenizeRepoViewUrl(selectedEnv.url, viewTicketQuery.data.token)
+        : null
+      : (selectedEnv?.url ?? null);
+
+  useEffect(() => {
+    setPreviewContext(previewChatContextBlock(selectedEnv));
+    return () => setPreviewContext(null);
+  }, [selectedEnv, setPreviewContext]);
+
+  useEffect(() => {
+    if (viewTicketQuery.error) {
+      toast.error(
+        viewTicketQuery.error instanceof Error
+          ? viewTicketQuery.error.message
+          : "Failed to open repo-backed view",
+      );
+    }
+  }, [viewTicketQuery.error]);
 
   const saveMutation = useMutation({
     mutationFn: (next: PreviewEnvironment[]) =>
@@ -135,24 +217,62 @@ export function PreviewWorkspace() {
     if (created) selectEnv(created);
   };
 
-  // Upload a file → boot a Fly static preview → add it as an environment and
-  // select it. The environment carries the staticId so removal tears the Fly
-  // app down (see removeStatic + PreviewEnvSwitcher.handleRemove), and an
-  // expiresAt so it auto-reaps after the TTL even if nobody deletes it.
-  const uploadFile = async (file: File): Promise<void> => {
+  const saveCurrentUrlAsEnvironment = async (url: string): Promise<void> => {
+    if (isTransientRepoViewUrl(url)) {
+      toast.info("Repo-backed views are already saved as environments");
+      return;
+    }
+    const normalizedUrl = normalizeEnvUrl(url);
+    if (!normalizedUrl) {
+      toast.error("Couldn't save current URL");
+      return;
+    }
+    const existing = environments.find(
+      (env) => normalizeEnvUrl(env.url) === normalizedUrl,
+    );
+    if (existing) {
+      selectEnv(existing);
+      toast.info(`"${existing.label}" is already saved`);
+      return;
+    }
+    const next = addEnvironment(
+      environments,
+      labelFromPreviewUrl(normalizedUrl),
+      normalizedUrl,
+    );
+    const created = next[next.length - 1];
+    if (!created || created.url !== normalizedUrl) {
+      toast.error("Couldn't save current URL");
+      return;
+    }
+    await persist(next);
+    selectEnv(created);
+    toast.success(`Saved "${created.label}"`);
+  };
+
+  // Upload file(s) into the connected repo under .kody/views/<id> and
+  // add the dashboard-served URL as a named preview environment.
+  const uploadFiles = async (files: File[]): Promise<void> => {
+    if (files.length === 0) return;
     try {
-      const res = await uploadStaticPreview(file);
-      const next = addUploadedEnvironment(
+      const uploadContext =
+        files.length === 1 ? await createUploadContext(files[0]!) : undefined;
+      const res = await uploadRepoView(files);
+      const next = addRepoViewEnvironment(
         environments,
         res.name,
         res.url,
-        res.id,
-        Date.now() + STATIC_PREVIEW_TTL_MS,
+        res.repoPath,
+        uploadContext,
       );
       await persist(next);
       const created = next[next.length - 1];
       if (created) selectEnv(created);
-      toast.success(`Serving "${res.name}" — ready in a few seconds`);
+      toast.success(
+        files.length === 1
+          ? `Saved "${res.name}" to ${res.repoPath}`
+          : `Saved ${files.length} files to ${res.repoPath}`,
+      );
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Upload failed");
       throw err;
@@ -165,6 +285,16 @@ export function PreviewWorkspace() {
     } catch (err) {
       toast.error(
         err instanceof Error ? err.message : "Failed to destroy preview",
+      );
+    }
+  };
+
+  const removeRepoView = async (repoViewPath: string): Promise<void> => {
+    try {
+      await deleteRepoView(repoViewPath);
+    } catch (err) {
+      toast.error(
+        err instanceof Error ? err.message : "Failed to delete stored view",
       );
     }
   };
@@ -209,11 +339,21 @@ export function PreviewWorkspace() {
     <section className="relative flex-1 min-w-0 min-h-0 flex flex-col">
       <PreviewPane
         baseUrl={baseUrl}
-        isResolving={false}
+        isResolving={!!repoViewId && viewTicketQuery.isLoading}
         owner={owner}
         repo={repo}
+        showBrowserChrome
+        iframeSandbox={
+          isRepoViewPdf
+            ? null
+            : repoViewId
+              ? "allow-scripts allow-forms allow-popups allow-downloads"
+              : undefined
+        }
         onComposerInjection={setComposerInjection}
         onAttachmentInjection={setAttachmentInjection}
+        onSaveCurrentUrl={saveCurrentUrlAsEnvironment}
+        isSavingCurrentUrl={saveMutation.isPending}
         leadingToolbar={
           environments.length > 0 ? (
             <PreviewEnvSwitcher
@@ -222,10 +362,12 @@ export function PreviewWorkspace() {
               onSelect={selectEnv}
               onSave={persist}
               onAdd={addFirst}
-              onUpload={uploadFile}
+              onUpload={uploadFiles}
               onRemoveStatic={removeStatic}
+              onRemoveRepoView={removeRepoView}
               onExtend={extendEnv}
               isSaving={saveMutation.isPending}
+              variant="address"
             />
           ) : null
         }
@@ -248,7 +390,7 @@ export function PreviewWorkspace() {
                     Point Kody at a running deployment — Production, Staging,
                     Dev, or any URL. Add more later from the switcher. Stored
                     per repo at{" "}
-                    <code className="text-zinc-400">.kody/dashboard.json</code>.
+                    <code className="text-zinc-400">state dashboard.json</code>.
                   </p>
                 </div>
                 <PreviewEnvForm
@@ -264,10 +406,11 @@ export function PreviewWorkspace() {
                 <input
                   ref={emptyUploadRef}
                   type="file"
+                  multiple
                   className="hidden"
                   onChange={(e) => {
-                    const f = e.target.files?.[0];
-                    if (f) void uploadFile(f);
+                    const files = Array.from(e.target.files ?? []);
+                    if (files.length > 0) void uploadFiles(files);
                     if (emptyUploadRef.current)
                       emptyUploadRef.current.value = "";
                   }}
@@ -278,7 +421,7 @@ export function PreviewWorkspace() {
                   className="inline-flex items-center justify-center gap-2 rounded-md border border-zinc-700 bg-zinc-800/40 px-3 py-1.5 text-xs font-medium text-zinc-200 hover:bg-zinc-800 transition"
                 >
                   <Upload className="w-3.5 h-3.5" />
-                  Upload a file (HTML, PDF, image…)
+                  Upload view files
                 </button>
               </div>
             </div>

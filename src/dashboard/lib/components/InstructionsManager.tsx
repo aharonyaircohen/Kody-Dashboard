@@ -46,16 +46,47 @@ interface InstructionsResource {
   htmlUrl: string;
 }
 
-const instructionsQueryKey = ["kody-instructions"] as const;
-const basePromptQueryKey = ["kody-instructions-base"] as const;
-const fullPromptQueryKey = ["kody-instructions-full"] as const;
+export interface InstructionsQueryScope {
+  owner?: string | null;
+  repo?: string | null;
+}
+
+function instructionsQueryScopeFromAuth(
+  auth: { owner?: string | null; repo?: string | null } | null | undefined,
+): InstructionsQueryScope {
+  return {
+    owner: auth?.owner ?? null,
+    repo: auth?.repo ?? null,
+  };
+}
+
+export const instructionsQueryKeys = {
+  all: ["kody-instructions"] as const,
+  file: (scope: InstructionsQueryScope = {}) =>
+    ["kody-instructions", scope.owner ?? null, scope.repo ?? null] as const,
+  basePrompt: (scope: InstructionsQueryScope = {}) =>
+    [
+      "kody-instructions-base",
+      scope.owner ?? null,
+      scope.repo ?? null,
+    ] as const,
+  fullPrompt: (scope: InstructionsQueryScope = {}) =>
+    [
+      "kody-instructions-full",
+      scope.owner ?? null,
+      scope.repo ?? null,
+    ] as const,
+};
 
 type PromptView = "base" | "full";
 
 async function fetchInstructions(
   headers: Record<string, string>,
 ): Promise<InstructionsResource | null> {
-  const res = await fetch("/api/kody/instructions", { headers });
+  const res = await fetch("/api/kody/instructions", {
+    headers,
+    cache: "no-store",
+  });
   const json = (await res.json().catch(() => ({}))) as {
     instructions?: InstructionsResource | null;
     error?: string;
@@ -71,7 +102,10 @@ async function fetchPrompt(
   headers: Record<string, string>,
   variant: PromptView,
 ): Promise<string> {
-  const res = await fetch(`/api/kody/instructions/${variant}`, { headers });
+  const res = await fetch(`/api/kody/instructions/${variant}`, {
+    headers,
+    cache: "no-store",
+  });
   const json = (await res.json().catch(() => ({}))) as {
     prompt?: string;
     error?: string;
@@ -154,11 +188,13 @@ function InstructionsManagerInner() {
     ...buildAuthHeaders(auth),
   };
   const actorLogin = auth?.user.login;
+  const queryScope = instructionsQueryScopeFromAuth(auth);
+  const fileQueryKey = instructionsQueryKeys.file(queryScope);
 
   const queryClient = useQueryClient();
   const { data, isLoading, error, refetch } =
     useQuery<InstructionsResource | null>({
-      queryKey: instructionsQueryKey,
+      queryKey: fileQueryKey,
       queryFn: () => fetchInstructions(headers),
       enabled: !!auth,
       staleTime: 30_000,
@@ -170,14 +206,14 @@ function InstructionsManagerInner() {
   const dialogOpen = promptDialog !== null;
 
   const basePromptQuery = useQuery<string>({
-    queryKey: basePromptQueryKey,
+    queryKey: instructionsQueryKeys.basePrompt(queryScope),
     queryFn: () => fetchPrompt(headers, "base"),
     enabled: dialogOpen && !!auth,
     staleTime: 5 * 60_000,
   });
 
   const fullPromptQuery = useQuery<string>({
-    queryKey: fullPromptQueryKey,
+    queryKey: instructionsQueryKeys.fullPrompt(queryScope),
     queryFn: () => fetchPrompt(headers, "full"),
     enabled: dialogOpen && !!auth,
     staleTime: 60_000,
@@ -193,7 +229,8 @@ function InstructionsManagerInner() {
   const save = useMutation({
     mutationFn: () => saveInstructions(headers, draft, data?.sha, actorLogin),
     onSuccess: (res) => {
-      queryClient.setQueryData(instructionsQueryKey, res);
+      queryClient.invalidateQueries({ queryKey: instructionsQueryKeys.all });
+      queryClient.setQueryData(fileQueryKey, res);
       toast.success("Instructions saved");
     },
     onError: (err: Error) =>
@@ -203,7 +240,8 @@ function InstructionsManagerInner() {
   const remove = useMutation({
     mutationFn: () => deleteInstructions(headers),
     onSuccess: () => {
-      queryClient.setQueryData(instructionsQueryKey, null);
+      queryClient.invalidateQueries({ queryKey: instructionsQueryKeys.all });
+      queryClient.setQueryData(fileQueryKey, null);
       setDraft("");
       toast.success("Instructions removed");
     },
@@ -296,7 +334,25 @@ function InstructionsManagerInner() {
         )}
 
         {!isLoading && !error && (
-          <div className="space-y-2">
+          <div className="space-y-3">
+            <div className="rounded-md border border-white/[0.08] bg-white/[0.03] p-3">
+              <div className="flex items-center justify-between gap-3">
+                <p className="text-xs font-medium text-white/70">Active file</p>
+                <code className="font-mono text-[11px] text-cyan-200">
+                  .kody/instructions.md
+                </code>
+              </div>
+              <div className="mt-3 space-y-1.5">
+                <p className="text-xs font-medium text-white/70">
+                  Current saved content
+                </p>
+                <pre className="max-h-48 overflow-auto whitespace-pre-wrap rounded border border-white/[0.06] bg-black/30 p-3 font-mono text-xs leading-relaxed text-white/65">
+                  {data?.body?.trim()
+                    ? data.body
+                    : "No instructions file exists yet."}
+                </pre>
+              </div>
+            </div>
             <Label
               htmlFor="instructions-body"
               className="text-sm text-white/70"
@@ -361,7 +417,7 @@ function InstructionsManagerInner() {
               Read-only. <strong>Base</strong> is the static agent prompt your
               instructions are layered on top of. <strong>Full</strong> is what
               actually gets sent to the model on a neutral turn — base + repo
-              block + memory index + your instructions (no task / duty / vibe /
+              block + memory index + your instructions (no task / agentResponsibility / vibe /
               voice overlay; those only exist mid-chat).
             </DialogDescription>
           </DialogHeader>

@@ -1,9 +1,9 @@
 /**
  * @fileType utility
  * @domain kody
- * @pattern duty-trust-file-store
- * @ai-summary Server-only read/CAS-write of the duty trust ledger as a single
- *   JSON file on the `kody-state` branch (`.kody/state/trust.json`) — NOT an
+ * @pattern agentResponsibility-trust-file-store
+ * @ai-summary Server-only read/CAS-write of the agentResponsibility trust ledger as a single
+ *   JSON file in the external state repo (`state/trust.json`) — NOT an
  *   issue. Modeled on `notifications/prefs-store.ts`:
  *     - reads use ETag/If-None-Match (free 304 when unchanged) + a short cache;
  *     - writes use read → mutate → write-with-SHA → retry-on-409 (the file SHA
@@ -14,8 +14,8 @@
  *   verdicts from different dashboard instances.
  */
 import "server-only";
-import { STATE_BRANCH } from "../state-branch";
 import { getOwner, getRepo, getOctokit } from "../github-client";
+import { readStateText, writeStateText } from "../state-repo";
 import {
   EMPTY_TRUST_MANIFEST,
   TRUST_FILE_PATH,
@@ -59,24 +59,18 @@ async function fetchContent(useEtag: boolean): Promise<ContentResult | null> {
   const cached = cache.get(key);
   const octokit = getOctokit();
   try {
-    const res = await octokit.repos.getContent({
-      owner,
-      repo,
-      path: TRUST_FILE_PATH,
-      ref: STATE_BRANCH,
+    const file = await readStateText(octokit, owner, repo, TRUST_FILE_PATH, {
       headers:
         useEtag && cached?.etag ? { "If-None-Match": cached.etag } : undefined,
     });
-    const etag = (res.headers as Record<string, string | undefined>)?.etag;
-    if (!Array.isArray(res.data) && "content" in res.data && res.data.content) {
-      const raw = Buffer.from(res.data.content, "base64").toString("utf-8");
-      const manifest = parseTrustManifest(raw);
+    if (file) {
+      const manifest = parseTrustManifest(file.content);
       cache.set(key, {
         data: manifest,
         expires: Date.now() + CACHE_TTL_MS,
-        etag,
+        etag: file.etag,
       });
-      return { manifest, sha: res.data.sha, etag };
+      return { manifest, sha: file.sha, etag: file.etag };
     }
     return { manifest: structuredClone(EMPTY_TRUST_MANIFEST) };
   } catch (error: unknown) {
@@ -125,14 +119,14 @@ export async function mutateTrust(
     const body = serializeTrustManifest(next);
     try {
       const octokit = getOctokit();
-      await octokit.repos.createOrUpdateFileContents({
+      await writeStateText({
+        octokit,
         owner,
         repo,
         path: TRUST_FILE_PATH,
-        message: "chore(trust): update duty trust ledger",
-        content: Buffer.from(body, "utf-8").toString("base64"),
+        message: "chore(trust): update agentResponsibility trust ledger",
+        content: body,
         sha: current?.sha,
-        branch: STATE_BRANCH,
       });
       cache.set(key, { data: next, expires: Date.now() + CACHE_TTL_MS });
       return next;

@@ -9,11 +9,11 @@
 import { useEffect, useRef, useState } from "react";
 import type { KodyTask } from "../types";
 import { Button } from "@dashboard/ui/button";
-import { Checkbox } from "@dashboard/ui/checkbox";
 import { FixRequestDialog } from "./FixRequestDialog";
 import { ReportIssueDialog } from "./ReportIssueDialog";
 import { ConfirmDialog } from "./ConfirmDialog";
 import { SimpleTooltip } from "./SimpleTooltip";
+import { MergeApprovalDialog } from "./MergeApprovalDialog";
 import {
   XCircle,
   Wrench,
@@ -87,13 +87,9 @@ export function PreviewActions({
   const [showFixDialog, setShowFixDialog] = useState(false);
   const [showReportDialog, setShowReportDialog] = useState(false);
   const [showCancelConfirm, setShowCancelConfirm] = useState(false);
+  const [showMergeDialog, setShowMergeDialog] = useState(false);
   const [isCancelling, setIsCancelling] = useState(false);
   const [isApproving, setIsApproving] = useState(false);
-  // Issue #129: "Also approve drafts" toggle. Default ON so the
-  // existing one-click "Approve and forget" flow keeps working on
-  // draft PRs — when OFF, the user has explicitly opted into
-  // hard-blocking Approve on drafts.
-  const [alsoApproveDrafts, setAlsoApproveDrafts] = useState(true);
   const { githubUser } = useGitHubIdentity();
   const queryClient = useQueryClient();
 
@@ -170,26 +166,23 @@ export function PreviewActions({
    * pending, the auto-merge effect below fires the merge as soon as
    * checks turn green — no separate manual merge button needed.
    *
-   * Issue #129: when the PR is in draft state, the backend's
-   * `createReview({event:"APPROVE"})` is rejected by GitHub. The
-   * "Also approve drafts" toggle (default on) tells the backend to
-   * flip the PR to ready-for-review first. When the toggle is OFF
-   * and the PR is still a draft, hard-block with a clear error so
-   * the user knows the fix.
+   * Draft handling is chosen inside MergeApprovalDialog. When the PR is in
+   * draft state, GitHub rejects `createReview({event:"APPROVE"})` unless the
+   * backend first flips the PR to ready-for-review.
    */
-  const handleApprove = async () => {
-    if (pr.isDraft && !alsoApproveDrafts) {
+  const handleApprove = async (approveDrafts: boolean): Promise<boolean> => {
+    if (pr.isDraft && !approveDrafts) {
       toast.error(
         "This PR is a draft — turn on 'Also approve drafts' to continue.",
       );
-      return;
+      return false;
     }
     setIsApproving(true);
     try {
       await Promise.all([
         tasksApi.approveUI(task.issueNumber, actorLogin),
         tasksApi.approvePR(task.issueNumber, actorLogin, {
-          approveDrafts: alsoApproveDrafts,
+          approveDrafts,
         }),
       ]);
       applyOptimisticLabel(queryClient, task.issueNumber, "ui-approved");
@@ -206,8 +199,10 @@ export function PreviewActions({
       } else {
         toast.success("Approved — will merge when CI passes");
       }
+      return true;
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Failed to approve");
+      return false;
     } finally {
       setIsApproving(false);
     }
@@ -270,7 +265,7 @@ export function PreviewActions({
             <Button
               variant="outline"
               size="sm"
-              onClick={handleApprove}
+              onClick={() => setShowMergeDialog(true)}
               disabled={isApproving}
               className="gap-1.5 cursor-pointer text-zinc-200 bg-transparent border-zinc-700 transition-all hover:bg-zinc-800/60 hover:border-zinc-600 hover:text-zinc-50 active:scale-[0.97]"
             >
@@ -290,27 +285,6 @@ export function PreviewActions({
                 </span>
               )}
             </Button>
-          )}
-
-          {/* Issue #129: "Also approve drafts" toggle. Default ON — keeps the
-              one-click Approve-and-forget flow working on draft PRs by
-              asking the backend to mark the PR ready-for-review first.
-              GitHub rejects `createReview({event:"APPROVE"})` on drafts. */}
-          {!isUIApproved && (
-            <label
-              className="flex items-center gap-1.5 text-[11px] text-zinc-400 cursor-pointer select-none"
-              title="Mark the PR ready-for-review before approving (GitHub rejects approval on drafts)"
-            >
-              <Checkbox
-                checked={alsoApproveDrafts}
-                onCheckedChange={(checked) =>
-                  setAlsoApproveDrafts(checked === true)
-                }
-                aria-label="Also approve drafts"
-                className="h-3.5 w-3.5"
-              />
-              <span>Also approve drafts</span>
-            </label>
           )}
 
           {/* Report Issue — peer to Approve UI; visible until UI is approved.
@@ -429,6 +403,19 @@ export function PreviewActions({
         onClose={() => setShowReportDialog(false)}
         onSubmit={handleReportIssue}
         issueNumber={task.issueNumber}
+      />
+
+      <MergeApprovalDialog
+        prNumber={pr.number}
+        prTitle={pr.title}
+        branchName={pr.head.ref}
+        isOpen={showMergeDialog}
+        onClose={() => setShowMergeDialog(false)}
+        onMerged={onMerge}
+        onApprove={handleApprove}
+        isApproving={isApproving}
+        isApproved={isUIApproved && isPRApproved}
+        prIsDraft={pr.isDraft ?? false}
       />
 
       <ConfirmDialog

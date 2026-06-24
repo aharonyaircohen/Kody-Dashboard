@@ -2,13 +2,9 @@
  * @fileType util
  * @domain kody
  * @pattern ticked-files
- * @ai-summary One implementation of the "ticked markdown file" store —
- *   read/write `<dir>/<slug>.md` via the GitHub contents API. Duties and
- *   staff are the same mechanism (a markdown file the engine's
- *   job-tick chain enumerates and ticks); they differ only by directory,
- *   commit scope, and which cache to invalidate. `createTickedFiles`
- *   binds those three and returns the file API; `duties-files.ts` /
- *   `staff-files.ts` are thin presets over it.
+ * @ai-summary Markdown-backed store for ticked-file shaped records.
+ *   Agent still use `<dir>/<slug>.md`; agentResponsibilities use folder-backed storage in
+ *   `agentResponsibilities-files.ts` and share only the exported `TickFile` UI shape.
  *
  *   One file per definition. Path is the source of truth for identity
  *   (slug), file body is the markdown. Metadata (title, lastModified,
@@ -17,8 +13,24 @@
  */
 
 import type { Octokit } from "@octokit/rest";
-import { getOctokit, getOwner, getRepo } from "../github-client";
-import { STATE_BRANCH } from "../state-branch";
+import {
+  fetchCompanyActivity,
+  getOctokit,
+  getOwner,
+  getRepo,
+} from "../github-client";
+import {
+  deleteStateFile,
+  listStateDirectory,
+  readStateText,
+  resolveStateRepo,
+  stateRepoPath,
+  writeStateText,
+} from "../state-repo";
+import {
+  latestActivityByAgentResponsibility,
+  type CompanyActivityRecord,
+} from "../activity/company";
 import {
   joinFrontmatter,
   splitFrontmatter,
@@ -26,8 +38,10 @@ import {
   type ScheduleEvery,
 } from "./frontmatter";
 
+export type AgentResponsibilityCapabilityKind = "observe" | "act" | "verify";
+
 export interface TickFile {
-  /** Filename without `.md` — stable identity. */
+  /** Stable identity slug. */
   slug: string;
   /** First H1 of the body, or humanized slug fallback. */
   title: string;
@@ -38,56 +52,76 @@ export interface TickFile {
   /** Last commit timestamp affecting this file (ISO8601). */
   updatedAt: string;
   /**
-   * Last commit timestamp of the sibling `<slug>.state.json` (ISO8601),
-   * or `null` if the state file does not exist yet (never run). The
-   * engine writes `<slug>.state.json` every tick that acts — see
-   * `dispatchJobFileTicks` in kody2.
+   * Last visible tick time (ISO8601), from the state file or newer activity
+   * log. `null` means the dashboard cannot see run proof.
    */
   lastTickAt: string | null;
   /**
    * UTC ISO timestamp at which this file will next be eligible to act,
-   * read from `data.nextEligibleISO` in the state JSON. Each body
-   * instructs the agent to emit this on every tick. `null` when it has
-   * never run, or its body doesn't yet emit the field.
+   * read from `data.nextEligibleISO` in the state JSON. Each body instructs
+   * the agent to emit this on every tick. `null` when unavailable.
    */
   nextEligibleAt: string | null;
   /**
-   * Coarse result of the most recent tick — `data.lastOutcome` in the state
-   * JSON, stamped by the engine from the agent result. `null` when never run
-   * or running an engine that predates the field.
+   * Coarse result of the most recent tick, from state or activity. `null`
+   * when unknown or running an engine that predates the field.
    */
   lastOutcome: "completed" | "failed" | null;
   /** Wall-clock of the most recent tick (ms) — `data.lastDurationMs`, or null. */
   lastDurationMs: number | null;
   /**
-   * Per-file cadence, parsed from the frontmatter `every:` field.
+   * Per-record cadence, parsed from metadata.
    * `null` means "every cron wake" (the engine's 15-minute cron).
    * Engine-side gating ships separately — the dashboard always shows
    * whatever the file declares.
    */
   schedule: ScheduleEvery | null;
+  capabilityKind: AgentResponsibilityCapabilityKind | null;
   /**
-   * Mirrors `disabled: true` in the frontmatter. When `true` the engine
+   * Mirrors `disabled: true` in metadata. When `true` the engine
    * skips this file on every cron wake; manual triggers still fire. The
    * dashboard reads this to render the enable/disable toggle and the
    * "disabled" pill in list rows.
    */
   disabled: boolean;
   /**
-   * Assigned staff member (persona) slug from the `staff:` frontmatter, or
-   * `null` if none. Duty-only in practice — staff are personas and never
-   * declare a staff member. The dashboard reads this to render/seed the
-   * duty's staff picker; the engine scheduler skips duties with no staff.
+   * Assigned agent agent (agentIdentity) slug from metadata, or
+   * `null` if none. AgentResponsibility-only in practice — agent are agent identities and never
+   * declare a agent. The dashboard reads this to render/seed the
+   * agentResponsibility's agent picker; the engine scheduler skips agentResponsibilities with no agent.
    */
-  staff: string | null;
+  agent: string | null;
   /**
-   * GitHub logins this file's output should `@`-mention, parsed from the
-   * `mentions:` frontmatter (comma-separated, no `@`). Empty array when the
-   * key is absent. The dashboard reads it to render/seed the mentions input.
+   * Agent slug responsible for reviewing this agentResponsibility's output after it is
+   * produced. AgentResponsibility-only in practice; agent files return `null`.
+   */
+  reviewer: string | null;
+  /** Public `@kody <action>` name for agentResponsibilities; null for agent files. */
+  action: string | null;
+  /**
+   * GitHub logins this file's output should `@`-mention, parsed from metadata.
+   * Empty array when the key is absent. The dashboard reads it to render/seed
+   * the mentions input.
    */
   mentions: string[];
+  /** Primary implementation agentAction for this agentResponsibility, or null when unset. */
+  agentAction: string | null;
+  /** Multi-run agentAction slugs. */
+  agentActions: string[];
+  /** AgentResponsibility tool names from engine-facing metadata. */
+  agentResponsibilityTools: string[];
+  /** Optional tick script path. */
+  tickScript: string | null;
+  /** Context/report/agentResponsibility slugs this agentResponsibility reads. */
+  readsFrom: string[];
+  /** Report/context slugs this agentResponsibility writes. */
+  writesTo: string[];
   /** Convenience link to the file on github.com. */
   htmlUrl: string;
+  /** Runtime resolution source. Local repo assets win over store assets. */
+  source?: "local" | "store";
+  /** Store-linked assets are visible and runnable, but not editable locally. */
+  readOnly?: boolean;
 }
 
 export interface TickWriteOptions {
@@ -96,34 +130,69 @@ export interface TickWriteOptions {
   title: string;
   body: string;
   /**
-   * Per-file cadence to emit in frontmatter. `null` (or absent) writes
-   * no `every:` line, leaving the file on the global cron tick.
+   * Per-record cadence to persist. `null` (or absent) leaves the record on the
+   * global cron tick.
    */
   schedule?: ScheduleEvery | null;
   /**
-   * When `true`, emits `disabled: true` in frontmatter so the scheduler
-   * skips this file on every cron wake. Absent or `false` keeps it active.
+   * When `true`, persists disabled metadata so the scheduler skips this record
+   * on every cron wake. Absent or `false` keeps it active.
    */
   disabled?: boolean;
+  capabilityKind?: AgentResponsibilityCapabilityKind | null;
   /**
-   * Staff member (persona) slug to emit as `staff:` frontmatter. `null`/absent
-   * writes no `staff:` line. Only duties set this; staff files never do.
+   * Agent member (agentIdentity) slug. `null`/absent writes no agent assignment.
+   * Aliased to `agent` in the input; the engine reads `config.agent` from
+   * profile.json, so the dashboard writes `agent` to profile.json and
+   * agent files never do.
    */
-  staff?: string | null;
+  agent?: string | null;
   /**
-   * GitHub logins to emit as the `mentions:` frontmatter (comma-separated,
-   * no `@`). Empty / absent writes no `mentions:` line.
+   * Agent slug responsible for reviewing the output. `null`/absent writes no
+   * reviewer metadata.
+   */
+  reviewer?: string | null;
+  /**
+   * Public `@kody <action>` name. AgentResponsibilities should set this; agent files leave it
+   * absent.
+   */
+  action?: string | null;
+  /**
+   * GitHub logins to persist as mentions (without `@`). Empty / absent writes
+   * no mentions metadata.
    */
   mentions?: string[];
+  /** Primary implementation agentAction to persist. */
+  agentAction?: string | null;
+  /** Multi-run agentAction slugs to persist. */
+  agentActions?: string[];
+  /** AgentResponsibility tools to persist. */
+  agentResponsibilityTools?: string[];
+  /** Optional tick script path to persist. */
+  tickScript?: string | null;
+  /** Context/report/agentResponsibility slugs to persist as reads-from metadata. */
+  readsFrom?: string[];
+  /** Report/context slugs to persist as writes-to metadata. */
+  writesTo?: string[];
   /** SHA of the existing blob; omit on create. */
   sha?: string;
   /** Commit message override. */
   message?: string;
+  /**
+   * Raw profile.json field overrides. Keys are profile.json field names
+   * (e.g. `tickScript`, `readsFrom`, `writesTo`, `mentions`, `agentResponsibilityTools`,
+   * or any engine field the typed schema doesn't expose). Merged on top
+   * of the typed fields — typed values still win for the well-known keys
+   * the build function manages directly (name, describe, action, agent,
+   * reviewer, agentAction, schedule, disabled). Use this for advanced
+   * shapes the typed schema doesn't cover; pass `null` to clear a key.
+   */
+  extraProfile?: Record<string, unknown>;
 }
 
-/** Config that distinguishes one ticked-file kind (e.g. duties) from another. */
+/** Config that distinguishes one ticked-file kind (e.g. agentResponsibilities) from another. */
 export interface TickedFilesConfig {
-  /** Repo-relative directory holding the `.md` definitions. */
+  /** Repo-relative directory holding markdown definitions. */
   dir: string;
   /** Conventional-commit scope used in generated commit messages. */
   commitScope: string;
@@ -133,7 +202,7 @@ export interface TickedFilesConfig {
 
 export interface TickedFilesApi {
   listFiles(): Promise<TickFile[]>;
-  readFile(slug: string): Promise<TickFile | null>;
+  readFile(slug: string, octokitOverride?: Octokit): Promise<TickFile | null>;
   writeFile(opts: TickWriteOptions): Promise<TickFile>;
   deleteFile(octokit: Octokit, slug: string): Promise<void>;
   isValidSlug(slug: string): boolean;
@@ -200,64 +269,6 @@ export function parseTickedMarkdown(
   return { title, body, frontmatter };
 }
 
-async function getDefaultBranch(octokit: Octokit): Promise<string> {
-  const { data } = await octokit.repos.get({
-    owner: getOwner(),
-    repo: getRepo(),
-  });
-  return data.default_branch;
-}
-
-async function fetchLastCommitDate(
-  octokit: Octokit,
-  filePath: string,
-): Promise<string> {
-  try {
-    const { data } = await octokit.repos.listCommits({
-      owner: getOwner(),
-      repo: getRepo(),
-      path: filePath,
-      per_page: 1,
-    });
-    return (
-      data[0]?.commit.committer?.date ??
-      data[0]?.commit.author?.date ??
-      new Date().toISOString()
-    );
-  } catch {
-    return new Date().toISOString();
-  }
-}
-
-/**
- * Like `fetchLastCommitDate` but returns `null` when the file has no
- * commits (i.e. it doesn't exist yet). Used for `<slug>.state.json`
- * which is created by the engine on first tick — absence means
- * "never ticked," not an error.
- */
-async function fetchLastCommitDateOrNull(
-  octokit: Octokit,
-  filePath: string,
-  ref?: string,
-): Promise<string | null> {
-  try {
-    const { data } = await octokit.repos.listCommits({
-      owner: getOwner(),
-      repo: getRepo(),
-      path: filePath,
-      // State files live on the state branch — look up their history there.
-      ...(ref ? { sha: ref } : {}),
-      per_page: 1,
-    });
-    if (data.length === 0) return null;
-    return (
-      data[0]?.commit.committer?.date ?? data[0]?.commit.author?.date ?? null
-    );
-  } catch {
-    return null;
-  }
-}
-
 export interface TickStateFields {
   /** `data.nextEligibleISO` — when the file next becomes eligible to act. */
   nextEligibleAt: string | null;
@@ -273,8 +284,37 @@ const EMPTY_TICK_STATE: TickStateFields = {
   lastDurationMs: null,
 };
 
+function stateDirPath(dir: string): string {
+  return dir.replace(/^\.kody\/?/, "").replace(/\/+$/, "");
+}
+
+function tickStatePath(dir: string, slug: string): string {
+  return `${stateDirPath(dir)}/${slug}/state.json`;
+}
+
+async function fetchStateLastCommitDate(
+  octokit: Octokit,
+  filePath: string,
+): Promise<string | null> {
+  try {
+    const target = await resolveStateRepo(octokit, getOwner(), getRepo());
+    const { data } = await octokit.repos.listCommits({
+      owner: target.owner,
+      repo: target.repo,
+      path: stateRepoPath(target, filePath),
+      per_page: 1,
+    });
+    if (data.length === 0) return null;
+    return (
+      data[0]?.commit.committer?.date ?? data[0]?.commit.author?.date ?? null
+    );
+  } catch {
+    return null;
+  }
+}
+
 /**
- * Fetch and parse `<slug>.state.json` for the dashboard-relevant fields the
+ * Fetch and parse `<slug>/state.json` for the dashboard-relevant fields the
  * engine stamps each tick: `nextEligibleISO` (cadence guard), and — since the
  * Phase 3 engine change — `lastOutcome` / `lastDurationMs` (the last run's
  * result + duration). One fetch + parse yields all three. Missing file or
@@ -286,17 +326,11 @@ async function fetchTickState(
   slug: string,
 ): Promise<TickStateFields> {
   try {
-    const { data } = await octokit.repos.getContent({
-      owner: getOwner(),
-      repo: getRepo(),
-      path: `${dir}/${slug}.state.json`,
-      // Engine writes per-tick state to the dedicated state branch, not the
-      // default branch (where the `.md` definition lives). 404 → never ran.
-      ref: STATE_BRANCH,
+    const file = await readStateText(octokit, getOwner(), getRepo(), tickStatePath(dir, slug), {
+      headers: { "If-None-Match": "" },
     });
-    if (Array.isArray(data) || !("content" in data) || !data.content)
-      return EMPTY_TICK_STATE;
-    const raw = Buffer.from(data.content, "base64").toString("utf-8");
+    if (!file) return EMPTY_TICK_STATE;
+    const raw = file.content;
     const parsed: unknown = JSON.parse(raw);
     if (!parsed || typeof parsed !== "object") return EMPTY_TICK_STATE;
     const inner = (parsed as { data?: unknown }).data;
@@ -324,13 +358,47 @@ async function fetchTickState(
   }
 }
 
+const DUTY_ACTIVITY_DAY_FILES = 14;
+
+async function fetchRecentAgentResponsibilityActivity(): Promise<
+  Map<string, CompanyActivityRecord>
+> {
+  const records = await fetchCompanyActivity(1000, DUTY_ACTIVITY_DAY_FILES);
+  return latestActivityByAgentResponsibility(records);
+}
+
+function activityOutcome(
+  rec: CompanyActivityRecord | undefined,
+): "completed" | "failed" | null {
+  if (rec?.outcome === "completed" || rec?.outcome === "failed")
+    return rec.outcome;
+  return null;
+}
+
+function isSameOrNewer(candidate: string, current: string | null): boolean {
+  if (!current) return true;
+  const candidateMs = new Date(candidate).getTime();
+  const currentMs = new Date(current).getTime();
+  if (Number.isNaN(candidateMs)) return false;
+  if (Number.isNaN(currentMs)) return true;
+  return candidateMs >= currentMs;
+}
+
 function buildFileContent(
   title: string,
   body: string,
   schedule: ScheduleEvery | null,
   disabled: boolean,
-  staff: string | null,
+  agent: string | null,
+  reviewer: string | null,
+  action: string | null,
+  agentAction: string | null,
   mentions: string[],
+  agentActions: string[],
+  agentResponsibilityTools: string[],
+  tickScript: string | null,
+  readsFrom: string[],
+  writesTo: string[],
 ): string {
   // Strip any leading H1 the caller's body already carries so we never
   // double the title — `# ${title}` is the single canonical heading.
@@ -340,24 +408,55 @@ function buildFileContent(
       ? `# ${title.trim()}\n\n${trimmedBody}${trimmedBody.endsWith("\n") ? "" : "\n"}`
       : `# ${title.trim()}\n`;
   const fm: TickFrontmatter = {};
+  if (action?.trim()) fm.action = action.trim();
+  if (agentAction?.trim()) fm.agentAction = agentAction.trim();
   if (schedule) fm.every = schedule;
-  if (staff) fm.staff = staff;
+  if (agent) fm.agent = agent;
+  if (reviewer) fm.reviewer = reviewer.replace(/^@/, "");
   if (mentions.length > 0) fm.mentions = mentions;
+  if (agentActions.length > 0) fm.agentActions = agentActions;
+  if (agentResponsibilityTools.length > 0) fm.agentResponsibilityTools = agentResponsibilityTools;
+  if (tickScript?.trim()) fm.tickScript = tickScript.trim();
+  if (readsFrom.length > 0) fm.readsFrom = readsFrom;
+  if (writesTo.length > 0) fm.writesTo = writesTo;
   if (disabled) fm.disabled = true;
   return joinFrontmatter(fm, titled);
 }
 
+function effectiveAction(
+  dir: string,
+  slug: string,
+  frontmatter: TickFrontmatter,
+): string | null {
+  return frontmatter.action ?? (dir === ".kody/agent-responsibilities" ? slug : null);
+}
+
+function effectiveAgentAction(frontmatter: TickFrontmatter): string | null {
+  return (
+    frontmatter.agentAction ??
+    (frontmatter.agentActions?.length === 1 ? frontmatter.agentActions[0]! : null)
+  );
+}
+
+function legacyAgentActions(frontmatter: TickFrontmatter): string[] {
+  if (!frontmatter.agentActions?.length) return [];
+  if (!frontmatter.agentAction && frontmatter.agentActions.length === 1) {
+    return [];
+  }
+  return frontmatter.agentActions;
+}
+
 /**
  * Bind a directory, commit scope, and cache invalidator to produce the
- * file API for one ticked-file kind. Duties and staff each call this
- * once with their own config.
+ * file API for one ticked-file kind. Do not use this for agentResponsibilities; agentResponsibilities are
+ * folder-backed and must go through `agentResponsibilities-files.ts`.
  */
 export function createTickedFiles(config: TickedFilesConfig): TickedFilesApi {
   const { dir, commitScope, invalidateCache } = config;
-
-  function buildHtmlUrl(slug: string, branch: string | null): string {
-    const ref = branch ?? "HEAD";
-    return `https://github.com/${getOwner()}/${getRepo()}/blob/${ref}/${dir}/${slug}.md`;
+  if (dir === ".kody/agent-responsibilities") {
+    throw new Error(
+      "createTickedFiles: agentResponsibilities are folder-backed; use agentResponsibilities-files.ts",
+    );
   }
 
   /**
@@ -366,97 +465,99 @@ export function createTickedFiles(config: TickedFilesConfig): TickedFilesApi {
    */
   async function listFiles(): Promise<TickFile[]> {
     const octokit = getOctokit();
-    const branch = await getDefaultBranch(octokit).catch(() => null);
 
-    let entries: Array<{ name: string; sha: string; type: string }> = [];
-    try {
-      const { data } = await octokit.repos.getContent({
-        owner: getOwner(),
-        repo: getRepo(),
-        path: dir,
-      });
-      if (!Array.isArray(data)) return [];
-      entries = data as Array<{ name: string; sha: string; type: string }>;
-    } catch (error: unknown) {
-      if ((error as { status?: number })?.status === 404) return [];
-      throw error;
-    }
+    const { entries } = await listStateDirectory(
+      octokit,
+      getOwner(),
+      getRepo(),
+      stateDirPath(dir),
+      { headers: { "If-None-Match": "" } },
+    );
 
     const slugs = entries
       .filter((e) => e.type === "file")
-      .map((e) => ({ slug: slugFromName(e.name), sha: e.sha, name: e.name }))
+      .map((e) => ({ slug: slugFromName(e.name), name: e.name }))
       .filter(
-        (e): e is { slug: string; sha: string; name: string } =>
-          e.slug !== null,
+        (e): e is { slug: string; name: string } => e.slug !== null,
       );
 
-    // Build a set of slugs that have a sibling `.state.json` so we only
-    // pay for a commit-history fetch when the engine has actually ticked
-    // the file at least once. State files live on the dedicated state
-    // branch, not here — list that branch's copy of the dir to find them.
-    let stateEntries: Array<{ name: string; type: string }> = [];
-    try {
-      const { data } = await octokit.repos.getContent({
-        owner: getOwner(),
-        repo: getRepo(),
-        path: dir,
-        ref: STATE_BRANCH,
-      });
-      if (Array.isArray(data))
-        stateEntries = data as Array<{ name: string; type: string }>;
-    } catch (error: unknown) {
-      // 404 = state branch or dir doesn't exist yet (nothing ticked).
-      if ((error as { status?: number })?.status !== 404) throw error;
-    }
+    // Build a set of slugs that have state folders so we only pay for
+    // per-file state reads when the engine has actually ticked the file.
+    const { entries: stateEntries } = await listStateDirectory(
+      octokit,
+      getOwner(),
+      getRepo(),
+      stateDirPath(dir),
+      { headers: { "If-None-Match": "" } },
+    );
     const stateSlugs = new Set(
       stateEntries
-        .filter((e) => e.type === "file" && e.name.endsWith(".state.json"))
-        .map((e) => e.name.slice(0, -".state.json".length))
+        .filter((e) => e.type === "dir")
+        .map((e) => e.name)
         .filter((s) => s.length > 0),
     );
+    const activityByAgentResponsibility =
+      dir === ".kody/agent-responsibilities"
+        ? await fetchRecentAgentResponsibilityActivity()
+        : new Map<string, CompanyActivityRecord>();
 
     const files = await Promise.all(
-      slugs.map(async ({ slug, sha, name }) => {
+      slugs.map(async ({ slug, name }): Promise<TickFile | null> => {
         try {
-          const filePath = `${dir}/${name}`;
-          const { data } = await octokit.repos.getContent({
-            owner: getOwner(),
-            repo: getRepo(),
-            path: filePath,
-          });
-          if (Array.isArray(data) || !("content" in data) || !data.content)
-            return null;
-          const raw = Buffer.from(data.content, "base64").toString("utf-8");
+          const filePath = `${stateDirPath(dir)}/${name}`;
+          const file = await readStateText(
+            octokit,
+            getOwner(),
+            getRepo(),
+            filePath,
+            { headers: { "If-None-Match": "" } },
+          );
+          if (!file) return null;
+          const raw = file.content;
           const { title, body, frontmatter } = parseTickedMarkdown(raw, slug);
           const hasState = stateSlugs.has(slug);
           const [updatedAt, lastTickAt, tickState] = await Promise.all([
-            fetchLastCommitDate(octokit, filePath),
+            fetchStateLastCommitDate(octokit, filePath).then(
+              (date) => date ?? new Date().toISOString(),
+            ),
             hasState
-              ? fetchLastCommitDateOrNull(
-                  octokit,
-                  `${dir}/${slug}.state.json`,
-                  STATE_BRANCH,
-                )
+              ? fetchStateLastCommitDate(octokit, tickStatePath(dir, slug))
               : Promise.resolve(null),
             hasState
               ? fetchTickState(octokit, dir, slug)
               : Promise.resolve(EMPTY_TICK_STATE),
           ]);
+          const activity = activityByAgentResponsibility.get(slug);
+          const useActivity =
+            activity?.ts != null && isSameOrNewer(activity.ts, lastTickAt);
           return {
             slug,
             title,
             body,
-            sha,
+            sha: file.sha,
             updatedAt,
-            lastTickAt,
+            lastTickAt: useActivity ? activity.ts : lastTickAt,
             nextEligibleAt: tickState.nextEligibleAt,
-            lastOutcome: tickState.lastOutcome,
-            lastDurationMs: tickState.lastDurationMs,
-            schedule: frontmatter.every ?? null,
+            lastOutcome: useActivity
+              ? activityOutcome(activity)
+              : tickState.lastOutcome,
+            lastDurationMs: useActivity
+              ? activity.durationMs
+              : tickState.lastDurationMs,
+schedule: frontmatter.every ?? null,
+capabilityKind: null,
             disabled: frontmatter.disabled === true,
-            staff: frontmatter.staff ?? null,
+            agent: frontmatter.agent ?? null,
+            reviewer: frontmatter.reviewer ?? null,
+            action: effectiveAction(dir, slug, frontmatter),
             mentions: frontmatter.mentions ?? [],
-            htmlUrl: buildHtmlUrl(slug, branch),
+            agentAction: effectiveAgentAction(frontmatter),
+            agentActions: legacyAgentActions(frontmatter),
+            agentResponsibilityTools: frontmatter.agentResponsibilityTools ?? [],
+            tickScript: frontmatter.tickScript ?? null,
+            readsFrom: frontmatter.readsFrom ?? [],
+            writesTo: frontmatter.writesTo ?? [],
+            htmlUrl: file.htmlUrl ?? "",
           } satisfies TickFile;
         } catch {
           return null;
@@ -486,43 +587,61 @@ export function createTickedFiles(config: TickedFilesConfig): TickedFilesApi {
   ): Promise<TickFile | null> {
     if (!isValidSlug(slug)) return null;
     const octokit = octokitOverride ?? getOctokit();
-    const branch = await getDefaultBranch(octokit).catch(() => null);
-    const filePath = `${dir}/${slug}.md`;
+    const filePath = `${stateDirPath(dir)}/${slug}.md`;
 
     try {
-      const { data } = await octokit.repos.getContent({
-        owner: getOwner(),
-        repo: getRepo(),
-        path: filePath,
-      });
-      if (Array.isArray(data) || !("content" in data) || !data.content)
-        return null;
-      const raw = Buffer.from(data.content, "base64").toString("utf-8");
+      const file = await readStateText(
+        octokit,
+        getOwner(),
+        getRepo(),
+        filePath,
+        { headers: { "If-None-Match": "" } },
+      );
+      if (!file) return null;
+      const raw = file.content;
       const { title, body, frontmatter } = parseTickedMarkdown(raw, slug);
-      const [updatedAt, lastTickAt, tickState] = await Promise.all([
-        fetchLastCommitDate(octokit, filePath),
-        fetchLastCommitDateOrNull(
-          octokit,
-          `${dir}/${slug}.state.json`,
-          STATE_BRANCH,
-        ),
-        fetchTickState(octokit, dir, slug),
-      ]);
+      const [updatedAt, lastTickAt, tickState, activityByAgentResponsibility] =
+        await Promise.all([
+          fetchStateLastCommitDate(octokit, filePath).then(
+            (date) => date ?? new Date().toISOString(),
+          ),
+          fetchStateLastCommitDate(octokit, tickStatePath(dir, slug)),
+          fetchTickState(octokit, dir, slug),
+          dir === ".kody/agent-responsibilities"
+            ? fetchRecentAgentResponsibilityActivity()
+            : Promise.resolve(new Map<string, CompanyActivityRecord>()),
+        ]);
+      const activity = activityByAgentResponsibility.get(slug);
+      const useActivity =
+        activity?.ts != null && isSameOrNewer(activity.ts, lastTickAt);
       return {
         slug,
         title,
         body,
-        sha: data.sha,
+        sha: file.sha,
         updatedAt,
-        lastTickAt,
+        lastTickAt: useActivity ? activity.ts : lastTickAt,
         nextEligibleAt: tickState.nextEligibleAt,
-        lastOutcome: tickState.lastOutcome,
-        lastDurationMs: tickState.lastDurationMs,
-        schedule: frontmatter.every ?? null,
+        lastOutcome: useActivity
+          ? activityOutcome(activity)
+          : tickState.lastOutcome,
+        lastDurationMs: useActivity
+          ? activity.durationMs
+          : tickState.lastDurationMs,
+schedule: frontmatter.every ?? null,
+capabilityKind: null,
         disabled: frontmatter.disabled === true,
-        staff: frontmatter.staff ?? null,
+        agent: frontmatter.agent ?? null,
+        reviewer: frontmatter.reviewer ?? null,
+        action: effectiveAction(dir, slug, frontmatter),
         mentions: frontmatter.mentions ?? [],
-        htmlUrl: buildHtmlUrl(slug, branch),
+        agentAction: effectiveAgentAction(frontmatter),
+        agentActions: legacyAgentActions(frontmatter),
+        agentResponsibilityTools: frontmatter.agentResponsibilityTools ?? [],
+        tickScript: frontmatter.tickScript ?? null,
+        readsFrom: frontmatter.readsFrom ?? [],
+        writesTo: frontmatter.writesTo ?? [],
+        htmlUrl: file.htmlUrl ?? "",
       };
     } catch (error: unknown) {
       if ((error as { status?: number })?.status === 404) return null;
@@ -540,25 +659,34 @@ export function createTickedFiles(config: TickedFilesConfig): TickedFilesApi {
         `Invalid ${commitScope} slug: "${opts.slug}". Use lowercase letters, digits, dashes, underscores.`,
       );
     }
-    const filePath = `${dir}/${opts.slug}.md`;
+    const filePath = `${stateDirPath(dir)}/${opts.slug}.md`;
     const content = buildFileContent(
       opts.title,
       opts.body,
       opts.schedule ?? null,
       opts.disabled === true,
-      opts.staff ?? null,
+      opts.agent ?? null,
+      opts.reviewer ?? null,
+      opts.action ?? null,
+      opts.agentAction ?? null,
       opts.mentions ?? [],
+      opts.agentActions ?? [],
+      opts.agentResponsibilityTools ?? [],
+      opts.tickScript ?? null,
+      opts.readsFrom ?? [],
+      opts.writesTo ?? [],
     );
     const message =
       opts.message ??
       `${opts.sha ? "chore" : "feat"}(${commitScope}): ${opts.sha ? "update" : "add"} ${opts.slug}`;
 
-    await opts.octokit.repos.createOrUpdateFileContents({
+    await writeStateText({
+      octokit: opts.octokit,
       owner: getOwner(),
       repo: getRepo(),
       path: filePath,
       message,
-      content: Buffer.from(content, "utf-8").toString("base64"),
+      content,
       sha: opts.sha,
     });
 
@@ -585,8 +713,9 @@ export function createTickedFiles(config: TickedFilesConfig): TickedFilesApi {
     }
     const existing = await readFile(slug);
     if (!existing) return;
-    const filePath = `${dir}/${slug}.md`;
-    await octokit.repos.deleteFile({
+    const filePath = `${stateDirPath(dir)}/${slug}.md`;
+    await deleteStateFile({
+      octokit,
       owner: getOwner(),
       repo: getRepo(),
       path: filePath,

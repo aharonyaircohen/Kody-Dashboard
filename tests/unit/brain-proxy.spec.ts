@@ -16,7 +16,7 @@ vi.mock("@dashboard/lib/issue-attachments", () => ({
 
 import {
   buildDecoratedMessage,
-  formatDutyContext,
+  formatAgentResponsibilityContext,
   formatTaskContext,
   streamBrainChat,
 } from "@dashboard/lib/brain-proxy";
@@ -65,24 +65,24 @@ describe("formatTaskContext", () => {
   });
 });
 
-describe("formatDutyContext", () => {
+describe("formatAgentResponsibilityContext", () => {
   it("returns null when number is missing", () => {
-    expect(formatDutyContext(undefined)).toBeNull();
-    expect(formatDutyContext({ title: "no number" })).toBeNull();
+    expect(formatAgentResponsibilityContext(undefined)).toBeNull();
+    expect(formatAgentResponsibilityContext({ title: "no number" })).toBeNull();
   });
 
-  it("renders a duty with title, state, labels, and body", () => {
-    const out = formatDutyContext({
+  it("renders a agentResponsibility with title, state, labels, and body", () => {
+    const out = formatAgentResponsibilityContext({
       number: 7,
       title: "Weekly cleanup",
       state: "open",
-      labels: ["kody:duty"],
+      labels: ["kody:agentResponsibility"],
       body: "Body text.",
     })!;
     expect(out).toContain("#7 — Weekly cleanup");
     expect(out).toContain("State: open");
-    expect(out).toContain("kody:duty");
-    expect(out).toContain("[Duty body]\nBody text.");
+    expect(out).toContain("kody:agentResponsibility");
+    expect(out).toContain("[AgentResponsibility body]\nBody text.");
     expect(out).toContain("grounded in the body above");
   });
 });
@@ -92,12 +92,12 @@ describe("buildDecoratedMessage", () => {
     expect(buildDecoratedMessage("hi", {})).toBe("hi");
   });
 
-  it("combines duty + task preambles in the documented order", () => {
+  it("combines agentResponsibility + task preambles in the documented order", () => {
     const out = buildDecoratedMessage("user text", {
-      dutyContext: { number: 1, title: "J" },
+      agentResponsibilityContext: { number: 1, title: "J" },
       taskContext: { issueNumber: 2, title: "T" },
     });
-    const jobIdx = out.indexOf("[Current duty]");
+    const jobIdx = out.indexOf("[Current agentResponsibility]");
     const taskIdx = out.indexOf("[Current task context]");
     const userIdx = out.indexOf("[User]\nuser text");
     expect(jobIdx).toBeGreaterThan(-1);
@@ -373,13 +373,13 @@ describe("streamBrainChat — SSE translation", () => {
       chatId: "c1",
       message: "user message",
       taskContext: { issueNumber: 42, title: "Fix it" },
-      dutyContext: { number: 7, title: "Daily report" },
+      agentResponsibilityContext: { number: 7, title: "Daily report" },
     });
     const body = JSON.parse(calls[0]!.init!.body as string) as {
       message: string;
     };
     expect(body.message).toContain("[Current task context]");
-    expect(body.message).toContain("[Current duty]");
+    expect(body.message).toContain("[Current agentResponsibility]");
     expect(body.message).toContain("[User]\nuser message");
   });
 
@@ -490,5 +490,96 @@ describe("streamBrainChat — SSE translation", () => {
     const last = events[events.length - 1];
     expect(last.type).toBe("chat.reconnect");
     expect(last.seq).toBe(12);
+  });
+
+  it("does not trip the idle timeout while a tool is in flight", async () => {
+    // Regression: a long-running Brain tool (multi-minute build / test / git
+    // op) used to surface as a `chat.reconnect` at 120s of silence, breaking
+    // long tasks. The proxy now widens its idle window to 10 min for the
+    // duration of an in-flight tool_use.
+    vi.useFakeTimers();
+    const encoder = new TextEncoder();
+    let upstreamController: ReadableStreamDefaultController<Uint8Array> | null =
+      null;
+    try {
+      vi.stubGlobal(
+        "fetch",
+        vi.fn(async () => {
+          return new Response(
+            new ReadableStream<Uint8Array>({
+              start(controller) {
+                upstreamController = controller;
+                controller.enqueue(
+                  encoder.encode(
+                    `data: ${JSON.stringify({ type: "tool_use", name: "Bash", input: { cmd: "sleep 1" } })}\n\n`,
+                  ),
+                );
+              },
+            }),
+            {
+              status: 200,
+              headers: { "content-type": "text/event-stream" },
+            },
+          );
+        }),
+      );
+
+      const res = await streamBrainChat({
+        brainUrl: "https://b.example.com",
+        brainKey: "k",
+        chatId: "c1",
+        message: "hi",
+      });
+      const reader = res.body!.getReader();
+      const decoder = new TextDecoder();
+
+      // Read the first translated event — must be chat.tool_use, proving
+      // the proxy is alive and processing.
+      const first = await reader.read();
+      expect(first.done).toBe(false);
+      const firstText = decoder.decode(first.value, { stream: true });
+      expect(firstText).toContain("chat.tool_use");
+
+      // Drain any remaining bytes in the first chunk, then watch the rest.
+      let tail = firstText.split("\n").pop() ?? "";
+      let reconnectSeen: unknown = null;
+      let streamDone = false;
+      const consume = (async () => {
+        while (true) {
+          const { done, value } = await reader.read();
+          if (done) {
+            streamDone = true;
+            return;
+          }
+          tail += decoder.decode(value, { stream: true });
+          const lines = tail.split("\n");
+          tail = lines.pop() ?? "";
+          for (const line of lines) {
+            if (line.startsWith("data: ")) {
+              const ev = JSON.parse(line.slice(6));
+              if (ev.type === "chat.reconnect") reconnectSeen = ev;
+            }
+          }
+        }
+      })();
+
+      // Advance past the previous default (120s) but well under the new
+      // during-tool budget (600s). The proxy must NOT emit chat.reconnect
+      // and must NOT close the stream — the stream is still open because
+      // Brain is "running the tool".
+      await vi.advanceTimersByTimeAsync(130_000);
+      await Promise.resolve();
+      await Promise.resolve();
+      expect(reconnectSeen).toBeNull();
+      expect(streamDone).toBe(false);
+
+      // Close the upstream cleanly. The proxy should now emit chat.reconnect
+      // (no terminal event was ever sent) and close the translated stream.
+      upstreamController!.close();
+      await consume;
+      expect(reconnectSeen).toMatchObject({ type: "chat.reconnect" });
+    } finally {
+      vi.useRealTimers();
+    }
   });
 });

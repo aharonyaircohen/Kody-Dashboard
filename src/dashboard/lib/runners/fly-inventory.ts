@@ -3,13 +3,13 @@
  * @domain runner
  * @pattern fly-inventory
  * @ai-summary Read-only Fly machine inventory: lists all kody-managed machines
- *   (preview, runner, brain, litellm, builder) the token can see. Uses the
+ *   (preview, runner, brain, builder) the token can see. Uses the
  *   connected repo's FLY_API_TOKEN — surfaces only machines the authenticated
  *   user owns. Errors during per-app listing are skipped (best-effort); a bad
  *   app never fails the whole inventory.
  *
  * Classification is by app-name shape (see preview-key.ts for the `kp-` scheme
- * and the runner/brain/litellm app names). Billing rule unchanged: this uses
+ * and the runner/brain app names). Billing rule unchanged: this uses
  * the connected repo's FLY_API_TOKEN, so it lists that account's machines.
  */
 
@@ -24,7 +24,6 @@ export type FlyFeature =
   | "preview-base"
   | "runner"
   | "brain"
-  | "litellm"
   | "builder"
   | "other";
 
@@ -35,7 +34,7 @@ export interface FlyMachineRow {
   name?: string;
   state: string;
   region: string;
-  /** Human label, e.g. "PR #2350", "branch", "kody-litellm". */
+  /** Human label, e.g. "PR #2350", "branch", "kody-runner". */
   label: string;
   /** "shared 2x · 4 GB" or "—" when size is unknown. */
   sizeLabel: string;
@@ -61,7 +60,6 @@ export function classifyApp(app: string): {
   feature: FlyFeature;
   label: string;
 } {
-  if (app === "kody-litellm") return { feature: "litellm", label: app };
   if (app === "kody-preview-builder" || app.startsWith("fly-builder-"))
     return { feature: "builder", label: app };
   if (app.startsWith("kody-brain")) return { feature: "brain", label: app };
@@ -134,7 +132,10 @@ export async function listFlyInventory(
   const apps = allApps.filter(
     (n) =>
       n.startsWith("kp-") ||
-      n.startsWith("kody-") ||
+      n === "kody-preview-builder" ||
+      n === "kody-runner" ||
+      n.startsWith("kody-runner") ||
+      n.startsWith("kody-brain") ||
       n.startsWith("fly-builder-"),
   );
 

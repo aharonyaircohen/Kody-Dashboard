@@ -105,6 +105,8 @@ export function filterTasksByView(
     if (showAllStates) {
       // Goal view: every active task is visible, terminal tasks still hidden.
       if (isTerminalTask(task)) return false;
+    } else if (viewMode === "unassigned") {
+      if (isTerminalTask(task)) return false;
     } else if (viewMode === "backlog") {
       if (isTerminalTask(task)) return false;
       if (task.column !== "open") return false;
@@ -136,6 +138,7 @@ export function filterTasksByView(
 export function getViewModeCounts(tasks: KodyTask[]): {
   runningCount: number;
   backlogCount: number;
+  unassignedCount: number;
   queueCount: number;
 } {
   const active = tasks.filter((t) => !isTerminalTask(t));
@@ -148,6 +151,7 @@ export function getViewModeCounts(tasks: KodyTask[]): {
   return {
     backlogCount,
     runningCount: active.length - backlogCount,
+    unassignedCount: active.length,
     queueCount,
   };
 }
@@ -251,6 +255,7 @@ export function getPreviewBypassUrl(
   previewUrl: string | undefined | null,
 ): string | null {
   if (!previewUrl) return null;
+  if (previewUrl.startsWith("/")) return previewUrl;
   if (typeof window === "undefined") return previewUrl;
 
   let bypassSecret: string | undefined;

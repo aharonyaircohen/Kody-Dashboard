@@ -3,12 +3,12 @@
  * @domain kody
  * @pattern cto-recommendation-detect
  * @ai-summary Pure detector: given an inbox entry, decide whether it is a
- *   staff recommendation and, if so, extract the emitting staff slug, the
- *   task number, and the *actual* action named. Every staff member leads its
+ *   agent recommendation and, if so, extract the emitting agent slug, the
+ *   task number, and the *actual* action named. Every agent leads its
  *   recommendation comment with a prose marker (`🧭 **CTO recommendation** —
  *   \`<action>\``, `🧪 **QA result** — \`<action>\``, …) AND a machine-readable
- *   `<!-- kody-staff: <slug> -->` HTML comment (see .kody/staff/*.md). The
- *   slug line is the deterministic identity signal — it survives any persona's
+ *   `<!-- kody-agent: <slug> -->` HTML comment (see .kody/agents/*.md). The
+ *   slug line is the deterministic identity signal — it survives any agentIdentity's
  *   wording and is stripped from the inbox snippet (buildSnippet drops HTML
  *   comments), so the operator never sees it. Legacy recs that predate the
  *   slug line fall back to the CTO marker and default to the `cto` slug.
@@ -21,10 +21,11 @@
  *   approving can never silently post the wrong command.
  */
 import type { InboxEntry } from "../inbox/types";
-import { DEFAULT_STAFF_SLUG } from "./decisions";
+
+export const DEFAULT_AGENT_SLUG = "cto";
 
 /**
- * Every action the CTO staff member may emit (see cto.md "Restrictions"), plus
+ * Every action the CTO agent may emit (see cto.md "Restrictions"), plus
  * `other` — a catch-all for marker-bearing comments whose verb we can't
  * parse (legacy / free-form recs). `other` is non-dispatchable and lives in
  * its own ledger bucket, so an unparsed rec stays visible (Reject + GitHub
@@ -39,7 +40,7 @@ export const CTO_ACTIONS = [
   "qa-review",
   // Dashboard-executed (NOT an `@kody` command — the engine never auto-merges).
   // Approve on a `merge` rec squash-merges the PR via the GitHub API; the
-  // QA-verify duty emits these once ui-review confirms the fix/feature works.
+  // QA-verify agentResponsibility emits these once ui-review confirms the fix/feature works.
   "merge",
   "approve",
   "comment",
@@ -72,8 +73,8 @@ const FALLBACK_COMMAND: Partial<Record<CtoAction, string>> = {
 const MAX_COMMAND_LEN = 300;
 
 /**
- * Verbs the engine has no executable for. A `kody-cmd` naming one is a persona
- * bug — e.g. the QA duty emitting `@kody approve` for a PASS/CONCERNS result.
+ * Verbs the engine has no agentAction for. A `kody-cmd` naming one is an agentIdentity
+ * bug — e.g. the QA agentResponsibility emitting `@kody approve` for a PASS/CONCERNS result.
  * `approve`/`reject`/`dismiss` are human inbox gates, not engine commands, so
  * posting them verbatim makes the engine reply "I don't recognize approve."
  * Treat any such command as invalid so the rec surfaces read-only instead.
@@ -102,26 +103,26 @@ export function parseCtoCommand(rawBody: string): string | null {
 }
 
 /**
- * Read the emitting staff slug from a rec's `<!-- kody-staff: <slug> -->`
- * line — the deterministic identity signal every staff persona now writes
+ * Read the emitting agent slug from a rec's `<!-- kody-agent: <slug> -->`
+ * line — the deterministic identity signal every agentIdentity now writes
  * (sibling to `kody-cmd`). Slugs are lowercase `[a-z0-9-]`. Returns null when
  * absent (legacy recs predate the line; the caller defaults them to the CTO).
  * The HTML comment is stripped from the inbox snippet, so it's never shown.
  */
-export function parseCtoStaff(rawBody: string): string | null {
-  const m = rawBody.match(/<!--\s*kody-staff:\s*([a-z0-9][a-z0-9-]*)\s*-->/i);
+export function parseCtoAgent(rawBody: string): string | null {
+  const m = rawBody.match(/<!--\s*kody-agent:\s*([a-z0-9][a-z0-9-]*)\s*-->/i);
   return m ? m[1].toLowerCase() : null;
 }
 
 /**
- * Read the emitting DUTY slug from a rec's `<!-- kody-duty: <slug> -->` line —
- * the engine stamps this (code, not the LLM) so trust can be keyed per duty,
- * not just per persona. Sibling duties of one persona (e.g. `qa-sweep` vs
+ * Read the emitting AGENT_RESPONSIBILITY slug from a rec's `<!-- kody-agentResponsibility: <slug> -->` line —
+ * the engine stamps this (code, not the LLM) so trust can be keyed per agentResponsibility,
+ * not just per agentIdentity. Sibling agentResponsibilities of one agentIdentity (e.g. `qa-sweep` vs
  * `qa-verify`, both `qa`) thus earn autonomy independently. Returns null on
- * legacy recs that predate the line; callers fall back to the persona slug.
+ * legacy recs that predate the line; callers fall back to the agentIdentity slug.
  */
-export function parseCtoDuty(rawBody: string): string | null {
-  const m = rawBody.match(/<!--\s*kody-duty:\s*([a-z0-9][a-z0-9-]*)\s*-->/i);
+export function parseCtoAgentResponsibility(rawBody: string): string | null {
+  const m = rawBody.match(/<!--\s*kody-agentResponsibility:\s*([a-z0-9][a-z0-9-]*)\s*-->/i);
   return m ? m[1].toLowerCase() : null;
 }
 
@@ -135,13 +136,13 @@ export function dispatchCommand(action: CtoAction): string | null {
 }
 
 export interface CtoRecommendation {
-  /** Slug of the staff member that emitted the rec (legacy → "cto"). */
-  staff: string;
+  /** Slug of the agent that emitted the rec (legacy → "cto"). */
+  agent: string;
   /**
-   * Slug of the DUTY that emitted the rec — the trust key. Falls back to the
-   * persona slug for legacy recs the engine hasn't stamped with `kody-duty`.
+   * Slug of the AGENT_RESPONSIBILITY that emitted the rec — the trust key. Falls back to the
+   * agentIdentity slug for legacy recs the engine hasn't stamped with `kody-agentResponsibility`.
    */
-  duty: string;
+  agentResponsibility: string;
   taskNumber: number;
   action: CtoAction;
   /** The exact `@kody …` command Approve will post, or null if none. */
@@ -211,11 +212,11 @@ function parseAction(haystack: string): CtoAction | null {
  * intact) at inbox-write time. This is the reliable path: the 240-char
  * plain-text snippet collapses backtick spans to `[code]`, so the verb on the
  * marker line is often gone by the time the client sees it. A body is a
- * recommendation if it carries the explicit `kody-staff` line (any persona)
+ * recommendation if it carries the explicit `kody-agent` line (any agentIdentity)
  * OR the legacy CTO marker. Returns null otherwise. Stored as `ctoAction`.
  */
 export function parseCtoAction(rawBody: string): CtoAction | null {
-  if (!parseCtoStaff(rawBody) && !MARKER.test(rawBody)) return null;
+  if (!parseCtoAgent(rawBody) && !MARKER.test(rawBody)) return null;
   // Marker present ⇒ it IS a recommendation. Mirror detectCtoRecommendation:
   // an unrecoverable verb is `other` (non-dispatchable), never null. If this
   // returned null the entry would carry no `ctoAction`, and BOTH the pending
@@ -253,7 +254,7 @@ export function ctoCleanSnippet(snippet: string): string {
   // "CTO recommendation — <action>" prefix. The em-dash variants (— -)
   // and the verb token both vary, so anchor on "CTO recommendation".
   out = out.replace(/^.*?CTO recommendation\s*[—–-]\s*[^.\s]+\s*\.?\s*/i, "");
-  // Drop the dashboard-handoff sentence the staff member tacks on.
+  // Drop the dashboard-handoff sentence the agent tacks on.
   out = out.replace(/Confirming will run [^.]*\.\s*/i, "");
   // Drop the trailing "Confirm or dismiss this in the dashboard inbox."
   // (with or without surrounding underscores, already stripped by buildSnippet).
@@ -292,7 +293,7 @@ export function detectCtoRecommendation(
   // The command the CTO explicitly asked Approve to post (parsed from the
   // raw body at write time) wins. Legacy recs with no `kody-cmd` line fall
   // back to the verb→command map. No command → read-only (never misroute).
-  // Entries persisted before the parse-time guard (or by a regressed persona)
+  // Entries persisted before the parse-time guard (or by a regressed agentIdentity)
   // may carry a dead verb like `@kody approve`; drop it so we never post a
   // command the engine rejects.
   const stored = entry.ctoCommand?.trim();
@@ -301,18 +302,18 @@ export function detectCtoRecommendation(
       ? stored
       : (dispatchCommand(action) ?? null);
 
-  // Staff slug parsed at write time wins; legacy entries (CTO marker, no
+  // Agent slug parsed at write time wins; legacy entries (CTO marker, no
   // slug line) default to the CTO so their trust keeps accruing under `cto`.
-  const staff = entry.ctoStaff ?? DEFAULT_STAFF_SLUG;
+  const agent = entry.ctoAgent ?? DEFAULT_AGENT_SLUG;
 
-  // Duty slug is the trust key. The engine stamps `kody-duty` on every rec;
-  // recs that predate it fall back to the persona slug so trust still records
-  // somewhere coherent (per-persona) until the engine ships the stamp.
-  const duty = entry.ctoDuty ?? staff;
+  // AgentResponsibility slug is the trust key. The engine stamps `kody-agentResponsibility` on every rec;
+  // recs that predate it fall back to the agentIdentity slug so trust still records
+  // somewhere coherent (per-agentIdentity) until the engine ships the stamp.
+  const agentResponsibility = entry.ctoAgentResponsibility ?? agent;
 
   // `merge` is dashboard-executed (no `@kody` command) but still actionable —
   // Approve squash-merges the PR. Other actions are dispatchable iff they
   // resolved to a command to post.
   const dispatchable = isDashboardAction(action) || command !== null;
-  return { staff, duty, taskNumber, action, command, dispatchable };
+  return { agent, agentResponsibility, taskNumber, action, command, dispatchable };
 }

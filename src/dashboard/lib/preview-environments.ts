@@ -30,13 +30,44 @@ export interface PreviewEnvironment {
    * environments never set this — they don't expire.
    */
   expiresAt?: number;
+  /**
+   * Small, non-secret summary of the uploaded source file. Stored with uploaded
+   * previews so chat can understand the page even when the inspector extension
+   * cannot read the iframe yet.
+   */
+  uploadContext?: PreviewUploadContext;
+  /**
+   * Set for static resources stored in the consumer repo under
+   * `.kody/views/<id>`. These are served by dashboard API with a short-lived
+   * ticket instead of Fly.
+   */
+  repoViewPath?: string;
+}
+
+export interface PreviewUploadContext {
+  name: string;
+  mimeType?: string;
+  size?: number;
+  title?: string;
+  outline?: string;
+  textPreview?: string;
 }
 
 const ID_RAND_LEN = 4;
 const MAX_LABEL = 48;
+const REPO_VIEW_PATH_RE = /^(?:\.kody\/)?views\/([a-z0-9][a-z0-9-]{0,63})$/;
 
 /** Uploaded static previews live this long before auto-expiry (7 days). */
 export const STATIC_PREVIEW_TTL_MS = 7 * 24 * 60 * 60 * 1000;
+
+export function repoViewIdFromPath(path: string | undefined): string | null {
+  return REPO_VIEW_PATH_RE.exec(path ?? "")?.[1] ?? null;
+}
+
+export function normalizeRepoViewPath(path: string): string | null {
+  const id = repoViewIdFromPath(path.trim());
+  return id ? `views/${id}` : null;
+}
 
 /** Whole days until expiry (ceil). Negative once expired. */
 export function daysUntilExpiry(expiresAt: number, now: number): number {
@@ -79,6 +110,13 @@ export function makeEnvId(label: string): string {
 export function normalizeEnvUrl(input: string): string | null {
   const trimmed = (input || "").trim();
   if (!trimmed) return null;
+  if (
+    /^\/api\/kody\/views\/(?!_t\/)[A-Za-z0-9][A-Za-z0-9-]{0,63}(?:\/[^\s?#]*)?(?:\?[^#\s]*)?(?:#[^\s]*)?$/.test(
+      trimmed,
+    )
+  ) {
+    return trimmed;
+  }
   try {
     const u = new URL(trimmed);
     if (u.protocol !== "http:" && u.protocol !== "https:") return null;
@@ -103,7 +141,7 @@ export function resolveEnvironments(
   config: LegacyConfigShape | null | undefined,
 ): PreviewEnvironment[] {
   const list = config?.namedPreviews;
-  if (Array.isArray(list) && list.length > 0) {
+  if (Array.isArray(list)) {
     return list
       .filter(
         (e): e is PreviewEnvironment =>
@@ -154,6 +192,7 @@ export function addUploadedEnvironment(
   url: string,
   staticId: string,
   expiresAt: number,
+  uploadContext?: PreviewUploadContext,
 ): PreviewEnvironment[] {
   const cleanLabel = label.trim().slice(0, MAX_LABEL);
   const cleanUrl = normalizeEnvUrl(url);
@@ -166,6 +205,33 @@ export function addUploadedEnvironment(
       url: cleanUrl,
       staticId,
       expiresAt,
+      ...(uploadContext ? { uploadContext } : {}),
+    },
+  ];
+}
+
+/** Append a repo-backed static view environment. */
+export function addRepoViewEnvironment(
+  list: PreviewEnvironment[],
+  label: string,
+  url: string,
+  repoViewPath: string,
+  uploadContext?: PreviewUploadContext,
+): PreviewEnvironment[] {
+  const cleanLabel = label.trim().slice(0, MAX_LABEL);
+  const cleanUrl = normalizeEnvUrl(url);
+  const cleanRepoPath = normalizeRepoViewPath(repoViewPath);
+  if (!cleanLabel || !cleanUrl || !cleanRepoPath) {
+    return list;
+  }
+  return [
+    ...list,
+    {
+      id: makeEnvId(cleanLabel),
+      label: cleanLabel,
+      url: cleanUrl,
+      repoViewPath: cleanRepoPath,
+      ...(uploadContext ? { uploadContext } : {}),
     },
   ];
 }

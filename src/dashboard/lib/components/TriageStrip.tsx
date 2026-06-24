@@ -21,6 +21,7 @@ import {
   type TriageSeverity,
 } from "../hooks/useTriageStrip";
 import { cn } from "../utils";
+import { autoDirProps } from "../text-direction";
 
 const DOT: Record<TriageSeverity, string> = {
   5: "bg-rose-500",
@@ -96,12 +97,15 @@ function TriageRow({
             href={item.href}
             target={external ? "_blank" : undefined}
             rel={external ? "noopener noreferrer" : undefined}
-            className="text-sm truncate block hover:underline"
+            className="text-sm truncate block hover:underline text-start"
+            {...autoDirProps}
           >
             {item.title}
           </Link>
         ) : (
-          <span className="text-sm truncate block">{item.title}</span>
+          <span {...autoDirProps} className="text-sm truncate block text-start">
+            {item.title}
+          </span>
         )}
         {item.detail ? (
           <span className="text-xs text-muted-foreground truncate block">

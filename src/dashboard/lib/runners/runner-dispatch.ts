@@ -24,7 +24,7 @@ export interface DispatchDeps {
   flyAvailable: boolean;
   /** Fire the GitHub workflow dispatch. Throws on API failure. */
   dispatchGitHub: () => Promise<void>;
-  /** Run the job on Fly (claim warm pool, else spawn fresh). */
+  /** Run the job on Fly. */
   runFly: () => Promise<FlyRunResult>;
 }
 

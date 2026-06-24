@@ -10,6 +10,7 @@
 "use client";
 
 import type { Octokit } from "@octokit/rest";
+import { writeGitHubFileWithRetry } from "@dashboard/lib/github-contents-write";
 
 // ─── Binary encoding helpers (byte-safe, UTF-8) ──────────────────────────────
 
@@ -59,6 +60,17 @@ export function lineIndexFromFragment(
 }
 
 // ─── Types ────────────────────────────────────────────────────────────────────
+
+export function getHttpStatus(error: unknown): number | undefined {
+  if (!error || typeof error !== "object") return undefined;
+
+  const value = error as {
+    status?: number;
+    response?: { status?: number; statusCode?: number };
+  };
+
+  return value.status ?? value.response?.status ?? value.response?.statusCode;
+}
 
 export interface FileEntry {
   name: string;
@@ -176,8 +188,7 @@ export async function readFile(
       encoding,
     };
   } catch (err) {
-    const status = (err as { status?: number }).status;
-    if (status === 404) return null;
+    if (getHttpStatus(err) === 404) return null;
     throw err;
   }
 }
@@ -193,7 +204,7 @@ export async function writeFile(
   message: string,
   sha?: string,
 ): Promise<{ sha: string; commitSha: string }> {
-  const res = await octokit.rest.repos.createOrUpdateFileContents({
+  const res = await writeGitHubFileWithRetry(octokit, {
     owner,
     repo,
     path,
@@ -203,8 +214,8 @@ export async function writeFile(
   });
 
   return {
-    sha: res.data.content?.sha ?? "",
-    commitSha: res.data.commit?.sha ?? "",
+    sha: res.sha ?? "",
+    commitSha: res.commitSha ?? "",
   };
 }
 
@@ -286,7 +297,7 @@ export async function createSymlink(
   message: string,
 ): Promise<{ sha: string; commitSha: string }> {
   // GitHub blob type "symlink" stores the target as content
-  const res = await octokit.rest.repos.createOrUpdateFileContents({
+  const res = await writeGitHubFileWithRetry(octokit, {
     owner,
     repo,
     path,
@@ -296,8 +307,8 @@ export async function createSymlink(
   });
 
   return {
-    sha: res.data.content?.sha ?? "",
-    commitSha: res.data.commit?.sha ?? "",
+    sha: res.sha ?? "",
+    commitSha: res.commitSha ?? "",
   };
 }
 
@@ -315,7 +326,7 @@ export async function uploadFile(
   const bytes = new Uint8Array(arrayBuffer);
   const base64 = uint8ToBase64(bytes);
 
-  const res = await octokit.rest.repos.createOrUpdateFileContents({
+  const res = await writeGitHubFileWithRetry(octokit, {
     owner,
     repo,
     path,
@@ -324,8 +335,8 @@ export async function uploadFile(
   });
 
   return {
-    sha: res.data.content?.sha ?? "",
-    commitSha: res.data.commit?.sha ?? "",
+    sha: res.sha ?? "",
+    commitSha: res.commitSha ?? "",
   };
 }
 

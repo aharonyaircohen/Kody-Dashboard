@@ -3,10 +3,10 @@
  * @domain previews
  * @pattern previews-sweep-api
  *
- * POST /api/kody/previews/sweep — destroy the connected repo's preview apps
- * that are past `fly.previews.ttlDays` (kody.config.json). No-op when TTL is
- * unset. Powers the Fly panel's "Sweep expired now" button; the preview
- * webhook also runs the same sweep opportunistically on each build.
+ * POST /api/kody/previews/sweep — repair preview machines so they sleep/wake
+ * on traffic, actively sleep started previews, and destroy apps past
+ * `fly.previews.ttlDays` (kody.config.json). Powers the Fly panel's cleanup
+ * button; the preview webhook also runs it opportunistically on each build.
  *
  * Auth: requireKodyAuth (operator session, header PAT, or KODY_BOT_TOKEN).
  * The repo swept is the connected repo (from request auth), and its own Fly

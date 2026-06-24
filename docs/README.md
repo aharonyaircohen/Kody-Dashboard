@@ -7,7 +7,7 @@ Index of all dashboard documentation. Start here.
 ## Start here
 
 - ✅ [Dashboard setup](dashboard-setup.md) — how to configure each
-  dashboard-managed store (Staff, Duties, Commands, Secrets, Variables,
+  dashboard-managed store (Agents, AgentResponsibilities, Commands, Secrets, Variables,
   Context), with an end-to-end **QA setup** walkthrough at the end.
 
 ## Concepts
@@ -17,9 +17,9 @@ How the moving parts fit together.
 - ✅ [Chat backends](concepts/chat.md) — the three chat paths (`kody`
   in-process, `brain`, engine via GitHub Actions) and how the selected
   agent's `backend` field picks one.
-- ✅ [Staff & Duties](concepts/staff-duties.md) — identity-only personas
-  (`.kody/staff/`) vs. scheduled jobs (`.kody/duties/`); how a duty names
-  `staff:` and the engine injects the persona ahead of the duty body.
+- ✅ [Agents & AgentResponsibilities](concepts/agents-agent-responsibilities.md) — identity-only personas
+  (`.kody/agents/`) vs. scheduled jobs (`.kody/agent-responsibilities/`); how a agentResponsibility names
+  `agent:` and the engine injects the agent ahead of the agentResponsibility body.
 
 ## Features
 
@@ -30,20 +30,23 @@ One doc per dashboard-managed store / capability.
 - ✅ [Tasks board](tasks.md) — the lanes, what drives a card's column
   (engine `kodyState` comment, **not** `kody:*` labels), and the
   feature/bug/chore/spec/goal lifecycle.
-- ✅ [Inbox & approvals](inbox.md) — how a staff recommendation reaches the
-  operator (mention-routed) and how Approve / Reject / Fix / Dismiss / Merge
-  work. Approve/reject/dismiss are dashboard gates, not engine verbs.
+- ✅ [Reports](reports.md) — markdown reports from agentResponsibilities, including
+  structured findings and optional suggested actions (`dispatch`,
+  `create-task`, `dismiss`).
 - ✅ [Activity & audit](activity.md) — the Log / Auto / Runs / Feed timeline;
   merges `recordAudit`, engine `.kody/activity` events, and GitHub artifacts.
 - ✅ [Messages & mentions](messages-and-mentions.md) — `#`-channel team chat
   (GitHub Discussions) plus the `dispatchMentionPushes` spine that fans
-  @mentions out to the inbox and push.
+  @mentions out to notifications and push.
+
+- ✅ [CMS](cms.md) — schema-driven CRUD from Kody state, MongoDB adapter,
+  permissions, Dashboard UI, chat tools, and MCP.
 
 ### Authoring & config
 
 - ✅ [Commands](commands.md) — slash commands, built-ins + repo commands.
-- ✅ [Executables](executables.md) — custom `.kody/duties/<slug>/`
-  folders (Git Data API CRUD), set-default, and the commit-skills caveat.
+- ✅ [AgentActions](agentActions.md) — custom `.kody/agent-actions/<slug>/`
+  implementation folders (Git Data API CRUD), set-default, and the commit-skills caveat.
 - ✅ [Engine config](engine-config.md) — the `/config` page editing
   `kody.config.json` (operators, quality commands, access gate, aliases);
   why the model lives on `/models` via `agent.model`.
@@ -51,11 +54,11 @@ One doc per dashboard-managed store / capability.
 - ✅ [Variables](variables.md) — non-secret per-repo config (`.kody/variables.json`),
   e.g. `QA_URL`, `LOGIN_USER`.
 - ✅ [Context](context.md) — `.kody/context/*.md`, curated context fed to Kody,
-  with a `staff:` audience relation. **Supersedes** the old Company Profile.
+  with a `agent:` audience relation. **Supersedes** the old Company Profile.
 - 🗄️ [Company profile](profile.md) — _historical._ The Profile feature was
   removed; see [Context](context.md) for the current model.
-- ✅ [Company export/import](company.md) — portable bundle of staff, duties,
-  commands, executables, instructions, and a config slice.
+- ✅ [Company export/import](company.md) — portable bundle of agent, agentResponsibilities,
+  commands, agentActions, instructions, and a config slice.
 
 ### Runtime & infra
 
@@ -72,7 +75,7 @@ One doc per dashboard-managed store / capability.
 
 ### Quality
 
-- ✅ [QA automation](qa.md) — the `qa` persona + `qa`/`qa-sweep` duties.
+- ✅ [QA automation](qa.md) — the `qa` agent + `qa`/`qa-sweep` agentResponsibilities.
 - ✅ [Changelog](changelog.md) — `CHANGELOG.md` as machine-written ledger;
   the per-PR QA markers QA writes are documented here.
 
@@ -90,10 +93,10 @@ not behavior bugs — but two are real seams worth a look.
 
 ### Real seams
 
-- **Activity "Feed" tab reads the wrong branch.** `activity/feed-source.ts`
+- **Activity "Feed" tab reads the wrong source.** `activity/feed-source.ts`
   reads `.kody/events/*.jsonl` from `KODY_STORE_BRANCH ?? "main"`, while the
-  "Auto" tab reads company activity from `kody-state` (`STATE_BRANCH`). If the
-  engine writes event files to `kody-state` (or the repo default isn't
+  "Auto" tab reads company activity from the configured Kody state repo. If the
+  engine writes event files to state repo (or the repo default isn't
   `main`), the Feed tab silently goes empty while Auto keeps working. See
   [activity.md](activity.md).
 - **Version-bump hook freezes silently.** `.husky/pre-commit` →
@@ -114,9 +117,9 @@ not behavior bugs — but two are real seams worth a look.
   onto `/config` (`/company` is import/export only). The `/api/kody/company/*`
   route paths are a naming carry-over, not a bug. See [engine-config.md](engine-config.md).
 - **Company bundle is richer than its docstring**: `CompanyManager`'s
-  `@ai-summary` still describes a legacy jobs/workers→duties/staff migration
+  `@ai-summary` still describes a legacy jobs/workers→agentResponsibilities/agent migration
   card that no longer renders; the bundle actually carries six collections
-  including executables and a config slice. See [company.md](company.md).
+  including agentActions and a config slice. See [company.md](company.md).
 - **Preview inspector ships six actions, not "picker"**: `element-picker.md`
   says "Get picker" / "four" in places; the live `PreviewInspector.tsx` renders
   "Get inspector" with six actions (pick, console, requests, screenshot, speed,
@@ -129,7 +132,7 @@ not behavior bugs — but two are real seams worth a look.
 
 - **Chat default**: ✅ `KodyChat.tsx` initializes `selectedAgentId` to
   `lockedAgentId ?? "kody-live"`, so the default agent is `kody-live`.
-- **Cron cadence**: ✅ the wake is `*/15`; `job-scheduler`'s `*/5` is a _max
+- **Cron cadence**: ✅ the wake is `*/15`; `agent-responsibility-scheduler`'s `*/5` is a _max
   eligible_ cadence. The only stale artifact is a `templates/kody.yml` comment
   (engine repo; not edited here per the no-touch-kody.yml rule). See
-  [Staff & Duties → cron cadence](concepts/staff-duties.md).
+  [Agents & AgentResponsibilities → cron cadence](concepts/agents-agent-responsibilities.md).

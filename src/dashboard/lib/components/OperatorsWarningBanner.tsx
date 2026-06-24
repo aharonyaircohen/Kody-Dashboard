@@ -4,7 +4,7 @@
  * @pattern operators-warning-banner
  * @ai-summary Surfaced at the top of the inbox: warns when the connected
  *   repo has no operators set (`github.operators` empty), because that means
- *   recommendation duties post but @-mention no one, so the inbox silently
+ *   recommendation agentResponsibilities post but @-mention no one, so the inbox silently
  *   stays empty. One-click "add me" for the signed-in user, plus a link to
  *   the Config page for the full list. Renders nothing while loading or when
  *   at least one operator exists.

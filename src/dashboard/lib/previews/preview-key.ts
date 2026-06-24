@@ -4,7 +4,7 @@
  * @pattern naming
  * @ai-summary Derives a stable Fly app name from (repo, pr|branch|staticId)
  *   so the whole preview system — public URLs, status lookups, the TTL
- *   sweep, the warm pool, and the doorman's ticket binding — can reference
+ *   sweep, and the doorman's ticket binding — can reference
  *   a preview by hash alone, with no DB row. Trap: the hash scheme is a
  *   silent contract. Changing the algorithm invalidates every running
  *   preview, every open ticket, and every sweep target. Bump a version
@@ -62,7 +62,7 @@ function shortHash(s: string): string {
  *   static → `kp-<ownerHash>-<repoHash>-st-<idHash>`
  *
  * The `kp-` prefix namespaces all kody-previews apps in the Fly org so
- * the warm pool, ops dashboards, and ad-hoc cleanups can match on it.
+ * ops dashboards and ad-hoc cleanups can match on it.
  * Hashes (vs raw names) keep us under Fly's 30-char limit, don't leak
  * owner names into hostnames, and make any branch name safe to encode.
  */

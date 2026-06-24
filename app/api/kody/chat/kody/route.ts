@@ -21,16 +21,25 @@
 
 import { randomBytes } from "node:crypto";
 import { NextRequest, NextResponse } from "next/server";
-import { streamText, stepCountIs, type ModelMessage } from "ai";
 import {
-  AGENT_KODY,
+  streamText,
+  stepCountIs,
+  createUIMessageStream,
+  createUIMessageStreamResponse,
+  type ModelMessage,
+} from "ai";
+import {
   getAgent,
   isValidAgentId,
   type AgentConfig,
   type AgentId,
 } from "@dashboard/lib/agents";
 import { applyVoiceOverlay } from "@dashboard/lib/voice/overlay";
-import { requireKodyAuth, getRequestAuth } from "@dashboard/lib/auth";
+import {
+  requireKodyAuth,
+  getRequestAuth,
+  verifyActorLogin,
+} from "@dashboard/lib/auth";
 import {
   createUserOctokit,
   setGitHubContext,
@@ -42,19 +51,27 @@ import { supportsVision } from "@dashboard/lib/chat/vision-support";
 import {
   buildSystemPrompt,
   type GoalContext,
-  type DutyContext,
+  type AgentResponsibilityContext,
   type TaskContext,
+  type OrgContext,
 } from "./system-prompt";
+import {
+  loadChatDefaults,
+  composeBasePrompt,
+  filterToolsByAllowlist,
+  buildToolIndex,
+  CRITICAL_REMINDERS_MD,
+} from "@dashboard/lib/chat-defaults";
 import { createGitHubTools } from "../tools/github-tools";
 import { createPipelineTools } from "../tools/pipeline-tools";
 import { createRemoteTools } from "../tools/remote-tools";
 import { createBugTools } from "../tools/bug-tools";
 import { createTaskTools } from "../tools/task-tools";
 import { createGoalTools } from "../tools/goal-tools";
-import { createDutyTools } from "../tools/duty-tools";
-import { createStaffTools } from "../tools/staff-tools";
+import { createAgentResponsibilityTools } from "../tools/agent-responsibility-tools";
+import { createAgentTools } from "../tools/agent-tools";
 import { createMemoryTools } from "../tools/memory-tools";
-import { createExecutableTools } from "../tools/executable-tools";
+import { createAgentActionTools } from "../tools/agent-action-tools";
 import { createPlannerTools } from "../tools/planner-tools";
 import { createReleaseTools } from "../tools/release-tools";
 import { createKodyTools } from "../tools/kody-tools";
@@ -65,6 +82,7 @@ import { featureTools } from "../tools/feature-tools";
 import { uiTools } from "../tools/ui-tools";
 import { createCommandTools } from "../tools/commands-tools";
 import { createContextTools } from "../tools/context-tools";
+import { createTodoTools } from "../tools/todo-tools";
 import { createInstructionsTools } from "../tools/instructions-tools";
 import { createVariableTools } from "../tools/variables-tools";
 import { createSecretTools } from "../tools/secrets-tools";
@@ -74,12 +92,28 @@ import { createWebhookTools } from "../tools/webhooks-tools";
 import { createNotificationTools } from "../tools/notifications-tools";
 import { createCompanyTools } from "../tools/company-tools";
 import { createInboxTools } from "../tools/inbox-tools";
-import { createStaffAdminTools } from "../tools/staff-admin-tools";
-import { createDutyAdminTools } from "../tools/duty-admin-tools";
+import { createCmsTools } from "../tools/cms-tools";
+import { applyReasoning } from "@dashboard/lib/chat/reasoning-adapter";
+import { createAgentAdminTools } from "../tools/agent-admin-tools";
+import { createAgentResponsibilityAdminTools } from "../tools/agent-responsibility-admin-tools";
 import { createMacroTools } from "../tools/macros-tools";
-import { loadMemoryIndexForPrompt } from "@dashboard/lib/memory-files";
+import {
+  invalidateMemoryIndexPromptCache,
+  loadMemoryIndexForPrompt,
+  readMemoryFile,
+  writeMemoryFile,
+} from "@dashboard/lib/memory-files";
 import { loadInstructionsForPrompt } from "@dashboard/lib/instructions/files";
 import { loadContextForPrompt } from "@dashboard/lib/context/files";
+import { buildExplicitMemoryDraft } from "./explicit-memory";
+import {
+  isValidSlug as isValidAgentSlug,
+  readResolvedAgentFile,
+} from "@dashboard/lib/agent-files";
+import {
+  appendAgentChatSpeakerOverride,
+  buildAgentChatIdentity,
+} from "@dashboard/lib/agent-chat-identity";
 
 export const runtime = "nodejs";
 // Research turns can chain up to ~10 tool rounds (search → read → blame → …)
@@ -160,6 +194,22 @@ function parseFileData(
 // next answer. The user-visible chat keeps its full transcript — only
 // the request to the model is trimmed.
 const MAX_HISTORY_MESSAGES = 50;
+
+/**
+ * Default cap on tool-calling rounds per turn. Optimized for deep analysis:
+ * the model can run a real research loop (search → read → blame → commits
+ * → re-search → …) without the prompt's "no fixed budget" rule getting cut
+ * off by the code. The `maxDuration: 300` Vercel ceiling still bounds
+ * wall-clock time, and a long turn that runs out of wall-clock is a
+ * better failure mode than a mid-investigation cut-off.
+ *
+ * Per-model override: `maxSteps` on the LLM_MODELS entry wins over this
+ * default, so a model that runs longer research chains (e.g. reasoning
+ * models that branch more) can be lifted individually without raising the
+ * cap for every other model. Pass `null` to disable the cap for a model
+ * (rely on `maxDuration` alone).
+ */
+export const DEFAULT_MAX_STEPS = 100;
 
 // Stream tracing uses console.* (not the pino `logger`) on purpose: pino
 // buffers writes asynchronously, and Vercel functions can be killed or
@@ -347,6 +397,22 @@ function normalizeMessages(raw: IncomingMessage[]): ModelMessage[] {
   return out;
 }
 
+function getLatestUserText(messages: ModelMessage[]): string | null {
+  for (let i = messages.length - 1; i >= 0; i -= 1) {
+    const message = messages[i];
+    if (message.role !== "user") continue;
+    if (typeof message.content === "string") return message.content;
+    if (!Array.isArray(message.content)) continue;
+    const text = message.content
+      .map((part) => (part.type === "text" ? part.text : ""))
+      .filter(Boolean)
+      .join("\n\n")
+      .trim();
+    if (text.length > 0) return text;
+  }
+  return null;
+}
+
 export async function POST(req: NextRequest) {
   // Short trace ID lets us follow a single chat request through every log
   // line (start, per-tool start/finish, per-step finish, errors, finish).
@@ -368,10 +434,10 @@ export async function POST(req: NextRequest) {
     task?: TaskContext;
     /** GitHub login of the requester — gates remote_* tools. Optional. */
     actorLogin?: string;
-    /** Current duty context — scopes the chat to a specific duty file. */
-    duty?: DutyContext;
+    /** Current agentResponsibility context — scopes the chat to a specific agentResponsibility folder. */
+    agentResponsibility?: AgentResponsibilityContext;
     /**
-     * When true, append the goal-planning block to the system prompt and
+     * When true, append the mission-planning block to the system prompt and
      * wire the planner tools (`create_task_for_goal`). `goal` must be set.
      */
     goalPlanner?: boolean;
@@ -379,6 +445,8 @@ export async function POST(req: NextRequest) {
     goal?: GoalContext;
     /** Currently-viewed report on /reports — scopes the chat to advise on it. */
     report?: { slug: string; title: string; body: string };
+    /** Org workspace scope from /org/:org. */
+    org?: OrgContext;
     /**
      * The dashboard page the user is currently viewing, as a noun phrase
      * (e.g. "the Variables page (/variables)"). Surfaced as a `## Current
@@ -386,7 +454,7 @@ export async function POST(req: NextRequest) {
      */
     currentPage?: string;
     /**
-     * Which agent persona to use for the system prompt. Defaults to `kody`.
+     * Which agentIdentity to use for the system prompt. Defaults to `kody`.
      * Any agent whose backend is `kody-direct` is served natively here;
      * agents whose backend is the engine, brain, or kody-live don't have
      * their prompts proxied through this route, so the route falls back to
@@ -395,6 +463,11 @@ export async function POST(req: NextRequest) {
      * backend swap).
      */
     agentId?: AgentId;
+    /**
+     * Repo/store agent identity slug addressed with `@slug` in chat. This is
+     * a prompt identity swap for this in-process turn, not a runner dispatch.
+     */
+    agentSlug?: string;
     /**
      * Voice modality. When true the server appends `VOICE_OVERLAY_PROMPT`
      * to the resolved agent's base prompt (no markdown, short sentences,
@@ -405,12 +478,21 @@ export async function POST(req: NextRequest) {
      */
     voiceMode?: boolean;
     /**
-     * Vibe mode. When true the chat is scoped to the selected vibe task and
-     * the prompt flips to "you ARE the executor — drive Kody Live/Fly, open
-     * PRs directly, never dispatch @kody". The Kody-dispatch tools are
-     * stripped from the tool set so the model can't trigger the pipeline.
+    /**
+     * Vibe mode. True when chat is scoped to the Vibe workspace. Kody chat
+     * may research, plan, and create issues, but implementation-start tools
+     * are stripped so it cannot open PRs, start runners, or dispatch @kody.
      */
     vibeMode?: boolean;
+    /**
+     * User-picked thinking level for the resolved model. Validated against
+     * the model's declared `reasoning.efforts` — unknown values fall back
+     * to `reasoning.default`. Translated to the provider's wire shape
+     * (anthropic_budget, openai_effort, …) by `applyReasoning()` before
+     * being merged into `streamText` options. Omitted when the model has
+     * no reasoning config — `applyReasoning` then returns `{}`.
+     */
+    reasoningEffort?: string;
   };
   try {
     body = (await req.json()) as typeof body;
@@ -439,14 +521,17 @@ export async function POST(req: NextRequest) {
   // not affect model selection; it's a per-turn prompt overlay only.
   const resolution = await resolveChatModel(req, body.model);
   if ("error" in resolution) return resolution.error;
-  const { model, resolvedModel, apiKey } = resolution;
+  const { model, resolvedModel } = resolution;
   const modelId = resolvedModel.id;
+  const actorResult = await verifyActorLogin(req, body.actorLogin);
+  if (actorResult instanceof NextResponse) return actorResult;
+  const verifiedActorLogin = actorResult.identity.login;
   // Only vision-capable models get real image parts. For text-only models
   // (looked up from LiteLLM's supports_vision data) inline the image as text
   // so the attachment still rides along instead of being dropped/rejected.
   const modelIsVision =
     supportsVision(resolvedModel.id) || supportsVision(resolvedModel.modelName);
-  const modelMessages = modelIsVision
+  let modelMessages = modelIsVision
     ? messages
     : inlineImagePartsForTextModel(messages);
   const repo = getRequestAuth(req);
@@ -461,7 +546,13 @@ export async function POST(req: NextRequest) {
   let userInstructions: string | null = null;
   let context: string | null = null;
   if (repo) {
-    setGitHubContext(repo.owner, repo.repo, repo.token);
+    setGitHubContext(
+      repo.owner,
+      repo.repo,
+      repo.token,
+      repo.storeRepoUrl,
+      repo.storeRef,
+    );
     try {
       memoryIndex = await loadMemoryIndexForPrompt();
     } catch (err) {
@@ -491,7 +582,7 @@ export async function POST(req: NextRequest) {
     }
   }
 
-  // Pick the agent persona. Agents whose backend is `kody-direct` are
+  // Pick the agentIdentity. Agents whose backend is `kody-direct` are
   // served natively here; the rest (engine, brain, kody-live) don't have
   // a usable in-process prompt to swap in.
   //
@@ -518,9 +609,54 @@ export async function POST(req: NextRequest) {
       { status: 400 },
     );
   }
-  const agent: AgentConfig =
-    requestedAgent.backend === "kody-direct" ? requestedAgent : AGENT_KODY;
 
+  const explicitMemoryDraft = buildExplicitMemoryDraft(
+    getLatestUserText(messages) ?? "",
+  );
+  if (repo && explicitMemoryDraft) {
+    try {
+      const octokit = createUserOctokit(repo.token);
+      const existing = await readMemoryFile(explicitMemoryDraft.id);
+      const file = await writeMemoryFile({
+        octokit,
+        id: explicitMemoryDraft.id,
+        sha: existing?.sha,
+        meta: {
+          name: explicitMemoryDraft.name,
+          description: explicitMemoryDraft.description,
+          type: explicitMemoryDraft.type,
+          created: existing?.meta.created ?? new Date().toISOString(),
+        },
+        body: explicitMemoryDraft.body,
+        message: `chore(memory): ${existing ? "update" : "add"} ${
+          explicitMemoryDraft.id
+        }${verifiedActorLogin ? ` (via chat by @${verifiedActorLogin})` : ""}`,
+      });
+      invalidateMemoryIndexPromptCache();
+      modelMessages = [
+        ...modelMessages,
+        {
+          role: "system",
+          content:
+            `Explicit memory request already persisted to .kody/memory/${file.id}.md ` +
+            `as ${file.meta.type}. Do not call remember/update_memory again. ` +
+            "Briefly confirm it was saved.",
+        },
+      ];
+    } catch (err) {
+      modelMessages = [
+        ...modelMessages,
+        {
+          role: "system",
+          content:
+            "Explicit memory request could not be persisted before response. " +
+            `Tell the user it failed and include this error: ${
+              err instanceof Error ? err.message : String(err)
+            }`,
+        },
+      ];
+    }
+  }
   const vibeMode = body.vibeMode === true;
 
   // In vibe mode the agent decides Fly vs. Live without asking. Probe
@@ -538,40 +674,49 @@ export async function POST(req: NextRequest) {
     }
   }
 
-  const assembledPrompt = buildSystemPrompt(
-    agent.systemPrompt,
-    repo ? { owner: repo.owner, repo: repo.repo } : null,
-    body.task,
-    {
-      duty: body.duty,
-      goalPlanner: goalPlannerActive,
-      goal: goalPlannerActive ? body.goal : undefined,
-      report: body.report,
-      currentPage: body.currentPage,
-      memoryIndex,
-      vibeMode,
-      flyConfigured,
-      userInstructions,
-      context,
-    },
-  );
+  // Load the chat defaults bundle — agentIdentity + agentAction + agentResponsibilities + skills.
+  // The bundle is the source of truth for the chat's prompt base + tool
+  // allowlist. Repo-stored with a TS fallback; step 1 returns TS defaults.
+  const chatBundle = await loadChatDefaults(repo?.owner, repo?.repo);
+  const agentSlug =
+    typeof body.agentSlug === "string" ? body.agentSlug.trim() : "";
+  let activeAgentIdentity = chatBundle.agentIdentity;
+  let addressedAgentMember: Awaited<ReturnType<typeof readResolvedAgentFile>> =
+    null;
+  if (agentSlug) {
+    if (!isValidAgentSlug(agentSlug)) {
+      clearGitHubContext();
+      return NextResponse.json(
+        { error: "invalid_agent_slug" },
+        { status: 400 },
+      );
+    }
+    if (!repo) {
+      return NextResponse.json({ error: "no_repo_context" }, { status: 400 });
+    }
+    let agentMember;
+    try {
+      agentMember = await readResolvedAgentFile(
+        agentSlug,
+        createUserOctokit(repo.token),
+      );
+    } catch (err) {
+      clearGitHubContext();
+      throw err;
+    }
+    if (!agentMember) {
+      clearGitHubContext();
+      return NextResponse.json({ error: "agent_not_found" }, { status: 404 });
+    }
+    activeAgentIdentity = buildAgentChatIdentity(agentMember);
+    addressedAgentMember = agentMember;
+  }
 
-  // Voice modality is layered onto the FULLY-ASSEMBLED prompt, appended
-  // LAST so its rules ("no markdown, short sentences, symbols-as-words")
-  // win by recency over the research/issue-creation/memory blocks above
-  // which otherwise teach the model to reply in bullet-heavy markdown.
-  // The agent's brain and tools are untouched — the user picks the brain
-  // in the dropdown; only the output shape changes.
-  const systemPrompt = applyVoiceOverlay(assembledPrompt, voiceMode);
-
-  // Build the per-request tool set. GitHub + pipeline tools require a
-  // resolved repo; remote tools require a configured actorLogin. The
-  // built-in `fetch_url` is always wired so the model can browse links.
-  //
-  // We never wire provider-defined tools (provider-native URL context or
-  // web search, etc.) — many providers forbid combining them
-  // with custom function tools, which would silently disable everything
-  // else. `fetch_url` is the universal swap-in replacement.
+  // Build the per-request tool set FIRST. The tool list feeds into the
+  // system prompt as a `## Tool index` block (item 1 of the accuracy
+  // improvements) — the model picks the right tool from the descriptions,
+  // not by guessing from names. Tool building requires repo + actor
+  // resolution done above.
   const baseTools: Record<string, unknown> = {
     fetch_url: fetchUrlTool,
     ...featureTools,
@@ -589,49 +734,49 @@ export async function POST(req: NextRequest) {
         octokit,
         owner: repo.owner,
         repo: repo.repo,
-        actorLogin: body.actorLogin ?? null,
+        actorLogin: verifiedActorLogin,
       }),
       ...createTaskTools({
         octokit,
         owner: repo.owner,
         repo: repo.repo,
-        actorLogin: body.actorLogin ?? null,
+        actorLogin: verifiedActorLogin,
       }),
       ...createGoalTools({
         octokit,
         owner: repo.owner,
         repo: repo.repo,
       }),
-      ...createDutyTools({
+      ...createAgentResponsibilityTools({
         octokit,
         owner: repo.owner,
         repo: repo.repo,
-        actorLogin: body.actorLogin ?? null,
+        actorLogin: verifiedActorLogin,
       }),
-      ...createStaffTools({
+      ...createAgentTools({
         octokit,
         owner: repo.owner,
         repo: repo.repo,
-        actorLogin: body.actorLogin ?? null,
+        actorLogin: verifiedActorLogin,
       }),
       ...createMemoryTools({
         octokit,
         owner: repo.owner,
         repo: repo.repo,
-        actorLogin: body.actorLogin ?? null,
+        actorLogin: verifiedActorLogin,
       }),
       ...createReleaseTools({
         octokit,
         owner: repo.owner,
         repo: repo.repo,
-        actorLogin: body.actorLogin ?? null,
+        actorLogin: verifiedActorLogin,
       }),
       ...createKodyTools({ octokit, owner: repo.owner, repo: repo.repo }),
-      ...createExecutableTools({
+      ...createAgentActionTools({
         octokit,
         owner: repo.owner,
         repo: repo.repo,
-        actorLogin: body.actorLogin ?? null,
+        actorLogin: verifiedActorLogin,
       }),
       // Dashboard-management tools: let chat manage every dashboard feature
       // (config files, settings, infra) the same way the pages do. Reads use
@@ -640,37 +785,43 @@ export async function POST(req: NextRequest) {
         octokit,
         owner: repo.owner,
         repo: repo.repo,
-        actorLogin: body.actorLogin ?? null,
+        actorLogin: verifiedActorLogin,
       }),
       ...createContextTools({
         octokit,
         owner: repo.owner,
         repo: repo.repo,
-        actorLogin: body.actorLogin ?? null,
+        actorLogin: verifiedActorLogin,
+      }),
+      ...createTodoTools({
+        octokit,
+        owner: repo.owner,
+        repo: repo.repo,
+        actorLogin: verifiedActorLogin,
       }),
       ...createInstructionsTools({
         octokit,
         owner: repo.owner,
         repo: repo.repo,
-        actorLogin: body.actorLogin ?? null,
+        actorLogin: verifiedActorLogin,
       }),
       ...createVariableTools({
         octokit,
         owner: repo.owner,
         repo: repo.repo,
-        actorLogin: body.actorLogin ?? null,
+        actorLogin: verifiedActorLogin,
       }),
       ...createSecretTools({
         octokit,
         owner: repo.owner,
         repo: repo.repo,
-        actorLogin: body.actorLogin ?? null,
+        actorLogin: verifiedActorLogin,
       }),
       ...createModelTools({
         octokit,
         owner: repo.owner,
         repo: repo.repo,
-        actorLogin: body.actorLogin ?? null,
+        actorLogin: verifiedActorLogin,
       }),
       ...createReportTools({ owner: repo.owner, repo: repo.repo }),
       ...createNotificationTools({ owner: repo.owner, repo: repo.repo }),
@@ -678,7 +829,7 @@ export async function POST(req: NextRequest) {
         octokit,
         owner: repo.owner,
         repo: repo.repo,
-        actorLogin: body.actorLogin ?? null,
+        actorLogin: verifiedActorLogin,
       }),
       ...createWebhookTools({
         token: repo.token,
@@ -690,29 +841,26 @@ export async function POST(req: NextRequest) {
         owner: repo.owner,
         repo: repo.repo,
       }),
-      ...createStaffAdminTools({
+      ...createAgentAdminTools({
         octokit,
         owner: repo.owner,
         repo: repo.repo,
-        actorLogin: body.actorLogin ?? null,
+        actorLogin: verifiedActorLogin,
       }),
-      ...createDutyAdminTools({
+      ...createAgentResponsibilityAdminTools({
         octokit,
         owner: repo.owner,
         repo: repo.repo,
-        actorLogin: body.actorLogin ?? null,
+        actorLogin: verifiedActorLogin,
       }),
       ...createMacroTools({
         octokit,
         owner: repo.owner,
         repo: repo.repo,
-        actorLogin: body.actorLogin ?? null,
+        actorLogin: verifiedActorLogin,
       }),
-      // Vibe-only: pre-create branch + draft PR so Vercel cold-builds in
-      // parallel with the runner warmup. Stripped from the tool set when
-      // not in vibe mode below (alongside the @kody dispatch tools).
-      // When scoped to a task, bind the hand-off to that issue so a
-      // mis-guessed issueNumber from the model can't mis-target the runner.
+      // Registered for legacy callers/tests, but stripped from Kody chat by
+      // applyVibeToolPolicy. Kody chat creates/refines issues only.
       ...createVibeTools({
         octokit,
         owner: repo.owner,
@@ -727,7 +875,7 @@ export async function POST(req: NextRequest) {
             octokit,
             owner: repo.owner,
             repo: repo.repo,
-            actorLogin: body.actorLogin ?? null,
+            actorLogin: verifiedActorLogin,
             goalId: body.goal.id,
           })
         : {}),
@@ -743,17 +891,105 @@ export async function POST(req: NextRequest) {
   }
   extraTools = {
     ...extraTools,
-    ...createRemoteTools(body.actorLogin ?? null),
+    ...createRemoteTools(verifiedActorLogin),
   };
-  // Vibe tool policy (see vibe-tool-policy.ts): strips the `@kody` dispatch
-  // tools in vibe mode, strips issue-creation tools once a task is scoped
-  // (so the model can't file a duplicate), and removes vibe_start_execution
-  // outside vibe.
+  if (repo) {
+    const octokit = createUserOctokit(repo.token);
+    extraTools = {
+      ...extraTools,
+      ...(await createCmsTools({
+        req,
+        octokit,
+        owner: repo.owner,
+        repo: repo.repo,
+      })),
+    };
+  }
+  // Kody chat tool policy (see vibe-tool-policy.ts): strips implementation
+  // starters from this endpoint, and strips issue-creation tools in vibe mode
+  // once a task is scoped so the model can't file a duplicate.
   const mergedTools = applyVibeToolPolicy(
     { ...baseTools, ...extraTools },
     { vibeMode, hasCurrentTask: body.task?.issueNumber != null },
   );
-  const tools = mergedTools as Parameters<typeof streamText>[0]["tools"];
+  // Bundle allowlist — the agentAction's `tools` field is the single source
+  // of truth for which tools the chat exposes. Empty list = expose all
+  // (preserves current behavior when the bundle is unconfigured).
+  const allowlistedTools = filterToolsByAllowlist(
+    mergedTools,
+    chatBundle.agentAction.tools,
+  );
+  const tools = allowlistedTools as Parameters<typeof streamText>[0]["tools"];
+
+  // Build the system prompt. The tool index (name + description) is
+  // computed from the FINAL allowlisted tools and injected into the
+  // bundle's base prompt — the model sees a `## Tool index` block
+  // listing every callable with a one-sentence description, so it
+  // picks the right tool instead of guessing by name.
+  const toolIndex = buildToolIndex(allowlistedTools);
+
+  const basePrompt = composeBasePrompt(
+    { ...chatBundle, agentIdentity: activeAgentIdentity },
+    { toolIndex },
+  );
+  const assembledPrompt = buildSystemPrompt(
+    basePrompt,
+    repo ? { owner: repo.owner, repo: repo.repo } : null,
+    body.task,
+    {
+      agentResponsibility: body.agentResponsibility,
+      goalPlanner: goalPlannerActive,
+      goal: goalPlannerActive ? body.goal : undefined,
+      report: body.report,
+      org: body.org,
+      currentPage: body.currentPage,
+      memoryIndex,
+      vibeMode,
+      flyConfigured,
+      userInstructions,
+      context,
+    },
+  );
+
+  // Critical reminders appended LAST among the static rules (recency
+  // bias) so the model holds them through the runtime blocks. The voice
+  // overlay still wins over these when voice is on (applied next).
+  const promptWithReminders = voiceMode
+    ? assembledPrompt
+    : `${assembledPrompt}\n\n${CRITICAL_REMINDERS_MD}`;
+  const promptWithSpeakerOverride = appendAgentChatSpeakerOverride(
+    promptWithReminders,
+    addressedAgentMember,
+  );
+
+  // Voice modality is layered onto the FULLY-ASSEMBLED prompt, appended
+  // LAST so its rules ("no markdown, short sentences, symbols-as-words")
+  // win by recency over the research/issue-creation/memory blocks above
+  // which otherwise teach the model to reply in bullet-heavy markdown.
+  // The agent's brain and tools are untouched — the user picks the brain
+  // in the dropdown; only the output shape changes.
+  const systemPrompt = applyVoiceOverlay(promptWithSpeakerOverride, voiceMode);
+
+  // Build a tool-name → description map from the merged tool set. Every
+  // tool in this repo calls `tool({ description, inputSchema, execute })`
+  // from the AI SDK, which returns a runtime object with `description` as
+  // a first-class field. We ship the map to the client as a single
+  // `data-tools-index` event at the start of the stream so the thinking
+  // panel can render the tool description (the same string the model uses
+  // to decide whether to call a tool) as a muted one-liner under the tool
+  // name. One event for the whole turn, not one per call — see issue #321.
+  // Brain/Engine chats don't populate this; the client field is optional
+  // and the card gracefully omits the line when missing.
+  const toolDescriptionByName: Record<string, string> = {};
+  for (const [name, t] of Object.entries(tools ?? {})) {
+    const desc =
+      t && typeof t === "object" && "description" in t
+        ? (t as { description?: unknown }).description
+        : undefined;
+    if (typeof desc === "string" && desc.trim().length > 0) {
+      toolDescriptionByName[name] = desc;
+    }
+  }
 
   let stepNum = 0;
 
@@ -799,45 +1035,22 @@ export async function POST(req: NextRequest) {
       system: systemPrompt,
       messages: modelMessages,
       tools,
-      // Allow up to 10 tool-calling rounds so the model can run a real
-      // research loop (search → read → blame → commits → re-search) in
-      // one turn. Tools are individually rate-limit-aware (cache + ETag),
-      // so 10 cache hits cost essentially nothing. Higher caps push us
-      // toward the function timeout without meaningfully helping research.
-      //
-      // Goal planner is the exception: Pass 1 (broad research + listing)
-      // and Pass 2 (per-task research + create) each chain ~2–4 calls per
-      // task, so 10 silently truncates a 5-task plan after the first
-      // create. Raise to 30 in planner mode so the full sweep can land.
-      //
-      // Per-model override: `maxSteps` on the LLM_MODELS entry wins over
-      // both defaults, so a model that runs longer research chains (e.g.
-      // reasoning models that branch more) can be lifted individually
-      // without raising the cap for every other model. The
-      // `maxDuration: 300` Vercel ceiling still bounds wall-clock time.
-      stopWhen: stepCountIs(
-        resolvedModel.maxSteps ?? (goalPlannerActive ? 30 : 10),
-      ),
+      // Optimized for deep analysis: see DEFAULT_MAX_STEPS for the cap
+      // rationale and the per-model override path. The constant lives at
+      // module level so tests can assert the value.
+      stopWhen: stepCountIs(resolvedModel.maxSteps ?? DEFAULT_MAX_STEPS),
       // Per-provider thinking config so reasoning-delta chunks actually
       // reach the client. Without this, `sendReasoning: true` below has
       // nothing to stream and the chat looks idle until the final answer.
-      // Anthropic via the native SDK accepts extended-thinking under a
-      // stable provider-options key — wire it whenever the resolved model
-      // uses that protocol. The openai-compatible SDK has no comparable
-      // stable path for some providers' thinking config; in that case we
-      // lean on tool-call chips (now rendered in KodyChat) to surface progress.
       // Voice mode skips reasoning entirely — the voice overlay forbids
       // reading anything other than the final answer, and the chat client
       // also drops reasoning chunks defensively in this mode.
-      ...(resolvedModel.protocol === "anthropic" && !voiceMode
-        ? {
-            providerOptions: {
-              anthropic: {
-                thinking: { type: "enabled", budgetTokens: 5000 },
-              },
-            },
-          }
-        : {}),
+      // `applyReasoning` is the single source of truth for the
+      // effort→wire-shape translation; the user-picked level is forwarded
+      // as `body.reasoningEffort` and validated against the model's
+      // declared `efforts` list. Returns `{}` for models that don't
+      // reason, so non-reasoning providers stay untouched.
+      ...(voiceMode ? {} : applyReasoning(resolvedModel, body.reasoningEffort)),
       // Per-tool tracing. `experimental_onToolCallStart` fires before the
       // tool's `execute` is invoked; `experimental_onToolCallFinish`
       // afterward with the SDK-measured `durationMs` and a success flag.
@@ -919,12 +1132,21 @@ export async function POST(req: NextRequest) {
         );
       },
     });
-    return result.toUIMessageStreamResponse({
-      sendReasoning: true,
-      // Without this the SDK ships a generic "An error occurred." string.
-      // Returning the real message turns silent hangs into visible failures
-      // (rate limits, quota, bad tool args, etc.) — both for the user and
-      // for support sessions where they paste the message back to us.
+    // Prepend a single `data-tools-index` event to the UI stream so the
+    // client can hydrate a name→description lookup for the thinking panel.
+    // One event for the whole turn (not one per tool call) — see the
+    // `toolDescriptionByName` build above for the why. We do this through
+    // `createUIMessageStream` so the description map is the first chunk the
+    // client sees; the rest of the stream is the same `result.toUIMessageStream`
+    // the SDK would have produced on its own.
+    const uiStream = createUIMessageStream({
+      execute: ({ writer }) => {
+        writer.write({
+          type: "data-tools-index",
+          data: toolDescriptionByName,
+        });
+        writer.merge(result.toUIMessageStream({ sendReasoning: true }));
+      },
       onError: (error) => {
         clearHeartbeats();
         const msg = formatProviderError(error);
@@ -935,6 +1157,7 @@ export async function POST(req: NextRequest) {
         return `[trace ${traceId}] ${msg}`;
       },
     });
+    return createUIMessageStreamResponse({ stream: uiStream });
   } catch (err) {
     clearHeartbeats();
     clearGitHubContext();

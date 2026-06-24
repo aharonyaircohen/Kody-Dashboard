@@ -4,7 +4,7 @@
  * @pattern context-api
  * @ai-summary Context API — GET lists context entries
  *   (`.kody/context/<slug>.md`), POST creates a new one. Entries owned by the
- *   built-in `kody` staff are injected into the kody-direct chat system
+ *   built-in `kody` agent are injected into the kody-direct chat system
  *   prompt so the agent knows what the company is and does.
  */
 /* eslint-disable @typescript-eslint/no-explicit-any */
@@ -26,10 +26,15 @@ import {
   writeContextFile,
   isValidSlug,
 } from "@dashboard/lib/context/files";
-import { KODY_CHAT_STAFF } from "@dashboard/lib/context/frontmatter";
+import { KODY_CHAT_AGENT } from "@dashboard/lib/context/frontmatter";
 
-/** A staff slug (entry slug shape) or the `*` all-staff wildcard. */
-const STAFF_TOKEN_RE = /^(\*|[a-z0-9][a-z0-9_-]{0,63})$/;
+export const dynamic = "force-dynamic";
+export const revalidate = 0;
+
+const NO_STORE_HEADERS = { "Cache-Control": "no-store, max-age=0" };
+
+/** An agent slug (entry slug shape) or the `*` all-agent wildcard. */
+const AGENT_TOKEN_RE = /^(\*|[a-z0-9][a-z0-9_-]{0,63})$/;
 
 export async function GET(req: NextRequest) {
   const authResult = await requireKodyAuth(req);
@@ -41,24 +46,24 @@ export async function GET(req: NextRequest) {
 
   try {
     const entries = await listContextFiles();
-    return NextResponse.json({ entries });
+    return NextResponse.json({ entries }, { headers: NO_STORE_HEADERS });
   } catch (error: any) {
     console.error("[Context] Error listing context:", error);
     if (error?.status === 401) {
       return NextResponse.json(
         { error: "github_token_expired" },
-        { status: 401 },
+        { status: 401, headers: NO_STORE_HEADERS },
       );
     }
     if (error?.status === 403 || error?.message?.includes("rate limit")) {
       return NextResponse.json(
         { error: "rate_limited", message: "GitHub API rate limit exceeded" },
-        { status: 429 },
+        { status: 429, headers: NO_STORE_HEADERS },
       );
     }
     return NextResponse.json(
       { entries: [], error: error?.message || "Failed to list context" },
-      { status: 500 },
+      { status: 500, headers: NO_STORE_HEADERS },
     );
   } finally {
     clearGitHubContext();
@@ -68,8 +73,8 @@ export async function GET(req: NextRequest) {
 const createContextSchema = z.object({
   slug: z.string().min(1).max(64),
   body: z.string().min(1),
-  // May be empty — an unassigned entry owned by no staff member.
-  staff: z.array(z.string().regex(STAFF_TOKEN_RE)).default([KODY_CHAT_STAFF]),
+  // May be empty — an unassigned entry owned by no agent.
+  agent: z.array(z.string().regex(AGENT_TOKEN_RE)).default([KODY_CHAT_AGENT]),
   actorLogin: z.string().optional(),
 });
 
@@ -83,7 +88,7 @@ export async function POST(req: NextRequest) {
 
   try {
     const payload = await req.json();
-    const { slug, body, staff, actorLogin } =
+    const { slug, body, agent, actorLogin } =
       createContextSchema.parse(payload);
 
     if (!isValidSlug(slug)) {
@@ -127,7 +132,7 @@ export async function POST(req: NextRequest) {
       octokit: userOctokit,
       slug,
       body,
-      staff,
+      agent,
     });
 
     return NextResponse.json({ entry });

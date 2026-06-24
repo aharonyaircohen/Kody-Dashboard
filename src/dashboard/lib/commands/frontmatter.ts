@@ -6,7 +6,7 @@
  *   format mirrors Claude Code skills: `description` (one-line summary
  *   shown in the slash menu) and `argument-hint` (placeholder rendered
  *   next to the slug in autocomplete). Flat scalar keys only — same
- *   30-line parser shape as `duties-frontmatter.ts`.
+ *   30-line parser shape as `agentResponsibilities-frontmatter.ts`.
  */
 
 export interface CommandFrontmatter {

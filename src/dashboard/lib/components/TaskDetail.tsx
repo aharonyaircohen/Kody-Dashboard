@@ -7,10 +7,8 @@
 "use client";
 
 import { useState, useEffect, useCallback, useRef } from "react";
-import ReactMarkdown from "react-markdown";
-import remarkGfm from "remark-gfm";
 import { formatRelativeTime, cn } from "../utils";
-import { getGitHubIssueUrl } from "../constants";
+import { getGitHubIssueUrl, HIDDEN_TASK_LABEL } from "../constants";
 import type {
   KodyTask,
   GitHubComment,
@@ -28,10 +26,13 @@ import { TaskRunsList } from "./TaskRunsList";
 import { ConfirmDialog } from "./ConfirmDialog";
 import { CommentEditor } from "./CommentEditor";
 import { CommentList } from "./CommentList";
+import { MarkdownPreview } from "./MarkdownPreview";
+import { IssueAttachmentButton } from "./IssueAttachmentButton";
 import { AssigneePicker, type AssigneeChangeEvent } from "./AssigneePicker";
 import { GoalPicker } from "./GoalPicker";
 import { useGoals } from "../hooks/useGoals";
 import { GOAL_LABEL_PREFIX } from "../goals";
+import { autoDirProps, rtlAwareMarkdownClassName } from "../text-direction";
 import { KodyPhaseChip, KodyFlowChip } from "./KodyLabelChips";
 import { SimpleTooltip } from "./SimpleTooltip";
 import { WorkflowRunsPopover } from "./WorkflowRunsPopover";
@@ -69,6 +70,7 @@ import {
   Timer,
   ArrowLeft,
   Eye,
+  EyeOff,
   Pencil,
   Copy,
   ListPlus,
@@ -91,6 +93,9 @@ interface TaskDetailProps {
   onOpenPreview?: () => void;
   onEditTask?: (task: KodyTask) => void;
   onDuplicate?: (task: KodyTask) => void;
+  onHideTask?: (task: KodyTask) => void;
+  onShowTask?: (task: KodyTask) => void;
+  visibilityActionPending?: "hide-from-dashboard" | "show-in-dashboard" | null;
   // When false, tab changes do NOT pushState/read window.location.
   // Used by hosts that own their own URL (e.g. Vibe overlay on `/vibe?detail=N`).
   // Defaults to true so the dashboard's path-based routing keeps working.
@@ -272,8 +277,8 @@ function getPrimaryAction(
   task: KodyTask,
   fullDetails: FullTaskDetails | null,
   taskActions: ReturnType<typeof useTaskActions>,
-  completedActions: Set<string>,
-  setCompletedActions: React.Dispatch<React.SetStateAction<Set<string>>>,
+  _completedActions: Set<string>,
+  _setCompletedActions: React.Dispatch<React.SetStateAction<Set<string>>>,
 ): {
   icon: React.ElementType;
   label: string;
@@ -311,9 +316,11 @@ function getPrimaryAction(
 function getOverflowActions(
   task: KodyTask,
   taskActions: ReturnType<typeof useTaskActions>,
-  completedActions: Set<string>,
-  setCompletedActions: React.Dispatch<React.SetStateAction<Set<string>>>,
+  _completedActions: Set<string>,
+  _setCompletedActions: React.Dispatch<React.SetStateAction<Set<string>>>,
   onDuplicate?: (task: KodyTask) => void,
+  onHideTask?: (task: KodyTask) => void,
+  onShowTask?: (task: KodyTask) => void,
 ): Array<{
   icon: React.ElementType;
   label: string;
@@ -401,6 +408,25 @@ function getOverflowActions(
       pendingLabel: "Duplicating…",
       onClick: () => onDuplicate(task),
       pendingKey: "duplicate",
+    });
+  }
+
+  const hiddenFromDashboard = task.labels.includes(HIDDEN_TASK_LABEL);
+  if (hiddenFromDashboard && onShowTask) {
+    actions.push({
+      icon: Eye,
+      label: "Show in dashboard",
+      pendingLabel: "Showing…",
+      onClick: () => onShowTask(task),
+      pendingKey: "show-in-dashboard",
+    });
+  } else if (!hiddenFromDashboard && onHideTask) {
+    actions.push({
+      icon: EyeOff,
+      label: "Hide from dashboard",
+      pendingLabel: "Hiding…",
+      onClick: () => onHideTask(task),
+      pendingKey: "hide-from-dashboard",
     });
   }
 
@@ -653,6 +679,9 @@ export function TaskDetail({
   onOpenPreview,
   onEditTask,
   onDuplicate,
+  onHideTask,
+  onShowTask,
+  visibilityActionPending = null,
   syncTabToUrl = true,
 }: TaskDetailProps) {
   const { githubUser } = useGitHubIdentity();
@@ -803,121 +832,9 @@ export function TaskDetail({
     completedActions,
     setCompletedActions,
     onDuplicate,
+    onHideTask,
+    onShowTask,
   );
-
-  // --- Shared markdown components ---
-  const markdownComponents = {
-    p: ({ children }: { children?: React.ReactNode }) => (
-      <p className="mb-3 last:mb-0 text-base text-muted-foreground leading-relaxed break-words">
-        {children}
-      </p>
-    ),
-    a: ({ href, children }: { href?: string; children?: React.ReactNode }) => (
-      <a
-        href={href}
-        target="_blank"
-        rel="noopener noreferrer"
-        className="text-blue-400 hover:underline"
-      >
-        {children}
-      </a>
-    ),
-    code: ({
-      className,
-      children,
-      ...props
-    }: {
-      className?: string;
-      children?: React.ReactNode;
-    }) => {
-      const isBlock = className?.includes("language-");
-      if (isBlock) {
-        return (
-          <code className={className} {...props}>
-            {children}
-          </code>
-        );
-      }
-      return (
-        <code
-          className="bg-muted/50 px-1.5 py-0.5 rounded text-sm text-foreground"
-          {...props}
-        >
-          {children}
-        </code>
-      );
-    },
-    pre: ({ children }: { children?: React.ReactNode }) => (
-      <pre className="bg-muted/50 p-3 rounded-md text-sm overflow-x-auto my-3 max-w-full">
-        {children}
-      </pre>
-    ),
-    ul: ({ children }: { children?: React.ReactNode }) => (
-      <ul className="list-disc pl-6 space-y-1 text-base text-muted-foreground my-2">
-        {children}
-      </ul>
-    ),
-    ol: ({ children }: { children?: React.ReactNode }) => (
-      <ol className="list-decimal pl-6 space-y-1 text-base text-muted-foreground my-2">
-        {children}
-      </ol>
-    ),
-    li: ({ children }: { children?: React.ReactNode }) => (
-      <li className="text-base text-muted-foreground leading-relaxed break-words">
-        {children}
-      </li>
-    ),
-    h1: ({ children }: { children?: React.ReactNode }) => (
-      <h1 className="text-xl font-bold text-foreground mt-6 mb-2 first:mt-0 border-b border-border pb-1">
-        {children}
-      </h1>
-    ),
-    h2: ({ children }: { children?: React.ReactNode }) => (
-      <h2 className="text-lg font-bold text-foreground mt-5 mb-2 first:mt-0">
-        {children}
-      </h2>
-    ),
-    h3: ({ children }: { children?: React.ReactNode }) => (
-      <h3 className="text-base font-semibold text-foreground mt-4 mb-1.5">
-        {children}
-      </h3>
-    ),
-    h4: ({ children }: { children?: React.ReactNode }) => (
-      <h4 className="text-base font-medium text-foreground mt-3 mb-1">
-        {children}
-      </h4>
-    ),
-    blockquote: ({ children }: { children?: React.ReactNode }) => (
-      <blockquote className="border-l-3 border-blue-500/40 pl-4 my-3 text-base italic text-muted-foreground bg-muted/20 py-2 rounded-r-md">
-        {children}
-      </blockquote>
-    ),
-    hr: () => <hr className="border-border my-4" />,
-    table: ({ children }: { children?: React.ReactNode }) => (
-      <div className="overflow-x-auto my-3 rounded-md border border-border">
-        <table className="text-xs border-collapse w-full">{children}</table>
-      </div>
-    ),
-    thead: ({ children }: { children?: React.ReactNode }) => (
-      <thead className="bg-muted/40">{children}</thead>
-    ),
-    th: ({ children }: { children?: React.ReactNode }) => (
-      <th className="border-b border-border px-3 py-2 text-left font-semibold text-foreground text-xs">
-        {children}
-      </th>
-    ),
-    td: ({ children }: { children?: React.ReactNode }) => (
-      <td className="border-b border-border/50 px-3 py-2 text-muted-foreground text-xs">
-        {children}
-      </td>
-    ),
-    strong: ({ children }: { children?: React.ReactNode }) => (
-      <strong className="font-semibold text-foreground">{children}</strong>
-    ),
-    em: ({ children }: { children?: React.ReactNode }) => (
-      <em className="italic text-muted-foreground">{children}</em>
-    ),
-  };
 
   // --- Retry With Context Block ---
   const retryWithContextBlock = task.column === "failed" && (
@@ -942,7 +859,8 @@ export function TaskDetail({
             value={retryContext}
             onChange={(e) => setRetryContext(e.target.value)}
             placeholder="Add context for the retry…"
-            className="w-full h-20 px-3 py-2 text-base bg-background border border-border rounded-md resize-none focus:outline-none focus:ring-2 focus:ring-orange-500/50 placeholder:text-muted-foreground"
+            dir="auto"
+            className="w-full h-20 px-3 py-2 text-base bg-background border border-border rounded-md resize-none focus:outline-none focus:ring-2 focus:ring-orange-500/50 placeholder:text-muted-foreground text-start"
           />
           <div className="flex items-center justify-between">
             <p className="text-xs text-muted-foreground">
@@ -1055,14 +973,14 @@ export function TaskDetail({
           aria-labelledby="task-tab-description"
           className="p-5 md:p-6 overflow-y-auto overflow-x-hidden h-full bg-white/[0.03]"
         >
-          <div className="max-w-3xl min-w-0">
-            <ReactMarkdown
-              remarkPlugins={[remarkGfm]}
-              components={markdownComponents}
-            >
-              {task.body!}
-            </ReactMarkdown>
-          </div>
+          <MarkdownPreview
+            content={task.body!}
+            dir="auto"
+            className={cn(
+              "max-w-3xl min-w-0 text-start",
+              rtlAwareMarkdownClassName,
+            )}
+          />
         </div>
       )}
       {effectiveTab === "comments" && (
@@ -1177,20 +1095,18 @@ export function TaskDetail({
           fallbackRun={task.workflowRun}
         />
       )}
-      {task.associatedPR &&
-        onOpenPreview &&
-        (task.column === "review" || task.column === "done") && (
-          <button
-            onClick={(e) => {
-              e.stopPropagation();
-              onOpenPreview();
-            }}
-            className="inline-flex items-center gap-1.5 text-xs font-semibold px-3 py-1.5 rounded-lg bg-emerald-500/15 text-emerald-300 hover:bg-emerald-500/25 hover:text-emerald-200 transition-all duration-150 shrink-0 border border-emerald-500/20 cursor-pointer"
-          >
-            <Eye className="w-3 h-3" />
-            Preview
-          </button>
-        )}
+      {task.associatedPR && onOpenPreview && (
+        <button
+          onClick={(e) => {
+            e.stopPropagation();
+            onOpenPreview();
+          }}
+          className="inline-flex items-center gap-1.5 text-xs font-semibold px-3 py-1.5 rounded-lg bg-emerald-500/15 text-emerald-300 hover:bg-emerald-500/25 hover:text-emerald-200 transition-all duration-150 shrink-0 border border-emerald-500/20 cursor-pointer"
+        >
+          <Eye className="w-3 h-3" />
+          Preview
+        </button>
+      )}
     </>
   );
 
@@ -1292,7 +1208,10 @@ export function TaskDetail({
         </div>
 
         {/* Row 2: Title */}
-        <h2 className="text-base font-bold text-white leading-snug tracking-tight pl-1">
+        <h2
+          {...autoDirProps}
+          className="text-base font-bold text-white leading-snug tracking-tight ps-1 text-start"
+        >
           {task.title}
         </h2>
 
@@ -1358,8 +1277,10 @@ export function TaskDetail({
             {/* Overflow menu */}
             <OverflowMenu
               actions={overflowActions}
-              isPending={taskActions.isPending}
-              pendingAction={taskActions.pendingAction}
+              isPending={taskActions.isPending || !!visibilityActionPending}
+              pendingAction={
+                visibilityActionPending ?? taskActions.pendingAction
+              }
             />
 
             <span className="w-px h-5 bg-white/[0.06] mx-0.5" />
@@ -1409,7 +1330,10 @@ export function TaskDetail({
         </div>
 
         {/* Row 2: Title — prominent */}
-        <h2 className="text-xl font-bold text-white leading-tight tracking-tight mb-3">
+        <h2
+          {...autoDirProps}
+          className="text-xl font-bold text-white leading-tight tracking-tight mb-3 text-start"
+        >
           {task.title}
         </h2>
 
@@ -1560,21 +1484,29 @@ export function TaskDetail({
                 !l.startsWith("priority:") &&
                 !l.startsWith(GOAL_LABEL_PREFIX),
             );
-            if (rest.length === 0) return null;
             return (
               <div className="space-y-2">
                 <h4 className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wider px-0.5">
                   Labels
                 </h4>
-                <div className="flex flex-wrap gap-1 px-0.5">
-                  {rest.map((label) => (
-                    <span
-                      key={label}
-                      className="inline-flex px-2 py-0.5 text-[11px] font-medium rounded-md bg-white/[0.08] text-zinc-300 border border-white/[0.1]"
-                    >
-                      {label}
-                    </span>
-                  ))}
+                <div className="space-y-2 px-0.5">
+                  {rest.length > 0 && (
+                    <div className="flex flex-wrap gap-1">
+                      {rest.map((label) => (
+                        <span
+                          key={label}
+                          className="inline-flex px-2 py-0.5 text-[11px] font-medium rounded-md bg-white/[0.08] text-zinc-300 border border-white/[0.1]"
+                        >
+                          {label}
+                        </span>
+                      ))}
+                    </div>
+                  )}
+                  <IssueAttachmentButton
+                    issueNumber={task.issueNumber}
+                    onAttachmentAdded={() => refetch()}
+                    className="w-full justify-start text-muted-foreground"
+                  />
                 </div>
               </div>
             );
@@ -1885,20 +1817,18 @@ export function TaskDetail({
             PR #{task.associatedPR.number}
           </a>
         )}
-        {task.associatedPR &&
-          onOpenPreview &&
-          (task.column === "review" || task.column === "done") && (
-            <button
-              onClick={(e) => {
-                e.stopPropagation();
-                onOpenPreview();
-              }}
-              className="h-9 inline-flex items-center gap-1.5 px-3 rounded-full text-xs font-medium bg-emerald-500/10 text-emerald-400 hover:bg-emerald-500/20 transition-colors shrink-0 cursor-pointer"
-            >
-              <Eye className="w-3.5 h-3.5" />
-              Preview
-            </button>
-          )}
+        {task.associatedPR && onOpenPreview && (
+          <button
+            onClick={(e) => {
+              e.stopPropagation();
+              onOpenPreview();
+            }}
+            className="h-9 inline-flex items-center gap-1.5 px-3 rounded-full text-xs font-medium bg-emerald-500/10 text-emerald-400 hover:bg-emerald-500/20 transition-colors shrink-0 cursor-pointer"
+          >
+            <Eye className="w-3.5 h-3.5" />
+            Preview
+          </button>
+        )}
         {task.previewUrl && (
           <a
             href={task.previewUrl}
@@ -1916,8 +1846,8 @@ export function TaskDetail({
         <div className="ml-auto">
           <OverflowMenu
             actions={overflowActions}
-            isPending={taskActions.isPending}
-            pendingAction={taskActions.pendingAction}
+            isPending={taskActions.isPending || !!visibilityActionPending}
+            pendingAction={visibilityActionPending ?? taskActions.pendingAction}
             direction="up"
           />
         </div>

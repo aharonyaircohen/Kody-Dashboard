@@ -31,7 +31,7 @@ import { logger } from "@dashboard/lib/logger";
 import {
   streamBrainChat,
   type BrainAttachment,
-  type BrainDutyContext,
+  type BrainAgentResponsibilityContext,
   type BrainTaskContext,
 } from "@dashboard/lib/brain-proxy";
 import {
@@ -73,7 +73,7 @@ export async function POST(req: NextRequest) {
     message?: string;
     taskContext?: BrainTaskContext;
     attachments?: BrainAttachment[];
-    dutyContext?: BrainDutyContext;
+    agentResponsibilityContext?: BrainAgentResponsibilityContext;
     voiceMode?: boolean;
     resumeSince?: number;
     resumeText?: string;
@@ -81,6 +81,8 @@ export async function POST(req: NextRequest) {
     currentPage?: string;
     /** First turn: fold the dashboard's curated Context into the message. */
     includeContext?: boolean;
+    /** User-picked thinking level. Forwarded verbatim to Brain. */
+    reasoningEffort?: string;
   };
   try {
     body = await req.json();
@@ -123,7 +125,6 @@ export async function POST(req: NextRequest) {
       githubToken: ctx.context.githubToken,
       allSecrets: ctx.context.allSecrets,
       perfTier: ctx.context.perfTier,
-      litellmUrl: ctx.context.litellmUrl,
       ...(appNameOverride ? { appNameOverride } : {}),
     });
     provisioned = { url: result.url, apiKey: result.apiKey, app: result.app };
@@ -154,7 +155,7 @@ export async function POST(req: NextRequest) {
 
   // Provision returns when the Fly Machine API has accepted the create
   // call, but the Node server inside doesn't bind :8080 until the
-  // entrypoint finishes the repo clone + LiteLLM + brain-serve startup.
+  // entrypoint finishes the repo clone + model proxy + brain-serve startup.
   // Measured cold boot is ~105s and varies with git-clone time, so the
   // 120s default tipped over on normal variance. Budget 240s here (the
   // poll returns the instant /healthz is 200 — the larger number only
@@ -215,10 +216,11 @@ export async function POST(req: NextRequest) {
         ),
     taskContext: body.taskContext,
     attachments: body.attachments,
-    dutyContext: body.dutyContext,
+    agentResponsibilityContext: body.agentResponsibilityContext,
     repo,
     repoToken,
     voiceMode: body.voiceMode === true,
+    ...(body.reasoningEffort ? { reasoningEffort: body.reasoningEffort } : {}),
     // Per-user Brain on Fly answers in plain, simple terms (external /brain
     // keeps its own style). See PLAIN_LANGUAGE_PREAMBLE in brain-proxy.
     plainLanguage: true,

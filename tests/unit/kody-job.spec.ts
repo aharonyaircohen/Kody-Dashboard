@@ -7,69 +7,69 @@ import {
   type KodyJob,
 } from "@dashboard/lib/kody-job";
 
-/**
- * These tests pin the dashboard Job mirror to the engine's `Job` contract
- * (kody2/src/executables/types.ts:457 + kody2/src/job.ts:46). If the engine
- * changes the shape or the validation rules, these break — that's the point.
- */
-describe("KodyJob mirrors the engine Job", () => {
-  it("assembles the four axes: executable(how) + duty(why) + persona(who) + schedule(when)", () => {
+describe("KodyJob agentResponsibility dispatch boundary", () => {
+  it("assembles a agentResponsibility run with an implementation agentAction link", () => {
     const job = validateKodyJob({
-      executable: "qa-verify", // HOW
-      duty: "nightly-qa", // WHY (slug)
-      persona: "qa-engineer", // WHO
+      agentAction: "qa-verify", // HOW
+      agentResponsibility: "nightly-qa", // WHY (slug)
+      agent: "qa-engineer", // WHO
       schedule: "0 3 * * *", // WHEN
       target: 42,
       cliArgs: { pr: 42 },
       flavor: "scheduled",
     });
-    expect(job.executable).toBe("qa-verify");
-    expect(job.duty).toBe("nightly-qa");
-    expect(job.persona).toBe("qa-engineer");
+    expect(job.agentAction).toBe("qa-verify");
+    expect(job.agentResponsibility).toBe("nightly-qa");
+    expect(job.agent).toBe("qa-engineer");
     expect(job.schedule).toBe("0 3 * * *");
     expect(job.flavor).toBe("scheduled");
   });
 
-  it("requires an executable OR a duty (engine: validateJob)", () => {
+  it("requires a agentResponsibility and rejects agentAction-only jobs", () => {
     expect(() => validateKodyJob({ flavor: "instant", cliArgs: {} })).toThrow(
       InvalidKodyJobError,
     );
-    // either one alone is valid
-    expect(
-      validateKodyJob({ executable: "run", flavor: "instant" }).executable,
-    ).toBe("run");
-    expect(validateKodyJob({ duty: "health", flavor: "scheduled" }).duty).toBe(
+    expect(() =>
+      validateKodyJob({ agentAction: "run", flavor: "instant" }),
+    ).toThrow(/agentResponsibility/);
+    expect(validateKodyJob({ agentResponsibility: "health", flavor: "scheduled" }).agentResponsibility).toBe(
       "health",
     );
   });
 
   it('rejects an unknown flavor (engine accepts only "instant" | "scheduled")', () => {
+    expect(() => validateKodyJob({ agentResponsibility: "run", flavor: "whenever" })).toThrow(
+      /flavor/,
+    );
+  });
+
+  it("rejects invalid agentResponsibility slugs", () => {
     expect(() =>
-      validateKodyJob({ executable: "run", flavor: "whenever" }),
-    ).toThrow(/flavor/);
+      validateKodyJob({ agentResponsibility: "Feature Work", flavor: "instant" }),
+    ).toThrow(/agentResponsibility slug/);
   });
 
   it("defaults cliArgs to an object and rejects a non-object cliArgs", () => {
-    expect(
-      validateKodyJob({ executable: "run", flavor: "instant" }).cliArgs,
-    ).toEqual({});
+    expect(validateKodyJob({ agentResponsibility: "run", flavor: "instant" }).cliArgs).toEqual(
+      {},
+    );
     expect(() =>
-      validateKodyJob({ executable: "run", flavor: "instant", cliArgs: 5 }),
+      validateKodyJob({ agentResponsibility: "run", flavor: "instant", cliArgs: 5 }),
     ).toThrow(/cliArgs/);
   });
 
-  it("resolves the run profile as executable ?? duty (engine: job.ts)", () => {
+  it("resolves the dispatch profile as the agentResponsibility, not the agentAction", () => {
     expect(
       resolveJobProfile({
-        executable: "feature",
-        duty: "x",
+        agentAction: "feature",
+        agentResponsibility: "x",
         cliArgs: {},
         flavor: "instant",
       }),
-    ).toBe("feature");
+    ).toBe("x");
     expect(
       resolveJobProfile({
-        duty: "nightly-qa",
+        agentResponsibility: "nightly-qa",
         cliArgs: {},
         flavor: "scheduled",
       }),
@@ -78,7 +78,7 @@ describe("KodyJob mirrors the engine Job", () => {
 
   it("renders an instant job as the @kody dispatch comment", () => {
     const job: KodyJob = {
-      executable: "research",
+      agentResponsibility: "research",
       why: "look into the flaky test",
       cliArgs: {},
       flavor: "instant",

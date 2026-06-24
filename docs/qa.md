@@ -2,31 +2,31 @@
 
 The dashboard ships a **QA engineer** that browses the running app like a
 real user, decides PASS/CONCERNS/FAIL, and recommends an action — it never
-fixes, merges, or approves. It is built from one **staff persona** plus two
-**duties** (see [./concepts/staff-duties.md](./concepts/staff-duties.md) for
-the staff/duty model), all driving a single engine executable
+fixes, merges, or approves. It is built from one **agent agent** plus two
+**agentResponsibilities** (see [./concepts/agents-agent-responsibilities.md](./concepts/agents-agent-responsibilities.md) for
+the agent/agentResponsibility model), all driving a single engine agentAction
 (`qa-engineer`) that does the actual Playwright browsing.
 
 Everything ships **disabled** out of the box, because a real-browser pass is
 expensive and the dashboard is PAT-gated — without credentials every run
-just hits a login wall. Flip the duties on once you've done the one-time
+just hits a login wall. Flip the agentResponsibilities on once you've done the one-time
 [Setup](#setup) below.
 
 ## The pieces
 
-| Piece                        | What it is                                                                                                                                                                          | Where                                                        |
-| ---------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------ |
-| `qa` **staff**               | Identity only — a senior quality advocate who trusts what it has _seen_ over what a diff claims, flags but never fixes, never rubber-stamps. No tasks, verbs, or cadence live here. | [`../.kody/staff/qa.md`](../.kody/staff/qa.md)               |
-| `qa` **duty**                | Changelog verification (`every: 30m`, `disabled: true`).                                                                                                                            | [`../.kody/duties/qa.md`](../.kody/duties/qa.md)             |
-| `qa-sweep` **duty**          | Broad exploratory smoke (`every: 1h`, ~once/day, `disabled: true`).                                                                                                                 | [`../.kody/duties/qa-sweep.md`](../.kody/duties/qa-sweep.md) |
-| `qa-engineer` **executable** | The browser. Playwright MCP (headless Chromium), read-only on the repo, emits one structured report.                                                                                | engine: `src/executables/qa-engineer/`                       |
+| Piece                        | What it is                                                                                                                                                                          | Where                                                                  |
+| ---------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------- |
+| `qa` **agent**               | Identity only — a senior quality advocate who trusts what it has _seen_ over what a diff claims, flags but never fixes, never rubber-stamps. No tasks, verbs, or cadence live here. | [`../.kody/agents/qa.md`](../.kody/agents/qa.md)                         |
+| `qa` **agentResponsibility**                | Changelog verification (`every: 30m`, `disabled: true` in the profile).                                                                                                             | [`../.kody/agent-responsibilities/qa/agent-responsibility.md`](../.kody/agent-responsibilities/qa/agent-responsibility.md)             |
+| `qa-sweep` **agentResponsibility**          | Broad exploratory smoke (`every: 1h`, ~once/day, `disabled: true` in the profile).                                                                                                  | [`../.kody/agent-responsibilities/qa-sweep/agent-responsibility.md`](../.kody/agent-responsibilities/qa-sweep/agent-responsibility.md) |
+| `qa-engineer` **agentAction** | The browser. Playwright MCP (headless Chromium), read-only on the repo, emits one structured report.                                                                                | engine: `src/agent-actions/qa-engineer/`                                 |
 
-Neither duty browses anything itself. Each one opens a tracking issue and
+Neither agentResponsibility browses anything itself. Each one opens a tracking issue and
 posts `@kody qa-engineer …` onto it; the engine picks that up, runs the
-browser pass, and comments the verdict back. The duty reads the verdict on a
+browser pass, and comments the verdict back. The agentResponsibility reads the verdict on a
 later tick. **One run in flight at a time** — that bound is the cost guard.
 
-## The `qa` duty — changelog verification
+## The `qa` agentResponsibility — changelog verification
 
 The **changelog _is_ the state.** Each `## [Unreleased]` bullet in
 [`../CHANGELOG.md`](../CHANGELOG.md) (one per merged PR) carries a trailing
@@ -46,22 +46,22 @@ is in flight, picks the oldest untested bullet, opens a tracking issue,
 dispatches the pass, and marks the bullet `🔄`. A `🔄` older than 2h with no
 report is treated as stuck: the marker is stripped back to untested so QA
 never wedges. There is no separate ledger; the marker swap is what stops an
-entry being re-processed. Full body: [`../.kody/duties/qa.md`](../.kody/duties/qa.md).
+entry being re-processed. Full body: [`../.kody/agent-responsibilities/qa/agent-responsibility.md`](../.kody/agent-responsibilities/qa/agent-responsibility.md).
 
-## The `qa-sweep` duty — broad exploratory pass
+## The `qa-sweep` agentResponsibility — broad exploratory pass
 
 The most expensive run, so it self-throttles: a 24h cadence guard means
 `every: 1h` only _wakes_ it; it actually sweeps roughly once a day. It
 dispatches `qa-engineer` with **no `--scope`**, so the engine smoke-tests
 every discovered route against the live deployment — catching regressions in
-already-shipped features that the changelog duty (which only tests _new_
+already-shipped features that the changelog agentResponsibility (which only tests _new_
 entries) never revisits. One inbox rec per sweep: `fix` if it opened
 findings, `note` for a clean run. Full body:
-[`../.kody/duties/qa-sweep.md`](../.kody/duties/qa-sweep.md).
+[`../.kody/agent-responsibilities/qa-sweep/agent-responsibility.md`](../.kody/agent-responsibilities/qa-sweep/agent-responsibility.md).
 
 ## What `qa-engineer` does
 
-A oneshot engine executable. Given a base URL (and optionally a `--scope`),
+A oneshot engine agentAction. Given a base URL (and optionally a `--scope`),
 it navigates with Playwright MCP, builds a short test matrix, and exercises
 each surface across happy path, empty state, loading, error, validation,
 narrow viewport, keyboard nav, and destructive-action gating. Its final
@@ -76,8 +76,8 @@ source.
 
 ```
 ┌──────────────┐  every 30m / 1h   ┌─────────────────────────────┐
-│ qa duty      │──────────────────▶│ open tracking issue          │
-│ qa-sweep duty│                   │ comment @kody qa-engineer …  │
+│ qa agentResponsibility      │──────────────────▶│ open tracking issue          │
+│ qa-sweep agentResponsibility│                   │ comment @kody qa-engineer …  │
 └──────────────┘                   └──────────────┬───────────────┘
        ▲                                          │ engine picks up dispatch
        │ read verdict on a later tick             ▼
@@ -164,23 +164,23 @@ needed.
 4. **Scenarios** — write QA scenarios and notes as Company Profile files
    (`.kody/profile/*.md`). See [./profile.md](./profile.md).
 5. **Enable** — flip `disabled: false` in
-   [`../.kody/duties/qa.md`](../.kody/duties/qa.md) and
-   [`../.kody/duties/qa-sweep.md`](../.kody/duties/qa-sweep.md).
+   [`../.kody/agent-responsibilities/qa/profile.json`](../.kody/agent-responsibilities/qa/profile.json) and
+   [`../.kody/agent-responsibilities/qa-sweep/profile.json`](../.kody/agent-responsibilities/qa-sweep/profile.json).
 
-You can enable one duty without the other — the changelog duty alone gives
+You can enable one agentResponsibility without the other — the changelog agentResponsibility alone gives
 per-PR verification; add the sweep for periodic broad coverage.
 
 ## File reference
 
-| File                                                         | Purpose                                              |
-| ------------------------------------------------------------ | ---------------------------------------------------- |
-| [`../.kody/staff/qa.md`](../.kody/staff/qa.md)               | QA persona (identity only)                           |
-| [`../.kody/duties/qa.md`](../.kody/duties/qa.md)             | Changelog-verification duty                          |
-| [`../.kody/duties/qa-sweep.md`](../.kody/duties/qa-sweep.md) | Broad exploratory sweep duty                         |
-| `src/executables/qa-engineer/profile.json` (engine)          | Executable manifest — inputs, tools, preflight chain |
-| `src/executables/qa-engineer/prompt.md` (engine)             | The QA engineer's browsing prompt + report format    |
-| `src/scripts/resolveQaUrl.ts` (engine)                       | Base-URL resolution preflight                        |
-| `src/scripts/loadQaContext.ts` (engine)                      | Profile + Variables + Vault context preflight        |
+| File                                                                   | Purpose                                              |
+| ---------------------------------------------------------------------- | ---------------------------------------------------- |
+| [`../.kody/agents/qa.md`](../.kody/agents/qa.md)                         | QA agent (identity only)                           |
+| [`../.kody/agent-responsibilities/qa/agent-responsibility.md`](../.kody/agent-responsibilities/qa/agent-responsibility.md)             | Changelog-verification agentResponsibility                          |
+| [`../.kody/agent-responsibilities/qa-sweep/agent-responsibility.md`](../.kody/agent-responsibilities/qa-sweep/agent-responsibility.md) | Broad exploratory sweep agentResponsibility                         |
+| `src/agent-actions/qa-engineer/profile.json` (engine)                    | AgentAction manifest — inputs, tools, preflight chain |
+| `src/agent-actions/qa-engineer/prompt.md` (engine)                       | The QA engineer's browsing prompt + report format    |
+| `src/scripts/resolveQaUrl.ts` (engine)                                 | Base-URL resolution preflight                        |
+| `src/scripts/loadQaContext.ts` (engine)                                | Profile + Variables + Vault context preflight        |
 
 ## FAQ
 
@@ -193,25 +193,25 @@ nothing. Enable only after [Setup](#setup) gives QA a URL and credentials.
 **Where does the verdict live — issues or the changelog?**
 
 Both, by role. The `qa-engineer` report lands as a comment on the tracking
-issue (and one labelled issue per finding). The `qa` duty then copies the
+issue (and one labelled issue per finding). The `qa` agentResponsibility then copies the
 _outcome_ into `CHANGELOG.md` as a `✅`/`⚠️` marker — that marker is the
 authoritative state, and what stops an entry being re-tested.
 
-**Can I run a one-off QA pass without enabling the duties?**
+**Can I run a one-off QA pass without enabling the agentResponsibilities?**
 
 Yes — comment `@kody qa-engineer --url <URL> --scope "<feature>"` on any
-issue. The duties are just schedulers around that same command.
+issue. The agentResponsibilities are just schedulers around that same command.
 
 **What happened to `.kody/qa-guide.md`?**
 
 Removed in `kody-engine 5024a0a`. QA context now comes from the Company
 Profile, Variables, and the Vault instead of a committed guide file — see
-[QA context model](#qa-context-model). The two duty bodies still reference
+[QA context model](#qa-context-model). The two agentResponsibility bodies still reference
 the old `qa-guide.md` blocker in their `disabled` notes; that text predates
 the new model and will be reconciled when the engine ships.
 
 **Does QA ever change my code or merge PRs?**
 
-No. The persona "flags, doesn't fix"; the duties are advisory only and act
+No. The agent "flags, doesn't fix"; the agentResponsibilities are advisory only and act
 solely through `gh` to post recommendations. Every action waits on operator
 confirmation in the inbox.

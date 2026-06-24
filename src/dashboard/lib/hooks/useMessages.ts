@@ -32,14 +32,22 @@ const noRetryOnAuth = (failureCount: number, error: unknown) => {
   return failureCount < 2;
 };
 
+export interface UseMessageChannelsOptions {
+  enabled?: boolean;
+  refetchInterval?: number | false;
+}
+
 /** List of channels. Polled every 30s — channels change rarely. */
-export function useMessageChannels() {
+export function useMessageChannels(options: UseMessageChannelsOptions = {}) {
+  const enabled = (options.enabled ?? true) && !!getStoredAuth();
+  const refetchInterval = options.refetchInterval ?? 30_000;
+
   return useQuery<MessageChannelsPayload>({
     queryKey: messageQueryKeys.channels,
     queryFn: () => kodyApi.messages.listChannels(),
-    enabled: !!getStoredAuth(),
+    enabled,
     staleTime: 30_000,
-    refetchInterval: 30_000,
+    refetchInterval: enabled ? refetchInterval : false,
     refetchIntervalInBackground: false,
     retry: noRetryOnAuth,
   });

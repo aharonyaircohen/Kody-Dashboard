@@ -4,59 +4,40 @@
  * @domain engine-install
  *
  * Tests that installEngine creates kody.config.json with the resolved default
- * model and default executable.
+ * model and default agentAction.
  */
 
-import { describe, expect, it, vi, beforeEach, afterEach } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import {
   installEngine,
+  WORKFLOW_TEMPLATE_SOURCE,
   type InstallEngineInput,
 } from "@dashboard/lib/engine/install";
-
-// installEngine fetches the canonical kody.yml from unpkg. A unit test must
-// never hit the network, so stub global.fetch to return a valid template —
-// otherwise every test dies in fetchTemplate (404 / offline) before the
-// install logic under test even runs.
-const MOCK_TEMPLATE =
-  "# Kody engine workflow\nname: kody\non:\n  workflow_dispatch:\n";
-
-beforeEach(() => {
-  vi.stubGlobal(
-    "fetch",
-    vi.fn().mockResolvedValue({
-      ok: true,
-      status: 200,
-      statusText: "OK",
-      text: async () => MOCK_TEMPLATE,
-    }),
-  );
-});
-
-afterEach(() => {
-  vi.unstubAllGlobals();
-});
 
 // ──────────────────────────────────────────────────────────────────────────────
 // Mock helpers
 // ──────────────────────────────────────────────────────────────────────────────
 
 function createMockOctokit(overrides?: Record<string, unknown>) {
-  return {
-    rest: {
-      repos: {
-        getContent: vi.fn().mockResolvedValue({
-          data: { content: "", sha: "abc123" },
-        }),
-        createOrUpdateFileContents: vi.fn().mockResolvedValue({
-          data: {
-            commit: { sha: "commitsha" },
-            content: {
-              html_url:
-                "https://github.com/example/repo/blob/main/.github/workflows/kody.yml",
-            },
-          },
-        }),
+  const repos = {
+    getContent: vi.fn().mockResolvedValue({
+      data: { content: "", sha: "abc123" },
+    }),
+    createOrUpdateFileContents: vi.fn().mockResolvedValue({
+      data: {
+        commit: { sha: "commitsha" },
+        content: {
+          html_url:
+            "https://github.com/example/repo/blob/main/.github/workflows/kody.yml",
+        },
       },
+    }),
+  };
+
+  return {
+    repos,
+    rest: {
+      repos,
       actions: {
         getRepoPublicKey: vi.fn().mockResolvedValue({
           data: { key: "mock-public-key", key_id: "key-id-123" },
@@ -89,7 +70,7 @@ function captureFileWrites(octokit: ReturnType<typeof createMockOctokit>) {
   );
   return {
     calls,
-    getByPath: (path: string) => calls.find((c) => c.path === path),
+    getByPath: (path: string) => calls.findLast((c) => c.path === path),
   };
 }
 
@@ -101,7 +82,7 @@ describe("installEngine", () => {
   describe("kody.config.json creation", () => {
     it("creates kody.config.json at the repo root after the workflow", async () => {
       const octokit = createMockOctokit();
-      const { calls, getByPath } = captureFileWrites(octokit);
+      const { getByPath } = captureFileWrites(octokit);
 
       const input: InstallEngineInput = {
         octokit,
@@ -114,13 +95,38 @@ describe("installEngine", () => {
       const result = await installEngine(input);
 
       expect(result.ok).toBe(true);
+      if (!result.ok) throw new Error(result.error);
+      expect(result.workflow.templateSource).toBe(WORKFLOW_TEMPLATE_SOURCE);
 
       // kody.config.json must be created
       const configFile = getByPath("kody.config.json");
       expect(configFile).toBeDefined();
     });
 
-    it("kody.config.json contains executables.default set to run", async () => {
+    it("writes a kody.yml workflow that accepts dashboard chat inputs", async () => {
+      const octokit = createMockOctokit();
+      const { getByPath } = captureFileWrites(octokit);
+
+      const input: InstallEngineInput = {
+        octokit,
+        owner: "example",
+        repo: "my-repo",
+        token: "ghp_mocktoken",
+        hookUrl: "https://dashboard.example.com/api/webhooks/github",
+      };
+
+      await installEngine(input);
+
+      const workflowFile = getByPath(".github/workflows/kody.yml");
+      expect(workflowFile).toBeDefined();
+      expect(workflowFile!.content).toContain("sessionId:");
+      expect(workflowFile!.content).toContain("message:");
+      expect(workflowFile!.content).toContain("dashboardUrl:");
+      expect(workflowFile!.content).toContain("DASHBOARD_URL:");
+      expect(workflowFile!.content).toContain("kody-engine");
+    });
+
+    it("kody.config.json contains agentActions.default set to run", async () => {
       const octokit = createMockOctokit();
       const { getByPath } = captureFileWrites(octokit);
 
@@ -137,7 +143,7 @@ describe("installEngine", () => {
       const configFile = getByPath("kody.config.json");
       expect(configFile).toBeDefined();
       const parsed = JSON.parse(configFile!.content);
-      expect(parsed.executables?.default).toBe("run");
+      expect(parsed.agentActions?.default).toBe("run");
     });
 
     it("kody.config.json contains agent.model when variables.json exists with models", async () => {
@@ -145,26 +151,33 @@ describe("installEngine", () => {
       const { getByPath } = captureFileWrites(octokit);
 
       // Simulate variables.json returning a default model
-      vi.spyOn(octokit.rest.repos, "getContent").mockImplementation(
+      vi.spyOn(octokit.repos, "getContent").mockImplementation(
         async (params: any) => {
-          if (params.path === ".kody/variables.json") {
+          if (params.path === "my-repo/variables.json") {
             const variablesContent = JSON.stringify({
-              LLM_MODELS: [
-                {
-                  id: "example/chat-model",
-                  label: "Example Chat Model",
-                  provider: "example",
-                  protocol: "openai",
-                  baseURL: "",
-                  modelName: "chat-model",
-                  apiKeySecret: "MY_API_KEY",
-                  enabled: true,
-                  default: true,
+              version: 1,
+              variables: {
+                LLM_MODELS: {
+                  value: JSON.stringify([
+                    {
+                      id: "example/chat-model",
+                      label: "Example Chat Model",
+                      provider: "openai",
+                      protocol: "openai",
+                      baseURL: "",
+                      modelName: "chat-model",
+                      apiKeySecret: "MY_API_KEY",
+                      enabled: true,
+                      default: true,
+                    },
+                  ]),
+                  updatedAt: "2026-01-01T00:00:00.000Z",
                 },
-              ],
+              },
             });
             return {
               data: {
+                type: "file",
                 content: Buffer.from(variablesContent).toString("base64"),
                 sha: "varsha",
               },
@@ -198,37 +211,44 @@ describe("installEngine", () => {
       const octokit = createMockOctokit();
       const { getByPath } = captureFileWrites(octokit);
 
-      vi.spyOn(octokit.rest.repos, "getContent").mockImplementation(
+      vi.spyOn(octokit.repos, "getContent").mockImplementation(
         async (params: any) => {
-          if (params.path === ".kody/variables.json") {
+          if (params.path === "my-repo/variables.json") {
             const variablesContent = JSON.stringify({
-              LLM_MODELS: [
-                {
-                  id: "anthropic/claude-sonnet-4-6",
-                  label: "Chat",
-                  provider: "anthropic",
-                  protocol: "anthropic",
-                  baseURL: "",
-                  modelName: "claude-sonnet-4-6",
-                  apiKeySecret: "ANTHROPIC_API_KEY",
-                  enabled: true,
-                  default: true,
+              version: 1,
+              variables: {
+                LLM_MODELS: {
+                  value: JSON.stringify([
+                    {
+                      id: "anthropic/claude-sonnet-4-6",
+                      label: "Chat",
+                      provider: "anthropic",
+                      protocol: "anthropic",
+                      baseURL: "",
+                      modelName: "claude-sonnet-4-6",
+                      apiKeySecret: "ANTHROPIC_API_KEY",
+                      enabled: true,
+                      default: true,
+                    },
+                    {
+                      id: "minimax/MiniMax-M2.7-highspeed",
+                      label: "Engine",
+                      provider: "custom",
+                      protocol: "openai",
+                      baseURL: "https://api.minimax.io/v1",
+                      modelName: "MiniMax-M2.7-highspeed",
+                      apiKeySecret: "MINIMAX_API_KEY",
+                      enabled: true,
+                      engineDefault: true,
+                    },
+                  ]),
+                  updatedAt: "2026-01-01T00:00:00.000Z",
                 },
-                {
-                  id: "minimax/MiniMax-M2.7-highspeed",
-                  label: "Engine",
-                  provider: "custom",
-                  protocol: "openai",
-                  baseURL: "https://api.minimax.io/v1",
-                  modelName: "MiniMax-M2.7-highspeed",
-                  apiKeySecret: "MINIMAX_API_KEY",
-                  enabled: true,
-                  engineDefault: true,
-                },
-              ],
+              },
             });
             return {
               data: {
+                type: "file",
                 content: Buffer.from(variablesContent).toString("base64"),
                 sha: "varsha",
               },
@@ -257,9 +277,9 @@ describe("installEngine", () => {
       const { getByPath } = captureFileWrites(octokit);
 
       // Simulate variables.json not existing (404)
-      vi.spyOn(octokit.rest.repos, "getContent").mockImplementation(
+      vi.spyOn(octokit.repos, "getContent").mockImplementation(
         async (params: any) => {
-          if (params.path === ".kody/variables.json") {
+          if (params.path === "my-repo/variables.json") {
             const error = new Error("Not Found") as unknown as {
               status: number;
             };
@@ -286,7 +306,7 @@ describe("installEngine", () => {
       const configFile = getByPath("kody.config.json");
       expect(configFile).toBeDefined();
       const parsed = JSON.parse(configFile!.content);
-      expect(parsed.executables?.default).toBe("run");
+      expect(parsed.agentActions?.default).toBe("run");
       expect(parsed.agent).toBeUndefined();
     });
 
@@ -295,12 +315,12 @@ describe("installEngine", () => {
       const { getByPath } = captureFileWrites(octokit);
 
       // Simulate kody.config.json already existing
-      vi.spyOn(octokit.rest.repos, "getContent").mockImplementation(
+      vi.spyOn(octokit.repos, "getContent").mockImplementation(
         async (params: any) => {
           if (params.path === "kody.config.json") {
             const existingConfig = JSON.stringify({
               model: { default: "old/model" },
-              executables: { default: "old-exec" },
+              agentActions: { default: "old-exec" },
               github: { owner: "example", repo: "my-repo" },
               quality: { typecheck: "tsc --noEmit" },
             });
@@ -328,9 +348,9 @@ describe("installEngine", () => {
       const configFile = getByPath("kody.config.json");
       expect(configFile).toBeDefined();
       const parsed = JSON.parse(configFile!.content);
-      // Merge preserves hand-authored fields (executables, quality) instead of
+      // Merge preserves hand-authored fields (agentActions, quality) instead of
       // clobbering them, and drops the legacy top-level `model` key.
-      expect(parsed.executables?.default).toBe("old-exec");
+      expect(parsed.agentActions?.default).toBe("old-exec");
       expect(parsed.quality?.typecheck).toBe("tsc --noEmit");
       expect(parsed.model).toBeUndefined();
     });

@@ -1,7 +1,7 @@
 /**
  * Unit tests for the shared webhook normalizer
  * (src/dashboard/lib/notifications/source-event.ts). This is the single
- * source of truth that the mention/inbox, rules, and staff spines all parse
+ * source of truth that the mention/inbox, rules, and agent spines all parse
  * through, so its field extraction (body, author, url, title, number,
  * threadType, channel, pr block, authorIsBot) must be exact.
  */

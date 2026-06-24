@@ -1,14 +1,14 @@
 /**
  * @fileType api-endpoint
  * @domain kody
- * @pattern duty-trust-management
+ * @pattern agentResponsibility-trust-management
  * @ai-summary GET/POST /api/kody/cto/trust — read + management surface for the
- *   duty-keyed trust ledger, stored as a JSON file on the `kody-state` branch
- *   (`.kody/state/trust.json`), NOT an issue. Powers the /trust page.
+ *   agentResponsibility-keyed trust ledger, stored as a JSON file in the configured Kody state repo
+ *   (`state/trust.json`), NOT an issue. Powers the /trust page.
  *
- *   GET  → the full per-duty trust stats (`duties[slug][action]`) + recent log.
- *   POST → an operator override of one duty's action autonomy:
- *            { duty, action, op: "reset" | "graduate" | "degrade" }
+ *   GET  → the full per-agentResponsibility trust stats (`agentResponsibilities[slug][action]`) + recent log.
+ *   POST → an operator override of one agentResponsibility's action autonomy:
+ *            { agentResponsibility, action, op: "reset" | "graduate" | "degrade" }
  *          Applies the matching pure transform from `trust-state` through the
  *          file CAS mutator, records an audit entry, returns the new stats.
  *
@@ -30,7 +30,7 @@ import { applyTrustOp, TRUST_OPS } from "@dashboard/lib/cto/trust-state";
 import { recordAudit } from "@dashboard/lib/activity/audit";
 
 const bodySchema = z.object({
-  duty: z
+  agentResponsibility: z
     .string()
     .min(1)
     .max(40)
@@ -39,7 +39,7 @@ const bodySchema = z.object({
   actorLogin: z.string().optional(),
 });
 
-/** GET — full duty trust stats + recent log for the /trust page. */
+/** GET — full agentResponsibility trust stats + recent log for the /trust page. */
 export async function GET(req: NextRequest) {
   const authResult = await requireKodyAuth(req);
   if (authResult instanceof NextResponse) return authResult;
@@ -51,7 +51,7 @@ export async function GET(req: NextRequest) {
   setGitHubContext(headerAuth.owner, headerAuth.repo, headerAuth.token);
   try {
     const manifest = await readTrust();
-    return NextResponse.json({ duties: manifest.duties, log: manifest.log });
+    return NextResponse.json({ agentResponsibilities: manifest.agentResponsibilities, log: manifest.log });
   } catch (err: unknown) {
     const message = err instanceof Error ? err.message : "read failed";
     return NextResponse.json(
@@ -63,7 +63,7 @@ export async function GET(req: NextRequest) {
   }
 }
 
-/** POST — apply one trust override (reset / graduate / degrade) to a duty. */
+/** POST — apply one trust override (reset / graduate / degrade) to a agentResponsibility. */
 export async function POST(req: NextRequest) {
   const authResult = await requireKodyAuth(req);
   if (authResult instanceof NextResponse) return authResult;
@@ -88,7 +88,7 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "bad_json" }, { status: 400 });
     }
 
-    const { duty, op, actorLogin } = payload;
+    const { agentResponsibility, op, actorLogin } = payload;
 
     if (actorLogin) {
       const actorResult = await verifyActorLogin(req, actorLogin);
@@ -96,21 +96,21 @@ export async function POST(req: NextRequest) {
     }
 
     const manifest = await mutateTrust((current) =>
-      applyTrustOp(current, op, duty),
+      applyTrustOp(current, op, agentResponsibility),
     );
 
     recordAudit(req, {
       action: `trust.${op}`,
-      resource: duty,
-      duty,
-      detail: `${op} trust for ${duty}`,
+      resource: agentResponsibility,
+      agentResponsibility,
+      detail: `${op} trust for ${agentResponsibility}`,
     });
 
     return NextResponse.json({
       ok: true,
-      duty,
+      agentResponsibility,
       op,
-      stats: manifest.duties[duty] ?? null,
+      stats: manifest.agentResponsibilities[agentResponsibility] ?? null,
     });
   } catch (err: unknown) {
     const message =

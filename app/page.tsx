@@ -18,7 +18,7 @@ export const revalidate = false;
 export const fetchCache = "force-cache";
 
 export const metadata = buildKodyMetadata({
-  title: "Kody Operations Dashboard",
+  title: "Happening now",
   description:
     "Monitor and manage AI coding agent tasks, pipelines, and deployments",
   path: "/",

@@ -17,7 +17,7 @@ const REQUEST_TIMEOUT_MS = 30_000;
 const BRIDGE_HEALTH_TIMEOUT_MS = 90_000;
 const BRIDGE_HEALTH_INTERVAL_MS = 2_000;
 
-export const TERMINAL_BRIDGE_VERSION = "2026-06-07.10";
+export const TERMINAL_BRIDGE_VERSION = "2026-06-11.2";
 export const TERMINAL_BRIDGE_BASE_IMAGE =
   process.env.KODY_TERMINAL_BRIDGE_BASE_IMAGE ?? "node:22-bookworm";
 
@@ -38,6 +38,9 @@ if ! command -v flyctl >/dev/null 2>&1; then
   curl -L https://fly.io/install.sh | sh
   cp /root/.fly/bin/flyctl /usr/local/bin/flyctl
 fi
+
+mkdir -p /root/.fly
+printf 'wire_guard_websockets: true\n' > /root/.fly/config.yml
 
 exec node /app/bridge.mjs
 `;
@@ -142,7 +145,10 @@ import { spawn } from "node:child_process";
 const TOKEN_VERSION = "kody-terminal-v1";
 const SSH_STATUS_INTERVAL_MS = 10000;
 const READY_TIMEOUT_MS = 20000;
+const PERSISTENT_SESSION_IDLE_MS = 30 * 60 * 1000;
+const MAX_REPLAY_CHARS = 120000;
 const secret = process.env.BRIDGE_AUTH_SECRET || "";
+const persistentSessions = new Map();
 if (!secret) {
   console.error("BRIDGE_AUTH_SECRET missing");
   process.exit(1);
@@ -211,6 +217,25 @@ function verifyTerminalToken(token) {
   }
   if (!/^[A-Za-z0-9_-]{1,120}$/.test(claims.machineId)) {
     throw new Error("terminal token machine invalid");
+  }
+  if (
+    claims.chatSessionId !== undefined &&
+    !/^[A-Za-z0-9_.:-]{1,160}$/.test(claims.chatSessionId)
+  ) {
+    throw new Error("terminal token chat session invalid");
+  }
+  if (
+    claims.resetSession !== undefined &&
+    typeof claims.resetSession !== "boolean"
+  ) {
+    throw new Error("terminal token reset flag invalid");
+  }
+  if (
+    claims.activityLimitMs !== undefined &&
+    claims.activityLimitMs !== null &&
+    (!Number.isFinite(claims.activityLimitMs) || claims.activityLimitMs < 60000)
+  ) {
+    throw new Error("terminal token activity limit invalid");
   }
   return claims;
 }
@@ -297,7 +322,68 @@ function parseFrames(socket, onText) {
   });
 }
 
-function startFlyConsole(socket, claims) {
+function persistentSessionKey(claims) {
+  if (!claims.chatSessionId) return null;
+  return [
+    claims.owner,
+    claims.repo,
+    claims.app,
+    claims.machineId,
+    claims.chatSessionId,
+  ].join("::");
+}
+
+function rememberOutput(session, text) {
+  if (!text) return;
+  session.outputBuffer = (session.outputBuffer + text).slice(-MAX_REPLAY_CHARS);
+}
+
+function sendToSession(session, value) {
+  for (const socket of session.sockets) {
+    sendJson(socket, value);
+  }
+}
+
+function closeSessionSockets(session, code, reason) {
+  for (const socket of session.sockets) {
+    closeSocket(socket, code, reason);
+  }
+  session.sockets.clear();
+}
+
+function cleanupSession(session) {
+  clearInterval(session.statusTimer);
+  clearTimeout(session.readyTimer);
+}
+
+function disposePersistentSession(key, session) {
+  cleanupSession(session);
+  closeSessionSockets(session, 1000, "terminal session closed");
+  try {
+    session.child.kill("SIGTERM");
+  } catch {}
+  persistentSessions.delete(key);
+}
+
+function normalizeActivityLimitMs(value) {
+  if (value === null) return null;
+  if (Number.isFinite(value) && value >= 60000) return value;
+  return PERSISTENT_SESSION_IDLE_MS;
+}
+
+setInterval(() => {
+  const now = Date.now();
+  for (const [key, session] of persistentSessions) {
+    if (
+      session.activityLimitMs !== null &&
+      now - session.lastTouched > session.activityLimitMs
+    ) {
+      disposePersistentSession(key, session);
+    }
+  }
+}, 60000).unref?.();
+
+function createFlyConsoleSession(claims, key) {
   const env = {
     ...process.env,
     FLY_API_TOKEN: claims.flyToken,
@@ -321,35 +407,44 @@ function startFlyConsole(socket, claims) {
     env,
     stdio: ["pipe", "pipe", "pipe"],
   });
-  let sawOutput = false;
-  let ready = false;
-  let pendingOutput = "";
-  let inputBytes = 0;
+  const session = {
+    child,
+    sockets: new Set(),
+    key,
+    readyMarker,
+    sawOutput: false,
+    ready: false,
+    pendingOutput: "",
+    outputBuffer: "",
+    inputBytes: 0,
+    lastTouched: Date.now(),
+    activityLimitMs: normalizeActivityLimitMs(claims.activityLimitMs),
+    statusTimer: null,
+    readyTimer: null,
+  };
   const statusTimer = setInterval(() => {
-    if (!sawOutput) {
-      sendJson(socket, {
+    if (!session.sawOutput) {
+      sendToSession(session, {
         type: "output",
         data: "Still opening real terminal...\r\n",
       });
     }
   }, SSH_STATUS_INTERVAL_MS);
   const readyTimer = setTimeout(() => {
-    if (ready) return;
-    if (pendingOutput) {
-      sendJson(socket, { type: "output", data: pendingOutput });
-      pendingOutput = "";
+    if (session.ready) return;
+    if (session.pendingOutput) {
+      rememberOutput(session, session.pendingOutput);
+      sendToSession(session, { type: "output", data: session.pendingOutput });
+      session.pendingOutput = "";
     }
-    sendJson(socket, {
+    sendToSession(session, {
       type: "error",
       message: "Terminal did not answer the keyboard self-test.",
     });
     child.kill("SIGTERM");
   }, READY_TIMEOUT_MS);
-
-  function cleanup() {
-    clearInterval(statusTimer);
-    clearTimeout(readyTimer);
-  }
+  session.statusTimer = statusTimer;
+  session.readyTimer = readyTimer;
 
   function findReadyProof(output) {
     const ttyPattern = /\/dev\/(?:pts\/[0-9]+|tty[^\s\r\n]*)/g;
@@ -371,24 +466,31 @@ function startFlyConsole(socket, claims) {
 
   function handleOutput(chunk) {
     const text = chunk.toString("utf8");
-    sawOutput = true;
+    session.sawOutput = true;
+    session.lastTouched = Date.now();
     clearInterval(statusTimer);
-    if (!ready) {
-      pendingOutput += text;
-      const proof = findReadyProof(pendingOutput);
+    if (!session.ready) {
+      session.pendingOutput += text;
+      const proof = findReadyProof(session.pendingOutput);
       if (!proof) return;
-      ready = true;
+      session.ready = true;
       clearTimeout(readyTimer);
-      const cleanOutput = outputAfterReady(pendingOutput, proof.markerIndex);
-      pendingOutput = "";
-      sendJson(socket, { type: "ready" });
-      if (cleanOutput) sendJson(socket, { type: "output", data: cleanOutput });
+      const cleanOutput = outputAfterReady(
+        session.pendingOutput,
+        proof.markerIndex,
+      );
+      session.pendingOutput = "";
+      sendToSession(session, { type: "ready" });
+      if (cleanOutput) {
+        rememberOutput(session, cleanOutput);
+        sendToSession(session, { type: "output", data: cleanOutput });
+      }
       return;
     }
-    sendJson(socket, { type: "output", data: text });
+    rememberOutput(session, text);
+    sendToSession(session, { type: "output", data: text });
   }
 
-  sendJson(socket, { type: "output", data: "Opening real terminal...\r\n" });
   child.stdout.on("data", handleOutput);
   child.stderr.on("data", handleOutput);
   setTimeout(() => {
@@ -397,31 +499,56 @@ function startFlyConsole(socket, claims) {
     }
   }, 2500);
   child.on("error", (err) => {
-    cleanup();
-    sendJson(socket, { type: "error", message: err.message });
-    closeSocket(socket, 1011, "terminal process failed");
+    cleanupSession(session);
+    sendToSession(session, { type: "error", message: err.message });
+    closeSessionSockets(session, 1011, "terminal process failed");
+    if (key) persistentSessions.delete(key);
   });
   child.on("close", (code) => {
-    cleanup();
-    if (!ready && pendingOutput) {
-      sendJson(socket, { type: "output", data: pendingOutput });
-      pendingOutput = "";
+    cleanupSession(session);
+    if (!session.ready && session.pendingOutput) {
+      rememberOutput(session, session.pendingOutput);
+      sendToSession(session, { type: "output", data: session.pendingOutput });
+      session.pendingOutput = "";
     }
-    sendJson(socket, { type: "exit", code: code ?? 0 });
-    closeSocket(socket, 1000, "terminal closed");
+    sendToSession(session, { type: "exit", code: code ?? 0 });
+    closeSessionSockets(session, 1000, "terminal closed");
+    if (key) persistentSessions.delete(key);
   });
-  socket.on("close", () => {
-    cleanup();
-    child.kill("SIGTERM");
+
+  return session;
+}
+
+function attachSocketToSession(socket, session) {
+  session.sockets.add(socket);
+  session.lastTouched = Date.now();
+  sendJson(socket, {
+    type: "output",
+    data: session.ready ? "Reattached terminal session.\r\n" : "Opening real terminal...\r\n",
   });
-  socket.on("end", () => {
-    cleanup();
-    child.kill("SIGTERM");
-  });
-  socket.on("error", () => {
-    cleanup();
-    child.kill("SIGTERM");
-  });
+  if (session.ready) {
+    sendJson(socket, { type: "ready" });
+    if (session.outputBuffer) {
+      sendJson(socket, { type: "output", data: session.outputBuffer });
+    }
+  } else if (session.pendingOutput) {
+    sendJson(socket, { type: "output", data: session.pendingOutput });
+  }
+
+  function detach() {
+    session.sockets.delete(socket);
+    session.lastTouched = Date.now();
+    if (!session.key) {
+      cleanupSession(session);
+      try {
+        session.child.kill("SIGTERM");
+      } catch {}
+    }
+  }
+
+  socket.on("close", detach);
+  socket.on("end", detach);
+  socket.on("error", detach);
 
   parseFrames(socket, (text) => {
     let msg;
@@ -431,21 +558,67 @@ function startFlyConsole(socket, claims) {
       return;
     }
     if (msg.type === "input" && typeof msg.data === "string") {
-      inputBytes += Buffer.byteLength(msg.data);
-      console.log("terminal input bytes=" + inputBytes);
-      child.stdin.write(msg.data);
+      session.inputBytes += Buffer.byteLength(msg.data);
+      session.lastTouched = Date.now();
+      console.log("terminal input bytes=" + session.inputBytes);
+      if (!session.child.stdin.destroyed) {
+        session.child.stdin.write(msg.data);
+      }
       return;
     }
     if (msg.type === "resize") {
+      session.lastTouched = Date.now();
       console.log("terminal resize cols=" + msg.cols + " rows=" + msg.rows);
     }
   });
+}
+
+function startFlyConsole(socket, claims) {
+  const key = persistentSessionKey(claims);
+  if (key && claims.resetSession) {
+    const existing = persistentSessions.get(key);
+    if (existing) disposePersistentSession(key, existing);
+  }
+  if (key) {
+    const existing = persistentSessions.get(key);
+    if (existing) {
+      attachSocketToSession(socket, existing);
+      return;
+    }
+  }
+  const session = createFlyConsoleSession(claims, key);
+  if (key) persistentSessions.set(key, session);
+  attachSocketToSession(socket, session);
 }
 
 const server = http.createServer((req, res) => {
   if (req.url === "/healthz") {
     res.writeHead(200, { "content-type": "text/plain" });
     res.end("ok");
+    return;
+  }
+  try {
+    const url = new URL(req.url || "/", "http://terminal-bridge.internal");
+    if (url.pathname === "/status") {
+      const claims = verifyTerminalToken(url.searchParams.get("token"));
+      const key = persistentSessionKey(claims);
+      const session = key ? persistentSessions.get(key) : null;
+      res.writeHead(200, { "content-type": "application/json" });
+      res.end(
+        JSON.stringify({
+          ok: true,
+          alive: Boolean(session),
+          ready: Boolean(session?.ready),
+          socketCount: session?.sockets.size ?? 0,
+          lastTouched: session?.lastTouched ?? null,
+        }),
+      );
+      return;
+    }
+  } catch (err) {
+    const message = err instanceof Error ? err.message : "unauthorized";
+    res.writeHead(401, { "content-type": "application/json" });
+    res.end(JSON.stringify({ ok: false, error: message }));
     return;
   }
   res.writeHead(404, { "content-type": "text/plain" });
@@ -780,6 +953,34 @@ export async function ensureTerminalBridge(
     app,
     url,
     machineId: machine.id,
+    secret,
+  };
+}
+
+export async function findTerminalBridge(
+  cfg: FlyPreviewConfig,
+): Promise<TerminalBridgeInfo | null> {
+  if (!cfg.token.trim()) return null;
+  const app = terminalBridgeAppName(cfg);
+  const existingApp = await flyFetch<FlyApp>(
+    `/apps/${encodeURIComponent(app)}`,
+    {
+      token: cfg.token,
+      allow404: true,
+    },
+  );
+  if (!existingApp) return null;
+
+  const existing = await findExistingMachine(cfg, app);
+  if (!existing || !canReuseMachine(existing)) return null;
+  const secret = machineSecret(existing);
+  if (!secret) return null;
+  const url = bridgeUrl(app);
+  await waitForBridgeHealth(url);
+  return {
+    app,
+    url,
+    machineId: existing.id,
     secret,
   };
 }

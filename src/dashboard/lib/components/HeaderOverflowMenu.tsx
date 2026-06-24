@@ -5,7 +5,7 @@
  * @ai-summary Desktop "⋯" overflow menu that collects the dashboard's
  *   occasional header actions (Refresh, Report a Kody bug) so the top bar
  *   stays to two visible controls (Notifications + this menu). Publish /
- *   Clean up branches moved to the Duties page (.kody/duties/*.md).
+ *   Clean up branches moved to the AgentResponsibilities page (.kody/agent-responsibilities/<slug>/).
  */
 "use client";
 

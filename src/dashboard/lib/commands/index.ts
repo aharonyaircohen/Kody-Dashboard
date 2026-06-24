@@ -3,15 +3,17 @@
  * @domain kody
  * @pattern commands-index
  * @ai-summary Public surface for the commands feature. `listCommands()`
- *   merges dashboard built-ins with repo-defined `.kody/commands/*.md`
- *   files. Repo wins on slug collision so a repo can override the
- *   wording of a built-in (e.g. customize `/review` for its codebase).
- *   `.kody/commands/.disable-builtins` suppresses every built-in for the
- *   repo.
+ *   merges repo-local commands, activated Store commands, then dashboard fallback
+ *   built-ins. Repo wins on slug collision; Store owns shared defaults.
+ *   `.kody/commands/.disable-builtins` suppresses dashboard fallback built-ins.
  */
 
 import { BUILTIN_COMMANDS } from "./builtins";
-import { listRepoCommandFiles, type CommandFile } from "./files";
+import {
+  listRepoCommandFiles,
+  listStoreCommandFiles,
+  type CommandFile,
+} from "./files";
 import { substitute, type SubstituteResult } from "./substitute";
 
 export type { CommandFile } from "./files";
@@ -19,6 +21,7 @@ export type { SubstituteResult } from "./substitute";
 export {
   isValidSlug,
   readCommandFile,
+  readResolvedCommandFile,
   writeCommandFile,
   deleteCommandFile,
 } from "./files";
@@ -26,18 +29,32 @@ export { substitute, tokenizeArguments } from "./substitute";
 export { BUILTIN_COMMANDS } from "./builtins";
 
 /**
- * Return every command available to the current repo (builtins + repo
- * files, with repo overriding builtins by slug). Honors the
- * `.disable-builtins` sentinel.
+ * Return every command available to the current repo. Resolution order is
+ * repo-local files, activated Store files, then dashboard fallback built-ins. Honors
+ * the `.disable-builtins` sentinel for fallback built-ins only.
  */
-export async function listCommands(): Promise<CommandFile[]> {
+export async function listCommands(
+  options: {
+    activeStoreSlugs?: Set<string>;
+  } = {},
+): Promise<CommandFile[]> {
   const { commands: repoCommands, builtinsDisabled } =
     await listRepoCommandFiles();
   const repoSlugs = new Set(repoCommands.map((p) => p.slug));
+  const activeStoreSlugs = options.activeStoreSlugs ?? new Set<string>();
+  const storeCommands = await listStoreCommandFiles(
+    repoSlugs,
+    undefined,
+    activeStoreSlugs,
+  );
+  const resolvedSlugs = new Set([
+    ...repoCommands.map((p) => p.slug),
+    ...storeCommands.map((p) => p.slug),
+  ]);
 
   const builtinsAsFiles: CommandFile[] = builtinsDisabled
     ? []
-    : BUILTIN_COMMANDS.filter((b) => !repoSlugs.has(b.slug)).map((b) => ({
+    : BUILTIN_COMMANDS.filter((b) => !resolvedSlugs.has(b.slug)).map((b) => ({
         slug: b.slug,
         description: b.description,
         argumentHint: b.argumentHint ?? "",
@@ -48,7 +65,7 @@ export async function listCommands(): Promise<CommandFile[]> {
         htmlUrl: "",
       }));
 
-  return [...builtinsAsFiles, ...repoCommands].sort((a, b) =>
+  return [...repoCommands, ...storeCommands, ...builtinsAsFiles].sort((a, b) =>
     a.slug.localeCompare(b.slug),
   );
 }

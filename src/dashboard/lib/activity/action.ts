@@ -6,7 +6,7 @@
  *   its issue's existing kody:* phase label. No engine change and no extra
  *   per-issue calls — the dashboard already fetches the open-issue list
  *   (cached/ETagged) and each issue carries the label the engine stamps
- *   when an executable starts.
+ *   when an agentAction starts.
  *
  *   Per-command granularity: the engine stamps a distinct phase label per
  *   command (`fix`→kody:fixing, `fix-ci`→kody:fixing-ci,

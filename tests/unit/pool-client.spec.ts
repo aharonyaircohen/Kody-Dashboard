@@ -14,16 +14,20 @@ const JOB = {
 };
 
 const ORIGINAL_KEY = process.env.KODY_MASTER_KEY;
+const ORIGINAL_POOL_URL = process.env.FLY_POOL_URL;
 
 beforeEach(() => {
   _resetPoolKeyCacheForTests();
   process.env.KODY_MASTER_KEY = "a".repeat(64);
+  process.env.FLY_POOL_URL = "https://pool.test";
 });
 
 afterEach(() => {
   vi.unstubAllGlobals();
   if (ORIGINAL_KEY === undefined) delete process.env.KODY_MASTER_KEY;
   else process.env.KODY_MASTER_KEY = ORIGINAL_KEY;
+  if (ORIGINAL_POOL_URL === undefined) delete process.env.FLY_POOL_URL;
+  else process.env.FLY_POOL_URL = ORIGINAL_POOL_URL;
   _resetPoolKeyCacheForTests();
 });
 
@@ -76,6 +80,16 @@ describe("claimFromPool", () => {
     const out = await claimFromPool(JOB);
     expect(out.ok).toBe(false);
     expect(fetchSpy).not.toHaveBeenCalled(); // no key → don't even try
+  });
+
+  it("returns ok:false when FLY_POOL_URL is unset", async () => {
+    delete process.env.FLY_POOL_URL;
+    const fetchSpy = vi.fn();
+    vi.stubGlobal("fetch", fetchSpy);
+    const out = await claimFromPool(JOB);
+    expect(out.ok).toBe(false);
+    if (!out.ok) expect(out.reason).toMatch(/pool url/i);
+    expect(fetchSpy).not.toHaveBeenCalled();
   });
 
   it("returns ok:false when 200 lacks a machineId", async () => {

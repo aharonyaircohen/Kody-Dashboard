@@ -41,13 +41,13 @@ function ev(id: string, detail: string | null = null): AuditEvent {
   return {
     id,
     at: `2026-05-22T00:00:${id.padStart(2, "0")}Z`,
-    type: "duty.run",
+    type: "agentResponsibility.run",
     target: "changelog-verify",
     actor: "alice",
     repo: "acme/widgets",
     detail,
-    duty: "changelog-verify",
-    staff: "qa-engineer",
+    agentResponsibility: "changelog-verify",
+    agent: "qa-engineer",
     outcome: "ok",
     source: "dashboard",
   };

@@ -58,6 +58,7 @@ export function MergeButton({
   isMerging: externalIsMerging,
   onMerge,
   labels = [],
+  prIsDraft = false,
 }: MergeButtonProps) {
   const [showDialog, setShowDialog] = useState(false);
   const { data, isLoading, isError } = usePRCIStatus(prNumber);
@@ -149,6 +150,7 @@ export function MergeButton({
         isOpen={showDialog}
         onClose={() => setShowDialog(false)}
         onMerged={handleMerged}
+        prIsDraft={prIsDraft}
       />
     </>
   );

@@ -8,6 +8,7 @@
 
 import { useState, useEffect } from "react";
 import { Button } from "@dashboard/ui/button";
+import { Checkbox } from "@dashboard/ui/checkbox";
 import {
   Dialog,
   DialogContent,
@@ -32,7 +33,11 @@ interface MergeApprovalDialogProps {
   branchName?: string;
   isOpen: boolean;
   onClose: () => void;
-  onMerged: () => void;
+  onMerged: () => Promise<void> | void;
+  onApprove?: (approveDrafts: boolean) => Promise<boolean>;
+  isApproving?: boolean;
+  isApproved?: boolean;
+  prIsDraft?: boolean;
 }
 
 interface PRFiles {
@@ -80,16 +85,23 @@ export function MergeApprovalDialog({
   isOpen,
   onClose,
   onMerged,
+  onApprove,
+  isApproving = false,
+  isApproved = true,
+  prIsDraft = false,
 }: MergeApprovalDialogProps) {
   const { data: ciData, isLoading: ciLoading } = usePRCIStatus(prNumber);
   const [files, setFiles] = useState<PRFiles[]>([]);
   const [filesLoading, setFilesLoading] = useState(false);
   const [isMerging, setIsMerging] = useState(false);
+  const [approveDrafts, setApproveDrafts] = useState(true);
 
   const ciStatus = ciData?.ciStatus ?? "pending";
   const canMerge = ciData?.mergeable ?? false;
   const ciConfig = ciIcons[ciStatus];
   const CIIcon = ciConfig.icon;
+  const isApprovalFlow = !isApproved && !!onApprove;
+  const isBusy = isMerging || isApproving;
 
   // Fetch PR files when dialog opens
   useEffect(() => {
@@ -105,10 +117,20 @@ export function MergeApprovalDialog({
     }
   }, [isOpen, prNumber]);
 
+  useEffect(() => {
+    if (isOpen) setApproveDrafts(true);
+  }, [isOpen]);
+
   const totalAdditions = files.reduce((sum, f) => sum + f.additions, 0);
   const totalDeletions = files.reduce((sum, f) => sum + f.deletions, 0);
 
   const handleMerge = async () => {
+    if (isApprovalFlow && onApprove) {
+      const didApprove = await onApprove(approveDrafts);
+      if (didApprove) onClose();
+      return;
+    }
+
     if (!canMerge) return;
 
     setIsMerging(true);
@@ -174,6 +196,30 @@ export function MergeApprovalDialog({
             </div>
           )}
 
+          {isApprovalFlow && prIsDraft && (
+            <label
+              className="flex cursor-pointer select-none items-start gap-3 rounded-lg bg-muted/50 p-3"
+              title="Mark the PR ready-for-review before approving"
+            >
+              <Checkbox
+                checked={approveDrafts}
+                onCheckedChange={(checked) =>
+                  setApproveDrafts(checked === true)
+                }
+                aria-label="Also approve drafts"
+                className="mt-0.5 h-4 w-4"
+              />
+              <span className="space-y-0.5">
+                <span className="block text-sm font-medium">
+                  Also approve drafts
+                </span>
+                <span className="block text-xs text-muted-foreground">
+                  Mark this PR ready-for-review before approval.
+                </span>
+              </span>
+            </label>
+          )}
+
           {/* File changes summary */}
           <div className="p-3 rounded-lg bg-muted/50">
             <div className="flex items-center gap-2 mb-2">
@@ -194,18 +240,20 @@ export function MergeApprovalDialog({
         </div>
 
         <div className="flex justify-end gap-2 mt-4">
-          <Button variant="outline" onClick={onClose} disabled={isMerging}>
+          <Button variant="outline" onClick={onClose} disabled={isBusy}>
             Cancel
           </Button>
           <Button
             onClick={handleMerge}
-            disabled={!canMerge || ciLoading || isMerging}
+            disabled={
+              isApprovalFlow ? isBusy : !canMerge || ciLoading || isBusy
+            }
             className="bg-emerald-600 hover:bg-emerald-700"
           >
-            {isMerging ? (
+            {isBusy ? (
               <>
                 <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                Merging...
+                {isApprovalFlow ? "Approving..." : "Merging..."}
               </>
             ) : (
               <>

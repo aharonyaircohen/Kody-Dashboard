@@ -17,8 +17,9 @@
  * uses — `x-kody-token` (with optional `x-kody-owner` / `x-kody-repo`).
  * The PAT must have `admin:repo_hook` scope (covered by classic `repo`).
  *
- * No shared secret — webhook deliveries are verified by GitHub source IP
- * (see src/dashboard/lib/webhooks/github-ip.ts).
+ * When GITHUB_WEBHOOK_SECRET or KODY_WEBHOOK_SECRET is configured, hooks are
+ * registered with that secret and deliveries are HMAC-verified. Without a
+ * secret, deliveries use the legacy GitHub source-IP check.
  */
 
 import { NextRequest, NextResponse } from "next/server";

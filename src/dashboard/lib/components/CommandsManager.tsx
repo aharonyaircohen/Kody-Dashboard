@@ -2,12 +2,11 @@
  * @fileType component
  * @domain commands
  * @pattern commands-manager
- * @ai-summary CRUD UI for slash-command commands stored at
- *   `.kody/commands/<slug>.md` in the connected repo. Dashboard ships
- *   built-ins (`/plan`, `/review`, `/explain`, `/issue`, `/goal`,
- *   `/analyze`, `/duty`); editing a built-in transparently writes a
- *   same-slug copy into the repo so the repo wins by slug — the UI just
- *   says "Edit", the fork happens silently.
+ * @ai-summary CRUD UI for repo-local slash commands plus activated Store
+ * commands. Repo commands live at `.kody/commands/<slug>.md`; Store commands
+ * are enabled by `company.activeCommands`; Dashboard built-ins are fallback
+ * only. Editing a shared command writes a same-slug repo copy so repo wins by
+ * slug — UI just says "Edit", fork happens silently.
  */
 "use client";
 
@@ -48,7 +47,7 @@ interface CommandRow {
   description: string;
   argumentHint: string;
   body: string;
-  source: "repo" | "builtin";
+  source: "repo" | "store" | "builtin";
   sha: string;
   updatedAt: string;
   htmlUrl: string;
@@ -56,7 +55,25 @@ interface CommandRow {
 
 const SLUG_RE = /^[a-z0-9][a-z0-9_-]{0,63}$/;
 
-const commandsQueryKey = ["kody-commands"] as const;
+export interface CommandsQueryScope {
+  owner?: string | null;
+  repo?: string | null;
+}
+
+function commandsQueryScopeFromAuth(
+  auth: { owner?: string | null; repo?: string | null } | null | undefined,
+): CommandsQueryScope {
+  return {
+    owner: auth?.owner ?? null,
+    repo: auth?.repo ?? null,
+  };
+}
+
+export const commandsQueryKeys = {
+  all: ["kody-commands"] as const,
+  list: (scope: CommandsQueryScope = {}) =>
+    ["kody-commands", scope.owner ?? null, scope.repo ?? null] as const,
+};
 
 function formatRelative(iso: string): string {
   if (!iso) return "";
@@ -80,7 +97,7 @@ function formatRelative(iso: string): string {
 async function listCommandsApi(
   headers: Record<string, string>,
 ): Promise<CommandRow[]> {
-  const res = await fetch("/api/kody/commands", { headers });
+  const res = await fetch("/api/kody/commands", { headers, cache: "no-store" });
   const json = (await res.json().catch(() => ({}))) as {
     commands?: CommandRow[];
     error?: string;
@@ -126,11 +143,18 @@ async function saveCommandApi(
 async function deleteCommandApi(
   headers: Record<string, string>,
   slug: string,
+  actorLogin?: string,
 ): Promise<void> {
-  const res = await fetch(`/api/kody/commands/${encodeURIComponent(slug)}`, {
-    method: "DELETE",
-    headers,
-  });
+  const params = new URLSearchParams();
+  if (actorLogin) params.set("actorLogin", actorLogin);
+  const suffix = params.toString() ? `?${params}` : "";
+  const res = await fetch(
+    `/api/kody/commands/${encodeURIComponent(slug)}${suffix}`,
+    {
+      method: "DELETE",
+      headers,
+    },
+  );
   const json = (await res.json().catch(() => ({}))) as {
     error?: string;
     message?: string;
@@ -155,10 +179,12 @@ function CommandsManagerInner() {
     ...buildAuthHeaders(auth),
   };
   const actorLogin = auth?.user.login;
+  const queryScope = commandsQueryScopeFromAuth(auth);
+  const listQueryKey = commandsQueryKeys.list(queryScope);
 
   const queryClient = useQueryClient();
   const { data, isLoading, error, refetch } = useQuery<CommandRow[]>({
-    queryKey: commandsQueryKey,
+    queryKey: listQueryKey,
     queryFn: () => listCommandsApi(headers),
     enabled: !!auth,
     staleTime: 30_000,
@@ -169,7 +195,8 @@ function CommandsManagerInner() {
     mutationFn: (payload: SavePayload) =>
       saveCommandApi(headers, payload, actorLogin),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: commandsQueryKey });
+      queryClient.invalidateQueries({ queryKey: commandsQueryKeys.all });
+      queryClient.invalidateQueries({ queryKey: listQueryKey });
       toast.success("Command saved");
     },
     onError: (err: Error) =>
@@ -177,10 +204,12 @@ function CommandsManagerInner() {
   });
 
   const remove = useMutation({
-    mutationFn: (slug: string) => deleteCommandApi(headers, slug),
+    mutationFn: (command: CommandRow) =>
+      deleteCommandApi(headers, command.slug, actorLogin),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: commandsQueryKey });
-      toast.success("Command deleted");
+      queryClient.invalidateQueries({ queryKey: commandsQueryKeys.all });
+      queryClient.invalidateQueries({ queryKey: listQueryKey });
+      toast.success("Command removed");
     },
     onError: (err: Error) =>
       toast.error(err.message || "Failed to delete command"),
@@ -190,7 +219,7 @@ function CommandsManagerInner() {
     command: CommandRow | null;
     isNew: boolean;
   } | null>(null);
-  const [deleting, setDeleting] = useState<string | null>(null);
+  const [deleting, setDeleting] = useState<CommandRow | null>(null);
   const [search, setSearch] = useState("");
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase();
@@ -313,6 +342,11 @@ function CommandsManagerInner() {
                           built-in
                         </span>
                       )}
+                      {p.source === "store" && (
+                        <span className="text-[10px] uppercase tracking-wide bg-sky-500/15 text-sky-300/90 px-1.5 py-0.5 rounded">
+                          store
+                        </span>
+                      )}
                       {p.source === "repo" && (
                         <span className="text-[10px] uppercase tracking-wide bg-emerald-500/15 text-emerald-300/90 px-1.5 py-0.5 rounded">
                           repo
@@ -340,15 +374,15 @@ function CommandsManagerInner() {
                       <Pencil className="w-3.5 h-3.5" />
                       Edit
                     </Button>
-                    {p.source === "repo" && (
+                    {(p.source === "repo" || p.source === "store") && (
                       <Button
                         size="sm"
                         variant="ghost"
                         className="gap-1 text-rose-300 hover:text-rose-200"
-                        onClick={() => setDeleting(p.slug)}
+                        onClick={() => setDeleting(p)}
                       >
                         <Trash2 className="w-3.5 h-3.5" />
-                        Delete
+                        {p.source === "store" ? "Remove" : "Delete"}
                       </Button>
                     )}
                   </div>
@@ -382,9 +416,21 @@ function CommandsManagerInner() {
 
       <ConfirmDialog
         open={deleting !== null}
-        title={`Delete /${deleting}?`}
-        description="The command file is removed from the repo. If a built-in exists with the same slug, it takes over again."
-        confirmLabel={remove.isPending ? "Deleting…" : "Delete"}
+        title={`${deleting?.source === "store" ? "Remove" : "Delete"} /${deleting?.slug}?`}
+        description={
+          deleting?.source === "store"
+            ? "The Store command will be removed from this repo's active commands. The Store asset is not deleted."
+            : "The command file will be removed from repo. If a Store or fallback command exists with same slug, it can take over again."
+        }
+        confirmLabel={
+          remove.isPending
+            ? deleting?.source === "store"
+              ? "Removing…"
+              : "Deleting…"
+            : deleting?.source === "store"
+              ? "Remove"
+              : "Delete"
+        }
         variant="destructive"
         onConfirm={() => {
           if (deleting) remove.mutate(deleting);
@@ -412,7 +458,8 @@ function CommandEditor({
   onClose,
   onSave,
 }: CommandEditorProps) {
-  const isBuiltinEdit = !isNew && initial?.source === "builtin";
+  const isBuiltinEdit =
+    !isNew && (initial?.source === "builtin" || initial?.source === "store");
   const [slug, setSlug] = useState(initial?.slug ?? "");
   const [description, setDescription] = useState(initial?.description ?? "");
   const [argumentHint, setArgumentHint] = useState(initial?.argumentHint ?? "");
@@ -449,7 +496,7 @@ function CommandEditor({
           </DialogTitle>
           <DialogDescription>
             {isBuiltinEdit
-              ? "Saving stores your version at .kody/commands/<slug>.md in the repo, which takes over from the built-in."
+              ? "Saving stores your version at .kody/commands/<slug>.md in the repo, which takes over from the shared default."
               : "Stored at .kody/commands/<slug>.md. Use $ARGUMENTS for the full input, $0/$1/… for positional tokens."}
           </DialogDescription>
         </DialogHeader>

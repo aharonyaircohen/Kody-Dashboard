@@ -14,7 +14,7 @@
  *          stop tracking the branch. Idempotent.
  *
  * Repo comes from the connected-repo auth context (this is per-repo Fly
- * infra surfaced on `/runner`), not the body. Fly billing uses that repo's
+ * infra surfaced on `/fly/config`), not the body. Fly billing uses that repo's
  * own vault `FLY_API_TOKEN` via `resolvePreviewConfigForOctokit`.
  */
 

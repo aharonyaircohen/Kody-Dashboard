@@ -215,7 +215,7 @@ appends `VOICE_OVERLAY_PROMPT` to the **fully assembled** system prompt —
 appended LAST so its rules win by recency over the markdown-heavy research /
 issue-creation / memory blocks. The rules reshape OUTPUT only (no markdown, no
 code fences, short sentences, read symbols as words, summarize JSON/diffs/logs,
-no `<think>` tags) — they never touch tools or persona.
+no `<think>` tags) — they never touch tools or agent.
 
 Only the **in-process kody-direct** route applies the overlay via prompt
 assembly ([`chat/kody/route.ts`](../app/api/kody/chat/kody/route.ts)); the

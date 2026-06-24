@@ -88,6 +88,7 @@ beforeEach(() => {
     token: "t",
   });
   cfg.isVaultConfigured.mockReturnValue(true);
+  process.env.KODY_MASTER_KEY = CORRECT_KEY;
 });
 
 describe("POST /api/kody/secrets/vault", () => {
@@ -117,16 +118,22 @@ describe("POST /api/kody/secrets/vault", () => {
     expect(res.status).toBe(400);
   });
 
-  it("returns 400 when vault has no keyCheck (not initialised via the UI)", async () => {
+  it("unlocks legacy vaults that have no stored keyCheck", async () => {
     store.readVault.mockResolvedValue({
-      doc: { version: 1, secrets: {} },
+      doc: { version: 1, secrets: MOCK_DOC_WITH_KEYCHECK.secrets },
       sha: null,
     });
     const res = await POST(makeReq({ key: CORRECT_KEY }));
-    expect(res.status).toBe(400);
-    expect(await res.json()).toMatchObject({
-      error: "vault_not_initialized",
-    });
+    expect(res.status).toBe(200);
+    const json = await res.json();
+    expect(json.secrets).toEqual([
+      {
+        name: "API_KEY",
+        value: "sk-secret-123",
+        updatedAt: "2026-01-01T00:00:00Z",
+        updatedBy: "alice",
+      },
+    ]);
   });
 
   it("returns 400 when the wrong key is supplied", async () => {

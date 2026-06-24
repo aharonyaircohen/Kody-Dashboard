@@ -17,6 +17,7 @@ import {
   substitute,
   tokenizeArguments,
 } from "@dashboard/lib/commands/substitute";
+import { BUILTIN_COMMANDS } from "@dashboard/lib/commands/builtins";
 
 const COMMANDS: SlashCommand[] = [
   {
@@ -118,5 +119,16 @@ describe("expandSlashCommand", () => {
     expect(expandSlashCommand("/nope x", COMMANDS)).toBeNull();
     expect(expandSlashCommand("plain message", COMMANDS)).toBeNull();
     expect(expandSlashCommand("/", COMMANDS)).toBeNull();
+  });
+});
+
+describe("builtin commands", () => {
+  it("includes a read-only briefing command", () => {
+    const briefing = BUILTIN_COMMANDS.find((c) => c.slug === "briefing");
+
+    expect(briefing).toBeDefined();
+    expect(briefing?.body).toContain("work-briefing");
+    expect(briefing?.body).toContain("read-only tools");
+    expect(briefing?.body).toContain("Do not create, assign, close, edit");
   });
 });

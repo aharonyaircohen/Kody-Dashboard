@@ -3,15 +3,15 @@
  * @fileType component
  * @domain kody
  * @pattern trust-manager
- * @ai-summary The /trust page body. One row per duty (whole-duty trust): mode
+ * @ai-summary The /trust page body. One row per agentResponsibility (whole-agentResponsibility trust): mode
  *   (Ask / Auto), approval + rejection tallies, progress toward graduation, and
  *   always-available overrides — Graduate (force Auto now, works from scratch),
  *   De-graduate (kill switch back to Ask), Reset (wipe). A compact
  *   recent-decision log sits at the bottom. State + mutations come from
  *   `useTrust`.
  *
- *   Trust is keyed per DUTY (not persona, not per action), so the controls are
- *   present for every duty in the roster even before it has any history.
+ *   Trust is keyed per AGENT_RESPONSIBILITY (not agentIdentity, not per action), so the controls are
+ *   present for every agentResponsibility in the roster even before it has any history.
  */
 import { useMemo } from "react";
 import {
@@ -27,7 +27,7 @@ import { Button } from "@dashboard/ui/button";
 import { Card, CardContent } from "@dashboard/ui/card";
 import { TRUST_GRADUATION_THRESHOLD } from "../cto/trust-state";
 import { useTrust } from "../cto/useTrust";
-import type { TrustDutyView, TrustOp } from "../cto/trust-state";
+import type { TrustAgentResponsibilityView, TrustOp } from "../cto/trust-state";
 
 function ProgressBar({ value }: { value: number }) {
   const pct = Math.round(Math.max(0, Math.min(1, value)) * 100);
@@ -41,29 +41,29 @@ function ProgressBar({ value }: { value: number }) {
   );
 }
 
-function DutyRow({
-  duty,
+function AgentResponsibilityRow({
+  agentResponsibility,
   busy,
   onOp,
 }: {
-  duty: TrustDutyView;
+  agentResponsibility: TrustAgentResponsibilityView;
   busy: boolean;
   onOp: (op: TrustOp) => void;
 }) {
-  const isAuto = duty.mode === "auto";
+  const isAuto = agentResponsibility.mode === "auto";
   return (
     <Card className="border-white/[0.08] bg-white/[0.02]">
       <CardContent className="flex flex-col gap-3 p-4 sm:flex-row sm:items-center sm:gap-4">
         <div className="min-w-0 flex-1">
           <div className="flex flex-wrap items-center gap-2">
             <span className="text-body-base font-semibold text-white/90">
-              {duty.duty}
+              {agentResponsibility.agentResponsibility}
             </span>
-            {duty.staff && (
+            {agentResponsibility.agent && (
               <span className="text-body-xs text-muted-foreground">
                 runs as{" "}
                 <code className="rounded bg-white/[0.06] px-1 py-0.5 text-white/70">
-                  {duty.staff}
+                  {agentResponsibility.agent}
                 </code>
               </span>
             )}
@@ -74,20 +74,20 @@ function DutyRow({
             <span className="flex items-center gap-2 text-body-xs text-muted-foreground">
               <span className="inline-flex items-center gap-1">
                 <CheckCircle2 className="h-3 w-3 text-emerald-400/80" />
-                {duty.approvals}
+                {agentResponsibility.approvals}
               </span>
               <span className="inline-flex items-center gap-1">
                 <XCircle className="h-3 w-3 text-rose-400/80" />
-                {duty.rejections}
+                {agentResponsibility.rejections}
               </span>
             </span>
           </div>
           <div className="mt-2 flex items-center gap-2">
-            <ProgressBar value={duty.progress} />
+            <ProgressBar value={agentResponsibility.progress} />
             <span className="shrink-0 text-body-xs tabular-nums text-muted-foreground">
               {isAuto
                 ? "graduated"
-                : `${duty.consecutiveApprovals}/${TRUST_GRADUATION_THRESHOLD}`}
+                : `${agentResponsibility.consecutiveApprovals}/${TRUST_GRADUATION_THRESHOLD}`}
             </span>
           </div>
         </div>
@@ -108,7 +108,7 @@ function DutyRow({
               size="sm"
               disabled={busy}
               onClick={() => onOp("graduate")}
-              title={`Set "${duty.duty}" to Auto now`}
+              title={`Set "${agentResponsibility.agentResponsibility}" to Auto now`}
             >
               <ChevronUp className="h-4 w-4" />
               Set Auto
@@ -117,12 +117,12 @@ function DutyRow({
           <Button
             variant="ghost"
             size="sm"
-            disabled={busy || (!duty.hasHistory && duty.mode === "ask")}
-            title={`Reset trust for ${duty.duty}`}
+            disabled={busy || (!agentResponsibility.hasHistory && agentResponsibility.mode === "ask")}
+            title={`Reset trust for ${agentResponsibility.agentResponsibility}`}
             onClick={() => {
               if (
                 window.confirm(
-                  `Reset all trust for "${duty.duty}"? This wipes its approvals, rejections, and streak.`,
+                  `Reset all trust for "${agentResponsibility.agentResponsibility}"? This wipes its approvals, rejections, and streak.`,
                 )
               ) {
                 onOp("reset");
@@ -163,7 +163,7 @@ function RecentLog({ log }: { log: ReturnType<typeof useTrust>["log"] }) {
               >
                 {e.decision}
               </Badge>
-              <code className="text-white/70">{e.duty}</code>
+              <code className="text-white/70">{e.agentResponsibility}</code>
               {e.action && (
                 <>
                   <span>·</span>
@@ -195,11 +195,11 @@ export function TrustManager() {
             Trust
           </h1>
           <p className="text-body-sm text-muted-foreground">
-            Every duty starts in <strong>Ask</strong> mode and needs your
+            Every agentResponsibility starts in <strong>Ask</strong> mode and needs your
             approval before it acts. After {TRUST_GRADUATION_THRESHOLD} clean
             approvals it graduates to <strong>Auto</strong> and the engine runs
             it on its own; one reject sends it back to Ask. Grant or revoke Auto
-            for any duty here.
+            for any agentResponsibility here.
           </p>
         </header>
 
@@ -216,16 +216,16 @@ export function TrustManager() {
         ) : groups.length === 0 ? (
           <Card className="border-white/[0.08] bg-white/[0.02]">
             <CardContent className="p-6 text-center text-body-sm text-muted-foreground">
-              No duties found for this repo.
+              No agentResponsibilities found for this repo.
             </CardContent>
           </Card>
         ) : (
           groups.map((g) => (
-            <DutyRow
-              key={g.duty}
-              duty={g}
+            <AgentResponsibilityRow
+              key={g.agentResponsibility}
+              agentResponsibility={g}
               busy={isMutating}
-              onOp={(op) => void setTrust({ duty: g.duty, op })}
+              onOp={(op) => void setTrust({ agentResponsibility: g.agentResponsibility, op })}
             />
           ))
         )}

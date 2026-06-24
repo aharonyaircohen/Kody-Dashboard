@@ -3,7 +3,7 @@
  * @domain variables
  * @pattern variables-manager
  * @ai-summary CRUD UI for the dashboard variables store. Per-repo plaintext
- *   JSON at .kody/variables.json. Unlike secrets, values are visible/editable
+ *   JSON in the connected repo's external state repo. Unlike secrets, values are visible/editable
  *   in the UI — variables hold non-sensitive config (model lists, feature
  *   flags, etc) that the dashboard reads at runtime.
  */
@@ -40,7 +40,25 @@ interface VariableRow {
 
 const NAME_RE = /^[A-Z][A-Z0-9_]{0,127}$/;
 
-const variablesQueryKey = ["kody-variables"] as const;
+export interface VariablesQueryScope {
+  owner?: string | null;
+  repo?: string | null;
+}
+
+function variablesQueryScopeFromAuth(
+  auth: { owner?: string | null; repo?: string | null } | null | undefined,
+): VariablesQueryScope {
+  return {
+    owner: auth?.owner ?? null,
+    repo: auth?.repo ?? null,
+  };
+}
+
+export const variablesQueryKeys = {
+  all: ["kody-variables"] as const,
+  list: (scope: VariablesQueryScope = {}) =>
+    ["kody-variables", scope.owner ?? null, scope.repo ?? null] as const,
+};
 
 function formatRelative(iso: string): string {
   try {
@@ -63,7 +81,10 @@ function formatRelative(iso: string): string {
 async function listVariables(
   headers: Record<string, string>,
 ): Promise<VariableRow[]> {
-  const res = await fetch("/api/kody/variables", { headers });
+  const res = await fetch("/api/kody/variables", {
+    headers,
+    cache: "no-store",
+  });
   const json = (await res.json().catch(() => ({}))) as {
     variables?: VariableRow[];
     error?: string;
@@ -127,10 +148,12 @@ function VariablesManagerInner() {
     ...buildAuthHeaders(auth),
   };
   const actorLogin = auth?.user.login;
+  const queryScope = variablesQueryScopeFromAuth(auth);
+  const listQueryKey = variablesQueryKeys.list(queryScope);
 
   const queryClient = useQueryClient();
   const { data, isLoading, error, refetch } = useQuery<VariableRow[]>({
-    queryKey: variablesQueryKey,
+    queryKey: listQueryKey,
     queryFn: () => listVariables(headers),
     enabled: !!auth,
     staleTime: 30_000,
@@ -141,7 +164,8 @@ function VariablesManagerInner() {
     mutationFn: (input: { name: string; value: string }) =>
       upsertVariable(headers, input.name, input.value, actorLogin),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: variablesQueryKey });
+      queryClient.invalidateQueries({ queryKey: variablesQueryKeys.all });
+      queryClient.invalidateQueries({ queryKey: listQueryKey });
       toast.success("Variable saved");
     },
     onError: (err: Error) =>
@@ -151,7 +175,8 @@ function VariablesManagerInner() {
   const remove = useMutation({
     mutationFn: (name: string) => deleteVariable(headers, name),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: variablesQueryKey });
+      queryClient.invalidateQueries({ queryKey: variablesQueryKeys.all });
+      queryClient.invalidateQueries({ queryKey: listQueryKey });
       toast.success("Variable deleted");
     },
     onError: (err: Error) =>
@@ -216,10 +241,10 @@ function VariablesManagerInner() {
               <Settings2 className="w-8 h-8 text-white/30 mx-auto" />
               <p className="text-sm text-white/70">No variables yet.</p>
               <p className="text-xs text-white/40 max-w-md mx-auto">
-                Variables are plaintext config stored at{" "}
-                <code className="text-white/55">.kody/variables.json</code> in
-                this repo. Use them for non-sensitive values the dashboard reads
-                at runtime — model lists, feature flags, default ids.
+                Variables are plaintext config stored as{" "}
+                <code className="text-white/55">variables.json</code> in the
+                state repo. Use them for non-sensitive values the dashboard
+                reads at runtime — model lists, feature flags, default ids.
               </p>
               <Button
                 size="sm"
@@ -285,9 +310,9 @@ function VariablesManagerInner() {
         </ul>
 
         <p className="text-[11px] text-white/30 pt-4">
-          Stored in plaintext at{" "}
-          <code className="text-white/50">.kody/variables.json</code>. For
-          sensitive values, use{" "}
+          Stored in plaintext as{" "}
+          <code className="text-white/50">variables.json</code> in the state
+          repo. For sensitive values, use{" "}
           <Link
             href="/secrets"
             className="text-white/60 hover:text-white/80 underline"
@@ -314,7 +339,7 @@ function VariablesManagerInner() {
       <ConfirmDialog
         open={deleting !== null}
         title={`Delete ${deleting}?`}
-        description="The variable is removed from .kody/variables.json. Runtime code reading it falls back to environment variables."
+        description="The variable is removed from variables.json in the state repo. Runtime code reading it falls back to environment variables."
         confirmLabel={remove.isPending ? "Deleting…" : "Delete"}
         variant="destructive"
         onConfirm={() => {
@@ -371,11 +396,31 @@ function VariableEditor({
             {isUpdate ? `Edit ${initialName}` : "New variable"}
           </DialogTitle>
           <DialogDescription>
-            Stored plaintext in <code>.kody/variables.json</code>. Use this page
-            for non-sensitive config only.
+            Stored plaintext in <code>variables.json</code> in the state repo.
+            Use this page for non-sensitive config only.
           </DialogDescription>
         </DialogHeader>
-        <div className="space-y-3 mt-2">
+        <div className="rounded-md border border-white/[0.08] bg-white/[0.03] p-3 text-xs">
+          <div className="flex items-center justify-between gap-3">
+            <span className="font-medium text-white/70">Active file</span>
+            <code className="font-mono text-sky-200">variables.json</code>
+          </div>
+          <div className="mt-2 flex items-center justify-between gap-3">
+            <span className="font-medium text-white/70">Active variable</span>
+            <code className="font-mono text-white/70">
+              {isUpdate ? initialName : name || "New variable"}
+            </code>
+          </div>
+          {isUpdate ? (
+            <div className="mt-3 space-y-1.5">
+              <p className="font-medium text-white/70">Current saved value</p>
+              <pre className="max-h-32 overflow-auto whitespace-pre-wrap rounded border border-white/[0.06] bg-black/30 p-2 font-mono text-[11px] leading-relaxed text-white/65">
+                {initialValue}
+              </pre>
+            </div>
+          ) : null}
+        </div>
+        <div className="space-y-3 mt-3">
           <div>
             <Label htmlFor="var-name" className="text-xs">
               Name

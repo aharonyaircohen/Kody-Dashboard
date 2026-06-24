@@ -90,7 +90,6 @@ const flyContext = {
   allSecrets: {},
   flyToken: "fly_tok",
   perfTier: undefined,
-  litellmUrl: undefined,
 };
 
 beforeAll(() => {

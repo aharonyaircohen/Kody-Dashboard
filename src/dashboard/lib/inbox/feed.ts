@@ -71,10 +71,10 @@ export interface InboxFeedEntry {
   ctoAction?: string;
   /** Exact `@kody …` command from the raw body's `kody-cmd` line. */
   ctoCommand?: string;
-  /** Emitting staff slug from the raw body's `kody-staff` line (recs only). */
-  ctoStaff?: string;
-  /** Emitting duty slug from the raw body's `kody-duty` line — the trust key. */
-  ctoDuty?: string;
+  /** Emitting agent slug from the raw body's `kody-agent` line (recs only). */
+  ctoAgent?: string;
+  /** Emitting agentResponsibility slug from the raw body's `kody-agentResponsibility` line — the trust key. */
+  ctoAgentResponsibility?: string;
   /**
    * Server-classified notification category for this entry (`chat-response`,
    * `task-assigned`, …), computed from the source event at write time. Drives
@@ -186,14 +186,14 @@ export function feedEntryId(login: string, url: string): string {
 }
 
 /**
- * Collapse key for a recommendation entry: `(login, repo, staff, task#)`.
- * A staff member re-posts a fresh recommendation *comment* for the same task
+ * Collapse key for a recommendation entry: `(login, repo, agent, task#)`.
+ * An agent re-posts a fresh recommendation *comment* for the same task
  * every tick — each has a unique comment URL, so id-dedup can't catch it and
  * the inbox grows without bound. Keying recs by the *task* they're about (not
  * which comment carried them, and deliberately NOT the action verb — the
- * parsed verb drifts across re-posts and each persona guarantees one live rec
+ * parsed verb drifts across re-posts and each agentIdentity guarantees one live rec
  * per task) lets the newest rec supersede every prior one for that task. The
- * **staff slug is part of the key** so a CTO rec and a QA rec on the same task
+ * **agent slug is part of the key** so a CTO rec and a QA rec on the same task
  * stay distinct instead of one clobbering the other. Returns null for anything
  * without `ctoAction` (not a recommendation) — it keeps plain id-dedup, so
  * every distinct mention is its own entry.
@@ -203,7 +203,7 @@ export function ctoFeedKey(entry: {
   repoFullName: string;
   url: string;
   ctoAction?: string;
-  ctoStaff?: string;
+  ctoAgent?: string;
   title?: string;
   snippet?: string;
 }): string | null {
@@ -222,6 +222,6 @@ export function ctoFeedKey(entry: {
   // per-user gist is already single-login and omits it. Legacy entries with
   // no slug collapse under "cto" — they were all the CTO's.
   const prefix = entry.login ? `${entry.login}:` : "";
-  const staff = entry.ctoStaff ?? "cto";
-  return `${prefix}${entry.repoFullName.toLowerCase()}:${staff}:${m[1]}`;
+  const agent = entry.ctoAgent ?? "cto";
+  return `${prefix}${entry.repoFullName.toLowerCase()}:${agent}:${m[1]}`;
 }

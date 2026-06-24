@@ -14,6 +14,9 @@ describe("terminal bridge token", () => {
       repo: "widgets",
       app: "kody-runner",
       machineId: "m-123",
+      chatSessionId: "chat-1",
+      resetSession: true,
+      activityLimitMs: 2 * 60 * 60_000,
       flyToken: "FlyV1 secret-token",
       cols: 132,
       rows: 40,
@@ -31,10 +34,32 @@ describe("terminal bridge token", () => {
       repo: "widgets",
       app: "kody-runner",
       machineId: "m-123",
+      chatSessionId: "chat-1",
+      resetSession: true,
+      activityLimitMs: 2 * 60 * 60_000,
       flyToken: "FlyV1 secret-token",
       cols: 132,
       rows: 40,
     });
+  });
+
+  it("round-trips a never-expiring terminal activity limit", () => {
+    const token = mintTerminalBridgeToken({
+      owner: "acme",
+      repo: "widgets",
+      app: "kody-brain-alice",
+      machineId: "brain-1",
+      activityLimitMs: null,
+      flyToken: "FlyV1 secret-token",
+      now: 100,
+      secret: SECRET,
+    });
+
+    const claims = verifyTerminalBridgeToken(token, {
+      now: 110,
+      secret: SECRET,
+    });
+    expect(claims.activityLimitMs).toBeNull();
   });
 
   it("rejects tampered tokens", () => {

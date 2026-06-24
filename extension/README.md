@@ -1,70 +1,72 @@
 # Kody Preview Inspector (browser extension)
 
-Pulls live context out of the dashboard's preview into Kody chat:
+Pulls live context out of the dashboard preview into Kody chat:
 
-- **Pick element** — hover + click; selector/tag/text/attributes → chat chip.
-- **Console errors** — the errors/warnings the preview has logged.
-- **Failed requests** — the preview's failed network calls (4xx/5xx/threw).
-- **Screenshot** — a picture of the preview, attached to the message.
-- **Speed check** — load timings (TTFB/FCP/LCP/load) + slowest resources.
-- **Record a test** — record a click-through → a Playwright test chip.
+- **Pick element** - hover and click; selector/tag/text/attributes become a chat
+  chip.
+- **Console errors** - send preview errors and warnings.
+- **Failed requests** - send failed preview network calls.
+- **Screenshot** - attach a picture of the preview.
+- **Speed check** - send TTFB/FCP/LCP/load timings and slowest resources.
+- **Record test** - record a click-through flow and turn it into a Playwright
+  test chip.
 
 Console/network are captured by a tiny script injected into the page's main
-world (content scripts can't see the page's own `console`/`fetch`); it buffers
-the last 50 of each and hands them over on demand.
+world. Content scripts alone cannot see the page's own `console`, `fetch`, or
+`XMLHttpRequest` calls.
 
-## Why an extension?
+## Why An Extension?
 
-The preview is a **cross-origin** iframe (a Vercel deployment on a different
-domain). The browser forbids the dashboard's own page from reading or clicking
-inside that iframe. A browser extension is the one thing allowed in — its
-content scripts run inside every frame, including cross-origin ones — **without
-touching the previewed app's source code**.
+The preview is usually a cross-origin iframe. The dashboard page cannot read or
+click inside it, but browser extension content scripts can run inside every
+frame without touching the previewed app source.
 
-## How it works
+## How It Works
 
-```
-dashboard page ──window.postMessage──▶ content.js (bridge, top frame)
-                                              │ chrome.runtime
-                                              ▼
-                                        background.js (router)
-                                              │ chrome.tabs.sendMessage
-                                              ▼
-                              content.js (picker, preview iframe)
+```text
+dashboard page -> content.js bridge -> background.js router -> content.js preview frame
 ```
 
-- `content.js` runs in every frame and picks a role:
-  - **top frame** → _bridge_: relays between the dashboard page and the
-    background. Inert on any site that never pings it.
-  - **sub-frame** → _picker_: dormant until "arm", then highlight-on-hover +
-    click-to-capture.
-- `background.js` routes `arm`/`disarm` down to the iframe and the picked
-  element back up to the dashboard.
+- `content.js` runs in every frame.
+- Top frame role: bridge between dashboard `window.postMessage` and the
+  extension background.
+- Preview frame role: picker, collector, action runner, and recorder.
+- `background.js` routes commands down to frames and results back to the top
+  frame bridge.
 
 The message-name contract is mirrored in
-`src/dashboard/lib/picker/protocol.ts` — keep the two in sync.
+`src/dashboard/lib/picker/protocol.ts`; keep them in sync.
 
-## Install (developer / unpacked — works today, no store needed)
+## Install
 
-1. Open `chrome://extensions` (or `edge://extensions`, `brave://extensions`,
-   any Chromium browser).
+### Chrome, Edge, Brave, Arc, Comet
+
+1. Open `chrome://extensions` or the equivalent Chromium extensions page.
 2. Toggle **Developer mode** on.
-3. Click **Load unpacked** and select this `extension/` folder.
-4. Reload the dashboard tab. The preview toolbar's picker button activates.
+3. Click **Load unpacked** and select the `extension/` folder.
+4. Reload the dashboard tab.
 
-Comet, Brave, Arc, and Edge are all Chromium and load this as-is. Firefox and
-Safari would need a separate build.
+### Firefox
 
-## Publish to the Chrome Web Store (when ready)
+Firefox uses the same source files with a Firefox-specific manifest.
 
-1. Add raster icons (16/48/128 px) and reference them under `icons` +
+1. Run `pnpm picker:pack`.
+2. Unzip `public/kody-preview-inspector-firefox.zip`.
+3. Open `about:debugging#/runtime/this-firefox`.
+4. Click **Load Temporary Add-on** and pick the unzipped `manifest.json`.
+5. Reload the dashboard tab.
+
+Firefox temporary add-ons are removed when Firefox restarts. A permanent Firefox
+install needs a signed `.xpi` from Mozilla Add-ons or self-distribution.
+
+## Publish To Chrome Web Store
+
+1. Add raster icons and reference them under `icons` plus
    `action.default_icon` in `manifest.json`.
-2. Zip the `extension/` folder contents.
-3. Upload at the [Chrome Web Store Developer Dashboard](https://chrome.google.com/webstore/devconsole)
-   (one-time $5 developer fee, Google account required).
-4. The broad `<all_urls>` host permission triggers extra review — expect a few
-   days and be ready to justify it ("reads the element you click in the
-   preview").
+2. Zip the Chrome extension folder contents.
+3. Upload at the Chrome Web Store Developer Dashboard.
+4. The broad `<all_urls>` host permission triggers extra review; justify that it
+   reads only the preview element the user clicks.
 
-Note: a website can never install an extension for the user — the store page +
-"Add to Chrome" + the permission prompt are unavoidable, one-time, per user.
+Website code cannot install an extension silently for the user. Store install,
+browser prompt, or manual developer install is required.

@@ -3,19 +3,21 @@
  * @domain kody
  * @pattern company-export
  * @ai-summary Build a portable Company bundle from the connected repo.
- *   Reads the four company-level artifact types (staff, duties, commands,
- *   instructions) via their existing file helpers and maps each to the
+ *   Reads the company-level artifact types (agent, agentResponsibilities, commands,
+ *   agentActions, instructions) via their existing file helpers and maps each to the
  *   repo-agnostic shape in `types.ts` — dropping sha/html_url/commit and
  *   tick timestamps, which are meaningless in another repo. Runs inside
  *   an established GitHub context (see the API route).
  */
 
 import { getOctokit, getOwner, getRepo } from "../github-client";
-import { listDutyFiles } from "../duties-files";
-import { listStaffFiles } from "../staff-files";
+import { listAgentResponsibilityFiles } from "../agent-responsibilities-files";
+import { listAgentFiles } from "../agent-files";
 import { listRepoCommandFiles } from "../commands/files";
+import { listContextFiles } from "../context/files";
 import { readInstructionsFile } from "../instructions/files";
-import { listExecutableFiles, readExecutableFile } from "../executables";
+import { listAgentActionFiles, readAgentActionFolderFiles } from "../agent-actions";
+import { listManagedGoalFiles } from "../managed-goals-files";
 import { getEngineConfig } from "../engine/config";
 import {
   COMPANY_BUNDLE_VERSION,
@@ -23,20 +25,30 @@ import {
   type CompanyConfigBundle,
   type CompanyTickEntry,
   type CompanyCommandEntry,
-  type CompanyExecutableEntry,
+  type CompanyAgentActionEntry,
+  type CompanyGoalEntry,
+  type CompanyContextEntry,
 } from "./types";
 import type { TickFile } from "../ticked/files";
 import type { CommandFile } from "../commands/files";
-import type { ExecutableDetail } from "../executables";
+import type { ContextFile } from "../context/files";
 
 function toTickEntry(file: TickFile): CompanyTickEntry {
   return {
     slug: file.slug,
     title: file.title,
     body: file.body,
-    schedule: file.schedule,
     disabled: file.disabled,
-    staff: file.staff,
+    agent: file.agent,
+    reviewer: file.reviewer,
+    action: file.action,
+    mentions: file.mentions,
+    agentAction: file.agentAction,
+    agentActions: file.agentActions,
+    agentResponsibilityTools: file.agentResponsibilityTools,
+    tickScript: file.tickScript,
+    readsFrom: file.readsFrom,
+    writesTo: file.writesTo,
   };
 }
 
@@ -49,26 +61,29 @@ function toCommandEntry(file: CommandFile): CompanyCommandEntry {
   };
 }
 
-/** Flatten an executable folder into a portable path→content map. */
-function toExecutableEntry(detail: ExecutableDetail): CompanyExecutableEntry {
-  const files: Record<string, string> = {
-    "profile.json": detail.profileJson,
-    "prompt.md": detail.prompt,
+function toContextEntry(file: ContextFile): CompanyContextEntry {
+  return {
+    slug: file.slug,
+    body: file.body,
+    agent: file.agent,
   };
-  for (const s of detail.shellScripts) files[s.name] = s.content;
-  for (const s of detail.skills) files[`skills/${s.name}/SKILL.md`] = s.body;
-  return { slug: detail.slug, files };
 }
 
-/** Read every executable folder into portable entries. */
-async function buildExecutableEntries(): Promise<CompanyExecutableEntry[]> {
-  const summaries = await listExecutableFiles();
-  const details = await Promise.all(
-    summaries.map((s) => readExecutableFile(s.slug)),
+/** Read every agentAction folder into portable path→content maps. */
+async function buildAgentActionEntries(): Promise<CompanyAgentActionEntry[]> {
+  const summaries = await listAgentActionFiles();
+  const entries = await Promise.all(
+    summaries.map(async (s) => {
+      const files = await readAgentActionFolderFiles(s.slug);
+      return files ? { slug: s.slug, files } : null;
+    }),
   );
-  return details
-    .filter((d): d is ExecutableDetail => d !== null)
-    .map(toExecutableEntry);
+  return entries.filter((e): e is NonNullable<typeof e> => e !== null);
+}
+
+async function buildGoalEntries(): Promise<CompanyGoalEntry[]> {
+  const goals = await listManagedGoalFiles();
+  return goals.map((goal) => ({ id: goal.id, state: goal.state }));
 }
 
 /**
@@ -93,13 +108,13 @@ async function buildConfigBundle(): Promise<CompanyConfigBundle | null> {
   }
   const assoc = config.access?.allowedAssociations;
   if (Array.isArray(assoc) && assoc.length > 0) out.allowedAssociations = assoc;
-  if (config.defaultExecutable)
-    out.defaultExecutable = config.defaultExecutable;
-  if (config.defaultPrExecutable) {
-    out.defaultPrExecutable = config.defaultPrExecutable;
+  if (config.defaultAgentAction)
+    out.defaultAgentAction = config.defaultAgentAction;
+  if (config.defaultPrAgentAction) {
+    out.defaultPrAgentAction = config.defaultPrAgentAction;
   }
-  const perExec = config.agent?.perExecutable;
-  if (perExec && Object.keys(perExec).length > 0) out.perExecutable = perExec;
+  const perExec = config.agent?.perAgentAction;
+  if (perExec && Object.keys(perExec).length > 0) out.perAgentAction = perExec;
 
   return Object.keys(out).length > 0 ? out : null;
 }
@@ -111,26 +126,38 @@ async function buildConfigBundle(): Promise<CompanyConfigBundle | null> {
  * dashboard, so re-importing them would be redundant).
  */
 export async function buildCompanyBundle(): Promise<CompanyBundle> {
-  const [staff, duties, commandsResult, executables, instructions, config] =
-    await Promise.all([
-      listStaffFiles(),
-      listDutyFiles(),
-      listRepoCommandFiles(),
-      buildExecutableEntries(),
-      readInstructionsFile(),
-      buildConfigBundle(),
-    ]);
+  const [
+    agent,
+    agentResponsibilities,
+    contexts,
+    commandsResult,
+    agentActions,
+    goals,
+    instructions,
+    config,
+  ] = await Promise.all([
+    listAgentFiles(),
+    listAgentResponsibilityFiles(),
+    listContextFiles(),
+    listRepoCommandFiles(),
+    buildAgentActionEntries(),
+    buildGoalEntries(),
+    readInstructionsFile(),
+    buildConfigBundle(),
+  ]);
 
   return {
     kodyCompany: COMPANY_BUNDLE_VERSION,
     exportedAt: new Date().toISOString(),
     exportedFrom: `${getOwner()}/${getRepo()}`,
-    staff: staff.map(toTickEntry),
-    duties: duties.map(toTickEntry),
+    agent: agent.map(toTickEntry),
+    agentResponsibilities: agentResponsibilities.map(toTickEntry),
+    contexts: contexts.map(toContextEntry),
     commands: commandsResult.commands
       .filter((p) => p.source === "repo")
       .map(toCommandEntry),
-    executables,
+    agentActions,
+    goals,
     instructions: instructions?.body?.trim() ? instructions.body : null,
     config,
   };

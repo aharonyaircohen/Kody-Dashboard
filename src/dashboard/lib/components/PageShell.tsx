@@ -7,7 +7,7 @@
  *
  *   - `<PageHeader />` — the sticky header bar (back arrow, icon, title,
  *     subtitle, right-side actions). Use this directly when a page owns
- *     its own body layout (e.g. Reports/Duties with internal scroll regions).
+ *     its own body layout (e.g. Reports/AgentResponsibilities with internal scroll regions).
  *
  *   - `<PageShell />` — convenience wrapper that combines `PageHeader`
  *     with the dark page background and a scrolling content area. Use
@@ -27,6 +27,7 @@ import { cn } from "../utils";
 
 interface PageHeaderProps {
   title: string;
+  titleContent?: React.ReactNode;
   icon?: LucideIcon;
   iconClassName?: string;
   subtitle?: string;
@@ -37,6 +38,7 @@ interface PageHeaderProps {
 
 export function PageHeader({
   title,
+  titleContent,
   icon: Icon,
   iconClassName,
   subtitle,
@@ -64,7 +66,11 @@ export function PageHeader({
             className={cn("w-5 h-5 shrink-0", iconClassName ?? "text-white/70")}
           />
         )}
-        <h1 className="text-base md:text-lg font-semibold truncate">{title}</h1>
+        {titleContent ?? (
+          <h1 className="text-base md:text-lg font-semibold truncate">
+            {title}
+          </h1>
+        )}
         {subtitle && (
           <span className="text-[11px] text-white/40 truncate">{subtitle}</span>
         )}

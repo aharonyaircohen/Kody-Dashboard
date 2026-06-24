@@ -8,7 +8,6 @@
 
 import { useState, useEffect, useRef } from "react";
 import { MessageSquarePlus } from "lucide-react";
-import ReactMarkdown from "react-markdown";
 import Image from "next/image";
 import { Button } from "@dashboard/ui/button";
 import { Textarea } from "@dashboard/ui/textarea";
@@ -17,6 +16,7 @@ import { usePostComment } from "../hooks";
 import { useCommentAttachments } from "../hooks/useCommentAttachments";
 import { AttachmentBar } from "./AttachmentBar";
 import { useGitHubIdentity } from "../hooks/useGitHubIdentity";
+import { MarkdownPreview } from "./MarkdownPreview";
 import { EMOJI_LIST, getGitHubIssueUrl } from "../constants";
 import {
   Bold,
@@ -331,11 +331,12 @@ export function CommentEditor({
         {...att.dropzoneProps}
       >
         {showPreview ? (
-          <div
-            dir="auto"
-            className="min-h-[60px] p-2 border border-border rounded-md bg-background text-xs prose prose-sm dark:prose-invert max-w-none"
-          >
-            <ReactMarkdown>{comment || "*Nothing to preview*"}</ReactMarkdown>
+          <div className="min-h-[60px] p-2 border border-border rounded-md bg-background text-xs">
+            <MarkdownPreview
+              content={comment || "*Nothing to preview*"}
+              dir="auto"
+              variant="compact"
+            />
           </div>
         ) : (
           <div className="relative">

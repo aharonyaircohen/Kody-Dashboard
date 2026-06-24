@@ -28,9 +28,8 @@ const DEFAULT_REGION = process.env.FLY_REGION ?? "fra";
 /**
  * Hard ceiling on the machine-create call. The Fly Machines API normally
  * answers in a few seconds; without a bound, a hung API holds the whole
- * Vibe/start request open until the serverless runtime kills it (and the
- * pool-miss → spawn fallback never gets to surface a clean error). On
- * timeout the fetch rejects and the caller's catch returns 500 fast.
+ * Vibe/start request open until the serverless runtime kills it. On timeout
+ * the fetch rejects and the caller's catch returns 500 fast.
  */
 const SPAWN_TIMEOUT_MS = 30_000;
 
@@ -57,6 +56,13 @@ export interface SpawnRunnerInput {
   /** Hard cap override (ms) for interactive mode */
   hardCapMs?: number;
   /**
+   * Thinking level (off|low|medium|high). Set as REASONING_EFFORT env
+   * var on the spawned machine so the engine's chat turn respects the
+   * chat-level pick. Empty/undefined → engine uses its own default
+   * (off = no thinking = cheapest path).
+   */
+  reasoningEffort?: string;
+  /**
    * Fly Machines API token. Required — must come from the user-scoped
    * Settings (see SettingsManager). The server does NOT fall back to an
    * env var; the token has to be attributed to the authenticated user.
@@ -68,17 +74,10 @@ export interface SpawnRunnerInput {
    */
   perfTier?: PerfTier;
   /**
-   * Optional always-on LiteLLM proxy URL (e.g. http://kody-litellm.internal:4000).
-   * When set, the runner's entrypoint forwards localhost:4000 to this URL via
-   * socat — the engine's existing health check then reuses the live proxy and
-   * skips its own ~24s startup. Omit for the per-session pre-warm path.
-   */
-  litellmUrl?: string;
-  /**
-   * GitHub issue number for agent (run-executable) mode. When set, the
+   * GitHub issue number for agent (run-agentAction) mode. When set, the
    * runner's entrypoint invokes `kody run --issue N` instead of bare
    * `kody`. The engine's existing `--issue` path then routes to the
-   * `run` executable (branch → code → commit → PR). Used by Vibe's
+   * `run` agentAction (branch → code → commit → PR). Used by Vibe's
    * one-shot execution path; leave empty for chat-mode sessions.
    */
   issueNumber?: number;
@@ -149,7 +148,7 @@ function buildMachineEnv(input: SpawnRunnerInput): Record<string, string> {
   if (input.dashboardUrl) env.DASHBOARD_URL = input.dashboardUrl;
   if (input.idleExitMs) env.KODY_IDLE_EXIT_MS = String(input.idleExitMs);
   if (input.hardCapMs) env.KODY_HARD_CAP_MS = String(input.hardCapMs);
-  if (input.litellmUrl) env.KODY_LITELLM_URL = input.litellmUrl;
+  if (input.reasoningEffort) env.REASONING_EFFORT = input.reasoningEffort;
   if (input.issueNumber && input.issueNumber > 0) {
     env.ISSUE_NUMBER = String(input.issueNumber);
   }

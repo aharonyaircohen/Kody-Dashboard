@@ -1,0 +1,251 @@
+/**
+ * @fileType api-endpoint
+ * @domain agentActions
+ * @pattern agentActions-api
+ * @ai-summary AgentActions Control API — GET lists custom agentActions
+ *   stored at `.kody/agent-actions/<slug>/`, POST creates a new
+ *   one. Each agentAction is a folder the engine resolves before its own
+ *   built-ins (kody2/src/registry.ts).
+ */
+/* eslint-disable @typescript-eslint/no-explicit-any */
+import { NextRequest, NextResponse } from "next/server";
+import { z } from "zod";
+import {
+  requireKodyAuth,
+  verifyActorLogin,
+  getUserOctokit,
+  getRequestAuth,
+} from "@dashboard/lib/auth";
+import {
+  setGitHubContext,
+  clearGitHubContext,
+} from "@dashboard/lib/github-client";
+import {
+  listAgentActionFiles,
+  readAgentActionFile,
+  writeAgentActionFile,
+  isValidSlug,
+  PERMISSION_MODES,
+} from "@dashboard/lib/agent-actions";
+import { getEngineConfig } from "@dashboard/lib/engine/config";
+import { recordAudit } from "@dashboard/lib/activity/audit";
+
+export const dynamic = "force-dynamic";
+export const revalidate = 0;
+
+const NO_STORE_HEADERS = { "Cache-Control": "no-store, max-age=0" };
+
+export async function GET(req: NextRequest) {
+  const authResult = await requireKodyAuth(req);
+  if (authResult instanceof NextResponse) return authResult;
+
+  const headerAuth = getRequestAuth(req);
+  if (headerAuth)
+    setGitHubContext(
+      headerAuth.owner,
+      headerAuth.repo,
+      headerAuth.token,
+      headerAuth.storeRepoUrl,
+      headerAuth.storeRef,
+    );
+
+  try {
+    const activeAgentActions = new Set<string>();
+    let defaults = { issue: null as string | null, pr: null as string | null };
+    if (headerAuth) {
+      const userOctokit = await getUserOctokit(req);
+      if (userOctokit) {
+        const { config } = await getEngineConfig(
+          userOctokit,
+          headerAuth.owner,
+          headerAuth.repo,
+        );
+        defaults = {
+          issue: config.defaultAgentAction ?? null,
+          pr: config.defaultPrAgentAction ?? null,
+        };
+        for (const slug of config.company?.activeAgentActions ?? []) {
+          activeAgentActions.add(slug);
+        }
+      }
+    }
+    const agentActions = (await listAgentActionFiles()).filter(
+      (item) => item.source !== "store" || activeAgentActions.has(item.slug),
+    );
+    return NextResponse.json(
+      { agentActions, defaults },
+      { headers: NO_STORE_HEADERS },
+    );
+  } catch (error: any) {
+    console.error("[AgentActions] Error listing agentActions:", error);
+    if (error?.status === 401) {
+      return NextResponse.json(
+        { error: "github_token_expired" },
+        { status: 401, headers: NO_STORE_HEADERS },
+      );
+    }
+    if (error?.status === 403 || error?.message?.includes("rate limit")) {
+      return NextResponse.json(
+        { error: "rate_limited", message: "GitHub API rate limit exceeded" },
+        { status: 429, headers: NO_STORE_HEADERS },
+      );
+    }
+    return NextResponse.json(
+      {
+        agentActions: [],
+        error: error?.message || "Failed to list agentActions",
+      },
+      { status: 500, headers: NO_STORE_HEADERS },
+    );
+  } finally {
+    clearGitHubContext();
+  }
+}
+
+const skillSchema = z.object({
+  name: z.string().min(1).max(64),
+  body: z.string().default(""),
+});
+const shellSchema = z.object({
+  name: z.string().regex(/^[a-zA-Z0-9._-]+\.sh$/, "must be a *.sh filename"),
+  content: z.string().default(""),
+});
+const mcpServerSchema = z.object({
+  name: z
+    .string()
+    .regex(/^[a-zA-Z0-9_-]+$/, "letters, digits, dash, underscore"),
+  command: z.string().min(1, "command is required"),
+  args: z.array(z.string()).optional(),
+  env: z.record(z.string(), z.string()).optional(),
+});
+
+const createAgentActionSchema = z
+  .object({
+    slug: z.string().min(1).max(64),
+    describe: z.string().default(""),
+    instructions: z.string().min(1, "instructions are required").optional(),
+    // Backward-compatible alias for older dashboard builds/API callers. The
+    // authored concept is instructions; the engine storage file is prompt.md.
+    prompt: z.string().min(1).optional(),
+    model: z.string().default("inherit"),
+    permissionMode: z.enum(PERMISSION_MODES).default("acceptEdits"),
+    tools: z.array(z.string()).default([]),
+    skills: z.array(skillSchema).default([]),
+    shellScripts: z.array(shellSchema).default([]),
+    mcpServers: z.array(mcpServerSchema).default([]),
+    landing: z.enum(["pr", "comment"]).default("pr"),
+    profileJsonOverride: z.string().optional(),
+    actorLogin: z.string().optional(),
+  })
+  .refine((input) => input.instructions || input.prompt, {
+    message: "instructions are required",
+    path: ["instructions"],
+  });
+
+export async function POST(req: NextRequest) {
+  const authResult = await requireKodyAuth(req);
+  if (authResult instanceof NextResponse) return authResult;
+
+  const headerAuth = getRequestAuth(req);
+  if (headerAuth)
+    setGitHubContext(
+      headerAuth.owner,
+      headerAuth.repo,
+      headerAuth.token,
+      headerAuth.storeRepoUrl,
+      headerAuth.storeRef,
+    );
+
+  try {
+    const payload = await req.json();
+    const input = createAgentActionSchema.parse(payload);
+    const instructions = input.instructions ?? input.prompt ?? "";
+
+    if (!isValidSlug(input.slug)) {
+      return NextResponse.json(
+        {
+          error: "invalid_slug",
+          message:
+            "AgentAction slug must be lowercase letters, digits, dashes, or underscores.",
+        },
+        { status: 400 },
+      );
+    }
+
+    const existing = await readAgentActionFile(input.slug);
+    if (existing) {
+      return NextResponse.json(
+        {
+          error: "slug_taken",
+          message: `AgentAction "${input.slug}" already exists.`,
+        },
+        { status: 409 },
+      );
+    }
+
+    const actorResult = await verifyActorLogin(req, input.actorLogin);
+    if (actorResult instanceof NextResponse) return actorResult;
+
+    const userOctokit = await getUserOctokit(req);
+    if (!userOctokit) {
+      return NextResponse.json(
+        {
+          error: "no_user_token",
+          message:
+            "A signed-in GitHub token is required to commit agentAction files.",
+        },
+        { status: 401 },
+      );
+    }
+
+    const agentAction = await writeAgentActionFile({
+      octokit: userOctokit,
+      fields: {
+        slug: input.slug,
+        describe: input.describe,
+        prompt: instructions,
+        model: input.model,
+        permissionMode: input.permissionMode,
+        tools: input.tools,
+        skills: input.skills.map((s) => s.name),
+        shellScripts: input.shellScripts.map((s) => s.name),
+        mcpServers: input.mcpServers,
+        landing: input.landing,
+      },
+      skills: input.skills,
+      shellScripts: input.shellScripts,
+      profileJsonOverride: input.profileJsonOverride,
+    });
+
+    recordAudit(req, {
+      action: "agentAction.create",
+      resource: input.slug,
+      detail: `created agentAction ${input.slug}`,
+    });
+
+    return NextResponse.json({ agentAction });
+  } catch (error: any) {
+    console.error("[AgentActions] Error creating agentAction:", error);
+    if (error instanceof z.ZodError) {
+      return NextResponse.json(
+        { error: "validation_error", details: error.issues },
+        { status: 400 },
+      );
+    }
+    if (error?.status === 401) {
+      return NextResponse.json(
+        { error: "github_token_expired" },
+        { status: 401 },
+      );
+    }
+    return NextResponse.json(
+      {
+        error: "create_failed",
+        message: error?.message ?? "Failed to create agentAction",
+      },
+      { status: 500 },
+    );
+  } finally {
+    clearGitHubContext();
+  }
+}

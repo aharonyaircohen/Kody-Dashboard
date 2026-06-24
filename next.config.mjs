@@ -6,15 +6,20 @@ const pkg = JSON.parse(
 
 /** @type {import('next').NextConfig} */
 const nextConfig = {
+  allowedDevOrigins: ["127.0.0.1"],
   env: {
     NEXT_PUBLIC_APP_VERSION: pkg.version,
+  },
+  experimental: {
+    // Turbopack's persistent dev cache has grown pathologically large locally.
+    turbopackFileSystemCacheForDev: false,
   },
   // Keep pino (and its worker-thread transport) out of the bundle. When Next
   // bundles them, the thread-stream worker path gets rewritten to a virtual
   // `/ROOT/...` location that doesn't exist at runtime, so the logging worker
   // exits and every route that logs an error crashes with a 500. Leaving them
   // external means the worker loads from the real node_modules path.
-  serverExternalPackages: ["pino", "thread-stream", "pino-pretty"],
+  serverExternalPackages: ["pino", "thread-stream", "pino-pretty", "node-pty"],
   // Dev runs on Turbopack, which (unlike Next's webpack) does not auto-stub
   // Node-only builtins for the browser bundle. `@mintplex-labs/piper-tts-web`
   // (lazy-loaded by the voice TTS hook) statically references `require("fs")`

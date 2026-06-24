@@ -180,10 +180,11 @@ arguments before Enter. On send, `expandSlashCommand` substitutes
 text — every backend just sees a normal user message, so commands work
 identically on the in-process chat model, Brain, and Engine.
 
-Two layers, merged at runtime:
+Three layers, merged at runtime:
 
-- **Built-ins** ship in [src/dashboard/lib/commands/builtins.ts](src/dashboard/lib/commands/builtins.ts) (`/plan`, `/research`, `/review`, `/explain`, `/issue`, `/goal`, `/analyze`, `/duty`, `/init`). `/research`, `/plan`, and `/issue` follow the research-first flow enforced by the kody-live system prompt; `/issue` ends with an opt-in `kody_run_issue` handoff.
-- **Repo commands** live at `.kody/commands/<slug>.md` (frontmatter: `description`, `argument-hint`; body is the template). Repo wins on slug collision — that's how "fork the built-in" works.
+- **Repo commands** live at `.kody/commands/<slug>.md` (frontmatter: `description`, `argument-hint`; body template). Repo wins on slug collision.
+- **Store commands** live at `.kody/commands/<slug>.md` in the configured company store and provide shared defaults such as `/factory`.
+- **Built-ins** ship in [src/dashboard/lib/commands/builtins.ts](src/dashboard/lib/commands/builtins.ts) (`/plan`, `/research`, `/review`, `/explain`, `/issue`, `/goal`, `/analyze`, `/agentResponsibility`, `/init`). `/research`, `/plan`, `/issue` follow research-first flow enforced by kody-live system prompt; `/issue` ends opt-in `kody_run_issue` handoff.
 
 Drop `.kody/commands/.disable-builtins` to suppress every built-in for the repo.
 
@@ -201,7 +202,7 @@ plain text + `$ARGUMENTS` for portable prompts.
 
 **Engine path details** (when used): dispatches `kody.yml` in the connected
 repo with the session ID and an inline HMAC token in `dashboardUrl`. The kody
-engine runs `kody-engine dispatch`, which branches to the chat executable, streams
+engine runs `kody-engine dispatch`, which branches to the chat agentAction, streams
 events back to `/api/kody/events/ingest` (real-time), and commits them to
 `.kody/events/{sessionId}.jsonl` (durable fallback, polled by
 `/api/kody/events/stream`). Token is verified via HMAC of sessionId with

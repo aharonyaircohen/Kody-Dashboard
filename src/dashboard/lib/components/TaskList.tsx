@@ -7,15 +7,26 @@
 "use client";
 
 import { memo, useCallback, useState, useEffect } from "react";
+import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { toast } from "sonner";
 import { cn, formatRelativeTime } from "../utils";
 import {
   getGitHubIssueUrl,
+  HIDDEN_TASK_LABEL,
+  KODY_BACKLOG_LABEL,
   parsePriorityLabel,
   PRIORITY_META,
 } from "../constants";
+import { kodyApi } from "../api";
+import { useGitHubIdentity } from "../hooks/useGitHubIdentity";
+import {
+  markTaskHiddenInList,
+  markTaskVisibleInList,
+} from "../tasks/visibility";
 import { MiniPipelineProgress } from "./MiniPipelineProgress";
 import { AnimatedStatusBar } from "./v2/AnimatedStatusBar";
 import { SimpleTooltip } from "./SimpleTooltip";
+import { autoDirProps } from "../text-direction";
 import {
   StatusTooltipContent,
   SubStatusTooltipContent,
@@ -55,6 +66,7 @@ import {
   AlertCircle,
   RefreshCw,
   Eye,
+  EyeOff,
   Inbox,
   Pencil,
   Copy,
@@ -68,19 +80,23 @@ interface TaskListProps {
   mergingTaskId?: string | null;
   focusedIndex?: number;
   onTaskSelect?: (task: KodyTask | null) => void;
-  onExecuteTask?: (taskId: string) => void;
+  onExecuteTask?: (task: KodyTask) => void;
   onStopTask?: (task: KodyTask) => void;
   onApproveReview?: (task: KodyTask) => Promise<void>;
   onTaskHover?: (task: KodyTask) => void;
   onAssign?: (issueNumber: number, assignees: string[]) => void;
+  onAssignToKody?: (task: KodyTask) => void;
   onUnassign?: (issueNumber: number, assignees: string[]) => void;
   collaborators?: { login: string; avatar_url: string }[];
   onOpenPreview?: (task: KodyTask) => void;
   onCreateTask?: () => void;
   onEditTask?: (task: KodyTask) => void;
   onDuplicate?: (task: KodyTask) => void;
+  onHideTask?: (task: KodyTask) => void;
+  onShowTask?: (task: KodyTask) => void;
   onRerun?: (task: KodyTask) => void;
   onToggleQueue?: (task: KodyTask) => void;
+  intakeMode?: boolean;
   /** If true, each row is draggable (for goal-to-goal DnD). */
   draggable?: boolean;
   onDragStartTask?: (task: KodyTask, event: React.DragEvent) => void;
@@ -193,20 +209,84 @@ export function TaskList({
   onApproveReview: _onApproveReview,
   onTaskHover,
   onAssign,
+  onAssignToKody,
   onUnassign: _onUnassign,
   focusedIndex,
   onOpenPreview,
   onCreateTask,
   onEditTask,
   onDuplicate,
+  onHideTask,
+  onShowTask,
   onRerun,
   onToggleQueue,
+  intakeMode = false,
   collaborators = [],
   draggable,
   onDragStartTask,
   onDragEndTask,
   accent,
 }: TaskListProps) {
+  const queryClient = useQueryClient();
+  const { githubUser } = useGitHubIdentity();
+  const visibilityMutation = useMutation({
+    mutationFn: ({ task, hidden }: { task: KodyTask; hidden: boolean }) =>
+      hidden
+        ? kodyApi.tasks.addLabel(
+            task.issueNumber,
+            HIDDEN_TASK_LABEL,
+            githubUser?.login,
+          )
+        : kodyApi.tasks.removeLabel(
+            task.issueNumber,
+            HIDDEN_TASK_LABEL,
+            githubUser?.login,
+          ),
+    onMutate: async ({ task, hidden }) => {
+      await queryClient.cancelQueries({ queryKey: ["kody-tasks"] });
+      const previous = queryClient.getQueriesData<KodyTask[]>({
+        queryKey: ["kody-tasks"],
+      });
+      queryClient.setQueriesData<KodyTask[]>(
+        { queryKey: ["kody-tasks"] },
+        (old) => {
+          if (!old) return old;
+          return hidden
+            ? markTaskHiddenInList(old, task.issueNumber)
+            : markTaskVisibleInList(old, task.issueNumber);
+        },
+      );
+      return { previous };
+    },
+    onError: (_error, _vars, context) => {
+      for (const [key, value] of context?.previous ?? []) {
+        queryClient.setQueryData(key, value);
+      }
+      toast.error("Failed to update task visibility");
+    },
+    onSuccess: (_data, { task, hidden }) => {
+      toast.success(hidden ? "Task hidden from dashboard" : "Task shown");
+      queryClient.invalidateQueries({ queryKey: ["kody-tasks"] });
+      queryClient.invalidateQueries({
+        queryKey: ["kody-task", task.issueNumber],
+      });
+    },
+  });
+  const handleHideTask = useCallback(
+    (task: KodyTask) => {
+      if (onHideTask) onHideTask(task);
+      else visibilityMutation.mutate({ task, hidden: true });
+    },
+    [onHideTask, visibilityMutation],
+  );
+  const handleShowTask = useCallback(
+    (task: KodyTask) => {
+      if (onShowTask) onShowTask(task);
+      else visibilityMutation.mutate({ task, hidden: false });
+    },
+    [onShowTask, visibilityMutation],
+  );
+
   const handleTaskClick = useCallback(
     (task: KodyTask) => {
       if (onTaskSelect) {
@@ -255,11 +335,15 @@ export function TaskList({
           onExecuteTask={onExecuteTask}
           onStopTask={onStopTask}
           onAssign={onAssign}
+          onAssignToKody={onAssignToKody}
           onOpenPreview={onOpenPreview}
           onEditTask={onEditTask}
           onDuplicate={onDuplicate}
+          onHideTask={handleHideTask}
+          onShowTask={handleShowTask}
           onRerun={onRerun}
           onToggleQueue={onToggleQueue}
+          intakeMode={intakeMode}
           collaborators={collaborators}
           draggable={draggable}
           onDragStartTask={onDragStartTask}
@@ -278,14 +362,18 @@ interface TaskRowProps {
   isExecuting: boolean;
   onClick: (task: KodyTask) => void;
   onTaskHover?: (task: KodyTask) => void;
-  onExecuteTask?: (taskId: string) => void;
+  onExecuteTask?: (task: KodyTask) => void;
   onStopTask?: (task: KodyTask) => void;
   onAssign?: (issueNumber: number, assignees: string[]) => void;
+  onAssignToKody?: (task: KodyTask) => void;
   onOpenPreview?: (task: KodyTask) => void;
   onEditTask?: (task: KodyTask) => void;
   onDuplicate?: (task: KodyTask) => void;
+  onHideTask?: (task: KodyTask) => void;
+  onShowTask?: (task: KodyTask) => void;
   onRerun?: (task: KodyTask) => void;
   onToggleQueue?: (task: KodyTask) => void;
+  intakeMode?: boolean;
   collaborators: { login: string; avatar_url: string }[];
   draggable?: boolean;
   onDragStartTask?: (task: KodyTask, event: React.DragEvent) => void;
@@ -303,11 +391,15 @@ const TaskRow = memo(function TaskRow({
   onExecuteTask,
   onStopTask,
   onAssign,
+  onAssignToKody,
   onOpenPreview,
   onEditTask,
   onDuplicate,
+  onHideTask,
+  onShowTask,
   onRerun,
   onToggleQueue: _onToggleQueue,
+  intakeMode = false,
   collaborators,
   draggable,
   onDragStartTask,
@@ -315,6 +407,7 @@ const TaskRow = memo(function TaskRow({
   accent,
 }: TaskRowProps) {
   const isClosed = task.state === "closed";
+  const isAssignedBacklogTask = task.labels.includes(KODY_BACKLOG_LABEL);
   // Closed tasks come from the "Show closed" toggle (loaded on-demand). They
   // shouldn't offer execute/run actions, and they get a distinct slate
   // palette + "Closed" word so users can tell them apart from in-flight
@@ -414,8 +507,9 @@ const TaskRow = memo(function TaskRow({
           {/* Title row */}
           <div className="flex items-center gap-2.5">
             <h3
+              {...autoDirProps}
               className={cn(
-                "text-[15px] font-medium truncate flex-1",
+                "text-[15px] font-medium truncate flex-1 text-start",
                 isClosed ? "text-slate-300 line-through" : "text-zinc-100",
               )}
             >
@@ -545,23 +639,68 @@ const TaskRow = memo(function TaskRow({
                     </a>
                   </SimpleTooltip>
 
-                  <SimpleTooltip
-                    content={
-                      <StatusTooltipContent
-                        column={task.column}
-                        gateType={task.gateType}
-                      />
-                    }
-                    side="bottom"
-                  >
-                    <span
-                      className={cn("font-medium cursor-default", colors.text)}
+                  {hasPR && task.associatedPR && (
+                    <SimpleTooltip
+                      content="View pull request on GitHub"
+                      side="bottom"
                     >
-                      {gateLabel}
-                    </span>
-                  </SimpleTooltip>
+                      <a
+                        href={task.associatedPR.html_url}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        onClick={(e) => e.stopPropagation()}
+                        className="font-mono font-semibold text-purple-400 hover:underline"
+                      >
+                        #{task.associatedPR.number}
+                      </a>
+                    </SimpleTooltip>
+                  )}
 
-                  {task.isKodyAssigned && (
+                  {task.column !== "done" && (
+                    <SimpleTooltip
+                      content={
+                        <StatusTooltipContent
+                          column={task.column}
+                          gateType={task.gateType}
+                        />
+                      }
+                      side="bottom"
+                    >
+                      <span
+                        className={cn(
+                          "font-medium cursor-default",
+                          colors.text,
+                        )}
+                      >
+                        {gateLabel}
+                      </span>
+                    </SimpleTooltip>
+                  )}
+
+                  {intakeMode && task.column === "open" && !isClosed && (
+                    <SimpleTooltip
+                      content={
+                        isAssignedBacklogTask
+                          ? "Assigned to Kody backlog"
+                          : "Not assigned to Kody backlog"
+                      }
+                      side="bottom"
+                    >
+                      <span
+                        className={cn(
+                          "inline-flex items-center gap-0.5 rounded border px-1.5 py-0.5 text-[10px] font-bold cursor-default",
+                          isAssignedBacklogTask
+                            ? "border-blue-500/30 bg-blue-500/10 text-blue-300"
+                            : "border-zinc-600/40 bg-white/[0.03] text-zinc-400",
+                        )}
+                      >
+                        <Bot className="w-3 h-3" />
+                        {isAssignedBacklogTask ? "Assigned" : "Unassigned"}
+                      </span>
+                    </SimpleTooltip>
+                  )}
+
+                  {task.isKodyAssigned && !isAssignedBacklogTask && (
                     <SimpleTooltip
                       content="Assigned to Kody AI agent"
                       side="bottom"
@@ -731,13 +870,38 @@ const TaskRow = memo(function TaskRow({
               </SimpleTooltip>
             )}
 
+          {intakeMode &&
+            onAssignToKody &&
+            !isClosed &&
+            !isAssignedBacklogTask && (
+              <SimpleTooltip content="Assign to Kody backlog" side="bottom">
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    onAssignToKody(task);
+                  }}
+                  aria-label="Assign to Kody"
+                  className="h-7 gap-1.5 px-2 text-xs text-blue-300 hover:bg-blue-500/20"
+                >
+                  <Bot className="w-3.5 h-3.5" />
+                  Assign
+                </Button>
+              </SimpleTooltip>
+            )}
+
           {(task.column === "building" &&
             task.workflowRun?.status === "in_progress" &&
             onStopTask) ||
           (canExecute && onExecuteTask) ? (
             <SimpleTooltip
               content={
-                task.column === "building" ? "Stop running task" : "Run task"
+                task.column === "building"
+                  ? "Stop running task"
+                  : intakeMode && !isAssignedBacklogTask
+                    ? "Assign and run"
+                    : "Run task"
               }
               side="bottom"
             >
@@ -748,10 +912,14 @@ const TaskRow = memo(function TaskRow({
                 onClick={(e) => {
                   e.stopPropagation();
                   if (task.column === "building") onStopTask?.(task);
-                  else if (canExecute) onExecuteTask?.(task.id);
+                  else if (canExecute) onExecuteTask?.(task);
                 }}
                 aria-label={
-                  task.column === "building" ? "Stop task" : "Run task"
+                  task.column === "building"
+                    ? "Stop task"
+                    : intakeMode && !isAssignedBacklogTask
+                      ? "Assign and run task"
+                      : "Run task"
                 }
                 className={cn(
                   "h-7 w-7 p-0 cursor-pointer disabled:opacity-50",
@@ -854,6 +1022,29 @@ const TaskRow = memo(function TaskRow({
                   Duplicate task
                 </DropdownMenuItem>
               )}
+
+              {/* Hide / Show in dashboard */}
+              {task.labels.includes(HIDDEN_TASK_LABEL)
+                ? onShowTask && (
+                    <DropdownMenuItem
+                      onClick={() => {
+                        onShowTask(task);
+                      }}
+                    >
+                      <Eye className="w-4 h-4 mr-2" />
+                      Show in dashboard
+                    </DropdownMenuItem>
+                  )
+                : onHideTask && (
+                    <DropdownMenuItem
+                      onClick={() => {
+                        onHideTask(task);
+                      }}
+                    >
+                      <EyeOff className="w-4 h-4 mr-2" />
+                      Hide from dashboard
+                    </DropdownMenuItem>
+                  )}
 
               {/* Rerun */}
               {onRerun && (

@@ -35,9 +35,15 @@ pnpm-debug.log*
 # Kody action state (legacy local-FS store — now GitHub-backed)
 .kody-action-store/
 
+# Kody sandboxes — local agent working copies (do not commit)
+.kody/sandboxes/
+
 # Test results
 test-results/
 
 # Coverage
 coverage/
 _tmp-drive.mjs
+
+# Kody runtime/state now lives in configured kody-state repo
+.kody/

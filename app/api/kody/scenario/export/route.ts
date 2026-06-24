@@ -10,8 +10,12 @@ import {
   generatePlaywrightTest,
 } from "@dashboard/lib/scenario-stub";
 import type { Scenario } from "@dashboard/lib/scenario-schema-stub";
+import { requireKodyAuth } from "@dashboard/lib/auth";
 
 export async function POST(request: NextRequest) {
+  const authError = await requireKodyAuth(request);
+  if (authError) return authError;
+
   try {
     const body = await request.json();
     const { scenario, format = "qa", options = {} } = body;

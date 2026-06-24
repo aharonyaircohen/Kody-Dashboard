@@ -12,6 +12,7 @@
  */
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { NextRequest } from "next/server";
+import { createHmac } from "node:crypto";
 
 const gh = vi.hoisted(() => ({
   invalidateIssueCache: vi.fn(),
@@ -28,7 +29,7 @@ const ipv = vi.hoisted(() => ({
 const side = vi.hoisted(() => ({
   dispatchNotifications: vi.fn(async () => {}),
   dispatchMentionPushes: vi.fn(async () => {}),
-  dispatchStaffMentions: vi.fn(async () => {}),
+  dispatchAgentMentions: vi.fn(async () => {}),
   applyVerdictFromComment: vi.fn(async () => {}),
   handlePrMerged: vi.fn(async () => {}),
   handleReleasePublished: vi.fn(async () => {}),
@@ -45,8 +46,8 @@ vi.mock("@dashboard/lib/notifications-dispatch", () => ({
 vi.mock("@dashboard/lib/push/mention-dispatch", () => ({
   dispatchMentionPushes: side.dispatchMentionPushes,
 }));
-vi.mock("@dashboard/lib/push/staff-mention-dispatch", () => ({
-  dispatchStaffMentions: side.dispatchStaffMentions,
+vi.mock("@dashboard/lib/push/agent-mention-dispatch", () => ({
+  dispatchAgentMentions: side.dispatchAgentMentions,
 }));
 vi.mock("@dashboard/lib/ui-verify/apply-label", () => ({
   applyVerdictFromComment: side.applyVerdictFromComment,
@@ -62,25 +63,32 @@ let deliveryCounter = 0;
 function makeReq(
   event: string,
   payload: unknown,
-  opts: { delivery?: string; rawBody?: string } = {},
+  opts: { delivery?: string; rawBody?: string; signature?: string } = {},
 ) {
   const delivery = opts.delivery ?? `delivery-${++deliveryCounter}`;
+  const rawBody = opts.rawBody ?? JSON.stringify(payload);
   return new NextRequest("https://dash.test/api/webhooks/github", {
     method: "POST",
     headers: {
       "content-type": "application/json",
       "x-github-event": event,
       "x-github-delivery": delivery,
+      ...(opts.signature ? { "x-hub-signature-256": opts.signature } : {}),
     },
-    body: opts.rawBody ?? JSON.stringify(payload),
+    body: rawBody,
   });
 }
 
 beforeEach(() => {
   vi.clearAllMocks();
+  vi.unstubAllEnvs();
   ipv.getClientIp.mockReturnValue("140.82.115.42");
   ipv.isFromGitHub.mockResolvedValue(true);
 });
+
+function signatureFor(rawBody: string, secret: string): string {
+  return `sha256=${createHmac("sha256", secret).update(rawBody).digest("hex")}`;
+}
 
 describe("POST /api/webhooks/github — auth", () => {
   it("rejects with 403 when the source IP is not GitHub's", async () => {
@@ -93,6 +101,35 @@ describe("POST /api/webhooks/github — auth", () => {
   it("returns 400 on a malformed JSON body", async () => {
     const res = await POST(makeReq("issues", null, { rawBody: "{ not json" }));
     expect(res.status).toBe(400);
+  });
+
+  it("accepts a valid HMAC signature when a webhook secret is configured", async () => {
+    vi.stubEnv("GITHUB_WEBHOOK_SECRET", "hook-secret");
+    const rawBody = JSON.stringify({ issue: { number: 1 } });
+
+    const res = await POST(
+      makeReq("issues", null, {
+        rawBody,
+        signature: signatureFor(rawBody, "hook-secret"),
+      }),
+    );
+
+    expect(res.status).toBe(200);
+    expect(ipv.isFromGitHub).not.toHaveBeenCalled();
+    expect(gh.invalidateIssueCache).toHaveBeenCalledWith(1);
+  });
+
+  it("rejects missing or invalid HMAC signatures when a webhook secret is configured", async () => {
+    vi.stubEnv("GITHUB_WEBHOOK_SECRET", "hook-secret");
+
+    const missing = await POST(makeReq("issues", { issue: { number: 1 } }));
+    expect(missing.status).toBe(403);
+
+    const bad = await POST(
+      makeReq("issues", { issue: { number: 1 } }, { signature: "sha256=00" }),
+    );
+    expect(bad.status).toBe(403);
+    expect(gh.invalidateIssueCache).not.toHaveBeenCalled();
   });
 });
 
@@ -157,11 +194,11 @@ describe("POST /api/webhooks/github — side effects", () => {
     );
   });
 
-  it("fans the payload out to notifications + mention + staff dispatch", async () => {
+  it("fans the payload out to notifications + mention + agent dispatch", async () => {
     await POST(makeReq("issues", { issue: { number: 5 } }));
     expect(side.dispatchNotifications).toHaveBeenCalledTimes(1);
     expect(side.dispatchMentionPushes).toHaveBeenCalledTimes(1);
-    expect(side.dispatchStaffMentions).toHaveBeenCalledTimes(1);
+    expect(side.dispatchAgentMentions).toHaveBeenCalledTimes(1);
   });
 });
 

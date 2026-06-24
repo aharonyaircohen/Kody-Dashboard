@@ -76,7 +76,7 @@ async function dispatchAndTime(branch, label) {
   const before = latest()
   sh(
     `gh api -X POST repos/${repo}/actions/workflows/kody.yml/dispatches ` +
-      `-f ref=${branch} -f "inputs[executable]=preview-build" -f "inputs[issue_number]=${pr}"`,
+      `-f ref=${branch} -f "inputs[agentAction]=preview-build" -f "inputs[issue_number]=${pr}"`,
   )
   let rid
   for (let i = 0; i < 25; i++) {

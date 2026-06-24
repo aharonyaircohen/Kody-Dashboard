@@ -7,7 +7,7 @@
  *
  * Tear down the per-user Brain Fly app + all machines under it. Idempotent —
  * returns 200 even if nothing exists. On success, also clears the per-user
- * brain record at `.kody/users/<login>/data/brain.json` so the Runner page
+ * brain record at `users/<login>/data/brain.json` so the Runner page
  * stops showing the destroyed app.
  *
  * If Fly is unreachable (e.g. the token's org no longer matches the app's

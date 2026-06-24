@@ -3,10 +3,10 @@
  * @domain runners
  * @pattern fly-claim-or-spawn
  * @ai-summary Shared "run this interactive session on Fly" core: claim a warm
- *   pool machine first (~1s wake), fall through to spawning a fresh one (~3min)
- *   on any miss. Extracted so the start-fly route and the GitHub→Fly fallback
- *   in the start route share one path and can't drift. The caller is
- *   responsible for writing the session meta line BEFORE calling this.
+ *   pool machine first, fall through to spawning a fresh one on any miss.
+ *   Extracted so the start-fly route and the GitHub→Fly fallback in the start
+ *   route share one path and can't drift. The caller is responsible for
+ *   writing the session meta line BEFORE calling this.
  */
 import { claimFromPool } from "./pool-client";
 import { spawnRunner } from "./fly";
@@ -20,6 +20,12 @@ export interface ClaimOrSpawnOpts {
   hardCapMs?: number;
   /** Pre-signed ingest URL with inline HMAC token; undefined → git-polling. */
   dashboardUrl?: string;
+  /**
+   * Thinking level (off|low|medium|high). Forwarded to both the warm
+   * pool claim and the cold spawn. Engine reads REASONING_EFFORT env
+   * var — empty/undefined means the engine uses its own default.
+   */
+  reasoningEffort?: string;
 }
 
 export interface ClaimOrSpawnResult {
@@ -30,22 +36,13 @@ export interface ClaimOrSpawnResult {
 /**
  * Claim a warm pool machine, else spawn a fresh one. Never decides whether
  * Fly *should* be used — that's the router's job; by the time we're here the
- * caller has already committed to Fly and resolved a FlyContext (so flyToken
- * is present).
+ * caller has already committed to Fly and resolved a FlyContext.
  */
 export async function claimOrSpawnFly(
   ctx: FlyContext,
   opts: ClaimOrSpawnOpts,
 ): Promise<ClaimOrSpawnResult> {
-  const {
-    owner,
-    repo,
-    githubToken,
-    allSecrets,
-    flyToken,
-    perfTier,
-    litellmUrl,
-  } = ctx;
+  const { owner, repo, githubToken, allSecrets, flyToken, perfTier } = ctx;
 
   const claim = await claimFromPool({
     jobId: opts.taskId,
@@ -55,6 +52,7 @@ export async function claimOrSpawnFly(
     idleExitMs: opts.idleExitMs,
     hardCapMs: opts.hardCapMs,
     dashboardUrl: opts.dashboardUrl,
+    ...(opts.reasoningEffort ? { reasoningEffort: opts.reasoningEffort } : {}),
   });
   if (claim.ok) {
     logger.info(
@@ -76,10 +74,10 @@ export async function claimOrSpawnFly(
     dashboardUrl: opts.dashboardUrl,
     idleExitMs: opts.idleExitMs,
     hardCapMs: opts.hardCapMs,
+    ...(opts.reasoningEffort ? { reasoningEffort: opts.reasoningEffort } : {}),
     allSecrets,
     flyToken,
     perfTier,
-    litellmUrl,
   });
   return { runner: "fly", machineId };
 }

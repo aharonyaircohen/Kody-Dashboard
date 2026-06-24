@@ -9,6 +9,7 @@
  */
 
 import { Octokit } from "@octokit/rest";
+import { writeGitHubFileWithRetry } from "@dashboard/lib/github-contents-write";
 import { resolveBackgroundToken } from "../auth/background-token";
 
 export const CHANGELOG_PATH = "CHANGELOG.md";
@@ -83,17 +84,19 @@ export async function writeChangelog(
   content: string,
   currentSha: string | null,
   commitMessage: string,
+  maxAttempts = 2,
 ): Promise<{ sha: string | null }> {
   const encoded = Buffer.from(content, "utf8").toString("base64");
-  const res = await octokit.rest.repos.createOrUpdateFileContents({
+  const res = await writeGitHubFileWithRetry(octokit, {
     owner,
     repo,
     path: CHANGELOG_PATH,
     message: commitMessage,
     content: encoded,
     ...(currentSha ? { sha: currentSha } : {}),
+    maxAttempts,
   });
-  return { sha: res.data.content?.sha ?? null };
+  return { sha: res.sha };
 }
 
 /**
@@ -124,6 +127,7 @@ export async function updateChangelog(
         next,
         current.sha,
         commitMessage,
+        1,
       );
       return { written: true, sha };
     } catch (err) {

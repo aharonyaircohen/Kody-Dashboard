@@ -55,6 +55,30 @@ describe("spawnRunner", () => {
     expect(init?.signal).toBeInstanceOf(AbortSignal);
   });
 
+  it("does not wire a shared LiteLLM URL into runner env", async () => {
+    const fetchMock = vi.fn(
+      async (_input: RequestInfo | URL, _init?: RequestInit) =>
+        new Response(JSON.stringify({ id: "m-1" }), {
+          status: 200,
+          headers: { "content-type": "application/json" },
+        }),
+    );
+    vi.stubGlobal("fetch", fetchMock);
+
+    await spawnRunner({
+      ...BASE_INPUT,
+      allSecrets: { MINIMAX_API_KEY: "k" },
+    });
+
+    const body = JSON.parse(String(fetchMock.mock.calls[0]![1]?.body)) as {
+      config: { env: Record<string, string> };
+    };
+    expect(body.config.env).not.toHaveProperty("KODY_LITELLM_URL");
+    expect(body.config.env.ALL_SECRETS).toBe(
+      JSON.stringify({ MINIMAX_API_KEY: "k" }),
+    );
+  });
+
   it("wraps a timeout/network rejection in a clean error (no raw DOMException)", async () => {
     vi.stubGlobal(
       "fetch",

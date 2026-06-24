@@ -3,7 +3,7 @@
  * @domain runners
  * @pattern fly-spawn-context
  * @ai-summary Resolves Fly spawn context from request headers + vault: auth,
- *   repo, secrets, flyToken, perf tier, engine model, LiteLLM URL. Every
+ *   repo, secrets, flyToken, perf tier, and engine model. Every
  *   spawner route calls this — routes stay thin. Errors return {ok:false}
  *   so callers decide how to respond. account is the verified PAT owner
  *   (stable per person), not the incidental connected-repo owner.
@@ -55,7 +55,6 @@ export interface FlyContext {
   allSecrets: Record<string, string>;
   flyToken: string | undefined;
   perfTier: PerfTier | undefined;
-  litellmUrl: string | undefined;
 }
 
 /**
@@ -95,7 +94,6 @@ async function buildAllSecretsFromVault(
  *   - x-kody-token / x-kody-owner / x-kody-repo headers (header auth)
  *   - per-repo secrets vault (model keys + FLY_API_TOKEN)
  *   - x-kody-fly-perf header (perf tier, optional)
- *   - FLY_LITELLM_URL env (always-on litellm proxy URL, optional)
  *
  * Errors flow back as {ok:false} so the caller decides how to respond.
  * Pass `repoOverride` to operate on a repo other than the one in
@@ -170,12 +168,6 @@ export async function resolveFlyContext(
       ? rawPerf
       : undefined;
 
-  // Default to the always-on kody-litellm Fly app over the private 6PN
-  // network. Set FLY_LITELLM_URL="" to disable and fall back to the
-  // per-session pre-warm path.
-  const litellmRaw =
-    process.env.FLY_LITELLM_URL ?? "http://kody-litellm.internal:4000";
-
   return {
     ok: true,
     context: {
@@ -188,7 +180,6 @@ export async function resolveFlyContext(
       allSecrets,
       flyToken,
       perfTier,
-      litellmUrl: litellmRaw || undefined,
     },
   };
 }

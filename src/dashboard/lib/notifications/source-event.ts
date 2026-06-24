@@ -5,7 +5,7 @@
  * @ai-summary One normalizer for GitHub webhook payloads. Historically each
  *   notification spine parsed the raw payload itself: the mention/inbox spine
  *   (`push/mention-dispatch.ts`), the rules spine (`notifications-dispatch.ts`),
- *   and the staff-trigger spine each had their own `extractEvent`/`buildPrContext`
+ *   and the agent-trigger spine each had their own `extractEvent`/`buildPrContext`
  *   reading the same fields three different ways. This module is the single
  *   source of truth: `buildSourceEvent` turns any supported webhook into a
  *   `SourceEvent` (a channel-agnostic, fully-typed shape), and each consumer

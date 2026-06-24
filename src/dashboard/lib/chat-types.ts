@@ -102,6 +102,20 @@ export interface SessionMeta {
   messageCount: number;
   /** Whether this session is pinned */
   pinned?: boolean;
+  /**
+   * The chat entry key (from `buildAgentList` — e.g. `"brain"`,
+   * `"kody:claude-sonnet"`, `"kody-live"`) the user picked for THIS
+   * session. Per-session so switching conversations remembers each
+   * thread's chosen assistant instead of a single global default.
+   *
+   * `undefined` for legacy sessions created before this field existed —
+   * render-time fallback to the global `defaultChatEntryKey` (then the
+   * brain auto-default, then `kody-live`) applies. The next time the
+   * user picks an agent in that session, the field is populated.
+   */
+  agentKey?: string;
+  /** Ephemeral UI status derived from the stored messages */
+  status?: "idle" | "running";
 }
 
 /**
@@ -137,16 +151,25 @@ export function createEmptyGlobalStore(): GlobalChatStore {
  * `null`/absent prop on KodyChat = global chat (no scoped context).
  */
 export type ChatContext =
+  | {
+      /**
+       * Chat scoped to a GitHub owner workspace in the dashboard.
+       * Broad reads can span repos; writes must still target a concrete repo.
+       */
+      kind: "org";
+      org: string;
+      repositories?: Array<{ owner: string; repo: string }>;
+    }
   | { kind: "task"; task: import("./types").KodyTask }
   | {
       /**
-       * Chat scoped to an existing duty (or staff member — a staff member
-       * is a pure persona file that's structurally a subset of a duty and
+       * Chat scoped to an existing agentResponsibility (or agent — an agent
+       * is a pure agent file that's structurally a subset of a agentResponsibility and
        * reuses this scope kind). The agent is given the title/body so
-       * it can answer questions about that specific duty/staff member.
+       * it can answer questions about that specific agentResponsibility/agents.
        */
-      kind: "duty";
-      duty: import("./api").Duty | import("./api").Staff;
+      kind: "agentResponsibility";
+      agentResponsibility: import("./api").AgentResponsibility | import("./api").Agent;
     }
   | {
       /**
@@ -182,11 +205,11 @@ export type ChatContext =
   | {
       /**
        * Chat scoped to a system report (a markdown file at
-       * `.kody/reports/<slug>.md`, surfaced on `/reports`). The agent
-       * receives the report's title + body and is framed to advise
-       * whether the user should: (a) create an issue from this report,
-       * (b) attach it to a goal, or (c) take no action — sometimes a
-       * report is informational and needs no follow-up.
+       * `reports/<slug>.md` in the configured Kody state repo, surfaced on `/reports`).
+       * The agent receives the report's title + body and is framed to
+       * advise whether the user should: (a) create an issue from this report,
+       * (b) attach it to a goal, or (c) take no action — sometimes a report
+       * is informational and needs no follow-up.
        */
       kind: "report";
       report: { slug: string; title: string; body: string };

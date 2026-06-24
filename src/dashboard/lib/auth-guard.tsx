@@ -12,10 +12,11 @@
 "use client";
 
 import { useAuth } from "@dashboard/lib/auth-context";
+import { RepoManager } from "@dashboard/lib/components/RepoManager";
 import { Loader2 } from "lucide-react";
 
 export function AuthGuard({ children }: { children: React.ReactNode }) {
-  const { loading } = useAuth();
+ const { auth, loading } = useAuth();
 
   if (loading) {
     return (
@@ -25,5 +26,7 @@ export function AuthGuard({ children }: { children: React.ReactNode }) {
     );
   }
 
-  return <>{children}</>;
+ if (!auth) return <RepoManager />;
+
+ return <>{children}</>;
 }

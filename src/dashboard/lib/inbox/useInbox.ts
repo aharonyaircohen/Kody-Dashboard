@@ -119,7 +119,13 @@ export interface UseInboxResult {
   remove: (id: string) => Promise<void>;
 }
 
-export function useInbox(options: { enabled?: boolean } = {}): UseInboxResult {
+export interface UseInboxOptions {
+  enabled?: boolean;
+  refetchInterval?: number | false;
+  refetchOnWindowFocus?: boolean;
+}
+
+export function useInbox(options: UseInboxOptions = {}): UseInboxResult {
   const { auth } = useAuth();
   const headers: Record<string, string> = {
     "Content-Type": "application/json",
@@ -129,13 +135,14 @@ export function useInbox(options: { enabled?: boolean } = {}): UseInboxResult {
   const key = inboxQueryKey(auth?.owner, auth?.repo);
 
   const enabled = (options.enabled ?? true) && !!auth;
+  const refetchInterval = options.refetchInterval ?? 60_000;
   const query = useQuery<InboxEntry[]>({
     queryKey: key,
     queryFn: () => listInbox(headers),
     enabled,
     staleTime: 30_000,
-    refetchInterval: enabled ? 60_000 : false,
-    refetchOnWindowFocus: true,
+    refetchInterval: enabled ? refetchInterval : false,
+    refetchOnWindowFocus: enabled && (options.refetchOnWindowFocus ?? true),
   });
 
   const entries = useMemo(() => query.data ?? [], [query.data]);
@@ -199,8 +206,8 @@ export function useInbox(options: { enabled?: boolean } = {}): UseInboxResult {
  * Lower-overhead variant for the nav badge — just the unread count, no
  * derived arrays, no mutations.
  */
-export function useInboxUnreadCount(): number {
-  const { unreadCount } = useInbox();
+export function useInboxUnreadCount(options: UseInboxOptions = {}): number {
+  const { unreadCount } = useInbox(options);
   return unreadCount;
 }
 

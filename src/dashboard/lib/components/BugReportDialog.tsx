@@ -146,6 +146,12 @@ export function BugReportDialog({
     }
   }, [open]);
 
+  useEffect(() => {
+    if (open && githubUser?.login) {
+      setAssignees((prev) => (prev.length === 0 ? [githubUser.login] : prev));
+    }
+  }, [open, githubUser?.login]);
+
   // Convert file to base64
   const fileToBase64 = (file: File): Promise<string> => {
     return new Promise((resolve, reject) => {

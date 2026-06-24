@@ -5,7 +5,7 @@
  *
  * GET /api/kody/fly/activity — per-machine activity history for the connected
  * repo: working time span, uptime %, suspend count, and estimated cost,
- * computed from snapshots we record on the `kody-state` branch.
+ * computed from snapshots we record in the configured Kody state repo.
  *
  * Each call opportunistically records a fresh snapshot (throttled to ≥5 min in
  * the store), so simply viewing this view keeps the timeline ticking — no cron,

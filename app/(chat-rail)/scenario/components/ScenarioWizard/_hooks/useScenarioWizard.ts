@@ -8,6 +8,7 @@
 
 import { useState, useCallback } from "react";
 import { toast } from "sonner";
+import { buildAuthHeaders, useAuth } from "@dashboard/lib/auth-context";
 import type {
   ScenarioWizardState,
   UseScenarioWizardReturn,
@@ -37,6 +38,8 @@ const INITIAL_STATE: ScenarioWizardState = {
 export function useScenarioWizard({
   initialScenario,
 }: ScenarioWizardProps): UseScenarioWizardReturn {
+  const { auth } = useAuth();
+
   // Scenario state
   const [scenario, setScenario] = useState<Partial<Scenario>>({
     ...INITIAL_STATE.scenario,
@@ -124,7 +127,10 @@ export function useScenarioWizard({
     try {
       const response = await fetch("/api/kody/scenario/scenarios", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: {
+          "Content-Type": "application/json",
+          ...buildAuthHeaders(auth),
+        },
         body: JSON.stringify({
           scenario: {
             ...scenario,
@@ -144,7 +150,7 @@ export function useScenarioWizard({
       toast.error("Failed to save scenario");
       console.error(error);
     }
-  }, [scenario]);
+  }, [auth, scenario]);
 
   const handleCreateGitHubIssue = useCallback(async () => {
     if (!scenario.name || !scenario.steps?.length) {
@@ -155,7 +161,10 @@ export function useScenarioWizard({
     try {
       const response = await fetch("/api/kody/scenario/github", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: {
+          "Content-Type": "application/json",
+          ...buildAuthHeaders(auth),
+        },
         body: JSON.stringify({
           title: scenario.name,
           category: scenario.type || "feature",
@@ -181,7 +190,7 @@ export function useScenarioWizard({
       toast.error("Failed to create GitHub issue");
       console.error(error);
     }
-  }, [scenario, selectedPrototype, selectedComponents]);
+  }, [auth, scenario, selectedPrototype, selectedComponents]);
 
   const handleExport = useCallback(
     async (format: "qa" | "playwright" | "prd") => {
@@ -193,7 +202,10 @@ export function useScenarioWizard({
       try {
         const response = await fetch("/api/kody/scenario/export", {
           method: "POST",
-          headers: { "Content-Type": "application/json" },
+          headers: {
+            "Content-Type": "application/json",
+            ...buildAuthHeaders(auth),
+          },
           body: JSON.stringify({
             scenario: {
               ...scenario,
@@ -236,7 +248,7 @@ export function useScenarioWizard({
         console.error(error);
       }
     },
-    [scenario],
+    [auth, scenario],
   );
 
   const updateScenario = useCallback((updates: Partial<Scenario>) => {

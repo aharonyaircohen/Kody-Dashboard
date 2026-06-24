@@ -8,8 +8,8 @@
  *   (`access.allowedAssociations`), and the default branch (`git.defaultBranch`).
  *   GET reads the current values; PATCH applies a partial update, preserving
  *   every untouched config key. Mirrors the operators route's auth +
- *   merge-not-overwrite pattern. Per-executable model overrides live on the
- *   models route; default PR executable on the executables route.
+ *   merge-not-overwrite pattern. Per-agentAction model overrides live on the
+ *   models route; default PR agentAction on the agentActions route.
  */
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
@@ -45,8 +45,16 @@ export async function GET(req: NextRequest) {
       quality: config.quality ?? {},
       aliases: config.aliases ?? {},
       allowedAssociations: config.access?.allowedAssociations ?? [],
+      activeAgents: config.company?.activeAgents ?? [],
+      activeAgentActions: config.company?.activeAgentActions ?? [],
+      activeAgentResponsibilities:
+        config.company?.activeAgentResponsibilities ?? [],
+      activeCommands: config.company?.activeCommands ?? [],
+      activeGoals: config.company?.activeGoals ?? [],
+      state: config.state ?? null,
       defaultBranch: config.git?.defaultBranch ?? "",
-      perExecutable: config.agent?.perExecutable ?? {},
+      perAgentAction: config.agent?.perAgentAction ?? {},
+      reasoningEffort: config.agent?.reasoningEffort ?? null,
     });
   } catch (err) {
     logger.error(
@@ -63,6 +71,48 @@ export async function GET(req: NextRequest) {
 // A single command string; bounded so a fat-fingered paste can't bloat the
 // config blob. Empty string clears that check.
 const commandSchema = z.string().max(500);
+const slugSchema = z
+  .string()
+  .min(1)
+  .max(128)
+  .regex(/^[A-Za-z0-9][A-Za-z0-9._-]*$/);
+const activeGoalSchema = z.union([
+  slugSchema,
+  z.object({
+    template: slugSchema,
+    every: z
+      .string()
+      .regex(/^[1-9][0-9]*[mhdw]$/)
+      .optional(),
+    idPrefix: slugSchema.optional(),
+    facts: z.record(z.string(), z.unknown()).optional(),
+  }),
+]);
+
+const stateRepoSchema = z
+  .string()
+  .trim()
+  .min(1)
+  .max(255)
+  .regex(/^https:\/\/github\.com\/[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+\/?$/i);
+const statePathSchema = z
+  .string()
+  .trim()
+  .min(1)
+  .max(255)
+  .refine(
+    (value) =>
+      !value.startsWith("/") &&
+      !value.includes("\\") &&
+      value
+        .split("/")
+        .every((segment) => segment && segment !== "." && segment !== ".."),
+    { message: "must be a relative path without parent segments" },
+  );
+const stateSchema = z.object({
+  repo: stateRepoSchema,
+  path: statePathSchema,
+});
 
 const PatchSchema = z
   .object({
@@ -84,11 +134,28 @@ const PatchSchema = z
       .max(VALID_ASSOCIATIONS.length)
       .nullable()
       .optional(),
+    activeAgentResponsibilities: z
+      .array(slugSchema)
+      .max(200)
+      .nullable()
+      .optional(),
+    activeAgents: z.array(slugSchema).max(200).nullable().optional(),
+    activeAgentActions: z.array(slugSchema).max(200).nullable().optional(),
+    activeCommands: z.array(slugSchema).max(200).nullable().optional(),
+    activeGoals: z.array(activeGoalSchema).max(200).nullable().optional(),
+    state: stateSchema.nullable().optional(),
     defaultBranch: z.string().max(255).nullable().optional(),
-    // Executable slug → `provider/model` override. Bounded so a paste can't
+    // AgentAction slug → `provider/model` override. Bounded so a paste can't
     // bloat the config blob.
-    perExecutable: z
+    perAgentAction: z
       .record(z.string().max(64), z.string().max(128))
+      .nullable()
+      .optional(),
+    // Thinking level for the engine. Server-side validation enforces
+    // the canonical vocabulary (off|low|medium|high); unknown values
+    // get a 400 instead of silently landing in kody.config.json.
+    reasoningEffort: z
+      .enum(["off", "low", "medium", "high"])
       .nullable()
       .optional(),
     actorLogin: z.string().optional(),
@@ -99,8 +166,15 @@ const PatchSchema = z
       b.quality !== undefined ||
       b.aliases !== undefined ||
       b.allowedAssociations !== undefined ||
+      b.activeAgents !== undefined ||
+      b.activeAgentActions !== undefined ||
+      b.activeAgentResponsibilities !== undefined ||
+      b.activeCommands !== undefined ||
+      b.activeGoals !== undefined ||
+      b.state !== undefined ||
       b.defaultBranch !== undefined ||
-      b.perExecutable !== undefined,
+      b.perAgentAction !== undefined ||
+      b.reasoningEffort !== undefined,
     { message: "no_fields" },
   );
 
@@ -140,16 +214,42 @@ export async function PATCH(req: NextRequest) {
     quality,
     aliases,
     allowedAssociations,
+    activeAgentResponsibilities,
+    activeCommands,
+    activeAgents,
+    activeAgentActions,
+    activeGoals,
+    state,
     defaultBranch,
-    perExecutable,
+    perAgentAction,
+    reasoningEffort,
   } = parsed.data;
 
   try {
+    // Pass reasoningEffort through unchanged: an omitted field stays
+    // `undefined` (writeConfigPatch treats that as "don't touch"), an
+    // explicit `null` clears `agent.reasoningEffort`, and a valid enum
+    // value writes the new level. Coalescing omitted → null here would
+    // have every unrelated PATCH (e.g. quality-only) silently clear
+    // `agent.reasoningEffort`.
     await writeConfigPatch(
       octokit,
       auth.owner,
       auth.repo,
-      { quality, aliases, allowedAssociations, defaultBranch, perExecutable },
+      {
+        quality,
+        aliases,
+        allowedAssociations,
+        activeAgents,
+        activeAgentActions,
+        activeAgentResponsibilities,
+        activeCommands,
+        activeGoals,
+        state,
+        defaultBranch,
+        perAgentAction,
+        reasoningEffort,
+      },
       `chore(kody): update config (${actorLogin})`,
     );
     // Read back the merged result so the client reflects exactly what landed.
@@ -160,8 +260,16 @@ export async function PATCH(req: NextRequest) {
       quality: config.quality ?? {},
       aliases: config.aliases ?? {},
       allowedAssociations: config.access?.allowedAssociations ?? [],
+      activeAgents: config.company?.activeAgents ?? [],
+      activeAgentActions: config.company?.activeAgentActions ?? [],
+      activeAgentResponsibilities:
+        config.company?.activeAgentResponsibilities ?? [],
+      activeCommands: config.company?.activeCommands ?? [],
+      activeGoals: config.company?.activeGoals ?? [],
+      state: config.state ?? null,
       defaultBranch: config.git?.defaultBranch ?? "",
-      perExecutable: config.agent?.perExecutable ?? {},
+      perAgentAction: config.agent?.perAgentAction ?? {},
+      reasoningEffort: config.agent?.reasoningEffort ?? null,
     });
   } catch (err) {
     logger.error(

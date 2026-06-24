@@ -35,7 +35,7 @@ It is **not** the place for:
   those go in repo **instructions** (`.kody/instructions.md`), which are
   appended LAST in the system prompt so they win on tone/length.
 - **Secrets** — use the [secrets vault](secrets-vault.md).
-- **Recurring work or personas** — use duties / staff.
+- **Recurring work or personas** — use agentResponsibilities / agent.
 
 ## Using it
 
@@ -109,8 +109,8 @@ logged-in user); reads work with any dashboard auth.
   prompts and do not receive it. Agent (non-chat) injection is planned
   but not yet wired (TBD).
 - **Not in the Company bundle:** the profile is **not currently part of
-  the Company export/import bundle** — that bundle exports only staff,
-  duties, prompts, and instructions
+  the Company export/import bundle** — that bundle exports only agent,
+  agentResponsibilities, prompts, and instructions
   (`src/dashboard/lib/company/export.ts`). Including profile is an open
   decision.
 
@@ -144,7 +144,7 @@ cache immediately; other Vercel instances pick up the change within the
 60s cache TTL.
 
 **Is the profile included when I export my Company?** No — not currently.
-The Company export/import bundle covers staff, duties, prompts, and
+The Company export/import bundle covers agent, agentResponsibilities, prompts, and
 instructions only. Profile inclusion is still an open decision.
 
 **Why not put this in instructions?** Instructions are a behavioral

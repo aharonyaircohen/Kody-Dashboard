@@ -3,7 +3,7 @@
  * @domain kody
  * @pattern notification-prefs-file-store
  * @ai-summary Read/write per-user notification preferences as a JSON file on the
- *   `kody-state` branch (`.kody/notifications/preferences/<login>.json`). One
+ *   configured Kody state repo (`notifications/preferences/<login>.json`). One
  *   file per user → no cross-user write contention. Reads use ETag/If-None-Match
  *   so unchanged reads are a free 304. Writes use CAS (fetch SHA → write with
  *   SHA → retry on conflict).
@@ -13,8 +13,8 @@
  *   branch ref and ETag caching built in.
  */
 import "server-only";
-import { STATE_BRANCH } from "../state-branch";
 import { getOwner, getRepo, getOctokit } from "../github-client";
+import { readStateText, writeStateText } from "../state-repo";
 
 /** TTL for notification prefs cache. Low-churn data — 5 min is fine. */
 const PREFS_CACHE_TTL_MS = 5 * 60 * 1000;
@@ -79,15 +79,15 @@ export const DEFAULT_NOTIFICATION_PREFS: NotificationPrefsFile = {
   mutedTypes: [],
 };
 
-/** The directory within `.kody/` where per-user prefs live. */
-export const PREFS_DIR = ".kody/notifications/preferences";
+/** The directory within the Kody state repo where per-user prefs live. */
+export const PREFS_DIR = "notifications/preferences";
 
 function filePath(login: string): string {
   return `${PREFS_DIR}/${login.toLowerCase()}.json`;
 }
 
 /**
- * Read notification preferences for a user from the kody-state branch.
+ * Read notification preferences for a user from the configured Kody state repo.
  * Returns the cached data if still valid, otherwise fetches from GitHub
  * (using If-None-Match for a free 304 when unchanged).
  */
@@ -104,22 +104,16 @@ export async function readNotificationPrefs(
   const octokit = getOctokit();
 
   try {
-    const res = await octokit.repos.getContent({
-      owner,
-      repo,
-      path,
-      ref: STATE_BRANCH,
+    const file = await readStateText(octokit, owner, repo, path, {
       headers: cached?.etag ? { "If-None-Match": cached.etag } : undefined,
     });
-    const etag = (res.headers as Record<string, string | undefined>)?.etag;
-    if (!Array.isArray(res.data) && "content" in res.data && res.data.content) {
-      const raw = Buffer.from(res.data.content, "base64").toString("utf-8");
-      const parsed = JSON.parse(raw) as NotificationPrefsFile;
+    if (file) {
+      const parsed = JSON.parse(file.content) as NotificationPrefsFile;
       const prefs: NotificationPrefsFile = {
         version: parsed.version === 1 ? 1 : 1,
         mutedTypes: Array.isArray(parsed.mutedTypes) ? parsed.mutedTypes : [],
       };
-      setCache(key, prefs, etag);
+      setCache(key, prefs, file.etag);
       return prefs;
     }
     return DEFAULT_NOTIFICATION_PREFS;
@@ -140,7 +134,7 @@ export async function readNotificationPrefs(
 }
 
 /**
- * Write notification preferences for a user to the kody-state branch.
+ * Write notification preferences for a user to the configured Kody state repo.
  * Uses CAS: fetches the current SHA, then writes with it. Retries once on
  * conflict (GitHub returns 409 when SHA doesn't match).
  */
@@ -158,22 +152,13 @@ export async function writeNotificationPrefs(
   cache.delete(key);
 
   let sha: string | undefined;
-  let status: number | undefined;
-
   // Attempt to read existing SHA (ignore errors — file may not exist yet)
   try {
     const octokit = getOctokit();
-    const res = await octokit.repos.getContent({
-      owner,
-      repo,
-      path,
-      ref: STATE_BRANCH,
-    });
-    if (!Array.isArray(res.data) && "sha" in res.data) {
-      sha = res.data.sha;
-    }
-  } catch (error: unknown) {
-    status = (error as { status?: number })?.status;
+    const file = await readStateText(octokit, owner, repo, path);
+    sha = file?.sha;
+  } catch {
+    // File may not exist yet or preferences may be temporarily unavailable.
   }
 
   const content = JSON.stringify(prefs, null, 2);
@@ -181,14 +166,14 @@ export async function writeNotificationPrefs(
 
   try {
     const octokit = getOctokit();
-    await octokit.repos.createOrUpdateFileContents({
+    await writeStateText({
+      octokit,
       owner,
       repo,
       path,
       message,
-      content: Buffer.from(content, "utf-8").toString("base64"),
+      content,
       sha,
-      branch: STATE_BRANCH,
     });
     return;
   } catch (error: unknown) {
@@ -196,24 +181,15 @@ export async function writeNotificationPrefs(
     if ((error as { status?: number })?.status === 409) {
       try {
         const octokit = getOctokit();
-        const res = await octokit.repos.getContent({
-          owner,
-          repo,
-          path,
-          ref: STATE_BRANCH,
-        });
-        const freshSha =
-          !Array.isArray(res.data) && "sha" in res.data
-            ? res.data.sha
-            : undefined;
-        await octokit.repos.createOrUpdateFileContents({
+        const file = await readStateText(octokit, owner, repo, path);
+        await writeStateText({
+          octokit,
           owner,
           repo,
           path,
           message,
-          content: Buffer.from(content, "utf-8").toString("base64"),
-          sha: freshSha,
-          branch: STATE_BRANCH,
+          content,
+          sha: file?.sha,
         });
         return;
       } catch {

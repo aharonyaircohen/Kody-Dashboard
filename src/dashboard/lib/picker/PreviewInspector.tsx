@@ -11,7 +11,7 @@
  */
 "use client";
 
-import { useEffect, useState, type RefObject } from "react";
+import { useEffect, useRef, useState, type RefObject } from "react";
 import { toast } from "sonner";
 import {
   Bug,
@@ -23,6 +23,7 @@ import {
   MousePointerClick,
   Globe,
   Puzzle,
+  ChevronDown,
 } from "lucide-react";
 import { cn } from "../utils";
 import { useElementPicker } from "./useElementPicker";
@@ -34,6 +35,8 @@ import {
   formatPickedElementLabel,
   PICKER_DOWNLOAD_PATH,
   PICKER_DOCS_URL,
+  PICKER_FIREFOX_DOWNLOAD_PATH,
+  PICKER_FIREFOX_INSTALL_HINT,
   PICKER_INSTALL_HINT,
   type PreviewAction,
 } from "./protocol";
@@ -86,6 +89,10 @@ export function PreviewInspector({
   const [busy, setBusy] = useState<
     null | "logs" | "network" | "shot" | "perf" | "rec"
   >(null);
+  const actionMenuRef = useRef<HTMLDivElement | null>(null);
+  const [actionMenuOpen, setActionMenuOpen] = useState(false);
+  const diagnosticMenuRef = useRef<HTMLDivElement | null>(null);
+  const [diagnosticMenuOpen, setDiagnosticMenuOpen] = useState(false);
   // Hoisted above the "not installed" early-return below so hooks order
   // stays stable per React's rules-of-hooks.
   const [pendingMacroSteps, setPendingMacroSteps] = useState<
@@ -115,6 +122,58 @@ export function PreviewInspector({
     }
   }, [autoContext]);
 
+  useEffect(() => {
+    if (!actionMenuOpen) return;
+
+    const onDocumentClick = (event: MouseEvent): void => {
+      if (!actionMenuRef.current) return;
+      if (
+        event.target instanceof Node &&
+        actionMenuRef.current.contains(event.target)
+      ) {
+        return;
+      }
+      setActionMenuOpen(false);
+    };
+
+    const onKeyDown = (event: KeyboardEvent): void => {
+      if (event.key === "Escape") setActionMenuOpen(false);
+    };
+
+    document.addEventListener("mousedown", onDocumentClick);
+    document.addEventListener("keydown", onKeyDown);
+    return () => {
+      document.removeEventListener("mousedown", onDocumentClick);
+      document.removeEventListener("keydown", onKeyDown);
+    };
+  }, [actionMenuOpen]);
+
+  useEffect(() => {
+    if (!diagnosticMenuOpen) return;
+
+    const onDocumentClick = (event: MouseEvent): void => {
+      if (!diagnosticMenuRef.current) return;
+      if (
+        event.target instanceof Node &&
+        diagnosticMenuRef.current.contains(event.target)
+      ) {
+        return;
+      }
+      setDiagnosticMenuOpen(false);
+    };
+
+    const onKeyDown = (event: KeyboardEvent): void => {
+      if (event.key === "Escape") setDiagnosticMenuOpen(false);
+    };
+
+    document.addEventListener("mousedown", onDocumentClick);
+    document.addEventListener("keydown", onKeyDown);
+    return () => {
+      document.removeEventListener("mousedown", onDocumentClick);
+      document.removeEventListener("keydown", onKeyDown);
+    };
+  }, [diagnosticMenuOpen]);
+
   const picker = useElementPicker({
     onSelect: (el) => {
       onContext({
@@ -125,14 +184,23 @@ export function PreviewInspector({
       toast.success(`Added ${formatPickedElementLabel(el)} to chat`);
     },
   });
+  const isFirefox =
+    typeof navigator !== "undefined" &&
+    /(?:Firefox|FxiOS)\//.test(navigator.userAgent);
+  const pickerDownloadPath = isFirefox
+    ? PICKER_FIREFOX_DOWNLOAD_PATH
+    : PICKER_DOWNLOAD_PATH;
+  const pickerInstallHint = isFirefox
+    ? PICKER_FIREFOX_INSTALL_HINT
+    : PICKER_INSTALL_HINT;
 
   if (!picker.available) {
     return (
       <a
-        href={PICKER_DOWNLOAD_PATH}
+        href={pickerDownloadPath}
         download
         onClick={() =>
-          toast.info(PICKER_INSTALL_HINT, {
+          toast.info(pickerInstallHint, {
             duration: 12000,
             action: {
               label: "Guide",
@@ -259,162 +327,229 @@ export function PreviewInspector({
     toast.info(`Recorded ${actions.length} step(s) — name and save`);
   };
 
-  // Three logical groups. Each renders inside a rounded pill with a tinted
-  // ring so the user reads the toolbar by purpose, not by individual icon.
-  // Order: Capture → Diagnostics → Settings.
+  const diagnosticCount = picker.logCount + picker.networkCount;
+  const diagnosticBusy =
+    busy === "logs" || busy === "network" || busy === "perf";
+
+  // Keep extension actions behind compact menus; settings stays one tap.
   const groupClass =
     "inline-flex items-center gap-0.5 p-0.5 rounded-md border bg-zinc-900/50";
 
   return (
     <>
-      {/* Group 1 — CAPTURE: things that send something to chat. Blue tint. */}
-      <div
-        className={cn(groupClass, "border-blue-500/20")}
-        role="group"
-        aria-label="Capture into chat"
-      >
+      <div ref={actionMenuRef} className="relative inline-flex">
         <button
           type="button"
-          onClick={picker.toggle}
-          title={
-            picker.armed
-              ? "Click an element in the preview (Esc to cancel)"
-              : "Pick an element from the preview into chat"
-          }
-          aria-label={picker.armed ? "Picking element" : "Pick element"}
-          aria-pressed={picker.armed}
+          onClick={() => {
+            setActionMenuOpen((open) => !open);
+            setDiagnosticMenuOpen(false);
+          }}
+          title="Inspector actions"
+          aria-label="Inspector actions"
+          aria-haspopup="menu"
+          aria-expanded={actionMenuOpen}
           className={cn(
-            BTN_BASE,
-            picker.armed
-              ? "bg-blue-500/25 text-blue-200 border-blue-400/60"
-              : "text-blue-300/80 hover:text-blue-200 hover:bg-blue-500/15 border-transparent",
-          )}
-        >
-          <MousePointerClick className="w-3 h-3" />
-        </button>
-        <button
-          type="button"
-          onClick={sendScreenshot}
-          disabled={busy !== null}
-          title="Screenshot the preview into chat"
-          aria-label="Screenshot the preview into chat"
-          className={cn(
-            BTN_BASE,
-            "text-blue-300/80 hover:text-blue-200 hover:bg-blue-500/15 border-transparent",
-          )}
-        >
-          <Camera
-            className={cn("w-3 h-3", busy === "shot" && "animate-pulse")}
-          />
-        </button>
-        <button
-          type="button"
-          onClick={toggleRecording}
-          title={
+            "inline-flex items-center gap-1 rounded-md border px-2 py-1.5 text-xs font-medium transition-colors",
             picker.recording
-              ? "Stop recording and save as a macro"
-              : "Record a click-through, then save it as a replayable macro"
-          }
-          aria-pressed={picker.recording}
-          className={cn(
-            BTN_BASE,
-            picker.recording
-              ? "bg-red-500/20 text-red-300 border-red-500/50"
-              : "text-blue-300/80 hover:text-blue-200 hover:bg-blue-500/15 border-transparent",
+              ? "border-red-500/50 bg-red-500/20 text-red-300"
+              : picker.armed || pendingMacroSteps
+                ? "border-blue-400/50 bg-blue-500/20 text-blue-200 hover:bg-blue-500/25"
+                : "border-blue-500/20 bg-blue-500/10 text-blue-300/80 hover:bg-blue-500/15 hover:text-blue-200",
           )}
         >
           {picker.recording ? (
             <>
-              <Square className="w-3 h-3 fill-current" />
+              <Square className="h-3 w-3 fill-current" />
               <span className="tabular-nums">{picker.recStepCount}</span>
             </>
+          ) : picker.armed ? (
+            <MousePointerClick className="h-3 w-3" />
           ) : (
-            <Circle className="w-3 h-3" />
+            <Puzzle className="h-3 w-3" />
           )}
+          <ChevronDown className="h-3 w-3" />
         </button>
-        <PreviewMacrosMenu
-          owner={owner}
-          repo={repo}
-          pendingSteps={pendingMacroSteps}
-          pendingStartUrl={pendingMacroStartUrl}
-          onPendingHandled={() => {
-            setPendingMacroSteps(null);
-            setPendingMacroStartUrl(null);
-          }}
-          onContext={onContext}
-          act={picker.act}
-          pickerAvailable={picker.available}
-        />
-      </div>
 
-      {/* Group 2 — DIAGNOSTICS: passive observers of the preview. Counts
-          go red/amber when there's something to look at, otherwise dim. */}
-      <div
-        className={cn(groupClass, "border-amber-500/20")}
-        role="group"
-        aria-label="Diagnostics"
-      >
+        {actionMenuOpen && (
+          <div
+            role="menu"
+            aria-label="Inspector actions"
+            className="absolute right-0 top-full z-50 mt-1 min-w-52 rounded-md border border-zinc-700 bg-zinc-900 py-1 shadow-lg"
+          >
+            <button
+              type="button"
+              role="menuitem"
+              onClick={() => {
+                picker.toggle();
+                setActionMenuOpen(false);
+              }}
+              className={cn(
+                "flex w-full items-center gap-2 rounded px-2 py-1.5 text-left text-xs transition-colors",
+                picker.armed
+                  ? "text-blue-200"
+                  : "text-zinc-300 hover:bg-zinc-800 hover:text-white",
+              )}
+            >
+              <MousePointerClick className="h-3 w-3" />
+              <span className="flex-1">
+                {picker.armed ? "Cancel picker" : "Pick element"}
+              </span>
+            </button>
+            <button
+              type="button"
+              role="menuitem"
+              onClick={() => {
+                void sendScreenshot();
+                setActionMenuOpen(false);
+              }}
+              disabled={busy !== null}
+              className="flex w-full items-center gap-2 rounded px-2 py-1.5 text-left text-xs text-zinc-300 transition-colors hover:bg-zinc-800 hover:text-white disabled:opacity-50"
+            >
+              <Camera
+                className={cn("h-3 w-3", busy === "shot" && "animate-pulse")}
+              />
+              <span className="flex-1">Screenshot</span>
+            </button>
+            <button
+              type="button"
+              role="menuitem"
+              onClick={() => void toggleRecording()}
+              className={cn(
+                "flex w-full items-center gap-2 rounded px-2 py-1.5 text-left text-xs transition-colors",
+                picker.recording
+                  ? "text-red-300 hover:bg-red-500/10"
+                  : "text-zinc-300 hover:bg-zinc-800 hover:text-white",
+              )}
+            >
+              {picker.recording ? (
+                <Square className="h-3 w-3 fill-current" />
+              ) : (
+                <Circle className="h-3 w-3" />
+              )}
+              <span className="flex-1">
+                {picker.recording ? "Stop recording" : "Record macro"}
+              </span>
+              {picker.recording && (
+                <span className="tabular-nums">{picker.recStepCount}</span>
+              )}
+            </button>
+            <PreviewMacrosMenu
+              owner={owner}
+              repo={repo}
+              pendingSteps={pendingMacroSteps}
+              pendingStartUrl={pendingMacroStartUrl}
+              onPendingHandled={() => {
+                setPendingMacroSteps(null);
+                setPendingMacroStartUrl(null);
+              }}
+              onContext={onContext}
+              act={picker.act}
+              pickerAvailable={picker.available}
+              variant="menu"
+            />
+          </div>
+        )}
+      </div>
+      {/* Group 2 - DIAGNOSTICS: passive observers of the preview. */}
+      <div ref={diagnosticMenuRef} className="relative inline-flex">
         <button
           type="button"
-          onClick={sendLogs}
-          disabled={busy !== null}
-          title={
+          onClick={() => {
+            setDiagnosticMenuOpen((open) => !open);
+            setActionMenuOpen(false);
+          }}
+          title="Diagnostics"
+          aria-label="Diagnostics"
+          aria-haspopup="menu"
+          aria-expanded={diagnosticMenuOpen}
+          className={cn(
+            "inline-flex items-center gap-1 rounded-md border px-2 py-1.5 text-xs font-medium transition-colors",
             picker.logCount > 0
-              ? `Send ${picker.logCount} console error(s) to chat`
-              : "No console errors captured yet"
-          }
-          aria-label="Send console errors to chat"
-          className={cn(
-            BTN_BASE,
-            picker.logCount > 0
-              ? "bg-red-500/15 text-red-300 border-red-500/40 hover:bg-red-500/25"
-              : "text-amber-300/60 hover:text-amber-200 hover:bg-amber-500/10 border-transparent",
+              ? "border-red-500/40 bg-red-500/15 text-red-300 hover:bg-red-500/25"
+              : picker.networkCount > 0
+                ? "border-amber-500/40 bg-amber-500/15 text-amber-300 hover:bg-amber-500/25"
+                : "border-amber-500/20 bg-amber-500/10 text-amber-300/70 hover:bg-amber-500/15 hover:text-amber-200",
           )}
         >
-          <Bug className={cn("w-3 h-3", busy === "logs" && "animate-pulse")} />
-          {picker.logCount > 0 && (
-            <span className="tabular-nums">{picker.logCount}</span>
+          {picker.logCount > 0 ? (
+            <Bug className={cn("h-3 w-3", diagnosticBusy && "animate-pulse")} />
+          ) : picker.networkCount > 0 ? (
+            <Activity
+              className={cn("h-3 w-3", diagnosticBusy && "animate-pulse")}
+            />
+          ) : (
+            <Gauge
+              className={cn("h-3 w-3", diagnosticBusy && "animate-pulse")}
+            />
           )}
+          {diagnosticCount > 0 && (
+            <span className="tabular-nums">{diagnosticCount}</span>
+          )}
+          <ChevronDown className="h-3 w-3" />
         </button>
-        <button
-          type="button"
-          onClick={sendNetwork}
-          disabled={busy !== null}
-          title={
-            picker.networkCount > 0
-              ? `Send ${picker.networkCount} failed request(s) to chat`
-              : "No failed requests captured yet"
-          }
-          aria-label="Send failed requests to chat"
-          className={cn(
-            BTN_BASE,
-            picker.networkCount > 0
-              ? "bg-amber-500/15 text-amber-300 border-amber-500/40 hover:bg-amber-500/25"
-              : "text-amber-300/60 hover:text-amber-200 hover:bg-amber-500/10 border-transparent",
-          )}
-        >
-          <Activity
-            className={cn("w-3 h-3", busy === "network" && "animate-pulse")}
-          />
-          {picker.networkCount > 0 && (
-            <span className="tabular-nums">{picker.networkCount}</span>
-          )}
-        </button>
-        <button
-          type="button"
-          onClick={sendPerf}
-          disabled={busy !== null}
-          title="Measure the preview's load speed and what's dragging it"
-          aria-label="Send a performance snapshot to chat"
-          className={cn(
-            BTN_BASE,
-            "text-amber-300/60 hover:text-amber-200 hover:bg-amber-500/10 border-transparent",
-          )}
-        >
-          <Gauge
-            className={cn("w-3 h-3", busy === "perf" && "animate-pulse")}
-          />
-        </button>
+        {diagnosticMenuOpen && (
+          <div
+            role="menu"
+            aria-label="Diagnostics"
+            className="absolute right-0 top-full z-50 mt-1 min-w-56 rounded-md border border-zinc-700 bg-zinc-900 py-1 shadow-lg"
+          >
+            <button
+              type="button"
+              role="menuitem"
+              onClick={() => {
+                setDiagnosticMenuOpen(false);
+                void sendLogs();
+              }}
+              disabled={busy !== null}
+              className="flex w-full items-center gap-2 rounded px-2 py-1.5 text-left text-xs text-zinc-300 transition-colors hover:bg-zinc-800 hover:text-white disabled:opacity-50"
+            >
+              <Bug
+                className={cn("h-3 w-3", busy === "logs" && "animate-pulse")}
+              />
+              <span className="flex-1">Console errors</span>
+              {picker.logCount > 0 && (
+                <span className="tabular-nums text-red-300">
+                  {picker.logCount}
+                </span>
+              )}
+            </button>
+            <button
+              type="button"
+              role="menuitem"
+              onClick={() => {
+                setDiagnosticMenuOpen(false);
+                void sendNetwork();
+              }}
+              disabled={busy !== null}
+              className="flex w-full items-center gap-2 rounded px-2 py-1.5 text-left text-xs text-zinc-300 transition-colors hover:bg-zinc-800 hover:text-white disabled:opacity-50"
+            >
+              <Activity
+                className={cn("h-3 w-3", busy === "network" && "animate-pulse")}
+              />
+              <span className="flex-1">Failed requests</span>
+              {picker.networkCount > 0 && (
+                <span className="tabular-nums text-amber-300">
+                  {picker.networkCount}
+                </span>
+              )}
+            </button>
+            <button
+              type="button"
+              role="menuitem"
+              onClick={() => {
+                setDiagnosticMenuOpen(false);
+                void sendPerf();
+              }}
+              disabled={busy !== null}
+              className="flex w-full items-center gap-2 rounded px-2 py-1.5 text-left text-xs text-zinc-300 transition-colors hover:bg-zinc-800 hover:text-white disabled:opacity-50"
+            >
+              <Gauge
+                className={cn("h-3 w-3", busy === "perf" && "animate-pulse")}
+              />
+              <span className="flex-1">Performance snapshot</span>
+            </button>
+          </div>
+        )}
       </div>
 
       {/* Group 3 — SETTINGS: per-chat context behaviour. Emerald = active. */}

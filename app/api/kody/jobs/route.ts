@@ -2,14 +2,12 @@
  * @fileType api-endpoint
  * @domain kody
  * @pattern jobs-api
- * @ai-summary Run an INSTANT job. A job assembles executable (how) + duty (why)
- *   + persona (who) + schedule (when); an instant job runs once now, so we lower
- *   it onto the same dispatch the executable "Run" button uses — post
- *   `@kody <executable> [why]` on the target issue/PR. The engine mints the
- *   instant Job from that comment (mintInstantJob) and runs it via runJob.
+ * @ai-summary Run an INSTANT agentResponsibility job. A job may link an agentAction as the
+ *   implementation, but the dashboard only dispatches agentResponsibilities: it posts
+ *   `@kody <agentResponsibility> [why]` on the target issue/PR.
  *
- *   Scheduled jobs are NOT dispatched here — their source of truth is a duty
- *   file (staff + every + intent), created via the duties API. This endpoint
+ *   Scheduled jobs are NOT dispatched here — their source of truth is a agentResponsibility
+ *   file (agent + every + intent), created via the agentResponsibilities API. This endpoint
  *   rejects `flavor: "scheduled"` so the two paths never blur.
  */
 /* eslint-disable @typescript-eslint/no-explicit-any */
@@ -20,8 +18,13 @@ import {
   getUserOctokit,
   getRequestAuth,
 } from "@dashboard/lib/auth";
-import { invalidateIssueCache } from "@dashboard/lib/github-client";
+import {
+  clearGitHubContext,
+  invalidateIssueCache,
+  setGitHubContext,
+} from "@dashboard/lib/github-client";
 import { recordAudit } from "@dashboard/lib/activity/audit";
+import { readAgentResponsibilityFile } from "@dashboard/lib/agent-responsibilities-files";
 import {
   validateKodyJob,
   resolveJobProfile,
@@ -37,14 +40,14 @@ export async function POST(req: NextRequest) {
   if (!headerAuth) {
     return NextResponse.json({ error: "no_repo_context" }, { status: 400 });
   }
+  setGitHubContext(headerAuth.owner, headerAuth.repo, headerAuth.token);
 
   try {
     const raw = await req.json();
     const actorLogin =
       typeof raw?.actorLogin === "string" ? raw.actorLogin : undefined;
 
-    // Validate against the engine's Job boundary rules (executable|duty,
-    // known flavor, object cliArgs). Throws InvalidKodyJobError otherwise.
+    // Dashboard boundary: agentResponsibility is required. AgentAction-only jobs are rejected.
     const job = validateKodyJob(raw);
 
     if (job.flavor !== "instant") {
@@ -52,7 +55,7 @@ export async function POST(req: NextRequest) {
         {
           error: "not_instant",
           message:
-            "Only instant jobs run here. Save a scheduled job as a duty (staff + schedule + executable).",
+            "Only instant jobs run here. Save a scheduled job as a agentResponsibility (agent + schedule + agentAction).",
         },
         { status: 400 },
       );
@@ -68,7 +71,7 @@ export async function POST(req: NextRequest) {
     }
     if (!resolveJobProfile(job)) {
       return NextResponse.json(
-        { error: "no_executable", message: "Pick an executable (the how)." },
+        { error: "no_agentResponsibility", message: "Pick a agentResponsibility to run." },
         { status: 400 },
       );
     }
@@ -84,6 +87,16 @@ export async function POST(req: NextRequest) {
           message: "A signed-in GitHub token is required to comment.",
         },
         { status: 401 },
+      );
+    }
+    const agentResponsibility = await readAgentResponsibilityFile(job.agentResponsibility!, userOctokit);
+    if (!agentResponsibility) {
+      return NextResponse.json(
+        {
+          error: "agentResponsibility_not_found",
+          message: `AgentResponsibility "${job.agentResponsibility}" does not exist.`,
+        },
+        { status: 400 },
       );
     }
 
@@ -125,5 +138,7 @@ export async function POST(req: NextRequest) {
       { error: "run_failed", message: error?.message ?? "Failed to run job" },
       { status: 500 },
     );
+  } finally {
+    clearGitHubContext();
   }
 }

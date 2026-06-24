@@ -15,7 +15,7 @@
  *
  * @ai-summary The trigger half of ui-verify/: posts `@kody ui-review` on
  *   a PR so the engine's kody.yml dispatcher picks it up and runs the
- *   ui-review executable. This module is currently dead code in
+ *   ui-review agentAction. This module is currently dead code in
  *   production — the webhook route's `check_run` handler stopped
  *   auto-dispatching after a re-fire loop: with auto-sync re-pushing
  *   ~30 open PRs every cycle, each rebuild produced a fresh

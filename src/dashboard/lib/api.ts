@@ -18,6 +18,11 @@ import type {
   PRComment,
   WorkflowRun,
 } from "./types";
+import type {
+  CompanyIntentInput,
+  CompanyIntentRecord,
+  CompanyIntentStatus,
+} from "./company-intents";
 
 const API_BASE = "/api/kody";
 
@@ -27,6 +32,9 @@ export function getStoredAuth(): {
   token: string;
   owner: string;
   repo: string;
+  userLogin?: string;
+  storeRepoUrl?: string;
+  storeRef?: string;
 } | null {
   if (typeof window === "undefined") return null;
   try {
@@ -36,9 +44,22 @@ export function getStoredAuth(): {
       token?: string;
       owner?: string;
       repo?: string;
+      user?: { login?: string };
+      storeRepoUrl?: string;
+      storeRepo?: string;
+      storeRef?: string;
     };
     if (!auth.token || !auth.owner || !auth.repo) return null;
-    return { token: auth.token, owner: auth.owner, repo: auth.repo };
+    return {
+      token: auth.token,
+      owner: auth.owner,
+      repo: auth.repo,
+      userLogin: auth.user?.login,
+      storeRepoUrl:
+        auth.storeRepoUrl ??
+        (auth.storeRepo ? `https://github.com/${auth.storeRepo}` : undefined),
+      storeRef: auth.storeRef,
+    };
   } catch {
     return null;
   }
@@ -61,6 +82,25 @@ export function getStoredFlyPerf(): "low" | "medium" | "high" | null {
       parsed.flyPerf === "high"
     ) {
       return parsed.flyPerf;
+    }
+    return null;
+  } catch {
+    return null;
+  }
+}
+
+export function getStoredBrainTerminalActivityLimit(): number | "never" | null {
+  if (typeof window === "undefined") return null;
+  try {
+    const raw = localStorage.getItem("kody_auth");
+    if (!raw) return null;
+    const parsed = JSON.parse(raw) as {
+      brainTerminalActivityLimit?: unknown;
+    };
+    const value = parsed.brainTerminalActivityLimit;
+    if (value === "never") return "never";
+    if (typeof value === "number" && Number.isFinite(value) && value > 0) {
+      return value;
     }
     return null;
   } catch {
@@ -99,6 +139,7 @@ function buildHeaders(
           "x-kody-token": auth.token,
           "x-kody-owner": auth.owner,
           "x-kody-repo": auth.repo,
+          ...(auth.userLogin ? { "x-kody-user-login": auth.userLogin } : {}),
         }
       : {}),
     ...extra,
@@ -186,7 +227,11 @@ export async function handleResponse<T>(res: Response): Promise<T> {
   }
 
   if (!res.ok) {
-    throw new ApiError(data.error || "Request failed", res.status, data);
+    throw new ApiError(
+      data.message || data.error || "Request failed",
+      res.status,
+      data,
+    );
   }
 
   return data as T;
@@ -198,9 +243,17 @@ export const tasksApi = {
   list: async (params?: {
     days?: number;
     includeDetails?: boolean;
+    viewMode?:
+      | "all"
+      | "running"
+      | "backlog"
+      | "unassigned"
+      | "intake"
+      | "queue";
   }): Promise<KodyTask[]> => {
     const searchParams = new URLSearchParams();
     if (params?.days) searchParams.set("days", String(params.days));
+    if (params?.viewMode) searchParams.set("view", params.viewMode);
     if (params?.includeDetails === false)
       searchParams.set("includeDetails", "false");
 
@@ -658,6 +711,51 @@ export const prsApi = {
     const data = await handleResponse<{ previewUrl: string | null }>(res);
     return data.previewUrl;
   },
+  createPreview: async (
+    prNumber: number,
+    ref: string,
+  ): Promise<{
+    url: string | null;
+    state: string;
+    builderMachineId?: string;
+  }> => {
+    const auth = getStoredAuth();
+    if (!auth) throw new NoTokenError();
+    const res = await fetch(`${API_BASE}/previews`, {
+      method: "POST",
+      headers: buildHeaders(),
+      body: JSON.stringify({
+        repo: `${auth.owner}/${auth.repo}`,
+        pr: prNumber,
+        ref,
+      }),
+    });
+    return handleResponse(res);
+  },
+  wakePreview: async (
+    prNumber: number,
+  ): Promise<{
+    url: string | null;
+    state: string;
+    machineId?: string;
+  }> => {
+    const auth = getStoredAuth();
+    if (!auth) throw new NoTokenError();
+    const owner = encodeURIComponent(auth.owner);
+    const repo = encodeURIComponent(auth.repo);
+    const res = await fetch(
+      `${API_BASE}/previews/${owner}/${repo}/${prNumber}`,
+      {
+        method: "POST",
+        headers: buildHeaders(),
+      },
+    );
+    const data = await handleResponse<{
+      ok: true;
+      preview: { url: string | null; state: string; machineId?: string };
+    }>(res);
+    return data.preview;
+  },
   postComment: async (
     prNumber: number,
     body: string,
@@ -820,114 +918,128 @@ export const remoteApi = {
   },
 };
 
-// ============ Duties API ============
+// ============ AgentResponsibilities API ============
 
-/** Per-duty cadence tokens; mirrors `ScheduleEvery` in duties-frontmatter.ts. */
-export type DutySchedule =
-  | "15m"
-  | "30m"
-  | "1h"
-  | "2h"
-  | "6h"
-  | "12h"
-  | "1d"
-  | "3d"
-  | "7d"
-  /** Sentinel: scheduler never auto-fires; only the dashboard "Run now" button executes it. */
-  | "manual";
+export type AgentResponsibilityCapabilityKind = "observe" | "act" | "verify";
 
-export interface Duty {
-  /** Filename without `.md` — stable identity. */
+export interface AgentResponsibility {
+  /** AgentResponsibility folder name under `.kody/agent-responsibilities/`; stable identity. */
   slug: string;
   title: string;
   body: string;
   /** Last commit timestamp affecting this file (ISO8601). */
   updatedAt: string;
   /**
-   * Last commit timestamp of the sibling `<slug>.state.json` (ISO8601),
-   * or `null` if the duty has never run. The engine writes
-   * `<slug>.state.json` on every tick that acts.
+   * Last visible run time (ISO8601), from the old state file or newer activity
+   * log. `null` means the dashboard cannot see run proof.
    */
   lastTickAt: string | null;
   /**
-   * UTC ISO timestamp at which this duty will next be eligible to act —
-   * read from `data.nextEligibleISO` in the state JSON. `null` if the
-   * duty has never run, or its body doesn't yet emit the field.
+   * UTC ISO timestamp at which this agentResponsibility will next be eligible to act —
+   * read from `data.nextEligibleISO` in the state JSON. `null` when
+   * unavailable, or its body doesn't yet emit the field.
    */
   nextEligibleAt: string | null;
   /**
-   * Coarse result of the most recent tick — `data.lastOutcome` in the state
-   * JSON, stamped by the engine from the agent result. `null` when never run
-   * or on an engine that predates the field.
+   * Coarse result of the most recent tick, from state or activity. `null` when
+   * unknown or on an engine that predates the field.
    */
   lastOutcome: "completed" | "failed" | null;
   /** Wall-clock of the most recent tick (ms) — `data.lastDurationMs`, or null. */
   lastDurationMs: number | null;
+  /** Legacy compatibility only. Responsibilities no longer own cadence. */
+  schedule: null;
+  capabilityKind: AgentResponsibilityCapabilityKind | null;
   /**
-   * Per-duty cadence parsed from frontmatter. `null` = global cron wake
-   * (every 15 min). Engine-side gating ships separately.
-   */
-  schedule: DutySchedule | null;
-  /**
-   * Mirrors `disabled: true` in the frontmatter. When `true` the engine
-   * scheduler skips this duty; manual "Run now" still fires.
+   * Mirrors `disabled: true` in `profile.json`. When `true` the engine
+   * runner dispatch skips disabled responsibilities; manual "Run now" still works.
    */
   disabled: boolean;
+  /** Slug agent (agentIdentity) executes agentResponsibility. `null` means none assigned. */
+  agent: string | null;
+  /** Agent slug responsible for reviewing this agentResponsibility's output. */
+  reviewer: string | null;
+  /** Public `@kody <action>` name owned by this agentResponsibility. */
+  action: string;
   /**
-   * Slug of the staff member (persona) that executes this duty, from the
-   * `staff:` frontmatter. The duty owns the schedule; the staff member is
-   * *who* the engine tick runs as. `null` = no staff assigned — the engine
-   * scheduler skips such duties (every duty must name an executor).
-   */
-  staff: string | null;
-  /**
-   * GitHub logins this duty's output should `@`-mention, parsed from the
-   * `mentions:` frontmatter (comma-separated, no `@`). Empty array when the
-   * key is absent.
+   * GitHub logins this agentResponsibility's output should `@`-mention, parsed from
+   * `profile.json.mentions`. Empty array when the key is absent.
    */
   mentions: string[];
+  /** Primary implementation agentAction for this agentResponsibility. */
+  agentAction: string | null;
+  /** Legacy/multi-run agentAction slugs assigned to this agentResponsibility. */
+  agentActions: string[];
+  /** Engine-facing agentResponsibility tool names from `profile.json.tools`. */
+  agentResponsibilityTools: string[];
+  /** Optional tick script path, or null when unset. */
+  tickScript: string | null;
+  /** Context/report/agentResponsibility slugs read by this agentResponsibility. */
+  readsFrom: string[];
+  /** Report/context slugs written by this agentResponsibility. */
+  writesTo: string[];
   /** Convenience link to the file on github.com. */
   htmlUrl: string;
-  /**
-   * True when this row is a folder-duty (`.kody/duties/<slug>/profile.json`)
-   * rather than a markdown duty. The list routes its edit to the full folder
-   * editor (`/executables/<slug>`) instead of the markdown dialog.
-   */
+  /** Legacy folder-agentResponsibility flag; current agentAction files live under `.kody/agent-actions/`. */
   folder?: boolean;
+  /** Runtime resolution source. Local repo assets win over store assets. */
+  source?: "local" | "store";
+  /** Store-linked agentResponsibilities are visible and runnable, but not editable locally. */
+  readOnly?: boolean;
 }
 
-export const dutiesApi = {
-  list: async (): Promise<Duty[]> => {
-    const res = await fetch(`${API_BASE}/duties`, { headers: buildHeaders() });
-    const data = await handleResponse<{ duties: Duty[] }>(res);
-    return data.duties;
+export const agentResponsibilitiesApi = {
+  list: async (): Promise<AgentResponsibility[]> => {
+    const res = await fetch(`${API_BASE}/agent-responsibilities`, {
+      headers: buildHeaders(),
+      cache: "no-store",
+    });
+    const data = await handleResponse<{
+      agentResponsibilities: AgentResponsibility[];
+    }>(res);
+    return data.agentResponsibilities;
   },
 
-  get: async (slug: string): Promise<Duty> => {
-    const res = await fetch(`${API_BASE}/duties/${encodeURIComponent(slug)}`, {
-      headers: buildHeaders(),
-    });
-    const data = await handleResponse<{ duty: Duty }>(res);
-    return data.duty;
+  get: async (slug: string): Promise<AgentResponsibility> => {
+    const res = await fetch(
+      `${API_BASE}/agent-responsibilities/${encodeURIComponent(slug)}`,
+      {
+        headers: buildHeaders(),
+      },
+    );
+    const data = await handleResponse<{
+      agentResponsibility: AgentResponsibility;
+    }>(res);
+    return data.agentResponsibility;
   },
 
   create: async (data: {
     slug?: string;
     title: string;
     body: string;
-    schedule?: DutySchedule | null;
+    capabilityKind?: AgentResponsibilityCapabilityKind | null;
     disabled?: boolean;
-    staff?: string | null;
+    agent?: string | null;
+    reviewer?: string | null;
+    action?: string | null;
     mentions?: string[];
+    agentAction?: string | null;
+    agentActions?: string[];
+    agentResponsibilityTools?: string[];
+    tickScript?: string | null;
+    readsFrom?: string[];
+    writesTo?: string[];
     actorLogin?: string;
-  }): Promise<Duty> => {
-    const res = await fetch(`${API_BASE}/duties`, {
+  }): Promise<AgentResponsibility> => {
+    const res = await fetch(`${API_BASE}/agent-responsibilities`, {
       method: "POST",
       headers: buildHeaders(),
       body: JSON.stringify(data),
     });
-    const payload = await handleResponse<{ duty: Duty }>(res);
-    return payload.duty;
+    const payload = await handleResponse<{
+      agentResponsibility: AgentResponsibility;
+    }>(res);
+    return payload.agentResponsibility;
   },
 
   update: async (
@@ -935,20 +1047,33 @@ export const dutiesApi = {
     data: {
       title?: string;
       body?: string;
-      schedule?: DutySchedule | null;
+      capabilityKind?: AgentResponsibilityCapabilityKind | null;
       disabled?: boolean;
-      staff?: string | null;
+      agent?: string | null;
+      reviewer?: string | null;
+      action?: string | null;
       mentions?: string[];
+      agentAction?: string | null;
+      agentActions?: string[];
+      agentResponsibilityTools?: string[];
+      tickScript?: string | null;
+      readsFrom?: string[];
+      writesTo?: string[];
       actorLogin?: string;
     },
-  ): Promise<Duty> => {
-    const res = await fetch(`${API_BASE}/duties/${encodeURIComponent(slug)}`, {
-      method: "PATCH",
-      headers: buildHeaders(),
-      body: JSON.stringify(data),
-    });
-    const payload = await handleResponse<{ duty: Duty }>(res);
-    return payload.duty;
+  ): Promise<AgentResponsibility> => {
+    const res = await fetch(
+      `${API_BASE}/agent-responsibilities/${encodeURIComponent(slug)}`,
+      {
+        method: "PATCH",
+        headers: buildHeaders(),
+        body: JSON.stringify(data),
+      },
+    );
+    const payload = await handleResponse<{
+      agentResponsibility: AgentResponsibility;
+    }>(res);
+    return payload.agentResponsibility;
   },
 
   remove: async (slug: string, actorLogin?: string): Promise<void> => {
@@ -956,7 +1081,7 @@ export const dutiesApi = {
     if (actorLogin) params.set("actorLogin", actorLogin);
     const suffix = params.toString() ? `?${params}` : "";
     const res = await fetch(
-      `${API_BASE}/duties/${encodeURIComponent(slug)}${suffix}`,
+      `${API_BASE}/agent-responsibilities/${encodeURIComponent(slug)}${suffix}`,
       {
         method: "DELETE",
         headers: buildHeaders(),
@@ -966,26 +1091,22 @@ export const dutiesApi = {
   },
 
   /**
-   * Manually trigger a single duty by posting an `@kody job-tick` comment
-   * on the repo's "Kody control" issue. The engine's existing
-   * `issue_comment` trigger routes to job-tick. Defaults to `force: true`
-   * because the operator clicked "Run now" — they want it to run regardless
-   * of the body's cadence guard. Pass `force: false` to respect the guard.
-   *
-   * Replaces the legacy chat-trigger fake — no `KODY_MASTER_KEY` HMAC
-   * required, no fake chat session, no overloaded sessionId.
+   * Manually trigger a single agentResponsibility by workflow_dispatch. The workflow input is
+   * still named `agentAction` for GitHub Actions compatibility, but the value
+   * is the agentResponsibility-owned public action name.
    */
   run: async (
-    duty: { slug: string },
+    agentResponsibility: { slug: string },
     opts?: { force?: boolean },
   ): Promise<{
-    issueNumber: number;
-    commentId: number;
-    commentUrl: string;
+    workflowId: string;
+    ref: string;
+    action: string;
+    agentResponsibility: string;
     force: boolean;
   }> => {
     const res = await fetch(
-      `${API_BASE}/duties/${encodeURIComponent(duty.slug)}/run`,
+      `${API_BASE}/agent-responsibilities/${encodeURIComponent(agentResponsibility.slug)}/run`,
       {
         method: "POST",
         headers: buildHeaders(),
@@ -996,9 +1117,9 @@ export const dutiesApi = {
   },
 };
 
-// ============ Staff API ============
+// ============ Agent API ============
 
-export interface Staff {
+export interface Agent {
   /** Filename without `.md` — stable identity. */
   slug: string;
   title: string;
@@ -1007,21 +1128,28 @@ export interface Staff {
   updatedAt: string;
   /** Convenience link to the file on github.com. */
   htmlUrl: string;
+  /** Runtime resolution source. Local repo agent win over store agent. */
+  source?: "local" | "store";
+  /** Store-linked agent are visible and dispatchable, but not editable locally. */
+  readOnly?: boolean;
 }
 
 export const staffApi = {
-  list: async (): Promise<Staff[]> => {
-    const res = await fetch(`${API_BASE}/staff`, { headers: buildHeaders() });
-    const data = await handleResponse<{ staff: Staff[] }>(res);
-    return data.staff;
+  list: async (): Promise<Agent[]> => {
+    const res = await fetch(`${API_BASE}/agents`, {
+      headers: buildHeaders(),
+      cache: "no-store",
+    });
+    const data = await handleResponse<{ agent: Agent[] }>(res);
+    return data.agent;
   },
 
-  get: async (slug: string): Promise<Staff> => {
-    const res = await fetch(`${API_BASE}/staff/${encodeURIComponent(slug)}`, {
+  get: async (slug: string): Promise<Agent> => {
+    const res = await fetch(`${API_BASE}/agents/${encodeURIComponent(slug)}`, {
       headers: buildHeaders(),
     });
-    const data = await handleResponse<{ staffMember: Staff }>(res);
-    return data.staffMember;
+    const data = await handleResponse<{ agentMember: Agent }>(res);
+    return data.agentMember;
   },
 
   create: async (data: {
@@ -1029,14 +1157,14 @@ export const staffApi = {
     title: string;
     body: string;
     actorLogin?: string;
-  }): Promise<Staff> => {
-    const res = await fetch(`${API_BASE}/staff`, {
+  }): Promise<Agent> => {
+    const res = await fetch(`${API_BASE}/agents`, {
       method: "POST",
       headers: buildHeaders(),
       body: JSON.stringify(data),
     });
-    const payload = await handleResponse<{ staffMember: Staff }>(res);
-    return payload.staffMember;
+    const payload = await handleResponse<{ agentMember: Agent }>(res);
+    return payload.agentMember;
   },
 
   update: async (
@@ -1046,14 +1174,14 @@ export const staffApi = {
       body?: string;
       actorLogin?: string;
     },
-  ): Promise<Staff> => {
-    const res = await fetch(`${API_BASE}/staff/${encodeURIComponent(slug)}`, {
+  ): Promise<Agent> => {
+    const res = await fetch(`${API_BASE}/agents/${encodeURIComponent(slug)}`, {
       method: "PATCH",
       headers: buildHeaders(),
       body: JSON.stringify(data),
     });
-    const payload = await handleResponse<{ staffMember: Staff }>(res);
-    return payload.staffMember;
+    const payload = await handleResponse<{ agentMember: Agent }>(res);
+    return payload.agentMember;
   },
 
   remove: async (slug: string, actorLogin?: string): Promise<void> => {
@@ -1061,7 +1189,7 @@ export const staffApi = {
     if (actorLogin) params.set("actorLogin", actorLogin);
     const suffix = params.toString() ? `?${params}` : "";
     const res = await fetch(
-      `${API_BASE}/staff/${encodeURIComponent(slug)}${suffix}`,
+      `${API_BASE}/agents/${encodeURIComponent(slug)}${suffix}`,
       {
         method: "DELETE",
         headers: buildHeaders(),
@@ -1071,9 +1199,9 @@ export const staffApi = {
   },
 
   /**
-   * Send an ad-hoc message to a staff member and run it like a one-shot duty.
-   * Posts an `@kody worker-ask` directive on the control issue; the engine
-   * runs the persona stateless and replies on that issue. When `actorLogin`
+   * Send an ad-hoc message to an agent and run it like a one-shot agentResponsibility.
+   * Posts an `@kody agent-ask` directive on the control issue; the engine
+   * runs the agentIdentity stateless and replies on that issue. When `actorLogin`
    * is set, the reply @-mentions the requester so it lands in their inbox.
    */
   dispatch: async (
@@ -1085,7 +1213,7 @@ export const staffApi = {
     commentUrl: string;
   }> => {
     const res = await fetch(
-      `${API_BASE}/staff/${encodeURIComponent(slug)}/dispatch`,
+      `${API_BASE}/agents/${encodeURIComponent(slug)}/dispatch`,
       {
         method: "POST",
         headers: buildHeaders(),
@@ -1103,8 +1231,8 @@ export interface ContextEntry {
   slug: string;
   /** Entry markdown (frontmatter-free). */
   body: string;
-  /** Owning staff-member slugs from `staff:` frontmatter (`["kody"]` default for legacy files). */
-  staff: string[];
+  /** Owning agent-member slugs from `agent:` frontmatter (`["kody"]` default for legacy files). */
+  agent: string[];
   /** Git blob sha. */
   sha: string;
   /** Last commit timestamp affecting this file (ISO8601). */
@@ -1115,7 +1243,10 @@ export interface ContextEntry {
 
 export const contextApi = {
   list: async (): Promise<ContextEntry[]> => {
-    const res = await fetch(`${API_BASE}/context`, { headers: buildHeaders() });
+    const res = await fetch(`${API_BASE}/context`, {
+      headers: buildHeaders(),
+      cache: "no-store",
+    });
     const data = await handleResponse<{ entries: ContextEntry[] }>(res);
     return data.entries ?? [];
   },
@@ -1131,7 +1262,7 @@ export const contextApi = {
   create: async (data: {
     slug: string;
     body: string;
-    staff: string[];
+    agent: string[];
     actorLogin?: string;
   }): Promise<ContextEntry> => {
     const res = await fetch(`${API_BASE}/context`, {
@@ -1147,7 +1278,7 @@ export const contextApi = {
     slug: string,
     data: {
       body?: string;
-      staff?: string[];
+      agent?: string[];
       actorLogin?: string;
     },
   ): Promise<ContextEntry> => {
@@ -1175,6 +1306,190 @@ export const contextApi = {
   },
 };
 
+// ============ Todos API ============
+export interface TodoEntry {
+  /** Filename without `.md` stable identity. */
+  slug: string;
+  title: string;
+  items: TodoItem[];
+  createdAt: string;
+  /** Git blob sha. */
+  sha: string;
+  /** Last commit timestamp affecting file (ISO8601). */
+  updatedAt: string;
+  /** Convenience link to file on github.com. */
+  htmlUrl: string;
+}
+
+export interface TodoItem {
+  id: string;
+  title: string;
+  /** Markdown note body for this list item. */
+  body: string;
+  completed: boolean;
+  createdAt: string;
+  completedAt: string | null;
+}
+
+export const todosApi = {
+  list: async (): Promise<TodoEntry[]> => {
+    const res = await fetch(`${API_BASE}/todos`, {
+      headers: buildHeaders(),
+      cache: "no-store",
+    });
+    const data = await handleResponse<{ todos: TodoEntry[] }>(res);
+    return data.todos ?? [];
+  },
+  get: async (slug: string): Promise<TodoEntry> => {
+    const res = await fetch(`${API_BASE}/todos/${encodeURIComponent(slug)}`, {
+      headers: buildHeaders(),
+    });
+    const data = await handleResponse<{ todo: TodoEntry }>(res);
+    return data.todo;
+  },
+  create: async (data: {
+    title: string;
+    items?: Array<{
+      id?: string;
+      title: string;
+      body?: string;
+      completed?: boolean;
+      createdAt?: string;
+      completedAt?: string | null;
+    }>;
+    actorLogin?: string;
+  }): Promise<TodoEntry> => {
+    const res = await fetch(`${API_BASE}/todos`, {
+      method: "POST",
+      headers: buildHeaders(),
+      body: JSON.stringify(data),
+    });
+    const payload = await handleResponse<{ todo: TodoEntry }>(res);
+    return payload.todo;
+  },
+  update: async (
+    slug: string,
+    data: {
+      title?: string;
+      items?: TodoItem[];
+      actorLogin?: string;
+    },
+  ): Promise<TodoEntry> => {
+    const res = await fetch(`${API_BASE}/todos/${encodeURIComponent(slug)}`, {
+      method: "PATCH",
+      headers: buildHeaders(),
+      body: JSON.stringify(data),
+    });
+    const payload = await handleResponse<{ todo: TodoEntry }>(res);
+    return payload.todo;
+  },
+  remove: async (slug: string, actorLogin?: string): Promise<void> => {
+    const params = new URLSearchParams();
+    if (actorLogin) params.set("actorLogin", actorLogin);
+    const suffix = params.toString() ? `?${params}` : "";
+    const res = await fetch(
+      `${API_BASE}/todos/${encodeURIComponent(slug)}${suffix}`,
+      {
+        method: "DELETE",
+        headers: buildHeaders(),
+      },
+    );
+    await handleResponse<{ success: boolean }>(res);
+  },
+};
+
+// ============ Memory API ============
+
+export type MemoryType = "user" | "feedback" | "project" | "reference";
+
+export interface MemoryFile {
+  /** Filename without `.md` — stable identity. */
+  id: string;
+  meta: {
+    name: string;
+    description: string;
+    type: MemoryType;
+    created: string;
+  };
+  /** Markdown body after frontmatter. */
+  body: string;
+  /** Git blob sha. */
+  sha: string;
+  /** Last commit timestamp affecting this file (ISO8601). */
+  updatedAt: string;
+  /** Convenience link to the file on github.com. */
+  htmlUrl: string;
+}
+
+export const memoryApi = {
+  list: async (): Promise<MemoryFile[]> => {
+    const res = await fetch(`${API_BASE}/memory`, {
+      headers: buildHeaders(),
+      cache: "no-store",
+    });
+    const data = await handleResponse<{ memories: MemoryFile[] }>(res);
+    return data.memories ?? [];
+  },
+
+  get: async (id: string): Promise<MemoryFile> => {
+    const res = await fetch(`${API_BASE}/memory/${encodeURIComponent(id)}`, {
+      headers: buildHeaders(),
+    });
+    const data = await handleResponse<{ memory: MemoryFile }>(res);
+    return data.memory;
+  },
+
+  create: async (data: {
+    id: string;
+    name: string;
+    description: string;
+    type: MemoryType;
+    body: string;
+    actorLogin?: string;
+  }): Promise<MemoryFile> => {
+    const res = await fetch(`${API_BASE}/memory`, {
+      method: "POST",
+      headers: buildHeaders(),
+      body: JSON.stringify(data),
+    });
+    const payload = await handleResponse<{ memory: MemoryFile }>(res);
+    return payload.memory;
+  },
+
+  update: async (
+    id: string,
+    data: {
+      name?: string;
+      description?: string;
+      type?: MemoryType;
+      body?: string;
+      actorLogin?: string;
+    },
+  ): Promise<MemoryFile> => {
+    const res = await fetch(`${API_BASE}/memory/${encodeURIComponent(id)}`, {
+      method: "PATCH",
+      headers: buildHeaders(),
+      body: JSON.stringify(data),
+    });
+    const payload = await handleResponse<{ memory: MemoryFile }>(res);
+    return payload.memory;
+  },
+
+  remove: async (id: string, actorLogin?: string): Promise<void> => {
+    const params = new URLSearchParams();
+    if (actorLogin) params.set("actorLogin", actorLogin);
+    const suffix = params.toString() ? `?${params}` : "";
+    const res = await fetch(
+      `${API_BASE}/memory/${encodeURIComponent(id)}${suffix}`,
+      {
+        method: "DELETE",
+        headers: buildHeaders(),
+      },
+    );
+    await handleResponse<{ success: boolean }>(res);
+  },
+};
+
 // ============ Reports API ============
 
 export interface Report {
@@ -1188,11 +1503,19 @@ export interface Report {
   htmlUrl: string;
   /** Size in bytes. */
   size: number;
+  agentResponsibilitySlug: string | null;
+  reviewStatus: string | null;
+  reviewArea: string | null;
+  findingCount: number;
+  suggestedActions: import("./report-suggested-actions").ReportSuggestedAction[];
 }
 
 export const reportsApi = {
   list: async (): Promise<Report[]> => {
-    const res = await fetch(`${API_BASE}/reports`, { headers: buildHeaders() });
+    const res = await fetch(`${API_BASE}/reports`, {
+      headers: buildHeaders(),
+      cache: "no-store",
+    });
     const data = await handleResponse<{ reports: Report[] }>(res);
     return data.reports;
   },
@@ -1270,6 +1593,11 @@ export interface GoalsListResponse {
   capabilities?: { discussionsEnabled: boolean };
 }
 
+import type {
+  CreateManagedGoalInput,
+  ManagedGoalRecord,
+} from "./managed-goals";
+
 export const goalsApi = {
   list: async (): Promise<Goal[]> => {
     const res = await fetch(`${API_BASE}/goals`, {
@@ -1291,6 +1619,70 @@ export const goalsApi = {
       cache: "no-store",
     });
     return handleResponse<GoalsListResponse>(res);
+  },
+  listManaged: async (): Promise<ManagedGoalRecord[]> => {
+    const res = await fetch(`${API_BASE}/goals/managed`, {
+      headers: buildHeaders(),
+      cache: "no-store",
+    });
+    const payload = await handleResponse<{ goals: ManagedGoalRecord[] }>(res);
+    return payload.goals;
+  },
+  createManaged: async (
+    data: CreateManagedGoalInput & { actorLogin?: string },
+  ): Promise<ManagedGoalRecord> => {
+    const res = await fetch(`${API_BASE}/goals/managed`, {
+      method: "POST",
+      headers: buildHeaders(),
+      body: JSON.stringify(data),
+    });
+    const payload = await handleResponse<{ goal: ManagedGoalRecord }>(res);
+    return payload.goal;
+  },
+
+  updateManaged: async (
+    id: string,
+    data: import("./managed-goals").UpdateManagedGoalInput,
+  ): Promise<ManagedGoalRecord> => {
+    const res = await fetch(
+      `${API_BASE}/goals/managed/${encodeURIComponent(id)}`,
+      {
+        method: "PATCH",
+        headers: buildHeaders(),
+        body: JSON.stringify(data),
+      },
+    );
+    const payload = await handleResponse<{ goal: ManagedGoalRecord }>(res);
+    return payload.goal;
+  },
+
+  removeManaged: async (id: string): Promise<void> => {
+    const res = await fetch(
+      `${API_BASE}/goals/managed/${encodeURIComponent(id)}`,
+      {
+        method: "DELETE",
+        headers: buildHeaders(),
+      },
+    );
+    await handleResponse<{ success: boolean }>(res);
+  },
+
+  runManaged: async (
+    id: string,
+  ): Promise<{
+    ok: true;
+    workflowId: string;
+    ref: string;
+    goal: ManagedGoalRecord;
+  }> => {
+    const res = await fetch(
+      `${API_BASE}/goals/managed/${encodeURIComponent(id)}/run`,
+      {
+        method: "POST",
+        headers: buildHeaders(),
+      },
+    );
+    return handleResponse(res);
   },
 
   fetchDiscussion: async (id: string): Promise<GoalDiscussionPayload> => {
@@ -1585,6 +1977,7 @@ export const changelogApi = {
 export interface DocManifestEntry {
   name: string;
   path: string;
+  type: "file" | "folder";
   htmlUrl: string | null;
 }
 
@@ -1614,6 +2007,41 @@ export const docsApi = {
       },
     );
     return handleResponse<DocFilePayload>(res);
+  },
+  create: async (input: {
+    path: string;
+    content: string;
+  }): Promise<DocFilePayload> => {
+    const res = await fetch(`${API_BASE}/docs`, {
+      method: "POST",
+      headers: buildHeaders(),
+      body: JSON.stringify(input),
+    });
+    return handleResponse<DocFilePayload>(res);
+  },
+  update: async (
+    path: string,
+    input: { content?: string; newPath?: string },
+  ): Promise<DocFilePayload> => {
+    const res = await fetch(
+      `${API_BASE}/docs?path=${encodeURIComponent(path)}`,
+      {
+        method: "PATCH",
+        headers: buildHeaders(),
+        body: JSON.stringify(input),
+      },
+    );
+    return handleResponse<DocFilePayload>(res);
+  },
+  remove: async (path: string): Promise<void> => {
+    const res = await fetch(
+      `${API_BASE}/docs?path=${encodeURIComponent(path)}`,
+      {
+        method: "DELETE",
+        headers: buildHeaders(),
+      },
+    );
+    await handleResponse<{ success: boolean; path: string }>(res);
   },
 };
 
@@ -1651,26 +2079,26 @@ export const vibeApi = {
 /**
  * One-tap operator verdict on a CTO recommendation surfaced in the inbox.
  * `approve` runs the recommended action for dispatchable verbs
- * (`execute`/`fix`); non-dispatchable verbs are recorded only. Both
- * verdicts are tallied in the `kody:cto-decisions` ledger that drives
- * graduation.
+ * (`execute`/`fix`); non-dispatchable verbs are recorded only. Verdicts are
+ * tallied in the agentResponsibility trust ledger that drives graduation.
  */
 export const ctoApi = {
   decide: async (input: {
-    /** Emitting staff slug; scopes the trust ledger per staff (default "cto"). */
-    staff?: string;
-    /** Emitting duty slug — the trust key (falls back to staff server-side). */
-    duty?: string;
+    /** Emitting agent slug; kept for display and legacy entries. */
+    agent?: string;
+    /** Emitting agentResponsibility slug — the trust key (falls back to agent server-side). */
+    agentResponsibility?: string;
     taskNumber: number;
     action?: import("./cto/recommendation").CtoAction;
     decision: "approve" | "reject" | "dismiss";
     actorLogin?: string;
-    /** The exact `@kody …` command from the staff member's `kody-cmd` line. */
+    /** The exact `@kody …` command from the agent's `kody-cmd` line. */
     command?: string;
   }): Promise<{
     ok: true;
     executed: boolean;
-    staff: string;
+    agent: string;
+    agentResponsibility: string;
     action: string;
     decision: "approve" | "reject" | "dismiss";
     stats: {
@@ -1689,11 +2117,11 @@ export const ctoApi = {
   },
 
   /**
-   * Latest verdict per `${staff}:${taskNumber}:${action}` from the trust
+   * Latest verdict per `${agentResponsibility}:${taskNumber}:${action}` from the trust
    * ledger, carrying the timestamp it was recorded so the inbox can scope the
    * badge to recs that pre-date the decision (a dismiss on yesterday's
    * `sync` rec must not silently dismiss today's fresh one). Used by
-   * `verdictFor(staff, taskNumber, action, sinceIso)`.
+   * `verdictFor(agentResponsibility, taskNumber, action, sinceIso)`.
    */
   decisions: async (): Promise<{
     decided: Record<
@@ -1708,11 +2136,11 @@ export const ctoApi = {
   },
 
   /**
-   * Full per-DUTY trust stats + recent decision log, for the /trust page.
-   * `duties[<slug>]` holds one whole-duty stats block (no action dimension).
+   * Full per-AGENT_RESPONSIBILITY trust stats + recent decision log, for the /trust page.
+   * `agentResponsibilities[<slug>]` holds one whole-agentResponsibility stats block (no action dimension).
    */
   trust: async (): Promise<{
-    duties: Record<
+    agentResponsibilities: Record<
       string,
       {
         approvals: number;
@@ -1730,17 +2158,17 @@ export const ctoApi = {
   },
 
   /**
-   * Apply one operator override to a duty's autonomy (whole duty):
+   * Apply one operator override to a agentResponsibility's autonomy (whole agentResponsibility):
    * `reset` (wipe), `graduate` (force auto now), `degrade` (force ask).
    * Never posts an `@kody` command — it only rewrites trust state.
    */
   setTrust: async (input: {
-    duty: string;
+    agentResponsibility: string;
     op: import("./cto/trust-state").TrustOp;
     actorLogin?: string;
   }): Promise<{
     ok: true;
-    duty: string;
+    agentResponsibility: string;
     op: import("./cto/trust-state").TrustOp;
     stats: {
       approvals: number;
@@ -1775,6 +2203,15 @@ export const activityApi = {
     });
     return handleResponse(res);
   },
+  /** Kody run timelines loaded from GitHub Actions artifacts. */
+  runLogs: async (): Promise<
+    import("./activity/run-logs").KodyRunLogsSnapshot
+  > => {
+    const res = await fetch(`${API_BASE}/activity/run-logs`, {
+      headers: buildHeaders(),
+    });
+    return handleResponse(res);
+  },
   /** Dashboard-native action log (in-memory; free to poll). */
   log: async (): Promise<{
     entries: import("./activity/action-log").ActionLogEntry[];
@@ -1786,7 +2223,7 @@ export const activityApi = {
     });
     return handleResponse(res);
   },
-  /** Company activity — engine-authored, attributed actions (duty runs). */
+  /** Company activity — engine-authored, attributed actions (agentResponsibility runs). */
   autonomous: async (): Promise<{
     records: import("./activity/company").CompanyActivityRecord[];
     total: number;
@@ -1931,7 +2368,7 @@ import type {
 } from "./company/types";
 
 export const companyApi = {
-  /** Export the connected repo's staff/duties/prompts/instructions bundle. */
+  /** Export the connected repo's agent/agent-responsibilities/prompts/instructions bundle. */
   export: async (): Promise<CompanyBundle> => {
     const res = await fetch(`${API_BASE}/company`, {
       headers: buildHeaders(),
@@ -1956,7 +2393,7 @@ export const companyApi = {
     return data.result;
   },
 
-  /** The operator list (`github.operators`) — who recommendation duties
+  /** The operator list (`github.operators`) — who recommendation agentResponsibilities
    * @-mention so their comments land in the inbox. */
   operators: {
     get: async (): Promise<string[]> => {
@@ -2006,8 +2443,8 @@ export const companyApi = {
   },
 };
 
-/** The dashboard-editable slice of kody.config.json (see /company/config).
- * `perExecutable` (model routing) is edited on /models, the rest on /company. */
+/** The dashboard-editable slice of kody.config.json (see /engine).
+ * `perAgentAction` (model routing) is edited on /models, the rest here. */
 export interface EngineEditableConfig {
   quality: {
     typecheck?: string;
@@ -2017,8 +2454,29 @@ export interface EngineEditableConfig {
   };
   aliases: Record<string, string>;
   allowedAssociations: string[];
+  activeAgents?: string[];
+  activeAgentActions?: string[];
+  activeAgentResponsibilities?: string[];
+  activeCommands?: string[];
+  activeGoals?: Array<
+    | string
+    | {
+        template: string;
+        every?: string;
+        idPrefix?: string;
+        facts?: Record<string, unknown>;
+      }
+  >;
+  state: {
+    repo?: string;
+    path?: string;
+  } | null;
   defaultBranch: string;
-  perExecutable: Record<string, string>;
+  perAgentAction: Record<string, string>;
+  /** Thinking level for the engine (off|low|medium|high). Null = unset.
+   * Loose string here — the route validates the canonical vocabulary
+   * via Zod, so the client only needs the string channel. */
+  reasoningEffort: string | null;
 }
 
 // ============ Jobs API ============
@@ -2027,9 +2485,9 @@ import type { KodyJob } from "./kody-job";
 
 export const jobsApi = {
   /**
-   * Run an INSTANT job — assembles to an `@kody <executable> [why]` dispatch on
-   * the job's target issue/PR. Scheduled jobs persist as a duty instead (see
-   * `dutiesApi.create`), so this only accepts `flavor: "instant"`.
+   * Run an INSTANT job — assembles to an `@kody <agentAction> [why]` dispatch on
+   * the job's target issue/PR. Scheduled jobs persist as a agentResponsibility instead (see
+   * `agentResponsibilitiesApi.create`), so this only accepts `flavor: "instant"`.
    */
   run: async (
     job: KodyJob,
@@ -2040,6 +2498,70 @@ export const jobsApi = {
       headers: buildHeaders(),
       body: JSON.stringify({ ...job, actorLogin }),
     });
+    return handleResponse(res);
+  },
+};
+
+// ============ Company Intents API ============
+
+export const companyIntentsApi = {
+  list: async (): Promise<CompanyIntentRecord[]> => {
+    const res = await fetch(`${API_BASE}/company/intents`, {
+      headers: buildHeaders(),
+      cache: "no-store",
+    });
+    const payload = await handleResponse<{ intents: CompanyIntentRecord[] }>(
+      res,
+    );
+    return payload.intents;
+  },
+  create: async (
+    data: CompanyIntentInput & { actorLogin?: string },
+  ): Promise<CompanyIntentRecord> => {
+    const res = await fetch(`${API_BASE}/company/intents`, {
+      method: "POST",
+      headers: buildHeaders(),
+      body: JSON.stringify(data),
+    });
+    const payload = await handleResponse<{ intent: CompanyIntentRecord }>(res);
+    return payload.intent;
+  },
+  update: async (
+    id: string,
+    data: Partial<CompanyIntentInput> & {
+      status?: CompanyIntentStatus;
+      actorLogin?: string;
+    },
+  ): Promise<CompanyIntentRecord> => {
+    const res = await fetch(
+      `${API_BASE}/company/intents/${encodeURIComponent(id)}`,
+      {
+        method: "PATCH",
+        headers: buildHeaders(),
+        body: JSON.stringify(data),
+      },
+    );
+    const payload = await handleResponse<{ intent: CompanyIntentRecord }>(res);
+    return payload.intent;
+  },
+  run: async (
+    id: string,
+    actorLogin?: string,
+  ): Promise<{
+    ok: true;
+    workflowId: string;
+    ref: string;
+    action: string;
+    intentId: string;
+  }> => {
+    const res = await fetch(
+      `${API_BASE}/company/intents/${encodeURIComponent(id)}/run`,
+      {
+        method: "POST",
+        headers: buildHeaders(),
+        body: JSON.stringify({ ...(actorLogin ? { actorLogin } : {}) }),
+      },
+    );
     return handleResponse(res);
   },
 };
@@ -2056,10 +2578,13 @@ export const kodyApi = {
   workflows: workflowsApi,
   ci: ciApi,
   remote: remoteApi,
-  duties: dutiesApi,
-  staff: staffApi,
+  agentResponsibilities: agentResponsibilitiesApi,
+  agent: staffApi,
   context: contextApi,
+  todos: todosApi,
+  memory: memoryApi,
   company: companyApi,
+  companyIntents: companyIntentsApi,
   reports: reportsApi,
   goals: goalsApi,
   messages: messagesApi,

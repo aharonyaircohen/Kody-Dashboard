@@ -35,6 +35,19 @@ const BUILDER_HOST_APP =
   process.env.KODY_PREVIEW_BUILDER_HOST_APP ?? "kody-preview-builder";
 
 const SPAWN_TIMEOUT_MS = 30_000;
+const BUILDER_MAINTENANCE_TIMEOUT_MS = 10_000;
+const BUILDER_STALE_MS = 2 * 60 * 60 * 1000;
+const DEFAULT_BUILDER_CPUS = 4;
+const DEFAULT_BUILDER_MEMORY_MB = 4096;
+
+interface BuilderMachineInfo {
+  id?: string;
+  state?: string;
+  created_at?: string;
+  config?: {
+    env?: Record<string, string>;
+  };
+}
 
 export interface SpawnBuilderInput {
   repo: string;
@@ -62,6 +75,9 @@ export interface SpawnBuilderInput {
   previewVmMemoryMb?: number;
   previewIdleSuspend?: boolean;
   previewHealthCheck?: boolean;
+  /** Temporary machine that runs clone + flyctl orchestration. */
+  builderCpus?: number;
+  builderMemoryMb?: number;
 }
 
 export interface SpawnBuilderResult {
@@ -71,6 +87,13 @@ export interface SpawnBuilderResult {
   expectedUrl: string;
 }
 
+export interface PreviewBuilderStatus {
+  state: "building" | "failed";
+  machineId?: string;
+  machineState?: string;
+  createdAt?: string;
+}
+
 function defaultTagFor(repo: string, ref: string): string {
   return createHash("sha256")
     .update(`${repo}@${ref}`)
@@ -78,9 +101,141 @@ function defaultTagFor(repo: string, ref: string): string {
     .slice(0, 12);
 }
 
+function builderAuthHeaders(token: string): Record<string, string> {
+  return {
+    Authorization: `Bearer ${token}`,
+    "Content-Type": "application/json",
+  };
+}
+
+function builderMachinesUrl(machineId?: string): string {
+  const base = `${FLY_MACHINES_BASE}/apps/${encodeURIComponent(BUILDER_HOST_APP)}/machines`;
+  return machineId
+    ? `${base}/${encodeURIComponent(machineId)}?force=true`
+    : base;
+}
+
+function isDestroyableBuilderState(state?: string): boolean {
+  return state !== "destroyed" && state !== "destroying";
+}
+
+function isStaleBuilder(machine: BuilderMachineInfo, now: number): boolean {
+  if (!machine.created_at) return false;
+  const created = Date.parse(machine.created_at);
+  return Number.isFinite(created) && now - created > BUILDER_STALE_MS;
+}
+
+function shouldDestroyBuilder(
+  machine: BuilderMachineInfo,
+  targetAppName: string,
+  now: number,
+): boolean {
+  if (!machine.id || !isDestroyableBuilderState(machine.state)) return false;
+  const samePreview = machine.config?.env?.APP_NAME === targetAppName;
+  return samePreview || isStaleBuilder(machine, now);
+}
+
+function isActiveBuilderState(state?: string): boolean {
+  return (
+    state !== "destroyed" &&
+    state !== "destroying" &&
+    state !== "stopped" &&
+    state !== "failed"
+  );
+}
+
+function newestFirst(a: BuilderMachineInfo, b: BuilderMachineInfo): number {
+  const aTime = a.created_at ? Date.parse(a.created_at) : 0;
+  const bTime = b.created_at ? Date.parse(b.created_at) : 0;
+  return bTime - aTime;
+}
+
+export async function getPreviewBuilderStatus(
+  appName: string,
+  token: string,
+): Promise<PreviewBuilderStatus | null> {
+  try {
+    const res = await fetch(builderMachinesUrl(), {
+      method: "GET",
+      headers: builderAuthHeaders(token),
+      signal: AbortSignal.timeout(BUILDER_MAINTENANCE_TIMEOUT_MS),
+    });
+    if (!res.ok) return null;
+
+    const machines = ((await res.json()) as BuilderMachineInfo[])
+      .filter((m) => m.config?.env?.APP_NAME === appName)
+      .sort(newestFirst);
+    const latest = machines[0];
+    if (!latest) return null;
+
+    return {
+      state: isActiveBuilderState(latest.state) ? "building" : "failed",
+      machineId: latest.id,
+      machineState: latest.state,
+      createdAt: latest.created_at,
+    };
+  } catch (err) {
+    logger.warn({ err, appName }, "previews.builder: status lookup failed");
+    return null;
+  }
+}
+
+async function destroyBuilderMachine(
+  machineId: string,
+  token: string,
+): Promise<void> {
+  const res = await fetch(builderMachinesUrl(machineId), {
+    method: "DELETE",
+    headers: builderAuthHeaders(token),
+    signal: AbortSignal.timeout(BUILDER_MAINTENANCE_TIMEOUT_MS),
+  });
+  if (!res.ok && res.status !== 404) {
+    const text = await res.text().catch(() => "");
+    throw new Error(
+      `destroy builder ${machineId} failed: ${res.status} ${text.slice(0, 200)}`,
+    );
+  }
+}
+
+async function pruneBuilderMachines(
+  token: string,
+  targetAppName: string,
+): Promise<void> {
+  try {
+    const res = await fetch(builderMachinesUrl(), {
+      method: "GET",
+      headers: builderAuthHeaders(token),
+      signal: AbortSignal.timeout(BUILDER_MAINTENANCE_TIMEOUT_MS),
+    });
+    if (!res.ok) return;
+    const machines = (await res.json()) as BuilderMachineInfo[];
+    const now = Date.now();
+    const doomed = machines.filter((m) =>
+      shouldDestroyBuilder(m, targetAppName, now),
+    );
+    await Promise.all(
+      doomed.map((m) =>
+        destroyBuilderMachine(m.id!, token).catch((err) =>
+          logger.warn(
+            { err, machineId: m.id, targetAppName },
+            "previews.builder: stale builder destroy failed",
+          ),
+        ),
+      ),
+    );
+  } catch (err) {
+    logger.warn(
+      { err, targetAppName },
+      "previews.builder: stale builder scan failed",
+    );
+  }
+}
+
 export async function spawnPreviewBuilder(
   input: SpawnBuilderInput,
 ): Promise<SpawnBuilderResult> {
+  await pruneBuilderMachines(input.flyToken, input.appName);
+
   const tag = input.imageTag ?? defaultTagFor(input.repo, input.ref);
   const body = {
     config: {
@@ -140,12 +295,13 @@ export async function spawnPreviewBuilder(
       },
       auto_destroy: true,
       restart: { policy: "no" },
-      // This machine only orchestrates: clones, calls flyctl, manages
-      // app/IP/preview-machine on Fly's API. The actual `docker build`
-      // happens on the org's traditional remote builder app
-      // (fly-builder-<org>) — that's where memory + CPU matter. Keep
-      // this orchestrator small.
-      guest: { cpu_kind: "shared", cpus: 2, memory_mb: 1024 },
+      // This machine orchestrates clone/install/flyctl work. Docker still
+      // runs on Fly's remote builder, but large repos need more room here.
+      guest: {
+        cpu_kind: "shared",
+        cpus: input.builderCpus ?? DEFAULT_BUILDER_CPUS,
+        memory_mb: input.builderMemoryMb ?? DEFAULT_BUILDER_MEMORY_MB,
+      },
     },
     region: input.flyRegion,
   };
@@ -154,10 +310,7 @@ export async function spawnPreviewBuilder(
     `${FLY_MACHINES_BASE}/apps/${encodeURIComponent(BUILDER_HOST_APP)}/machines`,
     {
       method: "POST",
-      headers: {
-        Authorization: `Bearer ${input.flyToken}`,
-        "Content-Type": "application/json",
-      },
+      headers: builderAuthHeaders(input.flyToken),
       body: JSON.stringify(body),
       signal: AbortSignal.timeout(SPAWN_TIMEOUT_MS),
     },

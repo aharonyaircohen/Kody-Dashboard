@@ -25,6 +25,14 @@ export interface Message {
     result?: unknown;
     status: "running" | "success" | "error";
     durationMs?: number;
+    /**
+     * Human-readable description of the tool (the same string the model uses
+     * to decide whether to call it). Populated for Kody Direct turns from the
+     * `data-tools-index` event the route emits at the start of the stream;
+     * absent for Brain/Engine chats until their streams are updated to
+     * populate the same slot.
+     */
+    description?: string;
   }>;
   /** Attachment refs (blobs live in IndexedDB). */
   attachments?: AttachmentRef[];
@@ -82,6 +90,14 @@ export interface ToolCall {
   status: "running" | "success" | "error";
   startedAt?: number;
   durationMs?: number;
+  /**
+   * Human-readable description of the tool (the same string the model uses
+   * to decide whether to call it). Populated for Kody Direct turns from the
+   * `data-tools-index` event the route emits at the start of the stream;
+   * absent for Brain/Engine chats until their streams are updated to
+   * populate the same slot.
+   */
+  description?: string;
 }
 
 export interface Attachment {
@@ -98,7 +114,7 @@ export interface Attachment {
 export interface KodyChatProps {
   /**
    * What this chat is "about". Today only task-scoped chat is supported;
-   * the discriminated union leaves room for other kinds (e.g. duty
+   * the discriminated union leaves room for other kinds (e.g. agentResponsibility
    * drafting) to be added in later phases without touching every access
    * site in this component.
    *
@@ -178,6 +194,12 @@ export interface KodyChatProps {
     dataUrl: string;
     mimeType: string;
   } | null;
+  /**
+   * Ambient preview context supplied by the page shell. Used by the standalone
+   * Preview workspace so uploaded static pages are understood by chat even
+   * before the inspector extension can return a live DOM snapshot.
+   */
+  previewContext?: string | null;
 }
 
 /**
@@ -186,6 +208,7 @@ export interface KodyChatProps {
  * transfer logic kicks in (see `pendingCreatedIssue` in `sendText`).
  */
 export const ISSUE_CREATION_TOOL_NAMES = new Set<string>([
+  "create_task",
   "create_feature",
   "create_enhancement",
   "create_refactor",
@@ -193,3 +216,20 @@ export const ISSUE_CREATION_TOOL_NAMES = new Set<string>([
   "create_chore",
   "report_bug",
 ]);
+
+export function getCreatedIssueNumberFromToolOutput(
+  toolName: string | undefined,
+  output: unknown,
+): number | null {
+  if (!toolName || !ISSUE_CREATION_TOOL_NAMES.has(toolName)) {
+    return null;
+  }
+  if (!output || typeof output !== "object" || !("number" in output)) {
+    return null;
+  }
+
+  const number = (output as { number?: unknown }).number;
+  return typeof number === "number" && Number.isInteger(number) && number > 0
+    ? number
+    : null;
+}

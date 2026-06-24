@@ -2,12 +2,13 @@
  * @fileType tool
  * @domain kody
  * @pattern ai-sdk-tool
- * @ai-summary Goal-planner tools for the kody chat agent. Wired into the chat
- *   route only when the chat is opened in goal-planner mode (see
- *   `system-prompt.ts` -> "Goal planning mode"). The single tool here creates
- *   a real GitHub issue and attaches it to the goal via the `goal:<id>` label
+ * @ai-summary Mission-planner tools for the kody chat agent. Wired into the chat
+ *   route only when the chat is opened in mission-planner mode (legacy
+ *   goal-planner slug; see `system-prompt.ts` -> "Mission planning mode").
+ *   The single tool here creates a real GitHub issue and attaches it to the
+ *   mission via the `goal:<id>` label
  *   (the same label `GOAL_LABEL_PREFIX` uses on the dashboard side), so the
- *   issue immediately shows up under the goal's task list.
+ *   issue immediately shows up under the mission's task list.
  *
  *   Body markup is reused from task-tools.ts so chat-created planner tasks
  *   are indistinguishable from tasks created via the New Task dialog.
@@ -17,6 +18,7 @@ import { z } from "zod";
 import type { Octokit } from "@octokit/rest";
 import { logger } from "@dashboard/lib/logger";
 import { PRIORITY_LEVELS, type PriorityLevel } from "@dashboard/lib/constants";
+import { createIssueWithBestEffortMetadata } from "@dashboard/lib/github-issue-create";
 import {
   CATEGORY_LABEL,
   CATEGORY_VALUES,
@@ -35,6 +37,10 @@ interface Ctx {
   goalId: string;
 }
 
+function appendWarnings(note: string, warnings: string[]): string {
+  return warnings.length ? `${note} ${warnings.join(" ")}` : note;
+}
+
 // Mirror of GOAL_LABEL_PREFIX in src/dashboard/lib/goals.ts. Duplicated here
 // rather than imported so the API tool stays decoupled from the dashboard
 // component tree (the route already avoids deep `@dashboard` imports).
@@ -49,7 +55,7 @@ export function createPlannerTools(ctx: Ctx) {
     create_task_for_goal: tool({
       description:
         `Create a single fully-specced GitHub issue in ${repoRef} and attach it to ` +
-        `the current goal (label \`${goalLabel}\`). Use this **only** in goal-planning ` +
+        `the current mission (label \`${goalLabel}\`). Use this **only** in mission-planning ` +
         "mode, after the user has approved the proposed task list. Call once per " +
         "approved task. Before calling, research the codebase (github_search_code, " +
         "github_get_file, github_blame) so the body is concrete: real file paths, " +
@@ -85,14 +91,15 @@ export function createPlannerTools(ctx: Ctx) {
               ? [actorLogin]
               : undefined;
         try {
-          const { data } = await octokit.rest.issues.create({
-            owner,
-            repo,
-            title: input.title,
-            body,
-            labels,
-            assignees: resolvedAssignees,
-          });
+          const { data, metadataWarnings } =
+            await createIssueWithBestEffortMetadata(octokit, {
+              owner,
+              repo,
+              title: input.title,
+              body,
+              labels,
+              assignees: resolvedAssignees,
+            });
           logger.info(
             { owner, repo, number: data.number, goalId, category, priority },
             "create_task_for_goal: created issue",
@@ -109,9 +116,11 @@ export function createPlannerTools(ctx: Ctx) {
             category,
             categoryLabel: CATEGORY_LABEL[category],
             goalId,
-            note:
-              `${CATEGORY_LABEL[category]} task filed and attached to goal "${goalId}". ` +
-              "Kody pipeline NOT auto-triggered — comment `@kody` on the issue to run it.",
+            note: appendWarnings(
+          `${CATEGORY_LABEL[category]} task filed and attached to mission "${goalId}". ` +
+                "Kody pipeline NOT auto-triggered — comment `@kody` on the issue to run it.",
+              metadataWarnings,
+            ),
           };
         } catch (err) {
           logger.warn(

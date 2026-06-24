@@ -2,10 +2,10 @@
  * @fileType api-endpoint
  * @domain kody
  * @pattern commands-api
- * @ai-summary Command detail API — GET reads a single command (repo or
- *   built-in), PATCH updates a repo command, DELETE removes it. Built-ins
- *   are read-only; trying to mutate one returns 405. Backed by
- *   `.kody/commands/<slug>.md` via the GitHub contents API.
+ * @ai-summary Command detail API — GET reads a single repo, activated Store, or
+ * fallback built-in command. PATCH writes a repo command; DELETE removes a repo
+ * command or clears an activated Store command reference. Fallback built-ins are
+ * read-only.
  */
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { NextRequest, NextResponse } from "next/server";
@@ -28,6 +28,24 @@ import {
   listCommands,
 } from "@dashboard/lib/commands";
 import { recordAudit } from "@dashboard/lib/activity/audit";
+import {
+  getEngineConfig,
+  writeConfigPatch,
+} from "@dashboard/lib/engine/config";
+
+async function readActiveCommands(
+  req: NextRequest,
+  headerAuth: ReturnType<typeof getRequestAuth>,
+): Promise<string[]> {
+  const octokit = await getUserOctokit(req);
+  if (!octokit || !headerAuth) return [];
+  const { config } = await getEngineConfig(
+    octokit,
+    headerAuth.owner,
+    headerAuth.repo,
+  );
+  return config.company?.activeCommands ?? [];
+}
 
 export async function GET(
   req: NextRequest,
@@ -38,21 +56,28 @@ export async function GET(
 
   const headerAuth = getRequestAuth(req);
   if (headerAuth)
-    setGitHubContext(headerAuth.owner, headerAuth.repo, headerAuth.token);
+    setGitHubContext(
+      headerAuth.owner,
+      headerAuth.repo,
+      headerAuth.token,
+      headerAuth.storeRepoUrl,
+      headerAuth.storeRef,
+    );
 
   try {
     const { slug } = await params;
     if (!isValidSlug(slug)) {
       return NextResponse.json({ error: "invalid_slug" }, { status: 400 });
     }
-    // Repo file wins; if absent, fall back to a built-in match through listCommands.
+    // Repo file wins; if absent, fall back to activated Store or built-in commands.
     const repoFile = await readCommandFile(slug);
     if (repoFile) return NextResponse.json({ command: repoFile });
-    const all = await listCommands();
-    const builtin = all.find((p) => p.slug === slug);
-    if (!builtin)
+    const activeCommands = new Set(await readActiveCommands(req, headerAuth));
+    const all = await listCommands({ activeStoreSlugs: activeCommands });
+    const baseCommand = all.find((p) => p.slug === slug);
+    if (!baseCommand)
       return NextResponse.json({ error: "not_found" }, { status: 404 });
-    return NextResponse.json({ command: builtin });
+    return NextResponse.json({ command: baseCommand });
   } catch (error: any) {
     console.error("[Commands] Error fetching command:", error);
     return NextResponse.json(
@@ -83,7 +108,13 @@ export async function PATCH(
 
   const headerAuth = getRequestAuth(req);
   if (headerAuth)
-    setGitHubContext(headerAuth.owner, headerAuth.repo, headerAuth.token);
+    setGitHubContext(
+      headerAuth.owner,
+      headerAuth.repo,
+      headerAuth.token,
+      headerAuth.storeRepoUrl,
+      headerAuth.storeRef,
+    );
 
   try {
     const { slug } = await params;
@@ -110,8 +141,8 @@ export async function PATCH(
       );
     }
 
-    // If there is no repo file yet, treat PATCH as "fork the built-in"
-    // by writing a new repo file seeded with the built-in's current
+    // If there is no repo file yet, treat PATCH as "fork the shared command"
+    // by writing a new repo file seeded with the shared command's current
     // contents merged with the requested changes.
     const existing = await readCommandFile(slug);
     if (existing) {
@@ -134,26 +165,27 @@ export async function PATCH(
       return NextResponse.json({ command });
     }
 
-    const all = await listCommands();
-    const builtin = all.find((p) => p.slug === slug);
-    if (!builtin)
+    const activeCommands = new Set(await readActiveCommands(req, headerAuth));
+    const all = await listCommands({ activeStoreSlugs: activeCommands });
+    const baseCommand = all.find((p) => p.slug === slug);
+    if (!baseCommand)
       return NextResponse.json({ error: "not_found" }, { status: 404 });
 
     const command = await writeCommandFile({
       octokit: userOctokit,
       slug,
-      description: description ?? builtin.description,
+      description: description ?? baseCommand.description,
       argumentHint:
         argumentHint === undefined
-          ? builtin.argumentHint
+          ? baseCommand.argumentHint
           : (argumentHint ?? ""),
-      body: body ?? builtin.body,
-      message: `feat(commands): override built-in ${slug}`,
+      body: body ?? baseCommand.body,
+      message: `feat(commands): override shared ${slug}`,
     });
     recordAudit(req, {
       action: "command.update",
       resource: slug,
-      detail: `forked built-in command /${slug}`,
+      detail: `forked shared command /${slug}`,
     });
     return NextResponse.json({ command });
   } catch (error: any) {
@@ -191,27 +223,18 @@ export async function DELETE(
 
   const headerAuth = getRequestAuth(req);
   if (headerAuth)
-    setGitHubContext(headerAuth.owner, headerAuth.repo, headerAuth.token);
+    setGitHubContext(
+      headerAuth.owner,
+      headerAuth.repo,
+      headerAuth.token,
+      headerAuth.storeRepoUrl,
+      headerAuth.storeRef,
+    );
 
   try {
     const { slug } = await params;
     if (!isValidSlug(slug)) {
       return NextResponse.json({ error: "invalid_slug" }, { status: 400 });
-    }
-
-    const existing = await readCommandFile(slug);
-    if (!existing) {
-      // Built-ins can't be deleted from the dashboard. The user can
-      // either fork-and-edit, or drop `.kody/commands/.disable-builtins`
-      // to suppress every built-in.
-      return NextResponse.json(
-        {
-          error: "builtin_readonly",
-          message:
-            "Built-in commands cannot be deleted. Use the disable-builtins toggle to hide them all, or just edit this command to override it with your own version.",
-        },
-        { status: 405 },
-      );
     }
 
     const { searchParams } = new URL(req.url);
@@ -228,6 +251,52 @@ export async function DELETE(
             "A signed-in GitHub token is required to delete command files.",
         },
         { status: 401 },
+      );
+    }
+
+    const existing = await readCommandFile(slug);
+    if (!existing) {
+      if (headerAuth) {
+        const { config } = await getEngineConfig(
+          userOctokit,
+          headerAuth.owner,
+          headerAuth.repo,
+          { force: true },
+        );
+        const activeCommands = config.company?.activeCommands ?? [];
+        if (activeCommands.includes(slug)) {
+          const nextActiveCommands = activeCommands.filter(
+            (value) => value !== slug,
+          );
+          await writeConfigPatch(
+            userOctokit,
+            headerAuth.owner,
+            headerAuth.repo,
+            {
+              activeCommands:
+                nextActiveCommands.length > 0 ? nextActiveCommands : null,
+            },
+            `chore(kody): remove store command ${slug}`,
+          );
+          recordAudit(req, {
+            action: "command.removeStoreReference",
+            resource: slug,
+            detail: `removed Store command /${slug}`,
+          });
+          return NextResponse.json({
+            success: true,
+            removedStoreReference: true,
+          });
+        }
+      }
+
+      return NextResponse.json(
+        {
+          error: "shared_readonly",
+          message:
+            "Shared commands cannot be deleted. Remove imported Store commands from this repo in Store Catalog, or edit to create a repo override.",
+        },
+        { status: 405 },
       );
     }
 

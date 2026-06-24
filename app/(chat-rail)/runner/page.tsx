@@ -1,24 +1,11 @@
 /**
  * @fileType page
  * @domain runner
- * @pattern runner-page
- * @ai-summary Per-repo Fly runner configuration entry point. Renders inside
- *   PageWithChat so the assistant is always available.
+ * @pattern runner-redirect
+ * @ai-summary Old Fly Runner URL kept as a redirect to the new Fly Config page.
  */
-import { RunnerManager } from "@dashboard/lib/components/RunnerManager";
-import { buildKodyMetadata } from "../../metadata";
-
-export const dynamic = "force-static";
-export const revalidate = false;
-export const fetchCache = "force-cache";
-
-export const metadata = buildKodyMetadata({
-  title: "Fly Runner — Kody Operations Dashboard",
-  description:
-    "Per-repo Fly infrastructure: warm-pool size, LiteLLM proxy, and Brain-on-Fly.",
-  path: "/runner",
-});
+import { redirect } from "next/navigation";
 
 export default function RunnerPage() {
-  return <RunnerManager />;
+  redirect("/fly/config");
 }

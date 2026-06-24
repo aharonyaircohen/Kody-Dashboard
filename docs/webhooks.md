@@ -62,7 +62,7 @@ verification is sufficient auth for a cache-invalidation endpoint.
 5. **Side effects (fire-and-forget).** When the payload is an object, the
    receiver also calls `dispatchNotifications` (Slack/Discord rules),
    `dispatchMentionPushes` (web push to `@`-mentioned users — see
-   [push.md](./push.md)), and `dispatchStaffMentions` (`@staff` →
+   [push.md](./push.md)), and `dispatchStaffMentions` (`@agent` →
    worker tick). All three swallow their own errors so a failed side
    effect never makes GitHub retry the delivery.
 6. **Respond.** **200** `{ ok: true, handled }` (`handled` is `false` for

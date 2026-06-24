@@ -1,7 +1,9 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
+import ts from "typescript";
 
 import {
   ensureTerminalBridge,
+  findTerminalBridge,
   TERMINAL_BRIDGE_SCRIPT,
   TERMINAL_BRIDGE_BASE_IMAGE,
   TERMINAL_BRIDGE_VERSION,
@@ -98,6 +100,14 @@ describe("ensureTerminalBridge", () => {
     expect(TERMINAL_BRIDGE_SCRIPT).toContain("--pty");
     expect(TERMINAL_BRIDGE_SCRIPT).toContain("python3");
     expect(TERMINAL_BRIDGE_SCRIPT).toContain("pty-relay.py");
+    expect(TERMINAL_BRIDGE_SCRIPT).toContain("persistentSessions");
+    expect(TERMINAL_BRIDGE_SCRIPT).toContain("chatSessionId");
+    expect(TERMINAL_BRIDGE_SCRIPT).toContain("activityLimitMs");
+    expect(TERMINAL_BRIDGE_SCRIPT).toContain(
+      "session.activityLimitMs !== null",
+    );
+    expect(TERMINAL_BRIDGE_SCRIPT).toContain('url.pathname === "/status"');
+    expect(TERMINAL_BRIDGE_SCRIPT).toContain("Reattached terminal session.");
     expect(TERMINAL_BRIDGE_SCRIPT).toContain(
       "Terminal did not answer the keyboard self-test.",
     );
@@ -110,6 +120,56 @@ describe("ensureTerminalBridge", () => {
       "Terminal opened, but it did not report a real TTY.",
     );
     expect(TERMINAL_BRIDGE_SCRIPT).not.toContain("SSH shell did not answer");
+  });
+
+  it("ships syntactically valid bridge JavaScript", () => {
+    const source = ts.createSourceFile(
+      "bridge.mjs",
+      TERMINAL_BRIDGE_SCRIPT,
+      ts.ScriptTarget.Latest,
+      true,
+      ts.ScriptKind.JS,
+    ) as ts.SourceFile & { parseDiagnostics: readonly ts.Diagnostic[] };
+
+    expect(source.parseDiagnostics).toHaveLength(0);
+  });
+
+  it("boots flyctl with WireGuard over WebSockets enabled", async () => {
+    const app = terminalBridgeAppName(CFG);
+    const calls = installFetchStub((call) => {
+      if (call.method === "GET" && call.url.endsWith(`/apps/${app}`)) {
+        return { status: 404 };
+      }
+      if (call.method === "POST" && call.url.endsWith("/apps")) {
+        return { json: { name: app } };
+      }
+      if (call.method === "GET" && call.url.endsWith(`/apps/${app}/machines`)) {
+        return { status: 404 };
+      }
+      if (
+        call.method === "POST" &&
+        call.url.endsWith(`/apps/${app}/machines`)
+      ) {
+        return { json: { id: "bridge-1", state: "started", region: "fra" } };
+      }
+      throw new Error(`unexpected call: ${call.method} ${call.url}`);
+    });
+
+    await ensureTerminalBridge(CFG);
+
+    const createMachine = calls.find(
+      (call) =>
+        call.method === "POST" && call.url.endsWith(`/apps/${app}/machines`),
+    )!;
+    const startFile = (
+      createMachine.body as {
+        config: { files: Array<{ guest_path: string; raw_value: string }> };
+      }
+    ).config.files.find((file) => file.guest_path === "/app/start.sh")!;
+    const startScript = Buffer.from(startFile.raw_value, "base64").toString(
+      "utf8",
+    );
+    expect(startScript).toContain("wire_guard_websockets: true");
   });
 
   it("creates the bridge app and machine when missing", async () => {
@@ -207,6 +267,49 @@ describe("ensureTerminalBridge", () => {
 
     expect(out.machineId).toBe("bridge-existing");
     expect(out.secret).toBe("existing-secret");
+    expect(
+      calls.some(
+        (call) =>
+          call.method === "POST" && call.url.endsWith(`/apps/${app}/machines`),
+      ),
+    ).toBe(false);
+  });
+
+  it("finds an existing current bridge without creating one", async () => {
+    const app = terminalBridgeAppName(CFG);
+    const calls = installFetchStub((call) => {
+      if (call.method === "GET" && call.url.endsWith(`/apps/${app}`)) {
+        return { json: { name: app } };
+      }
+      if (call.method === "GET" && call.url.endsWith(`/apps/${app}/machines`)) {
+        return {
+          json: [
+            {
+              id: "bridge-existing",
+              state: "started",
+              region: "fra",
+              config: {
+                image: `${TERMINAL_BRIDGE_BASE_IMAGE}@sha256:abc`,
+                env: {
+                  BRIDGE_AUTH_SECRET: "existing-secret",
+                  KODY_TERMINAL_BRIDGE_VERSION: TERMINAL_BRIDGE_VERSION,
+                },
+              },
+            },
+          ],
+        };
+      }
+      throw new Error(`unexpected call: ${call.method} ${call.url}`);
+    });
+
+    const out = await findTerminalBridge(CFG);
+
+    expect(out).toMatchObject({
+      app,
+      machineId: "bridge-existing",
+      secret: "existing-secret",
+      url: `https://${app}.fly.dev`,
+    });
     expect(
       calls.some(
         (call) =>

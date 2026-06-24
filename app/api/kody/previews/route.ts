@@ -8,7 +8,7 @@
  * Dashboard owns the full flow:
  *   1. Resolves Fly token + GitHub token from the target repo's vault
  *   2. Calls kody-preview-builder to clone+build the image
- *   3. Tries the warm pool, falls back to create-fresh
+ *   3. The builder creates or refreshes the preview app
  *
  * Auth: requireKodyAuth (operator session, header PAT, or KODY_BOT_TOKEN).
  *

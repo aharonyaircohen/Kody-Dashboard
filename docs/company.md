@@ -2,33 +2,33 @@
 
 A **Company** is your org's portable operating manual — the
 repo-agnostic answer to _"who works here, what recurring work runs, what
-slash commands and custom executables exist, and how Kody should
+slash commands and custom agentActions exist, and how Kody should
 behave."_ You **export** it from one repo as a single JSON file and
 **import** it into another to stand up the same team instantly.
 
 The line the bundle draws is deliberate: a Company carries the
-**operating manual**, never the **operating state**. Staff, duties,
-commands, custom executables, instructions, and a portable slice of
+**operating manual**, never the **operating state**. Agents, agentResponsibilities,
+commands, custom agentActions, instructions, and a portable slice of
 engine policy travel; memory, secrets, variables, goals, the inbox,
 notifications, and the default branch stay behind, because those belong
 to the _repo_, not the _company_ — and a company may span several repos.
 See [`src/dashboard/lib/company/types.ts`](../src/dashboard/lib/company/types.ts)
 for the exact include/exclude list, encoded as the `CompanyBundle` shape.
 
-Staff and duties are the heart of the bundle; read
-[`./concepts/staff-duties.md`](./concepts/staff-duties.md) first if the
-persona/scheduled-work split is new to you.
+Agents and agentResponsibilities are the heart of the bundle; read
+[`./concepts/agents-agent-responsibilities.md`](./concepts/agents-agent-responsibilities.md) first if the
+agent/scheduled-work split is new to you.
 
 ## The pieces
 
 | Piece               | What travels                                                                                                                                                | Source on export                                                                  |
 | ------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------- |
-| **Staff**           | Each persona's slug, title, body, `disabled`. Schedule is always `null` and `staff` always `null` (staff don't run on their own).                           | `.kody/staff/*.md` via `listStaffFiles()`                                         |
-| **Duties**          | Each duty's slug, title, body, `schedule` (`every:` cadence), `disabled`, and the `staff` slug it runs as.                                                  | `.kody/duties/*.md` via `listDutyFiles()`                                         |
+| **Agents**           | Each agent's slug, title, body, `disabled`. Schedule is always `null`, and agentResponsibility-only role fields are always `null` (agent don't run on their own).        | `.kody/agents/*.md` via `listStaffFiles()`                                         |
+| **AgentResponsibilities**          | Each agentResponsibility's slug, title, body, action, agentAction link, cadence, `disabled`, data contracts, output `reviewer`, and the `runner` agent slug it runs as.     | `.kody/agent-responsibilities/<slug>/{profile.json,agent-responsibility.md}` via `listAgentResponsibilityFiles()`                |
 | **Commands**        | Repo-defined slash commands only — slug, description, argument hint, body. Built-ins ship with the dashboard, so they're never exported.                    | `.kody/commands/*.md` via `listRepoCommandFiles()` (filtered `source === "repo"`) |
-| **Executables**     | Each custom executable as a folder map: `profile.json` + `prompt.md` + any `*.sh` shell scripts + any `skills/<name>/SKILL.md`.                             | `.kody/duties/<slug>/` via `listExecutableFiles()` / `readExecutableFile()`       |
+| **AgentActions**     | Each custom agentAction as a folder map: `profile.json` + `prompt.md` + any `*.sh` shell scripts + any `skills/<name>/SKILL.md`.                             | `.kody/agent-actions/<slug>/` via `listAgentActionFiles()` / `readAgentActionFile()`  |
 | **Instructions**    | The single repo behavioral overlay (tone/length/formatting), or `null` if the repo has none.                                                                | `.kody/instructions.md` via `readInstructionsFile()`                              |
-| **Config** (policy) | A repo-agnostic slice of `kody.config.json`: quality commands, comment aliases, the `@kody` access gate, default executables, per-executable model routing. | `kody.config.json` via `getEngineConfig()`                                        |
+| **Config** (policy) | A repo-agnostic slice of `kody.config.json`: quality commands, comment aliases, the `@kody` access gate, default agentActions, per-agentAction model routing. | `kody.config.json` via `getEngineConfig()`                                        |
 
 What it **excludes**, by design: memory, the secrets vault, variables,
 dashboard/runtime config, goals, the inbox, notifications, and the
@@ -46,8 +46,8 @@ even though the rest of `kody.config.json` is partly portable. The
 
 One JSON document, `kodyCompany: 1` as its format discriminator, plus
 provenance (`exportedAt`, `exportedFrom: "owner/repo"`). Each entry stores
-only what round-trips through the existing file helpers — slug,
-frontmatter, body — and **drops repo-specific fields** (`sha`,
+only what round-trips through the existing file helpers - slug,
+metadata, body - and **drops repo-specific fields** (`sha`,
 `html_url`, commit/tick timestamps) on export, re-deriving them on import.
 The downloaded filename is `kody-company-<owner>-<repo>-<YYYY-MM-DD>.json`.
 
@@ -62,8 +62,8 @@ shape, so a malformed or unrelated JSON file is rejected up front with
 ┌──────────────────────────┐  GET /api/kody/company  ┌──────────────────────────────┐
 │ /company page (Export)   │────────────────────────▶│ buildCompanyBundle()          │
 └──────────────────────────┘                         │  fan out 6 independent reads: │
-            ▲                                         │  staff · duties · commands ·  │
-            │ download JSON                           │  executables · instructions · │
+            ▲                                         │  agent · agentResponsibilities · commands ·  │
+            │ download JSON                           │  agentActions · instructions · │
             │                                         │  config                        │
             └─────────────────────────────────────────└──────────────┬───────────────┘
                                                                       │ map → repo-agnostic
@@ -84,22 +84,22 @@ than a bag of empties).
 ┌──────────────────────────┐  POST /api/kody/company   ┌──────────────────────────────┐
 │ /company page (Import)   │─────────────────────────▶│ applyCompanyBundle(octokit,    │
 │  choose .json + mode     │   { bundle, mode,          │                bundle, mode)   │
-└──────────────────────────┘     actorLogin }           │  staff → duties → commands →   │
-            ▲                                            │  executables → instructions →  │
+└──────────────────────────┘     actorLogin }           │  agent → agentResponsibilities → commands →   │
+            ▲                                            │  agentActions → instructions →  │
             │ per-collection tally                       │  config (last)                 │
             └────────────────────────────────────────────└──────────────┬───────────────┘
-                                                                         │ writeStaffFile / writeDutyFile /
-                                                                         │ writeCommandFile / writeExecutableFile /
+                                                                         │ writeStaffFile / writeAgentResponsibilityFile /
+                                                                         │ writeCommandFile / writeAgentActionFile /
                                                                          ▼ writeInstructionsFile / writeConfigPatch
                                                           ┌──────────────────────────────┐
                                                           │ commits to the connected repo  │
                                                           └──────────────────────────────┘
 ```
 
-Ordering is intentional: **staff before duties** (so a duty naming a
-staff member lands after its executor exists — cosmetic; the engine
+Ordering is intentional: **agent before agentResponsibilities** (so a agentResponsibility naming a
+agent member lands after its executor exists — cosmetic; the engine
 resolves at tick time regardless), and **config last** because it may
-reference executables (the `default*Executable` slugs) the earlier steps
+reference agentActions (the `default*AgentAction` slugs) the earlier steps
 just created.
 
 ### Collision handling — `skip` vs `overwrite`
@@ -124,7 +124,7 @@ failures the UI renders inline.
 
 ## Auth model
 
-Mirrors the staff/duties routes: a header PAT (`requireKodyAuth` +
+Mirrors the agent/agent-responsibilities routes: a header PAT (`requireKodyAuth` +
 `getRequestAuth`) is enough to **read** for export, but an **import**
 commits files, so it additionally requires a verified actor
 (`verifyActorLogin`) and a signed-in user octokit (`getUserOctokit`) —
@@ -137,15 +137,15 @@ The `/company` route also fronts two `kody.config.json` editors that are
 **repo-scoped settings, not part of the export/import bundle**:
 
 - **Operators** (`/api/kody/company/operators`) — the `github.operators`
-  list of GitHub logins that recommendation duties @-mention so their
+  list of GitHub logins that recommendation agentResponsibilities @-mention so their
   comments route into the dashboard inbox. Company-set explicitly, never
   auto-filled; an empty list means recommendations reach no inbox.
 - **Config** (`/api/kody/company/config`) — the dashboard-editable
   `kody.config.json` fields without their own page: quality verification
   commands, comment aliases, the `@kody` access gate
   (`access.allowedAssociations`), and the default branch
-  (`git.defaultBranch`). Per-executable model routing is edited on
-  `/models`; the default PR executable on the executables route.
+  (`git.defaultBranch`). Per-agentAction model routing is edited on
+  `/models`; the default PR agentAction on the agentActions route.
 
 These overlap the **policy** slice the bundle carries — but the bundle
 deliberately drops `git.defaultBranch` (repo-specific) and never touches
@@ -167,10 +167,10 @@ operators (a per-repo inbox-routing list, not company doctrine).
 
 ## FAQ
 
-**What's in a Company vs what stays behind?** In: staff, duties,
-repo-defined commands, custom executables, instructions, and a portable
+**What's in a Company vs what stays behind?** In: agent, agentResponsibilities,
+repo-defined commands, custom agentActions, instructions, and a portable
 config slice (quality commands, aliases, access gate, default
-executables, per-executable model routing). Out: memory, secrets,
+agentActions, per-agentAction model routing). Out: memory, secrets,
 variables, goals, inbox, notifications, dashboard runtime config, and the
 default branch.
 
@@ -189,10 +189,10 @@ file already exists on the target. `skip` (default) keeps the existing
 one; `overwrite` replaces it. For config, `skip` only fills fields the
 target hasn't set, so it never clobbers a deliberate value.
 
-**Why does staff import before duties, and config last?** Staff first so
-a duty's named executor already exists (cosmetic — the engine resolves at
+**Why does agent import before agentResponsibilities, and config last?** Agents first so
+a agentResponsibility's named executor already exists (cosmetic — the engine resolves at
 tick time anyway). Config last because it may reference
-`default*Executable` slugs the executable step just created.
+`default*AgentAction` slugs the agentAction step just created.
 
 **Can one bad entry fail the whole import?** No. Each entry is written in
 its own try/catch and tallied as `failed` with a note; the rest still
@@ -208,7 +208,7 @@ so pre-rename bundles still import their slash commands.
 
 > **Doc-vs-code note:** the `CompanyManager` docstring and the page's
 > static metadata still mention a one-time "legacy `.kody/jobs|workers` →
-> `duties|staff` folder migration" card. The current component renders
+> `agentResponsibilities|agent` folder migration" card. The current component renders
 > only Export and Import — there is **no migration card in the UI**. The
 > docstring is stale; legacy folder migration is not surfaced on this
 > page.

@@ -2,8 +2,8 @@
  * @fileType component
  * @domain kody
  * @pattern goal-grouped-view
- * @ai-summary Goal-first task list. Groups tasks by their `goal:<id>` label
- *   into collapsible goal sections (with progress + actions) and a final
+ * @ai-summary Mission-first task list. Groups tasks by their `goal:<id>` label
+ *   into collapsible mission sections (with progress + actions) and a final
  *   "Ungrouped" bucket for tasks without any goal label. Wraps the existing
  *   TaskList per section so row behavior stays identical.
  */
@@ -72,7 +72,7 @@ interface GoalGroupedViewProps {
   mergingTaskId?: string | null;
   focusedIndex?: number;
   onTaskSelect?: (task: KodyTask | null) => void;
-  onExecuteTask?: (taskId: string) => void;
+  onExecuteTask?: (task: KodyTask) => void;
   onStopTask?: (task: KodyTask) => void;
   onApproveReview?: (task: KodyTask) => Promise<void>;
   onTaskHover?: (task: KodyTask) => void;
@@ -83,6 +83,8 @@ interface GoalGroupedViewProps {
   onCreateTask?: () => void;
   onEditTask?: (task: KodyTask) => void;
   onDuplicate?: (task: KodyTask) => void;
+  onHideTask?: (task: KodyTask) => void;
+  onShowTask?: (task: KodyTask) => void;
   onRerun?: (task: KodyTask) => void;
   onToggleQueue?: (task: KodyTask) => void;
   onCreateGoal?: () => void;
@@ -90,13 +92,13 @@ interface GoalGroupedViewProps {
   onDeleteGoal?: (goal: Goal) => void;
   /** Open the goal's discussion thread (modal). */
   onOpenGoalDiscussion?: (goal: Goal) => void;
-  /** Open the planner chat scoped to this goal (Pass 1 → approve → Pass 2 creates issues). */
+  /** Open the planner chat scoped to this mission (Pass 1 → approve → Pass 2 creates issues). */
   onPlanGoal?: (goal: Goal) => void;
-  /** Create a task scoped to this goal (or null for Ungrouped). */
+  /** Create a task scoped to this mission (or null for Ungrouped). */
   onCreateTaskInGoal?: (goal: Goal | null) => void;
-  /** Report a bug scoped to this goal (or null for Ungrouped). */
+  /** Report a bug scoped to this mission (or null for Ungrouped). */
   onReportBugInGoal?: (goal: Goal | null) => void;
-  /** Move a task between goals (null targetGoalId = Ungrouped). */
+  /** Move a task between missions (null targetGoalId = Ungrouped). */
   onMoveTask?: (task: KodyTask, targetGoalId: string | null) => void;
   /** Collapsed group keys. Drive this with {@link useGoalCollapse}. */
   collapsed: Set<string>;
@@ -214,7 +216,7 @@ export function useGoalCollapse(goals: Goal[], tasks: KodyTask[]) {
   );
 
   // Persisted across reloads/navigation. Default (first ever visit, nothing
-  // stored): collapse "Ungrouped" when goals exist, keep goals expanded.
+    // stored): collapse "Ungrouped" when missions exist, keep missions expanded.
   const {
     set: collapsed,
     has: isCollapsed,
@@ -317,9 +319,9 @@ export function GoalGroupedView({
           <Flag className="w-6 h-6 text-muted-foreground/40" />
         </div>
         <div className="space-y-1">
-          <p className="text-sm font-medium text-foreground">No goals yet</p>
+          <p className="text-sm font-medium text-foreground">No missions yet</p>
           <p className="text-xs text-muted-foreground max-w-sm">
-            Create a goal to group work toward an outcome, or add a task — it
+            Create a mission to group work toward an outcome, or add a task — it
             will show up under &quot;Ungrouped&quot; until you attach it.
           </p>
         </div>
@@ -327,7 +329,7 @@ export function GoalGroupedView({
           {onCreateGoal ? (
             <Button size="sm" onClick={onCreateGoal} className="gap-1.5">
               <Plus className="w-3.5 h-3.5" />
-              New goal
+              New mission
             </Button>
           ) : null}
           {taskListProps.onCreateTask ? (
@@ -442,7 +444,7 @@ export function GoalGroupedView({
                 {typeof group.goal?.discussionNumber === "number" ? (
                   <span
                     className="text-base md:text-lg font-mono font-semibold text-muted-foreground shrink-0"
-                    title="Goal id — mention #{number} or goal:{number} in chat to direct the conversation here"
+                    title="Mission id — mention #{number} or goal:{number} in chat to direct the conversation here"
                   >
                     #{group.goal.discussionNumber}
                   </span>
@@ -489,7 +491,7 @@ export function GoalGroupedView({
             </div>
           </button>
 
-          {/* Goal management actions (run / plan / discussion / edit / delete) — creation lives in the card footer */}
+          {/* Mission management actions (run / plan / discussion / edit / delete) — creation lives in the card footer */}
           {group.goal ? (
             <div className="flex items-center gap-1 shrink-0">
               <ManageGoalButton goal={group.goal} />
@@ -524,8 +526,8 @@ export function GoalGroupedView({
                   size="sm"
                   className="h-8 w-8 p-0 text-muted-foreground hover:text-sky-400"
                   onClick={() => onPlanGoal(group.goal!)}
-                  aria-label={`Plan tasks for ${group.goal.name}`}
-                  title="Plan with chat — propose tasks from this goal's description, then create them on approval"
+                  aria-label={`Plan tasks for mission ${group.goal.name}`}
+                  title="Plan with chat — propose tasks from this mission's description, then create them on approval"
                 >
                   <Sparkles className="w-3.5 h-3.5" />
                 </Button>
@@ -671,7 +673,7 @@ export function GoalGroupedView({
         </SortableContext>
       </DndContext>
 
-      {/* Big dashed "+ New goal" footer */}
+      {/* Big dashed "+ New mission" footer */}
       {onCreateGoal ? (
         <div className="p-4 md:p-6">
           <button
@@ -682,7 +684,7 @@ export function GoalGroupedView({
             <span className="w-8 h-8 rounded-lg bg-white/[0.04] ring-1 ring-white/[0.08] flex items-center justify-center group-hover:bg-sky-500/10 group-hover:ring-sky-500/40 transition-colors">
               <Plus className="w-4 h-4" />
             </span>
-            <span className="text-sm font-medium">New goal</span>
+            <span className="text-sm font-medium">New mission</span>
           </button>
         </div>
       ) : null}
@@ -691,12 +693,12 @@ export function GoalGroupedView({
 }
 
 /**
- * "Let Kody manage this goal" toggle. When on, the `goal-manager` staff
+ * "Let Kody manage this goal" toggle. When on, the `goal-manager` agent
  * member owns the goal end-to-end: it decomposes it into tasks, lets the engine
  * build them, verifies the end-to-end journey with `qa-engineer`,
  * recovers stalled tasks, and leaves ONE open deliverable PR for a human
  * to merge (the engine never auto-merges). Always available — managing a
- * goal with no tasks is the point (the staff member writes the task list).
+ * goal with no tasks is the point (the agent writes the task list).
  */
 function ManageGoalButton({ goal }: { goal: Goal }) {
   const { githubUser } = useGitHubIdentity();
@@ -723,11 +725,11 @@ function ManageGoalButton({ goal }: { goal: Goal }) {
           ? "text-violet-400 hover:text-violet-300"
           : "text-muted-foreground hover:text-violet-400",
       )}
-      aria-label={`${isManaged ? "Disable" : "Enable"} Kody management for ${goal.name}`}
+      aria-label={`${isManaged ? "Disable" : "Enable"} Kody management for mission ${goal.name}`}
       title={
         isManaged
-          ? "Kody is managing this goal end-to-end (decompose → build → QA the journey → one open PR). Click to disable."
-          : "Let Kody manage this goal end-to-end: it breaks it into tasks, QA-verifies the journey, recovers stalls, and opens one PR for you to merge."
+          ? "Kody is managing this mission end-to-end (decompose → build → QA the journey → one open PR). Click to disable."
+          : "Let Kody manage this mission end-to-end: it breaks it into tasks, QA-verifies the journey, recovers stalls, and opens one PR for you to merge."
       }
     >
       {pending ? (
@@ -885,7 +887,7 @@ function GoalSectionTasks({
       ) : null}
       {showClosed && !isFetching && (closed?.length ?? 0) === 0 ? (
         <div className="px-4 md:px-6 py-3 text-center text-[11px] text-muted-foreground">
-          No closed tasks in this goal yet.
+          No closed tasks in this mission yet.
         </div>
       ) : null}
     </>

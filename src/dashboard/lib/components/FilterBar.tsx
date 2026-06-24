@@ -18,7 +18,7 @@ import { Search, X } from "lucide-react";
 import type { SortField, SortDirection } from "../types";
 import { FilterDropdown } from "./FilterDropdown";
 
-export type ViewMode = "running" | "backlog" | "queue";
+export type ViewMode = "running" | "backlog" | "unassigned" | "queue";
 
 export interface FilterBarProps {
   viewMode: ViewMode;
@@ -57,20 +57,18 @@ export interface FilterBarHandle {
 
 export { DATE_FILTERS, STATUS_FILTERS } from "./FilterDropdown";
 
-/** Pill-style toggle between Running, Backlog, and Queue views */
+/** Pill-style toggle between Running and Backlog views */
 export function ViewToggle({
   viewMode,
   onViewModeChange,
   runningCount,
   backlogCount,
-  queueCount,
   disableBacklog = false,
 }: {
   viewMode: ViewMode;
   onViewModeChange: (mode: ViewMode) => void;
   runningCount: number;
   backlogCount: number;
-  queueCount?: number;
   disableBacklog?: boolean;
 }) {
   // When backlog is disabled the running/backlog split is meaningless — the
@@ -103,8 +101,7 @@ export function ViewToggle({
       >
         Backlog ({backlogCount})
       </button>
-      {/* Queue view retired — left in the ViewMode type for URL backwards-compat
-          but the toggle UI no longer exposes it. */}
+      {/* Queue/unassigned views retired — left in ViewMode type for URL backwards-compat. */}
     </div>
   );
 }
@@ -128,7 +125,6 @@ export const FilterBar = forwardRef<FilterBarHandle, FilterBarProps>(
       totalCount,
       runningCount,
       backlogCount,
-      queueCount,
       disableBacklog,
       searchQuery = "",
       onSearchChange,
@@ -173,7 +169,6 @@ export const FilterBar = forwardRef<FilterBarHandle, FilterBarProps>(
           onViewModeChange={onViewModeChange}
           runningCount={runningCount}
           backlogCount={backlogCount}
-          queueCount={queueCount}
           disableBacklog={disableBacklog}
         />
 

@@ -17,7 +17,7 @@ import { cn } from "@dashboard/lib/utils";
 import { monacoLanguage } from "@dashboard/lib/repo-files-lang";
 import { readFile, writeFile } from "@dashboard/lib/repo-files";
 import type { Octokit } from "@octokit/rest";
-import { MarkdownPreview } from "./MarkdownPreview";
+import { MarkdownPreview } from "@dashboard/lib/components/MarkdownPreview";
 import { CommitMessageDialog } from "./CommitMessageDialog";
 
 const MonacoEditor = dynamic(

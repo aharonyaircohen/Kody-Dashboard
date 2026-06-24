@@ -21,6 +21,14 @@ import { logger } from "@dashboard/lib/logger";
 import { invalidateIssueCache } from "@dashboard/lib/github-client";
 import { readGoalsManifestFresh } from "@dashboard/lib/goals-server";
 import { GOAL_LABEL_PREFIX, type Goal } from "@dashboard/lib/goals";
+import { listStateDirectory, readStateText, writeStateText } from "@dashboard/lib/state-repo";
+import {
+  buildManagedGoalState,
+  isManagedGoalState,
+  managedGoalPath,
+  slugifyManagedGoalId,
+  type ManagedGoalRecord,
+} from "@dashboard/lib/managed-goals";
 
 interface Ctx {
   octokit: Octokit;
@@ -30,6 +38,78 @@ interface Ctx {
 
 const MAX_DESC_CHARS = 4_000;
 const MAX_ATTACHED_TASKS = 50;
+
+async function readManagedGoalFile(
+  octokit: Octokit,
+  owner: string,
+  repo: string,
+  goalId: string,
+): Promise<{ raw: string; sha: string } | null> {
+  const file = await readStateText(octokit, owner, repo, managedGoalPath(goalId), {
+    headers: { "If-None-Match": "" },
+  });
+  return file ? { raw: file.content, sha: file.sha } : null;
+}
+
+async function listManagedGoalDirs(
+  octokit: Octokit,
+  owner: string,
+  repo: string,
+): Promise<Array<{ name: string }>> {
+  const { entries } = await listStateDirectory(
+    octokit,
+    owner,
+    repo,
+    "goals/instances",
+    { headers: { "If-None-Match": "" } },
+  );
+  return entries
+    .filter((item) => item.type === "dir" && typeof item.name === "string")
+    .map((item) => ({ name: item.name }));
+}
+
+async function listManagedGoals(
+  octokit: Octokit,
+  owner: string,
+  repo: string,
+): Promise<ManagedGoalRecord[]> {
+  const dirs = await listManagedGoalDirs(octokit, owner, repo);
+  const goals: ManagedGoalRecord[] = [];
+  for (const dir of dirs) {
+    if (!dir.name) continue;
+    const file = await readManagedGoalFile(octokit, owner, repo, dir.name);
+    if (!file) continue;
+    const parsed = JSON.parse(file.raw) as unknown;
+    if (!isManagedGoalState(parsed)) continue;
+    goals.push({
+      id: dir.name,
+      path: managedGoalPath(dir.name),
+      state: parsed,
+    });
+  }
+  return goals.sort((a, b) => a.id.localeCompare(b.id));
+}
+
+async function dispatchGoalWorkflow(
+  octokit: Octokit,
+  owner: string,
+  repo: string,
+): Promise<boolean> {
+  try {
+    const repoMeta = await octokit.rest.repos.get({ owner, repo });
+    const defaultBranch = repoMeta.data.default_branch || "main";
+    await octokit.rest.actions.createWorkflowDispatch({
+      owner,
+      repo,
+      workflow_id: "kody.yml",
+      ref: defaultBranch,
+    });
+    return true;
+  } catch (err) {
+    logger.warn({ err, owner, repo }, "create_managed_goal dispatch failed");
+    return false;
+  }
+}
 
 function clip(s: string | null | undefined, n: number): string {
   if (!s) return "";
@@ -74,9 +154,9 @@ export function createGoalTools(ctx: Ctx) {
   return {
     list_goals: tool({
       description:
-        "List all goals in this repo. Goals are NOT issues — they are " +
+        "List all missions in this repo. Missions are legacy task-page groupings, not issues — they are " +
         "surfaced as GitHub Discussions referenced by #<number>. Use this " +
-        "to map a goal number/name to its details, or to enumerate goals.",
+        "to map a mission number/name to its details, or to enumerate missions.",
       inputSchema: z.object({}),
       execute: async () => {
         try {
@@ -91,11 +171,11 @@ export function createGoalTools(ctx: Ctx) {
 
     get_goal: tool({
       description:
-        "Fetch a single goal by its #<number> (the Discussion number shown " +
-        "next to the goal title) or by its slug id, including its " +
+        "Fetch a single mission by its #<number> (the Discussion number shown " +
+        "next to the mission title) or by its slug id, including its " +
         "description and the task issues currently attached to it. Use " +
-        "this — NOT github_get_issue — whenever the user references a goal " +
-        '(e.g. "explain goal 1533"); goal numbers are not issue numbers.',
+        "this — NOT github_get_issue — whenever the user references a mission, old goal, task-page goal, or goal group " +
+        '(e.g. "explain mission 1533"); mission numbers are not issue numbers.',
       inputSchema: z.object({
         number: z
           .number()
@@ -162,10 +242,157 @@ export function createGoalTools(ctx: Ctx) {
       },
     }),
 
+    list_managed_goals: tool({
+      description:
+        "List engine-managed goals stored in the configured Kody state repo at goals/instances/<id>/state.json. " +
+        "Use for company goals with outcome, evidence, route, facts, and blockers.",
+      inputSchema: z.object({}),
+      execute: async () => {
+        try {
+          const goals = await listManagedGoals(octokit, owner, repo);
+          return {
+            goals: goals.map((goal) => ({
+              id: goal.id,
+              path: goal.path,
+              state: goal.state.state,
+              type: goal.state.type,
+              outcome: goal.state.destination.outcome,
+              evidence: goal.state.destination.evidence,
+              stage: goal.state.stage ?? null,
+              blockers: goal.state.blockers,
+            })),
+          };
+        } catch (err) {
+          logger.warn({ err, owner, repo }, "list_managed_goals failed");
+          return { error: "Could not list managed goals." };
+        }
+      },
+    }),
+
+    get_managed_goal: tool({
+      description:
+        "Read one engine-managed goal by slug id from the configured Kody state repo. " +
+        "Use this for a goal's outcome, evidence, route, facts, and blockers.",
+      inputSchema: z.object({
+        id: z.string().min(1).max(100).describe("Managed goal slug id"),
+      }),
+      execute: async ({ id }) => {
+        try {
+          const file = await readManagedGoalFile(octokit, owner, repo, id);
+          if (!file) return { error: `Managed goal "${id}" not found.` };
+          const parsed = JSON.parse(file.raw) as unknown;
+          if (!isManagedGoalState(parsed)) {
+            return { error: `Goal "${id}" is not a managed-goal file.` };
+          }
+          return {
+            goal: {
+              id,
+              path: managedGoalPath(id),
+              state: parsed,
+            },
+          };
+        } catch (err) {
+          logger.warn({ err, owner, repo, id }, "get_managed_goal failed");
+          return { error: "Could not read managed goal." };
+        }
+      },
+    }),
+
+    create_managed_goal: tool({
+      description:
+        "Create an engine-managed company goal. Provide a finish-line outcome, " +
+        "proof/evidence keys, and route steps that name agentResponsibility/agentAction work. " +
+        "Writes the configured Kody state repo at goals/instances/<id>/state.json and wakes Kody.",
+      inputSchema: z.object({
+        id: z
+          .string()
+          .min(1)
+          .max(100)
+          .optional()
+          .describe("Optional slug id. If omitted, derived from outcome."),
+        type: z
+          .string()
+          .min(1)
+          .max(80)
+          .default("general")
+          .describe("Goal kind, e.g. release, qa, docs, test."),
+        outcome: z
+          .string()
+          .min(1)
+          .max(500)
+          .describe("Human finish line. Example: Version 1.2.3 is published."),
+        evidence: z
+          .array(z.string().min(1).max(80))
+          .min(1)
+          .describe("Proof keys required for done, e.g. qaPassed."),
+        route: z
+          .array(
+            z.object({
+              stage: z.string().min(1).max(80),
+              evidence: z.string().min(1).max(80),
+              agentResponsibility: z.string().min(1).max(80),
+              agentAction: z.string().min(1).max(80).optional(),
+            }),
+          )
+          .min(1)
+          .describe("One route step per evidence key."),
+      }),
+      execute: async (input) => {
+        try {
+          const goalId =
+            slugifyManagedGoalId(input.id ?? "") ||
+            slugifyManagedGoalId(input.outcome);
+          if (!goalId) return { error: "Could not derive a valid goal id." };
+
+          const path = managedGoalPath(goalId);
+          const existing = await readManagedGoalFile(
+            octokit,
+            owner,
+            repo,
+            goalId,
+          );
+          if (existing) {
+            return { error: `Managed goal "${goalId}" already exists.` };
+          }
+
+          const state = buildManagedGoalState(input);
+          await writeStateText({
+            octokit,
+            owner,
+            repo,
+            path,
+            message: `chore(goals): create managed goal ${goalId}`,
+            content: JSON.stringify(state, null, 2),
+          });
+
+          const engineDispatched = await dispatchGoalWorkflow(
+            octokit,
+            owner,
+            repo,
+          );
+
+          return {
+            ok: true,
+            goal: { id: goalId, path, state },
+            engineDispatched,
+            note: engineDispatched
+              ? "Managed goal created and Kody was woken."
+              : "Managed goal created. Kody scheduler can pick it up later.",
+          };
+        } catch (err) {
+          logger.warn({ err, owner, repo }, "create_managed_goal failed");
+          return {
+            error:
+              err instanceof Error ? err.message : "Could not create goal.",
+          };
+        }
+      },
+    }),
+
     attach_task_to_goal: tool({
       description:
-        "Attach an existing task issue to a goal by adding the goal's " +
-        "membership label to the issue. Identify the goal by its " +
+        "Attach an existing task issue to a mission by adding the mission's " +
+        "membership label to the issue. Identify the mission by its " +
         "#<number> or slug id.",
       inputSchema: z.object({
         taskNumber: z
@@ -190,7 +417,7 @@ export function createGoalTools(ctx: Ctx) {
           const goal = resolveGoal(manifest.goals, goalNumber, goalId);
           if (!goal) {
             return {
-              error: "Goal not found. Call list_goals to see goals.",
+            error: "Mission not found. Call list_goals to see missions.",
             };
           }
           const label = `${GOAL_LABEL_PREFIX}${goal.id}`;
@@ -203,7 +430,7 @@ export function createGoalTools(ctx: Ctx) {
           invalidateIssueCache(taskNumber);
           return {
             ok: true,
-            message: `Attached #${taskNumber} to goal "${goal.name}".`,
+          message: `Attached #${taskNumber} to mission "${goal.name}".`,
             taskLabel: label,
           };
         } catch (err) {
@@ -220,7 +447,7 @@ export function createGoalTools(ctx: Ctx) {
 
     detach_task_from_goal: tool({
       description:
-        "Detach a task issue from a goal by removing the goal's " +
+        "Detach a task issue from a mission by removing the mission's " +
         "membership label from the issue. No-op if it wasn't attached.",
       inputSchema: z.object({
         taskNumber: z
@@ -245,7 +472,7 @@ export function createGoalTools(ctx: Ctx) {
           const goal = resolveGoal(manifest.goals, goalNumber, goalId);
           if (!goal) {
             return {
-              error: "Goal not found. Call list_goals to see goals.",
+            error: "Mission not found. Call list_goals to see missions.",
             };
           }
           const label = `${GOAL_LABEL_PREFIX}${goal.id}`;
@@ -264,7 +491,7 @@ export function createGoalTools(ctx: Ctx) {
           invalidateIssueCache(taskNumber);
           return {
             ok: true,
-            message: `Detached #${taskNumber} from goal "${goal.name}".`,
+          message: `Detached #${taskNumber} from mission "${goal.name}".`,
           };
         } catch (err) {
           logger.warn(

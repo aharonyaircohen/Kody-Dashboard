@@ -19,7 +19,7 @@ export interface SlashCommand {
   description: string;
   argumentHint: string;
   body: string;
-  source: "repo" | "builtin";
+  source: "repo" | "store" | "builtin";
 }
 
 interface ListResponse {

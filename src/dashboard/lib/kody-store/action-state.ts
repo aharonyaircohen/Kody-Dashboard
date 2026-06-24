@@ -10,6 +10,7 @@
  */
 
 import { createUserOctokit } from "@dashboard/lib/github-client";
+import { writeGitHubFileWithRetry } from "@dashboard/lib/github-contents-write";
 import type { Octokit } from "@octokit/rest";
 
 export type ActionStatus = "running" | "waiting" | "complete" | "cancelled";
@@ -135,7 +136,7 @@ async function writeMap(
   const content = Buffer.from(
     JSON.stringify([...map.values()], null, 2),
   ).toString("base64");
-  await octokit.rest.repos.createOrUpdateFileContents({
+  await writeGitHubFileWithRetry(octokit, {
     owner,
     repo,
     path: STORE_FILE,
@@ -143,6 +144,7 @@ async function writeMap(
     content,
     branch,
     ...(existingSha ? { sha: existingSha } : {}),
+    maxAttempts: 1,
   });
   // We just changed the file — drop the cached ETag so the next read pulls
   // fresh content (rather than a 304 against the now-stale ETag).

@@ -6,6 +6,7 @@
  */
 
 import type { Octokit } from "@octokit/rest";
+import { updateGitHubFileWithRetry } from "@dashboard/lib/github-contents-write";
 
 export const KODY_CONFIG_PATH = "kody.config.json";
 
@@ -19,28 +20,49 @@ export interface KodyQuality {
   testUnit?: string;
 }
 
+export interface ActiveGoalConfigObject {
+  template: string;
+  every?: string;
+  idPrefix?: string;
+  facts?: Record<string, unknown>;
+}
+
+export type ActiveGoalConfigEntry = string | ActiveGoalConfigObject;
+
+export interface KodyStateConfig {
+  repo?: string;
+  path?: string;
+}
+
 export interface KodyConfig {
   /** The model the engine runs, as `provider/model`. This is the key the
    * kody-engine actually reads (`parseProviderModel(cfg.agent.model)`).
-   * `perExecutable` overrides the model for a specific executable slug
+   * `perAgentAction` overrides the model for a specific agentAction slug
    * (e.g. `{ "research": "anthropic/claude-opus-4-7" }`). */
   agent?: {
     model?: string;
-    perExecutable?: Record<string, string>;
+    perAgentAction?: Record<string, string>;
+    /**
+     * Thinking level for the engine. Written by the dashboard's
+     * `/engine` page and read by the engine's chat turn as the
+     * canonical default when no `REASONING_EFFORT` env override is
+     * present. Off / unset = no thinking block (cheapest).
+     */
+    reasoningEffort?: string;
   };
-  executables: {
+  agentActions: {
     default: string;
   };
-  /** Executable that runs for a bare `@kody` comment on an **issue**. This is
-   * the field the engine actually reads (`config.defaultExecutable`, defaults
-   * to `classify`) — distinct from the dashboard's `executables.default`
+  /** AgentAction that runs for a bare `@kody` comment on an **issue**. This is
+   * the field the engine actually reads (`config.defaultAgentAction`, defaults
+   * to `classify`) — distinct from the dashboard's `agentActions.default`
    * seed, which the engine ignores for dispatch. */
-  defaultExecutable?: string;
-  /** Executable that runs for a bare `@kody` comment on a **PR**
-   * (`config.defaultPrExecutable`, defaults to `fix`). */
-  defaultPrExecutable?: string;
+  defaultAgentAction?: string;
+  /** AgentAction that runs for a bare `@kody` comment on a **PR**
+   * (`config.defaultPrAgentAction`, defaults to `fix`). */
+  defaultPrAgentAction?: string;
   /** Engine repo context plus the operator list. `operators` is the set of
-   * GitHub logins that recommendation duties (pr-health/CTO) @-mention so the
+   * GitHub logins that recommendation agentResponsibilities (pr-health/CTO) @-mention so the
    * comment routes into their dashboard inbox. Empty/absent = nobody is
    * tagged, so recommendations post but reach no inbox. */
   github?: {
@@ -48,16 +70,26 @@ export interface KodyConfig {
     repo?: string;
     operators?: string[];
   };
+  /** External Kody runtime-state repository and per-consumer path. */
+  state?: KodyStateConfig;
   /** Verification commands the engine runs (typecheck/lint/format/test). */
   quality?: KodyQuality;
   /** Comment subcommand aliases, e.g. `{ "build": "run" }` lets `@kody build`
-   * dispatch the `run` executable. */
+   * dispatch the `run` agentAction. */
   aliases?: Record<string, string>;
   /** Who may trigger `@kody`. `allowedAssociations` gates by GitHub author
    * association (OWNER/MEMBER/COLLABORATOR/CONTRIBUTOR/NONE). Absent = engine
    * default (no association gate). */
   access?: {
     allowedAssociations?: string[];
+  };
+  /** Store catalog items this repo explicitly enables. */
+  company?: {
+    activeAgents?: string[];
+    activeAgentActions?: string[];
+    activeAgentResponsibilities?: string[];
+    activeCommands?: string[];
+    activeGoals?: ActiveGoalConfigEntry[];
   };
   /** Git defaults the engine reads. `defaultBranch` is the base branch new
    * work branches off / targets (engine default: `main`). */
@@ -93,6 +125,10 @@ export interface KodyFlyPreviews {
   /** Auto-destroy a preview this many days after creation. 0 / absent = keep
    * forever (the sweep skips it). */
   ttlDays?: number;
+  /** vCPUs for the temporary build worker that creates a preview. */
+  builderCpus?: number;
+  /** RAM (MB) for the temporary build worker that creates a preview. */
+  builderMemoryMb?: number;
 }
 
 export interface KodyFlyConfig {
@@ -106,6 +142,8 @@ export interface ResolvedFlyPreviews {
   idleSuspend: boolean;
   healthCheck: boolean;
   ttlDays: number;
+  builderCpus: number;
+  builderMemoryMb: number;
 }
 
 /** Defaults chosen so previews are eligible for Fly suspend and health-checks
@@ -119,6 +157,9 @@ export const DEFAULT_FLY_PREVIEWS: ResolvedFlyPreviews = {
   // previews from piling up forever. A repo can override (higher = keep
   // longer; the UI caps at 365).
   ttlDays: 14,
+  // Short-lived build workers can be larger than idle preview machines.
+  builderCpus: 4,
+  builderMemoryMb: 4096,
 };
 
 /** Merge a repo's `fly.previews` over the defaults. Pure — no I/O. */
@@ -145,12 +186,20 @@ export function resolveFlyPreviews(cfg: KodyConfig): ResolvedFlyPreviews {
       typeof p.ttlDays === "number" && p.ttlDays > 0
         ? Math.floor(p.ttlDays)
         : DEFAULT_FLY_PREVIEWS.ttlDays,
+    builderCpus:
+      typeof p.builderCpus === "number" && p.builderCpus > 0
+        ? p.builderCpus
+        : DEFAULT_FLY_PREVIEWS.builderCpus,
+    builderMemoryMb:
+      typeof p.builderMemoryMb === "number" && p.builderMemoryMb > 0
+        ? p.builderMemoryMb
+        : DEFAULT_FLY_PREVIEWS.builderMemoryMb,
   };
 }
 
 /** Default config when no kody.config.json exists in the repo. */
 export const defaultConfig: KodyConfig = {
-  executables: {
+  agentActions: {
     default: "run",
   },
 };
@@ -189,18 +238,31 @@ async function fetchConfig(
     }
     const content = Buffer.from(data.content, "base64").toString("utf-8");
     const parsed = JSON.parse(content) as KodyConfig;
+    const parsedWithStateAliases = parsed as KodyConfig & {
+      stateRepo?: string;
+      statePath?: string;
+    };
     return {
       config: {
-        executables: parsed.executables ?? { default: "run" },
+        agentActions: parsed.agentActions ?? { default: "run" },
         agent: parsed.agent,
         github: parsed.github,
-        defaultExecutable: parsed.defaultExecutable,
-        defaultPrExecutable: parsed.defaultPrExecutable,
+        state:
+          parsed.state ??
+          (parsedWithStateAliases.stateRepo || parsedWithStateAliases.statePath
+            ? {
+                repo: parsedWithStateAliases.stateRepo,
+                path: parsedWithStateAliases.statePath,
+              }
+            : undefined),
+        defaultAgentAction: parsed.defaultAgentAction,
+        defaultPrAgentAction: parsed.defaultPrAgentAction,
         quality: parsed.quality,
         aliases: parsed.aliases,
         access: parsed.access,
         git: parsed.git,
         fly: parsed.fly,
+        company: parsed.company,
       },
       sha: data.sha ?? null,
     };
@@ -260,14 +322,31 @@ export function invalidateEngineConfigCache(owner: string, repo: string): void {
  * Shared read→merge→commit→invalidate for kody.config.json. Reads the current
  * file (tolerating 404 = new file and corrupt JSON), hands the parsed object to
  * `mutate`, which returns the next object, then strips the legacy top-level
- * `model` key (the engine never read it) and commits.
+ * `model` key (the engine never read it) and commits. If GitHub rejects the
+ * write because the contents SHA went stale, the mutation is re-applied once
+ * over a freshly read file.
  *
  * Every config writer goes through here so the merge-not-overwrite contract —
- * never clobber the engine's required keys (`github`, `executables`,
+ * never clobber the engine's required keys (`github`, `agentActions`,
  * `quality`, …) — lives in exactly one place. Mutators are responsible for
- * seeding the engine-required defaults (`executables`, `github`) on a fresh
+ * seeding the engine-required defaults (`agentActions`, `github`) on a fresh
  * file; `mutate` always receives the full existing object to spread from.
  */
+function parseConfigForWrite(
+  contentBase64: string | null,
+): Record<string, unknown> {
+  if (!contentBase64) return {};
+  try {
+    return JSON.parse(
+      Buffer.from(contentBase64, "base64").toString("utf-8"),
+    ) as Record<string, unknown>;
+  } catch {
+    // Corrupt JSON — start clean rather than propagate parse error,
+    // but keep sha so we replace the bad file.
+    return {};
+  }
+}
+
 async function mutateConfig(
   octokit: Octokit,
   owner: string,
@@ -275,48 +354,26 @@ async function mutateConfig(
   mutate: (existing: Record<string, unknown>) => Record<string, unknown>,
   commitMessage: string,
 ): Promise<{ sha: string | null }> {
-  let existing: Record<string, unknown> = {};
-  let existingSha: string | null = null;
-  try {
-    const res = await octokit.rest.repos.getContent({
-      owner,
-      repo,
-      path: KODY_CONFIG_PATH,
-    });
-    const data = res.data;
-    if (!Array.isArray(data) && "content" in data && data.content) {
-      existingSha = data.sha ?? null;
-      try {
-        existing = JSON.parse(
-          Buffer.from(data.content, "base64").toString("utf-8"),
-        ) as Record<string, unknown>;
-      } catch {
-        // Corrupt JSON — start clean rather than propagate a parse error,
-        // but keep the sha so we replace (not 409) the bad file.
-        existing = {};
-      }
-    }
-  } catch (err) {
-    const status = (err as { status?: number }).status;
-    if (status !== 404) throw err;
-  }
-
-  const next = mutate(existing);
-  delete next.model; // strip the legacy key the engine never read
-
-  const content = Buffer.from(JSON.stringify(next, null, 2), "utf-8").toString(
-    "base64",
-  );
-  const { data } = await octokit.rest.repos.createOrUpdateFileContents({
+  const result = await updateGitHubFileWithRetry(octokit, {
     owner,
     repo,
     path: KODY_CONFIG_PATH,
     message: commitMessage,
-    content,
-    ...(existingSha ? { sha: existingSha } : {}),
+    maxAttempts: 2,
+    onConflict: () => invalidateEngineConfigCache(owner, repo),
+    mutate: (current) => {
+      const existing = parseConfigForWrite(current?.contentBase64 ?? null);
+      const next = mutate(existing);
+      delete next.model; // strip the legacy key the engine never read
+      return {
+        content: Buffer.from(JSON.stringify(next, null, 2), "utf-8").toString(
+          "base64",
+        ),
+      };
+    },
   });
   invalidateEngineConfigCache(owner, repo);
-  return { sha: data.commit.sha ?? null };
+  return { sha: result.commitSha };
 }
 
 /**
@@ -324,7 +381,7 @@ async function mutateConfig(
  * other field. This is the ONLY key the engine reads for its model
  * (`parseProviderModel(cfg.agent.model)`), so writing anything else is a no-op
  * from the engine's perspective. When the file doesn't exist yet we seed the
- * minimum the engine needs (`github`, `executables`).
+ * minimum the engine needs (`github`, `agentActions`).
  */
 export async function writeEngineModel(
   octokit: Octokit,
@@ -347,7 +404,7 @@ export async function writeEngineModel(
       const agent = modelSpec ? { ...prevAgent, model: modelSpec } : prevAgent;
       const next: Record<string, unknown> = {
         ...existing,
-        executables: existing.executables ?? { default: "run" },
+        agentActions: existing.agentActions ?? { default: "run" },
         github: existing.github ?? { owner, repo },
       };
       if (Object.keys(agent).length > 0) next.agent = agent;
@@ -417,7 +474,7 @@ export async function writeOperators(
           : {};
       return {
         ...existing,
-        executables: existing.executables ?? { default: "run" },
+        agentActions: existing.agentActions ?? { default: "run" },
         github: { owner, repo, ...prevGithub, operators: normalized },
       };
     },
@@ -427,23 +484,24 @@ export async function writeOperators(
 }
 
 /**
- * Set the bare-`@kody` default executable(s) in the consumer repo's
- * kody.config.json. `target: "issue"` writes `defaultExecutable`, `"pr"`
- * writes `defaultPrExecutable` — the two top-level fields the engine reads
+ * Set the bare-`@kody` default agentAction(s) in the consumer repo's
+ * kody.config.json. `target: "issue"` writes `defaultAgentAction`, `"pr"`
+ * writes `defaultPrAgentAction` — the two top-level fields the engine reads
  * when a comment is just `@kody` with no verb (see kody2/src/dispatch.ts).
  * A `null` value clears the field, reverting to the engine's built-in default
  * (`classify` for issues, `fix` for PRs). Mirrors `writeOperators`'
  * read→merge→commit so it never clobbers other config keys.
  */
-export async function writeDefaultExecutable(
+export async function writeDefaultAgentAction(
   octokit: Octokit,
   owner: string,
   repo: string,
   target: "issue" | "pr",
-  executable: string | null,
+  agentAction: string | null,
   commitMessage?: string,
 ): Promise<{ sha: string | null }> {
-  const key = target === "issue" ? "defaultExecutable" : "defaultPrExecutable";
+  const key =
+    target === "issue" ? "defaultAgentAction" : "defaultPrAgentAction";
   return mutateConfig(
     octokit,
     owner,
@@ -451,18 +509,18 @@ export async function writeDefaultExecutable(
     (existing) => {
       const next: Record<string, unknown> = {
         ...existing,
-        executables: existing.executables ?? { default: "run" },
+        agentActions: existing.agentActions ?? { default: "run" },
         github: existing.github ?? { owner, repo },
       };
-      if (executable && executable.trim().length > 0) {
-        next[key] = executable.trim();
+      if (agentAction && agentAction.trim().length > 0) {
+        next[key] = agentAction.trim();
       } else {
         delete next[key];
       }
       return next;
     },
     commitMessage ??
-      `chore(kody): set default ${target} executable${executable ? ` to ${executable}` : ""}`,
+      `chore(kody): set default ${target} agentAction${agentAction ? ` to ${agentAction}` : ""}`,
   );
 }
 
@@ -503,6 +561,88 @@ function cleanStringMap(map: Record<string, string>): Record<string, string> {
   return out;
 }
 
+function cleanSlug(value: unknown): string {
+  if (typeof value !== "string") return "";
+  const slug = value.trim();
+  return /^[A-Za-z0-9][A-Za-z0-9._-]*$/.test(slug) ? slug : "";
+}
+
+function cleanSlugList(raw: readonly unknown[]): string[] {
+  const seen = new Set<string>();
+  const out: string[] = [];
+  for (const value of raw) {
+    const slug = cleanSlug(value);
+    if (!slug || seen.has(slug)) continue;
+    seen.add(slug);
+    out.push(slug);
+  }
+  return out;
+}
+
+function cleanActiveGoals(
+  raw: readonly ActiveGoalConfigEntry[],
+): ActiveGoalConfigEntry[] {
+  const seen = new Set<string>();
+  const out: ActiveGoalConfigEntry[] = [];
+  for (const entry of raw) {
+    if (typeof entry === "string") {
+      const slug = cleanSlug(entry);
+      if (!slug || seen.has(slug)) continue;
+      seen.add(slug);
+      out.push(slug);
+      continue;
+    }
+    if (!entry || typeof entry !== "object" || Array.isArray(entry)) continue;
+    const template = cleanSlug(entry.template);
+    if (!template || seen.has(template)) continue;
+    const cleaned: ActiveGoalConfigObject = { template };
+    if (
+      typeof entry.every === "string" &&
+      /^[1-9][0-9]*[mhdw]$/.test(entry.every.trim())
+    ) {
+      cleaned.every = entry.every.trim();
+    }
+    const idPrefix = cleanSlug(entry.idPrefix);
+    if (idPrefix) cleaned.idPrefix = idPrefix;
+    if (
+      entry.facts &&
+      typeof entry.facts === "object" &&
+      !Array.isArray(entry.facts)
+    ) {
+      cleaned.facts = entry.facts;
+    }
+    seen.add(template);
+    out.push(cleaned);
+  }
+  return out;
+}
+
+function companyRecordFrom(raw: unknown): Record<string, unknown> {
+  return raw && typeof raw === "object" && !Array.isArray(raw)
+    ? (raw as Record<string, unknown>)
+    : {};
+}
+
+function setCompanyField(
+  next: Record<string, unknown>,
+  key:
+    | "activeAgents"
+    | "activeAgentActions"
+    | "activeAgentResponsibilities"
+    | "activeCommands"
+    | "activeGoals",
+  value: string[] | ActiveGoalConfigEntry[],
+): void {
+  const prevCompany = companyRecordFrom(next.company);
+  if (value.length > 0) {
+    next.company = { ...prevCompany, [key]: value };
+    return;
+  }
+  const { [key]: _drop, ...rest } = prevCompany;
+  if (Object.keys(rest).length > 0) next.company = rest;
+  else delete next.company;
+}
+
 /** Keep only valid Fly preview knobs: positive numbers for size/ttl, real
  * booleans for the toggles. Drops anything blank/invalid so a fresh repo
  * stays at {@link DEFAULT_FLY_PREVIEWS}. */
@@ -510,7 +650,13 @@ function cleanFlyPreviews(
   raw: Record<string, unknown>,
 ): Record<string, unknown> {
   const out: Record<string, unknown> = {};
-  for (const key of ["cpus", "memoryMb", "ttlDays"] as const) {
+  for (const key of [
+    "cpus",
+    "memoryMb",
+    "ttlDays",
+    "builderCpus",
+    "builderMemoryMb",
+  ] as const) {
     const v = raw[key];
     const n = typeof v === "number" ? v : Number(v);
     if (Number.isFinite(n) && n > 0) out[key] = Math.floor(n);
@@ -519,6 +665,31 @@ function cleanFlyPreviews(
     if (typeof raw[key] === "boolean") out[key] = raw[key];
   }
   return out;
+}
+
+function cleanStateConfig(
+  raw: KodyStateConfig | null | undefined,
+): KodyStateConfig | null {
+  if (!raw) return null;
+  const repo = raw.repo?.trim().replace(/\/+$/, "") ?? "";
+  const path = raw.path?.trim() ?? "";
+  const pathSegments = path.split("/");
+  if (
+    !/^https:\/\/github\.com\/[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+$/i.test(repo)
+  ) {
+    return null;
+  }
+  if (
+    !path ||
+    path.startsWith("/") ||
+    path.includes("\\") ||
+    pathSegments.some(
+      (segment) => !segment || segment === "." || segment === "..",
+    )
+  ) {
+    return null;
+  }
+  return { repo, path };
 }
 
 /** Uppercase, keep only valid GitHub associations, de-dupe (order-preserving). */
@@ -544,17 +715,29 @@ export interface ConfigPatch {
   quality?: KodyQuality | null;
   aliases?: Record<string, string> | null;
   allowedAssociations?: string[] | null;
+  activeAgents?: string[] | null;
+  activeAgentActions?: string[] | null;
+  activeAgentResponsibilities?: string[] | null;
+  activeCommands?: string[] | null;
+  activeGoals?: ActiveGoalConfigEntry[] | null;
+  state?: KodyStateConfig | null;
   defaultBranch?: string | null;
-  perExecutable?: Record<string, string> | null;
-  /** Bare-`@kody` issue default (`defaultExecutable`). Edited on /executables;
+  perAgentAction?: Record<string, string> | null;
+  /** Bare-`@kody` issue default (`defaultAgentAction`). Edited on /agent-actions;
    * also carried by the company bundle. */
-  defaultExecutable?: string | null;
-  /** Bare-`@kody` PR default (`defaultPrExecutable`). */
-  defaultPrExecutable?: string | null;
+  defaultAgentAction?: string | null;
+  /** Bare-`@kody` PR default (`defaultPrAgentAction`). */
+  defaultPrAgentAction?: string | null;
   /** Fly preview-machine knobs (size, idle-suspend, health-check, TTL). A
    * partial object merges field-by-field over what's stored; `null` clears
    * the whole `fly.previews` block (reverts to {@link DEFAULT_FLY_PREVIEWS}). */
   flyPreviews?: Partial<KodyFlyPreviews> | null;
+  /**
+   * Thinking level for the engine (off|low|medium|high). Written to
+   * `agent.reasoningEffort`. Null clears the field — engine falls back
+   * to its own default (off = no thinking = cheapest path).
+   */
+  reasoningEffort?: string | null;
 }
 
 /**
@@ -578,7 +761,7 @@ export async function writeConfigPatch(
     (existing) => {
       const next: Record<string, unknown> = {
         ...existing,
-        executables: existing.executables ?? { default: "run" },
+        agentActions: existing.agentActions ?? { default: "run" },
         github: existing.github ?? { owner, repo },
       };
 
@@ -611,6 +794,47 @@ export async function writeConfigPatch(
         }
       }
 
+      if (patch.activeAgents !== undefined) {
+        const list = patch.activeAgents
+          ? cleanSlugList(patch.activeAgents)
+          : [];
+        setCompanyField(next, "activeAgents", list);
+      }
+
+      if (patch.activeAgentActions !== undefined) {
+        const list = patch.activeAgentActions
+          ? cleanSlugList(patch.activeAgentActions)
+          : [];
+        setCompanyField(next, "activeAgentActions", list);
+      }
+
+      if (patch.activeAgentResponsibilities !== undefined) {
+        const list = patch.activeAgentResponsibilities
+          ? cleanSlugList(patch.activeAgentResponsibilities)
+          : [];
+        setCompanyField(next, "activeAgentResponsibilities", list);
+      }
+
+      if (patch.activeCommands !== undefined) {
+        const list = patch.activeCommands
+          ? cleanSlugList(patch.activeCommands)
+          : [];
+        setCompanyField(next, "activeCommands", list);
+      }
+
+      if (patch.activeGoals !== undefined) {
+        const list = patch.activeGoals
+          ? cleanActiveGoals(patch.activeGoals)
+          : [];
+        setCompanyField(next, "activeGoals", list);
+      }
+
+      if (patch.state !== undefined) {
+        const cleaned = cleanStateConfig(patch.state);
+        if (cleaned) next.state = cleaned;
+        else delete next.state;
+      }
+
       if (patch.defaultBranch !== undefined) {
         const branch = patch.defaultBranch?.trim();
         const prevGit =
@@ -626,24 +850,27 @@ export async function writeConfigPatch(
         }
       }
 
-      if (patch.perExecutable !== undefined) {
-        const cleaned = patch.perExecutable
-          ? cleanStringMap(patch.perExecutable)
+      if (patch.perAgentAction !== undefined) {
+        const cleaned = patch.perAgentAction
+          ? cleanStringMap(patch.perAgentAction)
           : {};
         const prevAgent =
           typeof existing.agent === "object" && existing.agent !== null
             ? (existing.agent as Record<string, unknown>)
             : {};
         if (Object.keys(cleaned).length > 0) {
-          next.agent = { ...prevAgent, perExecutable: cleaned };
+          next.agent = { ...prevAgent, perAgentAction: cleaned };
         } else {
-          const { perExecutable: _drop, ...rest } = prevAgent;
+          const { perAgentAction: _drop, ...rest } = prevAgent;
           if (Object.keys(rest).length > 0) next.agent = rest;
           else delete next.agent;
         }
       }
 
-      for (const key of ["defaultExecutable", "defaultPrExecutable"] as const) {
+      for (const key of [
+        "defaultAgentAction",
+        "defaultPrAgentAction",
+      ] as const) {
         if (patch[key] === undefined) continue;
         const val = patch[key]?.trim();
         if (val) next[key] = val;
@@ -671,6 +898,26 @@ export async function writeConfigPatch(
           next.fly = flyRest;
         } else {
           delete next.fly;
+        }
+      }
+
+      if (patch.reasoningEffort !== undefined) {
+        const effort = patch.reasoningEffort?.trim().toLowerCase() ?? "";
+        const prevAgent =
+          typeof existing.agent === "object" && existing.agent !== null
+            ? (existing.agent as Record<string, unknown>)
+            : {};
+        // Off / empty → remove the field so the engine falls back to its
+        // own default. Anything else (low/medium/high, or a typo that
+        // survived validation) → store the canonical value the engine
+        // parser will accept.
+        const VALID = ["off", "low", "medium", "high"];
+        if (effort && VALID.includes(effort)) {
+          next.agent = { ...prevAgent, reasoningEffort: effort };
+        } else {
+          const { reasoningEffort: _drop, ...rest } = prevAgent;
+          if (Object.keys(rest).length > 0) next.agent = rest;
+          else delete next.agent;
         }
       }
 

@@ -33,10 +33,15 @@ import { useAuth } from "../auth-context";
 import { useActivity } from "../hooks/useActivity";
 import { useActivityFeed } from "../hooks/useActivityFeed";
 import { useActivityLog } from "../hooks/useActivityLog";
+import { useActivityRunLogs } from "../hooks/useActivityRunLogs";
 import { useAutonomousActivity } from "../hooks/useAutonomousActivity";
 import { cn, formatDuration } from "../utils";
 import type { ActivityRun } from "../activity/types";
 import type { ActionLogEntry } from "../activity/action-log";
+import type {
+  KodyRunLogsRun,
+  KodyRunTimelineItem,
+} from "../activity/run-logs";
 import type {
   FeedEvent,
   FeedSession,
@@ -46,7 +51,7 @@ import type {
 import { ACTIVITY_CATEGORY_LABELS } from "../activity/categorize";
 
 type RunFilter = "all" | "active" | "failed";
-type ActivityTab = "log" | "auto" | "runs" | "feed";
+type ActivityTab = "log" | "auto" | "runs" | "runLogs" | "feed";
 
 const FEED_SOURCE_STYLES: Record<FeedSource, string> = {
   engine: "bg-sky-500/15 text-sky-200/80",
@@ -355,6 +360,157 @@ function SessionCard({ s }: { s: FeedSession }) {
   );
 }
 
+function timelineTone(item: KodyRunTimelineItem): string {
+  if (item.category === "failure") return "bg-rose-500/15 text-rose-200/90";
+  if (item.category === "stage") return "bg-sky-500/15 text-sky-200/85";
+  if (item.category === "preflight")
+    return "bg-amber-500/15 text-amber-200/85";
+  if (item.category === "postflight")
+    return "bg-emerald-500/15 text-emerald-200/85";
+  return "bg-white/[0.06] text-white/65";
+}
+
+function fmtMs(ms: number | null): string | null {
+  if (ms == null) return null;
+  if (ms < 1000) return `${ms}ms`;
+  return formatDuration(ms / 1000);
+}
+
+function RunTimelineItem({ item }: { item: KodyRunTimelineItem }) {
+  const duration = fmtMs(item.durationMs);
+  return (
+    <li className="flex items-start gap-2 text-xs">
+      <span
+        className={cn(
+          "mt-0.5 rounded px-1.5 py-0.5 text-[10px] uppercase",
+          timelineTone(item),
+        )}
+      >
+        {item.category}
+      </span>
+      <div className="min-w-0 flex-1">
+        <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
+          <span className="text-white/80">{item.summary}</span>
+          {duration && (
+            <span className="text-[10px] tabular-nums text-white/35">
+              {duration}
+            </span>
+          )}
+          {item.outcome && (
+            <span className="text-[10px] text-white/35">{item.outcome}</span>
+          )}
+        </div>
+        {(item.detail || item.exitCode != null) && (
+          <div className="mt-0.5 text-[11px] text-white/45">
+            {item.detail}
+            {item.detail && item.exitCode != null ? " · " : ""}
+            {item.exitCode != null ? `exit ${item.exitCode}` : ""}
+          </div>
+        )}
+      </div>
+      {item.ts && (
+        <span className="shrink-0 text-[10px] text-white/35">
+          {new Date(item.ts).toLocaleTimeString()}
+        </span>
+      )}
+    </li>
+  );
+}
+
+function RunLogCard({ run }: { run: KodyRunLogsRun }) {
+  const isAvailable = run.artifactStatus === "available";
+  return (
+    <li className="rounded-lg border border-white/[0.06] bg-white/[0.02]">
+      <div className="flex flex-wrap items-start gap-3 px-3 py-2.5">
+        <div className="min-w-0 flex-1">
+          <div className="truncate text-sm text-white/85">{run.title}</div>
+          <div className="mt-0.5 flex flex-wrap items-center gap-2 text-[11px] text-white/40">
+            <span>run {run.runId}</span>
+            {run.runNumber != null && <span>#{run.runNumber}</span>}
+            <span>attempt {run.runAttempt}</span>
+            <span>{relTime(run.createdAt)}</span>
+          </div>
+        </div>
+        <span
+          className={cn(
+            "rounded px-2 py-0.5 text-[11px]",
+            isAvailable
+              ? "bg-emerald-500/15 text-emerald-200/85"
+              : run.artifactStatus === "error"
+                ? "bg-rose-500/15 text-rose-200/85"
+                : "bg-white/[0.06] text-white/50",
+          )}
+        >
+          {isAvailable ? `${run.timeline.length} events` : run.artifactStatus}
+        </span>
+        <a
+          href={run.htmlUrl}
+          target="_blank"
+          rel="noreferrer"
+          className="inline-flex items-center gap-1 text-xs text-sky-200/70 hover:text-sky-100"
+        >
+          Actions <ExternalLink className="h-3 w-3" />
+        </a>
+      </div>
+      <div className="border-t border-white/[0.06] px-3 py-2.5">
+        {!isAvailable ? (
+          <p className="text-xs text-white/45">
+            {run.message ??
+              "Run log artifact is unavailable. Open the workflow run for logs."}
+          </p>
+        ) : run.timeline.length === 0 ? (
+          <p className="text-xs text-white/45">
+            Artifact found, but no timeline events matched.
+          </p>
+        ) : (
+          <ul className="space-y-2">
+            {run.timeline.map((item) => (
+              <RunTimelineItem key={item.id} item={item} />
+            ))}
+          </ul>
+        )}
+      </div>
+    </li>
+  );
+}
+
+function RunLogsView({ active }: { active: boolean }) {
+  const { data, isLoading, error } = useActivityRunLogs(active);
+
+  return (
+    <div>
+      {error && (
+        <div className="mb-3 rounded-lg border border-rose-500/30 bg-rose-500/[0.06] p-3 text-xs text-rose-200">
+          {error instanceof Error ? error.message : "Failed to load run logs"}
+        </div>
+      )}
+
+      <div className="mb-3 grid grid-cols-3 gap-3">
+        <StatCard label="Runs" value={data?.total ?? "—"} />
+        <StatCard label="Artifacts" value={data?.available ?? "—"} tone="good" />
+        <StatCard label="Fallbacks" value={data?.missing ?? "—"} />
+      </div>
+
+      {isLoading ? (
+        <p className="py-6 text-center text-xs italic text-white/40">
+          <Loader2 className="mr-1 inline h-3.5 w-3.5 animate-spin" />
+          Loading run logs…
+        </p>
+      ) : !data || data.runs.length === 0 ? (
+        <p className="py-6 text-center text-xs italic text-white/40">
+          No workflow runs found.
+        </p>
+      ) : (
+        <ul className="space-y-1.5">
+          {data.runs.map((run) => (
+            <RunLogCard key={`${run.runId}:${run.runAttempt}`} run={run} />
+          ))}
+        </ul>
+      )}
+    </div>
+  );
+}
+
 function FeedView({ active }: { active: boolean }) {
   const { data, isLoading, error } = useActivityFeed(active);
   const [origin, setOrigin] = useState<"all" | FeedOrigin>("all");
@@ -462,9 +618,9 @@ function autoTriggerBadge(trigger: "schedule" | "manual" | "event"): string {
 
 /**
  * "Auto" tab — the Company Activity feed: named, attributed actions the
- * engine performed (a staff member ran a duty, why, and the result), written
- * by the engine to `.kody/activity/*.jsonl`. NOT derived from commits/PRs —
- * those carry no staff/duty/purpose.
+ * engine performed (an agent ran a agentResponsibility, why, and the result), written
+ * by the engine to `activity/*.jsonl` in the configured Kody state repo. NOT derived from commits/PRs —
+ * those carry no agent/agentResponsibility/purpose.
  */
 function AutoView({ active }: { active: boolean }) {
   const { data, isLoading, error } = useAutonomousActivity(active);
@@ -477,7 +633,7 @@ function AutoView({ active }: { active: boolean }) {
     const q = query.trim().toLowerCase();
     if (q)
       all = all.filter((r) =>
-        [r.action, r.staff ?? "", r.staffTitle ?? "", r.duty, r.trigger]
+        [r.action, r.agent ?? "", r.staffTitle ?? "", r.agentResponsibility, r.trigger]
           .join(" ")
           .toLowerCase()
           .includes(q),
@@ -511,7 +667,7 @@ function AutoView({ active }: { active: boolean }) {
             type="text"
             value={query}
             onChange={(e) => setQuery(e.target.value)}
-            placeholder="Search action, staff, duty…"
+            placeholder="Search action, agent, agentResponsibility…"
             className="w-64 rounded-md border border-white/[0.08] bg-white/[0.02] py-1 pl-7 pr-2 text-xs placeholder:text-white/30 focus:border-white/20 focus:outline-none"
           />
         </div>
@@ -526,14 +682,14 @@ function AutoView({ active }: { active: boolean }) {
         </p>
       ) : records.length === 0 ? (
         <p className="text-xs text-white/40 italic py-6 text-center">
-          No autonomous activity yet — appears once a duty runs on the updated
+          No autonomous activity yet — appears once a agentResponsibility runs on the updated
           engine.
         </p>
       ) : (
         <ul className="space-y-1.5">
           {records.map((r, i) => (
             <li
-              key={`${r.ts}-${r.duty}-${i}`}
+              key={`${r.ts}-${r.agentResponsibility}-${i}`}
               className="flex items-start gap-3 rounded-lg border border-white/[0.06] bg-white/[0.02] px-3 py-2.5"
             >
               <span className="mt-0.5 shrink-0">
@@ -548,13 +704,13 @@ function AutoView({ active }: { active: boolean }) {
               <div className="min-w-0 flex-1">
                 <div className="text-sm truncate text-white/85">{r.action}</div>
                 <div className="mt-0.5 flex flex-wrap items-center gap-x-1.5 gap-y-1 text-[10px] text-white/40">
-                  {r.staffTitle || r.staff ? (
+                  {r.staffTitle || r.agent ? (
                     <span className="rounded bg-emerald-500/15 px-1 text-emerald-200/80">
-                      {r.staffTitle ?? r.staff}
+                      {r.staffTitle ?? r.agent}
                     </span>
                   ) : null}
                   <span className="rounded bg-violet-500/15 px-1 text-violet-200/80">
-                    duty: {r.duty}
+                    agentResponsibility: {r.agentResponsibility}
                   </span>
                   <span
                     className={cn("rounded px-1", autoTriggerBadge(r.trigger))}
@@ -587,8 +743,8 @@ function AutoView({ active }: { active: boolean }) {
         </ul>
       )}
       <p className="mt-6 text-[10px] text-white/30">
-        Company activity — each line is one action the engine took: which staff
-        member ran which duty, why (schedule / manual), and the result. Written
+        Company activity — each line is one action the engine took: which agent
+        member ran which agentResponsibility, why (schedule / manual), and the result. Written
         by the engine; the Log tab shows dashboard actions instead.
       </p>
     </div>
@@ -623,8 +779,8 @@ function LogView({ active }: { active: boolean }) {
           e.actor,
           e.repo ?? "",
           e.detail ?? "",
-          e.duty ?? "",
-          e.staff ?? "",
+          e.agentResponsibility ?? "",
+          e.agent ?? "",
         ]
           .join(" ")
           .toLowerCase()
@@ -647,7 +803,7 @@ function LogView({ active }: { active: boolean }) {
             type="text"
             value={query}
             onChange={(e) => setQuery(e.target.value)}
-            placeholder="Search actions, target, actor, duty…"
+            placeholder="Search actions, target, actor, agentResponsibility…"
             className="w-64 rounded-md border border-white/[0.08] bg-white/[0.02] py-1 pl-7 pr-2 text-xs placeholder:text-white/30 focus:border-white/20 focus:outline-none"
           />
         </div>
@@ -715,14 +871,14 @@ function LogView({ active }: { active: boolean }) {
                 </div>
                 <div className="flex flex-wrap items-center gap-x-1.5 text-[10px] text-white/40 truncate">
                   <span>by {e.actor}</span>
-                  {e.duty && (
+                  {e.agentResponsibility && (
                     <span className="rounded bg-violet-500/15 px-1 text-violet-200/80">
-                      duty: {e.duty}
+                      agentResponsibility: {e.agentResponsibility}
                     </span>
                   )}
-                  {e.staff && (
+                  {e.agent && (
                     <span className="rounded bg-emerald-500/15 px-1 text-emerald-200/80">
-                      staff: {e.staff}
+                      agent: {e.agent}
                     </span>
                   )}
                   {e.repo && <span>· {e.repo}</span>}
@@ -739,8 +895,8 @@ function LogView({ active }: { active: boolean }) {
         </ul>
       )}
       <p className="mt-6 text-[10px] text-white/30">
-        Dashboard actions (duty runs/edits, task actions, vault writes,
-        staff/prompt/goal changes) attributed to the verified GitHub user who
+        Dashboard actions (agentResponsibility runs/edits, task actions, vault writes,
+        agent/prompt/goal changes) attributed to the verified GitHub user who
         made them. Persisted durably in the repo&apos;s audit-log issue (newest{" "}
         {150} kept) and merged with this instance&apos;s in-memory ring —
         survives redeploys and is shared across instances.
@@ -832,7 +988,8 @@ export function ActivityPage() {
       <HealthBanner />
 
       <div className="mb-4 flex items-center gap-1">
-        {(["log", "auto", "runs", "feed"] as ActivityTab[]).map((t) => (
+        {(["log", "auto", "runs", "runLogs", "feed"] as ActivityTab[]).map(
+          (t) => (
           <button
             key={t}
             type="button"
@@ -848,6 +1005,8 @@ export function ActivityPage() {
               <ActivityIcon className="w-3.5 h-3.5" />
             ) : t === "auto" ? (
               <Bot className="w-3.5 h-3.5" />
+            ) : t === "runLogs" ? (
+              <Clock className="w-3.5 h-3.5" />
             ) : (
               <ScrollText className="w-3.5 h-3.5" />
             )}
@@ -857,14 +1016,19 @@ export function ActivityPage() {
                 ? "Auto"
                 : t === "runs"
                   ? "Runs"
+                  : t === "runLogs"
+                    ? "Run Logs"
                   : "Feed"}
           </button>
-        ))}
+          ),
+        )}
       </div>
 
       {tab === "log" && <LogView active={tab === "log"} />}
 
       {tab === "auto" && <AutoView active={tab === "auto"} />}
+
+      {tab === "runLogs" && <RunLogsView active={tab === "runLogs"} />}
 
       {tab === "feed" && <FeedView active={tab === "feed"} />}
 

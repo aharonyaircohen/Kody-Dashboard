@@ -11,6 +11,7 @@
  */
 
 import { createUserOctokit } from "@dashboard/lib/github-client";
+import { updateGitHubFileWithRetry } from "@dashboard/lib/github-contents-write";
 import type { Octokit } from "@octokit/rest";
 
 export interface EventLogEntry {
@@ -79,24 +80,16 @@ async function getFileContent(
   return null;
 }
 
-async function writeFile(
-  octokit: Octokit,
-  owner: string,
-  repo: string,
-  branch: string,
-  content: string,
-  sha?: string,
-): Promise<void> {
-  const encoded = Buffer.from(content).toString("base64");
-  await octokit.rest.repos.createOrUpdateFileContents({
-    owner,
-    repo,
-    path: STORE_FILE,
-    message: `kody: append event log`,
-    content: encoded,
-    branch,
-    ...(sha ? { sha } : {}),
-  });
+function appendEventLogEntry(
+  existingContent: string | null,
+  entry: EventLogEntry,
+): string {
+  if (!existingContent) return `${JSON.stringify(entry)}\n`;
+  const lines = existingContent.trim().split("\n").filter(Boolean);
+  if (lines.length >= MAX_ENTRIES) {
+    lines.splice(0, lines.length - MAX_ENTRIES + 1);
+  }
+  return [...lines, JSON.stringify(entry)].join("\n") + "\n";
 }
 
 // ─── Public API ───────────────────────────────────────────────────────────────
@@ -132,23 +125,24 @@ export async function logEvent(
     emittedAt: new Date().toISOString(),
   };
 
-  const newLine = JSON.stringify(entry) + "\n";
-  const existing = await getFileContent(octokit, owner, repo, branch);
-
-  let finalContent: string;
-  if (existing) {
-    const lines = existing.content.trim().split("\n").filter(Boolean);
-    // Trim oldest entries if we're approaching the limit
-    if (lines.length >= MAX_ENTRIES) {
-      lines.splice(0, lines.length - MAX_ENTRIES + 1);
-    }
-    finalContent =
-      [...lines, entry].map((e) => JSON.stringify(e)).join("\n") + "\n";
-  } else {
-    finalContent = newLine;
-  }
-
-  await writeFile(octokit, owner, repo, branch, finalContent, existing?.sha);
+  await updateGitHubFileWithRetry(octokit, {
+    owner,
+    repo,
+    path: STORE_FILE,
+    branch,
+    message: `kody: append event log`,
+    maxAttempts: 3,
+    mutate: (current) => {
+      const existingContent = current?.contentBase64
+        ? Buffer.from(current.contentBase64, "base64").toString("utf-8")
+        : null;
+      return {
+        content: Buffer.from(
+          appendEventLogEntry(existingContent, entry),
+        ).toString("base64"),
+      };
+    },
+  });
   return entry;
 }
 

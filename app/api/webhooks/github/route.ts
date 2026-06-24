@@ -5,10 +5,9 @@
  *
  * POST /api/webhooks/github
  *
- * GitHub webhook receiver. Verifies the source IP against GitHub's
- * published webhook CIDR ranges (https://api.github.com/meta) instead
- * of using a shared HMAC secret — no env var to manage. See
- * src/dashboard/lib/webhooks/github-ip.ts for rationale.
+ * GitHub webhook receiver. When GITHUB_WEBHOOK_SECRET or KODY_WEBHOOK_SECRET
+ * is configured, verifies X-Hub-Signature-256 before accepting a delivery.
+ * Deployments without a secret keep the legacy GitHub CIDR check.
  *
  * On accepted delivery, invalidates the in-memory cache for the affected
  * resource so the next read picks up the change without waiting for TTL.
@@ -26,6 +25,7 @@
  */
 
 import { NextRequest, NextResponse } from "next/server";
+import { createHmac, timingSafeEqual } from "node:crypto";
 import {
   invalidateIssueCache,
   invalidatePRCache,
@@ -38,8 +38,8 @@ import { getClientIp, isFromGitHub } from "@dashboard/lib/webhooks/github-ip";
 import { logger } from "@dashboard/lib/logger";
 import { dispatchNotifications } from "@dashboard/lib/notifications-dispatch";
 import { dispatchMentionPushes } from "@dashboard/lib/push/mention-dispatch";
-import { dispatchStaffMentions } from "@dashboard/lib/push/staff-mention-dispatch";
-import { dispatchDutyFailures } from "@dashboard/lib/push/duty-failure-dispatch";
+import { dispatchAgentMentions } from "@dashboard/lib/push/agent-mention-dispatch";
+import { dispatchAgentResponsibilityFailures } from "@dashboard/lib/push/agent-responsibility-failure-dispatch";
 import { dispatchReportPushes } from "@dashboard/lib/push/report-dispatch";
 import { applyVerdictFromComment } from "@dashboard/lib/ui-verify/apply-label";
 import {
@@ -54,6 +54,35 @@ import {
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
+
+// ============ Delivery auth ============
+
+function getWebhookSecret(): string | null {
+  return (
+    process.env.GITHUB_WEBHOOK_SECRET?.trim() ||
+    process.env.KODY_WEBHOOK_SECRET?.trim() ||
+    null
+  );
+}
+
+function verifyWebhookSignature(
+  rawBody: string,
+  signatureHeader: string | null,
+  secret: string,
+): boolean {
+  if (!signatureHeader?.startsWith("sha256=")) return false;
+  const suppliedHex = signatureHeader.slice("sha256=".length);
+  if (!/^[0-9a-f]{64}$/i.test(suppliedHex)) return false;
+
+  const expectedHex = createHmac("sha256", secret)
+    .update(rawBody, "utf8")
+    .digest("hex");
+  const supplied = Buffer.from(suppliedHex, "hex");
+  const expected = Buffer.from(expectedHex, "hex");
+  return (
+    supplied.length === expected.length && timingSafeEqual(supplied, expected)
+  );
+}
 
 // ============ Delivery dedupe (per-instance) ============
 
@@ -213,8 +242,7 @@ function dispatch(
         );
       }
       // Build + boot a preview on PR open, sync (push to branch), or
-      // reopen. Same opt-in via vault FLY_API_TOKEN; the handler tries
-      // the warm pool first and falls back to create-fresh.
+      // reopen. Same opt-in via vault FLY_API_TOKEN.
       if (
         event === "pull_request" &&
         (p?.action === "opened" ||
@@ -344,14 +372,37 @@ function dispatch(
 // ============ Handler ============
 
 export async function POST(req: NextRequest): Promise<NextResponse> {
-  const ip = getClientIp(req.headers);
-  const allowed = await isFromGitHub(ip);
-  if (!allowed) {
-    logger.warn(
-      { event: "webhook_unauthorized_ip", ip: ip ?? "(none)" },
-      "Webhook rejected: source IP not in GitHub's hook CIDRs",
+  let rawBody: string;
+  try {
+    rawBody = await req.text();
+  } catch {
+    return NextResponse.json({ error: "invalid body" }, { status: 400 });
+  }
+
+  const secret = getWebhookSecret();
+  if (secret) {
+    const ok = verifyWebhookSignature(
+      rawBody,
+      req.headers.get("x-hub-signature-256"),
+      secret,
     );
-    return NextResponse.json({ error: "forbidden" }, { status: 403 });
+    if (!ok) {
+      logger.warn(
+        { event: "webhook_bad_signature" },
+        "Webhook rejected: invalid GitHub signature",
+      );
+      return NextResponse.json({ error: "forbidden" }, { status: 403 });
+    }
+  } else {
+    const ip = getClientIp(req.headers);
+    const allowed = await isFromGitHub(ip);
+    if (!allowed) {
+      logger.warn(
+        { event: "webhook_unauthorized_ip", ip: ip ?? "(none)" },
+        "Webhook rejected: source IP not in GitHub's hook CIDRs",
+      );
+      return NextResponse.json({ error: "forbidden" }, { status: 403 });
+    }
   }
 
   const eventType = req.headers.get("x-github-event") ?? "";
@@ -363,7 +414,7 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
 
   let payload: unknown;
   try {
-    payload = await req.json();
+    payload = JSON.parse(rawBody);
   } catch {
     return NextResponse.json({ error: "invalid JSON" }, { status: 400 });
   }
@@ -406,32 +457,32 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
         "dispatchMentionPushes threw — should have been caught internally",
       );
     });
-    // @staff mentions → one-shot worker-ask tick, reply back in-thread.
+    // @agent mentions → one-shot agent-ask tick, reply back in-thread.
     // Same GitHub-backed surfaces as mention push (messages, goals, tasks,
     // previews, PR/issue comments, reviews) — one hook covers them all.
-    await dispatchStaffMentions(eventType, obj).catch((err: unknown) => {
+    await dispatchAgentMentions(eventType, obj).catch((err: unknown) => {
       logger.error(
         {
-          event: "staff_mention_dispatch_crashed",
+          event: "agent_mention_dispatch_crashed",
           error: err instanceof Error ? err.message : String(err),
         },
-        "dispatchStaffMentions threw — should have been caught internally",
+        "dispatchAgentMentions threw — should have been caught internally",
       );
     });
-    // Failed duty run → inbox entry for every operator. Triggered by the
-    // engine's activity-log commit to the state branch (a `push` event), so
+    // Failed agentResponsibility run → inbox entry for every operator. Triggered by the
+    // engine's activity-log commit to the state repo (a `push` event), so
     // a silent cron failure surfaces without any engine change. Awaited for
     // the same serverless reason as the mention feed write above.
-    await dispatchDutyFailures(eventType, obj).catch((err: unknown) => {
+    await dispatchAgentResponsibilityFailures(eventType, obj).catch((err: unknown) => {
       logger.error(
         {
-          event: "duty_failure_dispatch_crashed",
+          event: "agentResponsibility_failure_dispatch_crashed",
           error: err instanceof Error ? err.message : String(err),
         },
-        "dispatchDutyFailures threw — should have been caught internally",
+        "dispatchAgentResponsibilityFailures threw — should have been caught internally",
       );
     });
-    // New report committed to .kody/reports/<slug>.md on the default branch →
+    // New report committed to <repo>/reports/<slug>.md in the state repo →
     // broadcast browser banner to every subscribed device for the repo, so a
     // report landing feels like an inbox/mention ping. Awaited for the same
     // serverless reason as the entries above.

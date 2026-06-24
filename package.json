@@ -1,13 +1,15 @@
 {
   "name": "kody-dashboard",
-  "version": "0.1.1058",
+  "version": "0.1.1226",
   "private": true,
   "license": "MIT",
   "description": "Kody Dashboard — Operations dashboard for the Kody CI/CD pipeline",
   "scripts": {
     "dev": "next dev --turbopack -p 3333",
+    "dev:webpack": "next dev --webpack -p 3333",
     "dev:brain": "concurrently -k -n brain,web 'BRAIN_API_KEY=local-dev-key pnpm brain:local' 'BRAIN_CHAT_URL=http://localhost:8080 BRAIN_CHAT_API_KEY=local-dev-key pnpm dev'",
     "build": "next build",
+    "build:turbo": "next build --turbopack",
     "start": "next start -p 3333",
     "typecheck": "tsc --noEmit",
     "lint": "eslint .",
@@ -17,6 +19,7 @@
     "test": "vitest run",
     "test:e2e": "playwright test",
     "vault:init": "node scripts/generate-vault-key.mjs",
+    "cms:generate-schema": "node scripts/generate-cms-schema.mjs",
     "push:init": "node scripts/generate-vapid-keys.mjs",
     "picker:pack": "node scripts/pack-extension.mjs",
     "brain:local": "npx -y -p @kody-ade/kody-engine@latest kody-engine brain-serve",
@@ -49,17 +52,22 @@
     "ai": "^6.0.97",
     "class-variance-authority": "^0.7.0",
     "clsx": "^2.1.1",
+    "dompurify": "^3.4.11",
     "geist": "^1.3.0",
     "highlight.js": "^11.11.1",
     "jose": "^6.1.3",
     "libsodium-wrappers": "^0.8.4",
     "lucide-react": "^0.562.0",
-    "next": "15.5.9",
+    "mermaid": "^11.15.0",
+    "mongodb": "^7.3.0",
+    "next": "16.2.9",
+    "node-pty": "^1.1.0",
     "pino": "^10.1.0",
-    "react": "19.2.3",
-    "react-dom": "19.2.3",
+    "react": "19.2.7",
+    "react-dom": "19.2.7",
     "react-markdown": "^10.1.0",
     "remark-gfm": "^4.0.1",
+    "shiki": "^4.2.0",
     "sonner": "^2.0.7",
     "tailwind-merge": "^3.4.0",
     "tailwindcss-animate": "^1.0.7",
@@ -68,12 +76,12 @@
   },
   "devDependencies": {
     "@eslint/eslintrc": "^3.2.0",
-    "@next/eslint-plugin-next": "^16.2.1",
+    "@next/eslint-plugin-next": "^16.2.9",
     "@playwright/test": "^1.59.1",
     "@tailwindcss/postcss": "^4.1.18",
     "@tailwindcss/typography": "^0.5.19",
     "@types/node": "^22.5.4",
-    "@types/react": "^19.2.7",
+    "@types/react": "^19.2.17",
     "@types/react-dom": "^19.2.3",
     "@types/web-push": "^3.6.4",
     "@typescript-eslint/eslint-plugin": "^8.57.2",
@@ -97,5 +105,10 @@
     "tailwindcss": "^4.1.18",
     "typescript": "5.9.3",
     "vitest": "4.0.16"
+  },
+  "pnpm": {
+    "onlyBuiltDependencies": [
+      "node-pty"
+    ]
   }
 }

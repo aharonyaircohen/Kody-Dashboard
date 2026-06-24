@@ -2,12 +2,10 @@
  * @fileType page
  * @domain kody
  * @pattern jobs-page
- * @ai-summary Jobs entry point. A job is the engine's unified execution unit —
- *   it assembles an executable (how) + duty (why) + staff (who) + schedule
- *   (when) into one run. Renders the JobComposer.
+ * @ai-summary Legacy Jobs entry point. Jobs have been folded into AgentResponsibilities;
+ *   keep this route as a redirect so old bookmarks land on the canonical UI.
  */
-import { AuthGuard } from "@dashboard/lib/auth-guard";
-import { JobsManager } from "@dashboard/lib/components/JobsManager";
+import { redirect } from "next/navigation";
 import { buildKodyMetadata } from "../metadata";
 
 export const dynamic = "force-static";
@@ -15,16 +13,11 @@ export const revalidate = false;
 export const fetchCache = "force-cache";
 
 export const metadata = buildKodyMetadata({
-  title: "Jobs — Kody Operations Dashboard",
-  description:
-    "Compose and run jobs — the engine's execution unit binding executable, duty, staff, and schedule.",
+  title: "AgentResponsibilities — Kody Operations Dashboard",
+  description: "Manage Kody agentResponsibilities.",
   path: "/jobs",
 });
 
 export default function JobsPage() {
-  return (
-    <AuthGuard>
-      <JobsManager />
-    </AuthGuard>
-  );
+  redirect("/agent-responsibilities");
 }

@@ -12,7 +12,6 @@
  *   "start/pause the runner"; this one carries the merge intent.
  */
 /* eslint-disable @typescript-eslint/no-explicit-any */
-import type { Octokit } from "@octokit/rest";
 import { NextRequest, NextResponse } from "next/server";
 import {
   requireKodyAuth,
@@ -26,7 +25,7 @@ import {
 } from "@dashboard/lib/github-client";
 import { logger } from "@dashboard/lib/logger";
 import { goalStatePath, type GoalRunState } from "@dashboard/lib/goal-state";
-import { STATE_BRANCH } from "@dashboard/lib/state-branch";
+import { readStateText, writeStateText } from "@dashboard/lib/state-repo";
 
 function mapGithubError(error: any, fallback: string, status = 500) {
   if (error?.status === 401) {
@@ -47,74 +46,16 @@ function mapGithubError(error: any, fallback: string, status = 500) {
   );
 }
 
-interface FileResponse {
-  type?: string;
-  encoding?: string;
-  content?: string;
-  sha?: string;
-}
-
-/**
- * Ensure the `kody-state` branch exists, creating it from the default branch
- * if it does not. Idempotent — if the branch already exists this is a no-op.
- */
-async function ensureStateBranch(
-  octokit: Octokit,
-  owner: string,
-  repo: string,
-): Promise<void> {
-  try {
-    await octokit.rest.git.getRef({
-      owner,
-      repo,
-      ref: `heads/${STATE_BRANCH}`,
-    });
-  } catch (err) {
-    if ((err as { status?: number }).status !== 404) throw err;
-    // Branch doesn't exist — create it from the default branch
-    const { data: repoMeta } = await octokit.rest.repos.get({ owner, repo });
-    const defaultBranch = repoMeta.default_branch || "main";
-    const { data: refData } = await octokit.rest.git.getRef({
-      owner,
-      repo,
-      ref: `heads/${defaultBranch}`,
-    });
-    await octokit.rest.git.createRef({
-      owner,
-      repo,
-      ref: `refs/heads/${STATE_BRANCH}`,
-      sha: refData.object.sha,
-    });
-  }
-}
-
 async function fetchExisting(
-  octokit: Octokit,
+  octokit: NonNullable<Awaited<ReturnType<typeof getUserOctokit>>>,
   owner: string,
   repo: string,
   path: string,
 ): Promise<{ raw: string; sha: string } | null> {
-  try {
-    const res = await octokit.rest.repos.getContent({
-      owner,
-      repo,
-      path,
-      // Goal state lives on the dedicated state branch.
-      ref: STATE_BRANCH,
-      headers: { "If-None-Match": "" },
-    });
-    const data = res.data as FileResponse | FileResponse[];
-    if (Array.isArray(data) || data.type !== "file" || !data.content)
-      return null;
-    const buf = Buffer.from(
-      data.content,
-      (data.encoding ?? "base64") as BufferEncoding,
-    );
-    return { raw: buf.toString("utf8"), sha: data.sha ?? "" };
-  } catch (err) {
-    if ((err as { status?: number }).status === 404) return null;
-    throw err;
-  }
+  const file = await readStateText(octokit, owner, repo, path, {
+    headers: { "If-None-Match": "" },
+  });
+  return file ? { raw: file.content, sha: file.sha } : null;
 }
 
 export async function POST(
@@ -197,22 +138,14 @@ export async function POST(
     };
     delete next.pausedReason;
 
-    const content = Buffer.from(JSON.stringify(next, null, 2), "utf8").toString(
-      "base64",
-    );
-
-    // Ensure the state branch exists before writing — GitHub will reject
-    // writes to a non-existent branch with a 422 that maps to a generic 500.
-    await ensureStateBranch(octokit, headerAuth.owner, headerAuth.repo);
-
-    await octokit.rest.repos.createOrUpdateFileContents({
+    await writeStateText({
+      octokit,
       owner: headerAuth.owner,
       repo: headerAuth.repo,
       path,
       message: `chore(goals): approve merge for ${id}`,
-      content,
-      branch: STATE_BRANCH,
-      ...(existing.sha ? { sha: existing.sha } : {}),
+      content: JSON.stringify(next, null, 2),
+      sha: existing.sha,
     });
 
     // Take effect now, not on the next 15-min cron. Dispatch on the repo's

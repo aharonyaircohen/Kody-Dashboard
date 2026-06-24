@@ -1,0 +1,231 @@
+name: kody-terminal
+
+on:
+  workflow_dispatch:
+    inputs:
+      terminalSessionId:
+        description: "Kody terminal session id"
+        type: string
+        required: true
+      sandboxId:
+        description: "Kody GitHub Actions sandbox id"
+        type: string
+        required: true
+
+jobs:
+  terminal:
+    runs-on: ubuntu-latest
+    timeout-minutes: 360
+    concurrency:
+      group: kody-terminal-${{ inputs.terminalSessionId }}
+      cancel-in-progress: false
+    permissions:
+      contents: write
+      actions: read
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          ref: ${{ github.ref }}
+          token: ${{ secrets.KODY_TOKEN || github.token }}
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Restore sandbox
+        env:
+          KODY_MASTER_KEY: ${{ secrets.KODY_MASTER_KEY }}
+          KODY_SANDBOX_ID: ${{ inputs.sandboxId }}
+          TERMINAL_SESSION_ID: ${{ inputs.terminalSessionId }}
+          REPO_OWNER: ${{ github.repository_owner }}
+          REPO_NAME: ${{ github.event.repository.name }}
+        run: |
+          set -euo pipefail
+          terminal_output=".kody/terminal/${TERMINAL_SESSION_ID}/output.jsonl"
+          failure_reason="GitHub Actions terminal failed during restore. Check the kody-terminal workflow logs."
+          publish_terminal_failure() {
+            local code="$1"
+            EVENT_DATA="${failure_reason}" EXIT_CODE="${code}" OUTPUT_PATH="${terminal_output}" node <<'NODE'
+          const fs = require("fs");
+          const path = require("path");
+          fs.mkdirSync(path.dirname(process.env.OUTPUT_PATH), { recursive: true });
+          const at = new Date().toISOString();
+          const id = Date.now();
+          const data = `\r\n${process.env.EVENT_DATA}\r\n`;
+          fs.appendFileSync(
+            process.env.OUTPUT_PATH,
+            JSON.stringify({ id, type: "output", data, at }) +
+              "\n" +
+              JSON.stringify({
+                id: id + 1,
+                type: "exit",
+                code: Number(process.env.EXIT_CODE) || 1,
+                at,
+              }) +
+              "\n",
+          );
+          NODE
+            git config user.name "kody-terminal"
+            git config user.email "kody-terminal@users.noreply.github.com"
+            git add "$terminal_output"
+            git commit -m "chore(kody): terminal restore failure ${TERMINAL_SESSION_ID} [skip ci]" || true
+            git pull --rebase --autostash || true
+            git push || true
+          }
+          on_restore_exit() {
+            local code="$?"
+            if [ "$code" -ne 0 ]; then
+              publish_terminal_failure "$code"
+            fi
+          }
+          trap on_restore_exit EXIT
+          if [ -z "${KODY_MASTER_KEY:-}" ]; then
+            failure_reason="KODY_MASTER_KEY is required for GitHub Actions terminal."
+            echo "$failure_reason"
+            exit 1
+          fi
+          scope="$(printf '%s/%s' "$REPO_OWNER" "$REPO_NAME" | tr '[:upper:]' '[:lower:]' | sed -E 's/[^a-z0-9._-]+/-/g; s/^-+|-+$//g')"
+          snapshot=".kody/sandboxes/${scope}/${KODY_SANDBOX_ID}/snapshot.tar.gz.enc"
+          if [ ! -f "$snapshot" ]; then
+            failure_reason="Sandbox snapshot not found. Save or recreate the GitHub Actions sandbox, then start terminal again."
+            echo "$failure_reason: $snapshot"
+            exit 1
+          fi
+          mkdir -p "$RUNNER_TEMP/kody-terminal"
+          SNAPSHOT_PATH="$snapshot" OUT_PATH="$RUNNER_TEMP/kody-terminal/snapshot.tar.gz" node <<'NODE'
+          const { createDecipheriv } = require("crypto");
+          const fs = require("fs");
+          const payload = fs.readFileSync(process.env.SNAPSHOT_PATH);
+          const newline = payload.indexOf(10);
+          if (newline === -1) throw new Error("Snapshot header missing");
+          const [version, ivB64, tagB64] = payload.subarray(0, newline).toString("utf8").split(":");
+          if (version !== "kody-sandbox-snapshot-v1" || !ivB64 || !tagB64) throw new Error("Snapshot header invalid");
+          const raw = process.env.KODY_MASTER_KEY || "";
+          const key = /^[0-9a-fA-F]{64}$/.test(raw) ? Buffer.from(raw, "hex") : Buffer.from(raw, "base64");
+          if (key.length !== 32) throw new Error("KODY_MASTER_KEY must decode to 32 bytes");
+          const decipher = createDecipheriv("aes-256-gcm", key, Buffer.from(ivB64, "base64"));
+          decipher.setAuthTag(Buffer.from(tagB64, "base64"));
+          fs.writeFileSync(process.env.OUT_PATH, Buffer.concat([decipher.update(payload.subarray(newline + 1)), decipher.final()]));
+          NODE
+          tar -xzf "$RUNNER_TEMP/kody-terminal/snapshot.tar.gz" -C "$RUNNER_TEMP/kody-terminal"
+          rsync -a --delete --exclude='.git' --exclude='.kody/sandboxes' "$RUNNER_TEMP/kody-terminal/workspace/" "$GITHUB_WORKSPACE/"
+          trap - EXIT
+
+      - name: Run terminal bridge
+        env:
+          TERMINAL_SESSION_ID: ${{ inputs.terminalSessionId }}
+        run: |
+          set -euo pipefail
+          git config user.name "kody-terminal"
+          git config user.email "kody-terminal@users.noreply.github.com"
+          input=".kody/terminal/${TERMINAL_SESSION_ID}/input.jsonl"
+          output=".kody/terminal/${TERMINAL_SESSION_ID}/output.jsonl"
+          cwd="$GITHUB_WORKSPACE"
+          processed=0
+          event_id=2
+
+          append_output() {
+            local data="$1"
+            EVENT_ID="$event_id" EVENT_DATA="$data" OUTPUT_PATH="$output" node <<'NODE'
+          const fs = require("fs");
+          fs.mkdirSync(require("path").dirname(process.env.OUTPUT_PATH), { recursive: true });
+          fs.appendFileSync(process.env.OUTPUT_PATH, JSON.stringify({
+            id: Number(process.env.EVENT_ID),
+            type: "output",
+            data: process.env.EVENT_DATA,
+            at: new Date().toISOString()
+          }) + "\n");
+          NODE
+            event_id=$((event_id + 1))
+          }
+
+          publish_output() {
+            git add "$output"
+            git commit -m "chore(kody): terminal output ${TERMINAL_SESSION_ID} [skip ci]" || return 0
+            git pull --rebase --autostash || true
+            git push || true
+          }
+
+          append_output "GitHub Actions terminal ready\r\n"
+          publish_output
+
+          for _ in $(seq 1 10800); do
+            git pull --rebase --autostash || true
+            if [ -f "$input" ]; then
+              total="$(wc -l < "$input" | tr -d ' ')"
+              if [ "$total" -gt "$processed" ]; then
+                tail -n +"$((processed + 1))" "$input" > "$RUNNER_TEMP/kody-terminal/new-input.jsonl"
+                while IFS= read -r line; do
+                  processed=$((processed + 1))
+                  kind="$(LINE="$line" node -e 'const x=JSON.parse(process.env.LINE); process.stdout.write(x.type || "")')"
+                  if [ "$kind" = "stop" ]; then
+                    append_output "Terminal stopped\r\n"
+                    publish_output
+                    exit 0
+                  fi
+                  command="$(LINE="$line" node -e 'const x=JSON.parse(process.env.LINE); process.stdout.write(x.command || "")')"
+                  [ -z "$command" ] && continue
+                  append_output "$ ${command}\r\n"
+                  if [[ "$command" == cd\ * ]]; then
+                    target="${command#cd }"
+                    if [ "$target" = "~" ]; then target="$HOME"; fi
+                    if [ -d "$cwd/$target" ]; then
+                      cwd="$(cd "$cwd/$target" && pwd)"
+                      append_output "$cwd\r\n"
+                    elif [ -d "$target" ]; then
+                      cwd="$(cd "$target" && pwd)"
+                      append_output "$cwd\r\n"
+                    else
+                      append_output "cd: no such directory: $target\r\n"
+                    fi
+                  else
+                    set +e
+                    cmd_output="$(cd "$cwd" && bash -lc "$command" 2>&1)"
+                    code=$?
+                    set -e
+                    append_output "${cmd_output}"$'\r\n'
+                    if [ "$code" -ne 0 ]; then
+                      append_output "[exit ${code}]\r\n"
+                    fi
+                  fi
+                  publish_output
+                done < "$RUNNER_TEMP/kody-terminal/new-input.jsonl"
+              fi
+            fi
+            sleep 2
+          done
+
+      - name: Save sandbox
+        if: ${{ always() }}
+        env:
+          KODY_MASTER_KEY: ${{ secrets.KODY_MASTER_KEY }}
+          KODY_SANDBOX_ID: ${{ inputs.sandboxId }}
+          REPO_OWNER: ${{ github.repository_owner }}
+          REPO_NAME: ${{ github.event.repository.name }}
+        run: |
+          set -euo pipefail
+          if [ ! -d "$RUNNER_TEMP/kody-terminal/home" ]; then
+            exit 0
+          fi
+          scope="$(printf '%s/%s' "$REPO_OWNER" "$REPO_NAME" | tr '[:upper:]' '[:lower:]' | sed -E 's/[^a-z0-9._-]+/-/g; s/^-+|-+$//g')"
+          snapshot=".kody/sandboxes/${scope}/${KODY_SANDBOX_ID}/snapshot.tar.gz.enc"
+          rsync -a --delete --exclude='.git' --exclude='.kody/sandboxes' "$GITHUB_WORKSPACE/" "$RUNNER_TEMP/kody-terminal/workspace/"
+          tar -czf "$RUNNER_TEMP/kody-terminal/snapshot.tar.gz" -C "$RUNNER_TEMP/kody-terminal" home workspace sandbox.json
+          SNAPSHOT_PATH="$snapshot" IN_PATH="$RUNNER_TEMP/kody-terminal/snapshot.tar.gz" node <<'NODE'
+          const { createCipheriv, randomBytes } = require("crypto");
+          const fs = require("fs");
+          const raw = process.env.KODY_MASTER_KEY || "";
+          const key = /^[0-9a-fA-F]{64}$/.test(raw) ? Buffer.from(raw, "hex") : Buffer.from(raw, "base64");
+          if (key.length !== 32) throw new Error("KODY_MASTER_KEY must decode to 32 bytes");
+          const iv = randomBytes(12);
+          const plaintext = fs.readFileSync(process.env.IN_PATH);
+          const cipher = createCipheriv("aes-256-gcm", key, iv);
+          const ciphertext = Buffer.concat([cipher.update(plaintext), cipher.final()]);
+          const header = `kody-sandbox-snapshot-v1:${iv.toString("base64")}:${cipher.getAuthTag().toString("base64")}\n`;
+          fs.writeFileSync(process.env.SNAPSHOT_PATH, Buffer.concat([Buffer.from(header), ciphertext]));
+          NODE
+          git add -f "$snapshot"
+          git commit -m "chore(kody): save sandbox ${KODY_SANDBOX_ID} [skip ci]" || exit 0
+          git pull --rebase --autostash || true
+          git push || true

@@ -16,8 +16,9 @@ import {
   DialogDescription,
 } from "@dashboard/ui/dialog";
 import { Wrench, Loader2, Eye, Edit } from "lucide-react";
-import ReactMarkdown from "react-markdown";
-import remarkGfm from "remark-gfm";
+import { cn } from "@dashboard/lib/utils/ui";
+import { rtlAwareMarkdownClassName } from "../text-direction";
+import { MarkdownPreview } from "./MarkdownPreview";
 
 interface FixRequestDialogProps {
   isOpen: boolean;
@@ -96,17 +97,19 @@ export function FixRequestDialog({
               value={description}
               onChange={(e) => setDescription(e.target.value)}
               placeholder="Describe the fix needed...&#10;&#10;e.g., The button text should be 'Save' not 'Submit'. Also fix the padding on mobile."
-              className="w-full h-40 px-3 py-2 text-sm bg-zinc-900 border border-zinc-800 rounded-lg resize-none focus:outline-none focus:ring-2 focus:ring-orange-500/50 placeholder:text-zinc-600 font-mono"
+              dir="auto"
+              className="w-full h-40 px-3 py-2 text-sm bg-zinc-900 border border-zinc-800 rounded-lg resize-none focus:outline-none focus:ring-2 focus:ring-orange-500/50 placeholder:text-zinc-600 font-mono text-start"
               autoFocus
             />
           ) : (
             <div className="min-h-[160px] px-3 py-2 bg-zinc-900 border border-zinc-800 rounded-lg overflow-y-auto">
               {description.trim() ? (
-                <div className="prose prose-invert prose-sm max-w-none">
-                  <ReactMarkdown remarkPlugins={[remarkGfm]}>
-                    {description}
-                  </ReactMarkdown>
-                </div>
+                <MarkdownPreview
+                  content={description}
+                  dir="auto"
+                  variant="compact"
+                  className={cn("text-start", rtlAwareMarkdownClassName)}
+                />
               ) : (
                 <p className="text-zinc-600 text-sm italic">
                   Nothing to preview

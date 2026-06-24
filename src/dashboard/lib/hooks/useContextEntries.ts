@@ -4,8 +4,8 @@
  * @pattern context-control-hooks
  * @ai-summary React Query hooks for the Context page.
  *   Backed by `.kody/context/<slug>.md` files in the connected repo via
- *   the contents API. Each entry carries a `staff:` list of staff-member
- *   slugs that own it, deciding which consumers load it. Mirrors useStaff.ts.
+ *   the contents API. Each entry carries a `agent:` list of agent-member
+ *   slugs that own it, deciding which consumers load it. Mirrors useAgents.ts.
  *   (Named `useContextEntries`, not `useContext`, to avoid colliding with
  *   React's `useContext`.)
  */
@@ -20,17 +20,50 @@ import {
   SessionExpiredError,
   getStoredAuth,
 } from "../api";
+import { useAuth } from "../auth-context";
+
+export interface ContextQueryScope {
+  owner?: string | null;
+  repo?: string | null;
+}
+
+export function contextQueryScopeFromAuth(
+  auth: { owner?: string | null; repo?: string | null } | null | undefined,
+): ContextQueryScope {
+  return {
+    owner: auth?.owner ?? null,
+    repo: auth?.repo ?? null,
+  };
+}
 
 export const contextQueryKeys = {
-  list: ["kody-context"] as const,
-  detail: (slug: string) => ["kody-context-entry", slug] as const,
+  all: ["kody-context"] as const,
+  list: (scope: ContextQueryScope = {}) =>
+    ["kody-context", scope.owner ?? null, scope.repo ?? null] as const,
+  detail: (slug: string, scope: ContextQueryScope = {}) =>
+    [
+      "kody-context-entry",
+      scope.owner ?? null,
+      scope.repo ?? null,
+      slug,
+    ] as const,
 };
 
+function useContextQueryScope() {
+  const { auth } = useAuth();
+  const currentAuth = auth ?? getStoredAuth();
+  return {
+    currentAuth,
+    scope: contextQueryScopeFromAuth(currentAuth),
+  };
+}
+
 export function useContextEntries() {
+  const { currentAuth, scope } = useContextQueryScope();
   return useQuery({
-    queryKey: contextQueryKeys.list,
+    queryKey: contextQueryKeys.list(scope),
     queryFn: () => kodyApi.context.list(),
-    enabled: !!getStoredAuth(),
+    enabled: !!currentAuth,
     staleTime: 30_000,
     retry: (failureCount, error) => {
       if (error instanceof SessionExpiredError) return false;
@@ -41,16 +74,18 @@ export function useContextEntries() {
 }
 
 export function useContextEntry(slug: string | null) {
+  const { currentAuth, scope } = useContextQueryScope();
   return useQuery({
-    queryKey: contextQueryKeys.detail(slug ?? ""),
+    queryKey: contextQueryKeys.detail(slug ?? "", scope),
     queryFn: () => kodyApi.context.get(slug!),
-    enabled: !!getStoredAuth() && !!slug,
+    enabled: !!currentAuth && !!slug,
     staleTime: 30_000,
   });
 }
 
 export function useCreateContextEntry(actorLogin?: string) {
   const queryClient = useQueryClient();
+  const { scope } = useContextQueryScope();
 
   return useMutation<
     ContextEntry,
@@ -58,7 +93,7 @@ export function useCreateContextEntry(actorLogin?: string) {
     {
       slug: string;
       body: string;
-      staff: string[];
+      agent: string[];
     }
   >({
     mutationFn: (data) =>
@@ -67,7 +102,8 @@ export function useCreateContextEntry(actorLogin?: string) {
         ...(actorLogin && { actorLogin }),
       }),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: contextQueryKeys.list });
+      queryClient.invalidateQueries({ queryKey: contextQueryKeys.all });
+      queryClient.invalidateQueries({ queryKey: contextQueryKeys.list(scope) });
       toast.success("Context entry created");
     },
     onError: (error) => {
@@ -80,13 +116,14 @@ export function useCreateContextEntry(actorLogin?: string) {
 
 export function useUpdateContextEntry(slug: string, actorLogin?: string) {
   const queryClient = useQueryClient();
+  const { scope } = useContextQueryScope();
 
   return useMutation<
     ContextEntry,
     Error,
     {
       body?: string;
-      staff?: string[];
+      agent?: string[];
     }
   >({
     mutationFn: (data) =>
@@ -95,8 +132,9 @@ export function useUpdateContextEntry(slug: string, actorLogin?: string) {
         ...(actorLogin && { actorLogin }),
       }),
     onSuccess: (entry) => {
-      queryClient.invalidateQueries({ queryKey: contextQueryKeys.list });
-      queryClient.setQueryData(contextQueryKeys.detail(slug), entry);
+      queryClient.invalidateQueries({ queryKey: contextQueryKeys.all });
+      queryClient.invalidateQueries({ queryKey: contextQueryKeys.list(scope) });
+      queryClient.setQueryData(contextQueryKeys.detail(slug, scope), entry);
       toast.success("Context entry updated");
     },
     onError: (error) => {
@@ -109,12 +147,16 @@ export function useUpdateContextEntry(slug: string, actorLogin?: string) {
 
 export function useDeleteContextEntry(actorLogin?: string) {
   const queryClient = useQueryClient();
+  const { scope } = useContextQueryScope();
 
   return useMutation<void, Error, string>({
     mutationFn: (slug) => kodyApi.context.remove(slug, actorLogin),
     onSuccess: (_, slug) => {
-      queryClient.invalidateQueries({ queryKey: contextQueryKeys.list });
-      queryClient.removeQueries({ queryKey: contextQueryKeys.detail(slug) });
+      queryClient.invalidateQueries({ queryKey: contextQueryKeys.all });
+      queryClient.invalidateQueries({ queryKey: contextQueryKeys.list(scope) });
+      queryClient.removeQueries({
+        queryKey: contextQueryKeys.detail(slug, scope),
+      });
       toast.success("Context entry deleted");
     },
     onError: (error) => {

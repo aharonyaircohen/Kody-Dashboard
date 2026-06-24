@@ -5,7 +5,7 @@
  * @pattern notification-prefs-sync
  * @ai-summary Fire-and-forget client → server sync of the user's muted
  *   notification types. The webhook spine reads the per-user prefs file
- *   (`.kody/notifications/preferences/<login>.json`) to drop muted recipients
+ *   (`notifications/preferences/<login>.json` in the configured Kody state repo) to drop muted recipients
  *   *before* an entry is ever written to the inbox/push — so persisting a mute
  *   here is what actually stops future notifications, not just the in-app cache.
  *   Best-effort: failures are non-blocking; the next toggle (or a reload of the

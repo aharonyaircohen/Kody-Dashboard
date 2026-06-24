@@ -5,7 +5,13 @@ import { describe, it, expect } from "vitest";
 import {
   buildBreadcrumbs,
   buildFileHref,
+  currentFolderPath,
+  duplicatePath,
+  githubFileUrl,
+  joinRepoPath,
   normalizeRepoPath,
+  parentRepoPath,
+  replacePathPrefix,
 } from "@dashboard/components/files/FilesPage";
 
 describe("buildBreadcrumbs", () => {
@@ -72,6 +78,88 @@ describe("normalizeRepoPath", () => {
   it("collapses repeated separators", () => {
     expect(normalizeRepoPath("src//components///Button.tsx")).toBe(
       "src/components/Button.tsx",
+    );
+  });
+});
+
+describe("parentRepoPath", () => {
+  it("returns root for a root file", () => {
+    expect(parentRepoPath("README.md")).toBe("");
+  });
+
+  it("returns the containing folder for a nested file", () => {
+    expect(parentRepoPath("src/components/Button.tsx")).toBe("src/components");
+  });
+});
+
+describe("currentFolderPath", () => {
+  it("uses the selected folder directly", () => {
+    expect(currentFolderPath("src/components", "dir")).toBe("src/components");
+  });
+
+  it("uses the parent folder when a file is selected", () => {
+    expect(currentFolderPath("src/components/Button.tsx", "file")).toBe(
+      "src/components",
+    );
+  });
+
+  it("uses root when nothing is selected", () => {
+    expect(currentFolderPath(null, null)).toBe("");
+  });
+});
+
+describe("joinRepoPath", () => {
+  it("joins child names under the current folder", () => {
+    expect(joinRepoPath("src/components", "Button.tsx")).toBe(
+      "src/components/Button.tsx",
+    );
+  });
+
+  it("normalizes extra slashes", () => {
+    expect(joinRepoPath("/src//components/", "/forms/Input.tsx")).toBe(
+      "src/components/forms/Input.tsx",
+    );
+  });
+});
+
+describe("replacePathPrefix", () => {
+  it("moves a file under a renamed folder", () => {
+    expect(replacePathPrefix("src/a/b.ts", "src", "lib")).toBe("lib/a/b.ts");
+  });
+
+  it("moves the exact path itself", () => {
+    expect(replacePathPrefix("src", "src", "lib")).toBe("lib");
+  });
+
+  it("leaves unrelated paths alone", () => {
+    expect(replacePathPrefix("source/a.ts", "src", "lib")).toBe("source/a.ts");
+  });
+});
+
+describe("duplicatePath", () => {
+  it("adds copy before a file extension", () => {
+    expect(duplicatePath("src/Button.tsx", "file")).toBe("src/Button copy.tsx");
+  });
+
+  it("adds copy after an extensionless file", () => {
+    expect(duplicatePath("README", "file")).toBe("README copy");
+  });
+
+  it("adds -copy to folders", () => {
+    expect(duplicatePath("src/components", "dir")).toBe("src/components-copy");
+  });
+});
+
+describe("githubFileUrl", () => {
+  it("builds a GitHub blob URL for files", () => {
+    expect(githubFileUrl("acme", "repo", "src/Button.tsx", "file")).toBe(
+      "https://github.com/acme/repo/blob/HEAD/src/Button.tsx",
+    );
+  });
+
+  it("builds a GitHub tree URL for folders", () => {
+    expect(githubFileUrl("acme", "repo", "src/components", "dir")).toBe(
+      "https://github.com/acme/repo/tree/HEAD/src/components",
     );
   });
 });

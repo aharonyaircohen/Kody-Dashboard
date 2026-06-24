@@ -104,7 +104,17 @@ import { Avatar, AvatarFallback, AvatarImage } from "@dashboard/ui/avatar";
 import { KodyHeader } from "./KodyHeader";
 import { HeaderOverflowMenu } from "./HeaderOverflowMenu";
 import { MobileMenu } from "./MobileMenu";
-import { PRIORITY_LEVELS, PRIORITY_META } from "../constants";
+import {
+  HIDDEN_TASK_LABEL,
+  KODY_BACKLOG_LABEL,
+  PRIORITY_LEVELS,
+  PRIORITY_META,
+} from "../constants";
+import {
+  filterVisibleTasks,
+  markTaskHiddenInList,
+  markTaskVisibleInList,
+} from "../tasks/visibility";
 
 interface KodyDashboardProps {
   initialIssueNumber?: number;
@@ -173,6 +183,8 @@ export function KodyDashboard({
       window.localStorage.setItem(VIEW_MODE_KEY, taskListLayout);
     }
   }, [taskListLayout]);
+  const showingBacklog = viewMode === "backlog";
+  const isGroupedTaskList = taskListLayout === "grouped" && !showingBacklog;
 
   const filterBarRef = useRef<{ focusSearch: () => void } | null>(null);
 
@@ -185,7 +197,12 @@ export function KodyDashboard({
 
   // Persistent chat lives in the root layout (ChatRailShell). We just
   // push our context up and read mobile-open from the shared rail API.
-  const { setScope, openMobileChat } = useChatScope();
+  const { setScope, openMobileChat, setPageOwnsHeader } = useChatScope();
+
+  useEffect(() => {
+    setPageOwnsHeader(true);
+    return () => setPageOwnsHeader(false);
+  }, [setPageOwnsHeader]);
 
   const handleSearchChange = useCallback((value: string) => {
     setSearchQuery(value);
@@ -208,8 +225,14 @@ export function KodyDashboard({
   // Get days from filter
   const filter = DATE_FILTERS.find((f) => f.value === dateFilter);
   const days = filter?.days;
+  const apiViewMode = "intake";
+  const taskQueryKey = useMemo(
+    () => queryKeys.tasks(days, false, apiViewMode),
+    [days, apiViewMode],
+  );
 
-  // Data fetching with TanStack Query (auto-refreshes: 10s when active, 30s when idle)
+  // One dashboard task set backs both visible tabs:
+  // Running = assigned/executing work, Backlog = unassigned + assigned but not run.
   const {
     data: tasks = [],
     isLoading,
@@ -219,7 +242,7 @@ export function KodyDashboard({
     dataUpdatedAt,
   } = useKodyTasks({
     days,
-    viewMode: viewMode === "queue" ? "running" : viewMode,
+    viewMode: apiViewMode,
     // Pause list polling while a task is open OR a full-screen modal is up
     // (/new, /bug). The modal owns the foreground; background list will
     // refresh on close via invalidation.
@@ -248,7 +271,9 @@ export function KodyDashboard({
     const status = params.get("status");
     if (status) setStatusFilter(status);
     const view = params.get("view");
-    if (view && ["backlog", "queue", "running"].includes(view))
+    if (view === "queue") setViewMode("running");
+    else if (view === "unassigned") setViewMode("backlog");
+    else if (view && ["backlog", "running"].includes(view))
       setViewMode(view as ViewMode);
     const q = params.get("q");
     if (q) {
@@ -325,8 +350,9 @@ export function KodyDashboard({
   }, [selectedTask, selectedIssueNumber]);
 
   // GitHub identity — verified via OAuth session cookie
-  const { githubUser, connectedRepo, authError, clearGitHubUser } =
-    useGitHubIdentity();
+  const { githubUser, authError, clearGitHubUser } = useGitHubIdentity();
+
+  const visibleTasks = useMemo(() => filterVisibleTasks(tasks), [tasks]);
 
   // Auth presence — when no PAT is saved we render the dashboard chrome
   // normally but swap the task pane for `<RepoManager />` so the user
@@ -386,27 +412,80 @@ export function KodyDashboard({
     },
   });
 
+  const assignToKodyMutation = useMutation({
+    mutationFn: (task: KodyTask) =>
+      kodyApi.tasks.addLabel(
+        task.issueNumber,
+        KODY_BACKLOG_LABEL,
+        githubUser?.login,
+      ),
+    onMutate: async (task) => {
+      await queryClient.cancelQueries({ queryKey: ["kody-tasks"] });
+      const previous = queryClient.getQueriesData<KodyTask[]>({
+        queryKey: ["kody-tasks"],
+      });
+      queryClient.setQueriesData<KodyTask[]>(
+        { queryKey: ["kody-tasks"] },
+        (old) =>
+          old?.map((t) =>
+            t.issueNumber === task.issueNumber &&
+            !t.labels.includes(KODY_BACKLOG_LABEL)
+              ? { ...t, labels: [...t.labels, KODY_BACKLOG_LABEL] }
+              : t,
+          ),
+      );
+      return { previous };
+    },
+    onSuccess: () => {
+      toast.success("Assigned to Kody backlog");
+      queryClient.invalidateQueries({
+        queryKey: queryKeys.tasks(days, false, "all"),
+      });
+      queryClient.invalidateQueries({
+        queryKey: queryKeys.tasks(days, false, "intake"),
+      });
+    },
+    onError: (error, _task, context) => {
+      for (const [key, value] of context?.previous ?? []) {
+        queryClient.setQueryData(key, value);
+      }
+      if (!handleAuthError(error)) {
+        toast.error("Failed to assign to Kody");
+      }
+    },
+  });
+
   // #2: Replace manual try/catch handlers with mutations + optimistic updates
   const executeMutation = useMutation({
-    mutationFn: (task: KodyTask) =>
-      tasksApi.execute(task.issueNumber, githubUser?.login),
+    mutationFn: async (task: KodyTask) => {
+      if (!task.labels.includes(KODY_BACKLOG_LABEL)) {
+        await kodyApi.tasks.addLabel(
+          task.issueNumber,
+          KODY_BACKLOG_LABEL,
+          githubUser?.login,
+        );
+      }
+      return tasksApi.execute(task.issueNumber, githubUser?.login);
+    },
     // #3: Optimistic update — move task to "building" immediately
     onMutate: async (task) => {
-      await queryClient.cancelQueries({ queryKey: queryKeys.tasks(days) });
-      const previous = queryClient.getQueryData<KodyTask[]>(
-        queryKeys.tasks(days),
-      );
-      queryClient.setQueryData<KodyTask[]>(queryKeys.tasks(days), (old) =>
-        old?.map((t) =>
-          t.id === task.id ? { ...t, column: "building" as const } : t,
-        ),
+      await queryClient.cancelQueries({ queryKey: taskQueryKey });
+      const previous = queryClient.getQueryData<KodyTask[]>(taskQueryKey);
+      queryClient.setQueryData<KodyTask[]>(taskQueryKey, (old) =>
+        old?.map((t) => {
+          if (t.id !== task.id) return t;
+          const labels = t.labels.includes(KODY_BACKLOG_LABEL)
+            ? t.labels
+            : [...t.labels, KODY_BACKLOG_LABEL];
+          return { ...t, labels, column: "building" as const };
+        }),
       );
       return { previous };
     },
     onError: (error, _task, context) => {
       if (handleAuthError(error)) return;
       if (context?.previous) {
-        queryClient.setQueryData(queryKeys.tasks(days), context.previous);
+        queryClient.setQueryData(taskQueryKey, context.previous);
       }
       toast.error("Failed to start task");
     },
@@ -420,11 +499,9 @@ export function KodyDashboard({
     mutationFn: (task: KodyTask) =>
       tasksApi.abort(task.issueNumber, githubUser?.login),
     onMutate: async (task) => {
-      await queryClient.cancelQueries({ queryKey: queryKeys.tasks(days) });
-      const previous = queryClient.getQueryData<KodyTask[]>(
-        queryKeys.tasks(days),
-      );
-      queryClient.setQueryData<KodyTask[]>(queryKeys.tasks(days), (old) =>
+      await queryClient.cancelQueries({ queryKey: taskQueryKey });
+      const previous = queryClient.getQueryData<KodyTask[]>(taskQueryKey);
+      queryClient.setQueryData<KodyTask[]>(taskQueryKey, (old) =>
         old?.map((t) =>
           t.id === task.id ? { ...t, column: "open" as const } : t,
         ),
@@ -434,7 +511,7 @@ export function KodyDashboard({
     onError: (error, _task, context) => {
       if (handleAuthError(error)) return;
       if (context?.previous) {
-        queryClient.setQueryData(queryKeys.tasks(days), context.previous);
+        queryClient.setQueryData(taskQueryKey, context.previous);
       }
       toast.error("Failed to stop task");
     },
@@ -447,11 +524,9 @@ export function KodyDashboard({
     mutationFn: (task: KodyTask) =>
       tasksApi.approveReview(task, githubUser?.login),
     onMutate: async (task) => {
-      await queryClient.cancelQueries({ queryKey: queryKeys.tasks(days) });
-      const previous = queryClient.getQueryData<KodyTask[]>(
-        queryKeys.tasks(days),
-      );
-      queryClient.setQueryData<KodyTask[]>(queryKeys.tasks(days), (old) =>
+      await queryClient.cancelQueries({ queryKey: taskQueryKey });
+      const previous = queryClient.getQueryData<KodyTask[]>(taskQueryKey);
+      queryClient.setQueryData<KodyTask[]>(taskQueryKey, (old) =>
         old?.map((t) =>
           t.id === task.id ? { ...t, column: "done" as const } : t,
         ),
@@ -461,7 +536,7 @@ export function KodyDashboard({
     onError: (error, _task, context) => {
       if (handleAuthError(error)) return;
       if (context?.previous) {
-        queryClient.setQueryData(queryKeys.tasks(days), context.previous);
+        queryClient.setQueryData(taskQueryKey, context.previous);
       }
       toast.error("Failed to merge PR");
     },
@@ -473,7 +548,68 @@ export function KodyDashboard({
       setSelectedIssueNumber(null);
       setShowMobileDetail(false);
       window.history.pushState(null, "", "/");
-      queryClient.invalidateQueries({ queryKey: queryKeys.tasks(days) });
+      queryClient.invalidateQueries({ queryKey: taskQueryKey });
+    },
+  });
+
+  const taskVisibilityMutation = useMutation({
+    mutationFn: ({ task, hidden }: { task: KodyTask; hidden: boolean }) =>
+      hidden
+        ? kodyApi.tasks.addLabel(
+            task.issueNumber,
+            HIDDEN_TASK_LABEL,
+            githubUser?.login,
+          )
+        : kodyApi.tasks.removeLabel(
+            task.issueNumber,
+            HIDDEN_TASK_LABEL,
+            githubUser?.login,
+          ),
+    onMutate: async ({ task, hidden }) => {
+      await queryClient.cancelQueries({ queryKey: ["kody-tasks"] });
+      const previous = queryClient.getQueriesData<KodyTask[]>({
+        queryKey: ["kody-tasks"],
+      });
+      queryClient.setQueriesData<KodyTask[]>(
+        { queryKey: ["kody-tasks"] },
+        (old) => {
+          if (!old) return old;
+          return hidden
+            ? markTaskHiddenInList(old, task.issueNumber)
+            : markTaskVisibleInList(old, task.issueNumber);
+        },
+      );
+      return { previous };
+    },
+    onError: (error, _vars, context) => {
+      for (const [key, value] of context?.previous ?? []) {
+        queryClient.setQueryData(key, value);
+      }
+      if (!handleAuthError(error)) {
+        toast.error("Failed to update task visibility");
+      }
+    },
+    onSuccess: (_data, { task, hidden }) => {
+      if (hidden) {
+        toast.success("Task hidden from dashboard", {
+          action: {
+            label: "Undo",
+            onClick: () =>
+              taskVisibilityMutation.mutate({ task, hidden: false }),
+          },
+        });
+        if (selectedIssueNumber === task.issueNumber) {
+          setSelectedIssueNumber(null);
+          setShowMobileDetail(false);
+          window.history.pushState(null, "", "/");
+        }
+      } else {
+        toast.success("Task shown in dashboard");
+      }
+      queryClient.invalidateQueries({ queryKey: ["kody-tasks"] });
+      queryClient.invalidateQueries({
+        queryKey: queryKeys.taskDetails(task.issueNumber),
+      });
     },
   });
 
@@ -501,11 +637,10 @@ export function KodyDashboard({
 
   // Handlers now just delegate to mutations
   const handleExecuteTask = useCallback(
-    (taskId: string) => {
-      const task = tasks.find((t) => t.id === taskId);
-      if (task) executeMutation.mutate(task);
+    (task: KodyTask) => {
+      executeMutation.mutate(task);
     },
-    [tasks, executeMutation],
+    [executeMutation],
   );
 
   const handleStopTask = useCallback(
@@ -553,11 +688,11 @@ export function KodyDashboard({
 
   // Check for task changes when tasks update
   useEffect(() => {
-    if (tasks.length > 0) {
-      checkTaskChanges(tasks);
+    if (visibleTasks.length > 0) {
+      checkTaskChanges(visibleTasks);
       setErrorDismissed(false); // Reset banner dismissal on successful fetch
     }
-  }, [tasks, dataUpdatedAt, checkTaskChanges]);
+  }, [visibleTasks, dataUpdatedAt, checkTaskChanges]);
 
   // Persist filter state in URL params
   useEffect(() => {
@@ -588,7 +723,7 @@ export function KodyDashboard({
 
   // Get unique labels from tasks (excluding internal/system labels)
   const availableLabels = Array.from(
-    new Set(tasks.flatMap((task) => task.labels)),
+    new Set(visibleTasks.flatMap((task) => task.labels)),
   )
     .filter(
       (label) =>
@@ -608,7 +743,7 @@ export function KodyDashboard({
     .sort();
 
   // Calculate label counts
-  const labelCounts = tasks.reduce(
+  const labelCounts = visibleTasks.reduce(
     (acc, task) => {
       task.labels.forEach((label) => {
         acc[label] = (acc[label] || 0) + 1;
@@ -619,7 +754,7 @@ export function KodyDashboard({
   );
 
   // Calculate status counts
-  const statusCounts = tasks.reduce(
+  const statusCounts = visibleTasks.reduce(
     (acc, task) => {
       acc[task.column] = (acc[task.column] || 0) + 1;
       return acc;
@@ -627,10 +762,13 @@ export function KodyDashboard({
     {} as Record<string, number>,
   );
 
-  const totalCount = tasks.length;
+  const totalCount = visibleTasks.length;
 
-  // View mode counts — backlog = open column, running = everything else
-  const { runningCount, backlogCount, queueCount } = getViewModeCounts(tasks);
+  // Backlog is the unified intake: unassigned issues plus assigned open tasks.
+  const viewCounts = getViewModeCounts(visibleTasks);
+  const runningCount = viewCounts.runningCount;
+  const backlogCount = viewCounts.backlogCount;
+  const queueCount = viewCounts.queueCount;
 
   // Filter tasks by view mode, then by status and label (combined with AND logic).
   // useMemo is load-bearing: without it the function returns a fresh array every
@@ -639,22 +777,22 @@ export function KodyDashboard({
   // fires every render once a goal is being planned and trips React error #185.
   const baseFilteredTasks = useMemo(
     () =>
-      filterTasksByView(tasks, {
+      filterTasksByView(visibleTasks, {
         viewMode,
         statusFilter,
         labelFilter,
         priorityFilter,
         // Goal view collapses the running/backlog split — every active task
         // is visible under its goal section.
-        showAllStates: taskListLayout === "grouped",
+        showAllStates: isGroupedTaskList,
       }),
     [
-      tasks,
+      visibleTasks,
       viewMode,
       statusFilter,
       labelFilter,
       priorityFilter,
-      taskListLayout,
+      isGroupedTaskList,
     ],
   );
   const searchedTasks = useMemo(() => {
@@ -845,7 +983,7 @@ export function KodyDashboard({
       const targetLabel = targetGoalId ? `goal:${targetGoalId}` : null;
 
       // Optimistic: update the tasks cache so the row jumps to the new group immediately
-      queryClient.setQueryData<KodyTask[]>(queryKeys.tasks(days), (old) =>
+      queryClient.setQueryData<KodyTask[]>(taskQueryKey, (old) =>
         old?.map((t) => {
           if (t.id !== task.id) return t;
           const nextLabels = t.labels.filter((l) => !l.startsWith("goal:"));
@@ -943,10 +1081,10 @@ export function KodyDashboard({
         setShowMobileDetail(false);
         window.history.pushState(null, "", "/");
         // Refresh once on close — polling was paused while the modal was open.
-        queryClient.invalidateQueries({ queryKey: queryKeys.tasks(days) });
+        queryClient.invalidateQueries({ queryKey: taskQueryKey });
       }
     },
-    [isDesktop, queryClient, days],
+    [isDesktop, queryClient, taskQueryKey],
   );
 
   // Auto-select task from URL on initial load
@@ -1018,11 +1156,8 @@ export function KodyDashboard({
 
       const issueNum = getIssueFromUrl();
       if (issueNum) {
-        const match = tasks.find((t) => t.issueNumber === issueNum);
-        if (match) {
-          setSelectedIssueNumber(match.issueNumber);
-          if (!isDesktop) setShowMobileDetail(true);
-        }
+        setSelectedIssueNumber(issueNum);
+        if (!isDesktop) setShowMobileDetail(true);
       } else {
         setSelectedIssueNumber(null);
         setShowMobileDetail(false);
@@ -1031,7 +1166,7 @@ export function KodyDashboard({
 
     window.addEventListener("popstate", handlePopState);
     return () => window.removeEventListener("popstate", handlePopState);
-  }, [tasks, isDesktop, openMobileChat]);
+  }, [isDesktop, openMobileChat]);
 
   // Mobile filter controls — rendered inside the mobile menu Sheet
   const mobileFilterControls = (
@@ -1042,7 +1177,7 @@ export function KodyDashboard({
         onViewModeChange={setViewMode}
         runningCount={runningCount}
         backlogCount={backlogCount}
-        disableBacklog={taskListLayout === "grouped"}
+        disableBacklog={isGroupedTaskList}
       />
       {/* Date filter */}
       <Select value={dateFilter} onValueChange={setDateFilter}>
@@ -1295,6 +1430,16 @@ export function KodyDashboard({
         : null
     : null;
 
+  const visibilityActionPending =
+    taskVisibilityMutation.isPending &&
+    selectedTask &&
+    taskVisibilityMutation.variables?.task.issueNumber ===
+      selectedTask.issueNumber
+      ? taskVisibilityMutation.variables.hidden
+        ? "hide-from-dashboard"
+        : "show-in-dashboard"
+      : null;
+
   return (
     <ErrorBoundary>
       <div className="h-full flex flex-col overflow-hidden">
@@ -1325,6 +1470,13 @@ export function KodyDashboard({
               }
               onEditTask={setEditingTask}
               onDuplicate={handleDuplicateTask}
+              onHideTask={(task) =>
+                taskVisibilityMutation.mutate({ task, hidden: true })
+              }
+              onShowTask={(task) =>
+                taskVisibilityMutation.mutate({ task, hidden: false })
+              }
+              visibilityActionPending={visibilityActionPending}
             />
           ) : (
             <>
@@ -1370,7 +1522,7 @@ export function KodyDashboard({
                     runningCount={runningCount}
                     backlogCount={backlogCount}
                     queueCount={queueCount}
-                    disableBacklog={taskListLayout === "grouped"}
+                    disableBacklog={isGroupedTaskList}
                     searchQuery={searchQuery}
                     onSearchChange={handleSearchChange}
                     sortField={sortField as SortField}
@@ -1406,7 +1558,7 @@ export function KodyDashboard({
 
               {/* Kody Status Banner */}
               <KodyStatusBanner
-                tasks={tasks}
+                tasks={visibleTasks}
                 mainCi={mainCi}
                 mainCiLoading={mainCiFetching}
                 isFetching={isFetching}
@@ -1422,17 +1574,17 @@ export function KodyDashboard({
                       size="sm"
                       onClick={() =>
                         setTaskListLayout(
-                          taskListLayout === "grouped" ? "flat" : "grouped",
+                          isGroupedTaskList ? "flat" : "grouped",
                         )
                       }
                       className="h-7 gap-1.5 text-xs text-muted-foreground hover:text-foreground"
                       title={
-                        taskListLayout === "grouped"
-                          ? "Switch to flat task list (hide goals)"
-                          : "Switch to goal-grouped view"
+                        isGroupedTaskList
+                          ? "Switch to flat task list (hide missions)"
+                          : "Switch to mission-grouped view"
                       }
                     >
-                      {taskListLayout === "grouped" ? (
+                      {isGroupedTaskList ? (
                         <>
                           <List className="w-3.5 h-3.5" />
                           Flat list
@@ -1440,11 +1592,11 @@ export function KodyDashboard({
                       ) : (
                         <>
                           <Layers className="w-3.5 h-3.5" />
-                          Group by goal
+                          Group by mission
                         </>
                       )}
                     </Button>
-                    {taskListLayout === "grouped" && hasMultipleGoalGroups ? (
+                    {isGroupedTaskList && hasMultipleGoalGroups ? (
                       <Button
                         variant="ghost"
                         size="sm"
@@ -1484,7 +1636,7 @@ export function KodyDashboard({
                   <div className="flex items-center justify-center h-full">
                     <div className="text-muted-foreground">Loading...</div>
                   </div>
-                ) : taskListLayout === "flat" || debouncedSearch.trim() ? (
+                ) : !isGroupedTaskList || debouncedSearch.trim() ? (
                   <div>
                     {/* Legacy flat view: actions pinned at the top so the
                         user can create a task or report a bug without
@@ -1519,6 +1671,10 @@ export function KodyDashboard({
                       onApproveReview={handleMerge}
                       onTaskHover={handleTaskHover}
                       collaborators={collaborators}
+                      intakeMode={showingBacklog}
+                      onAssignToKody={(task) =>
+                        assignToKodyMutation.mutate(task)
+                      }
                       onAssign={(issueNumber, assignees) =>
                         assignMutation.mutate({ issueNumber, assignees })
                       }
@@ -1529,6 +1685,12 @@ export function KodyDashboard({
                       onCreateTask={handleOpenCreate}
                       onEditTask={setEditingTask}
                       onDuplicate={handleDuplicateTask}
+                      onHideTask={(task) =>
+                        taskVisibilityMutation.mutate({ task, hidden: true })
+                      }
+                      onShowTask={(task) =>
+                        taskVisibilityMutation.mutate({ task, hidden: false })
+                      }
                       onRerun={(task) => rerunMutation.mutate(task)}
                       onToggleQueue={(task) => {
                         const isQueued = task.labels.includes("kody:queued");
@@ -1576,6 +1738,12 @@ export function KodyDashboard({
                     onCreateTask={handleOpenCreate}
                     onEditTask={setEditingTask}
                     onDuplicate={handleDuplicateTask}
+                    onHideTask={(task) =>
+                      taskVisibilityMutation.mutate({ task, hidden: true })
+                    }
+                    onShowTask={(task) =>
+                      taskVisibilityMutation.mutate({ task, hidden: false })
+                    }
                     onRerun={(task) => rerunMutation.mutate(task)}
                     onToggleQueue={(task) => {
                       const isQueued = task.labels.includes("kody:queued");
@@ -1745,6 +1913,13 @@ export function KodyDashboard({
                 onRefresh={refetch}
                 onEditTask={setEditingTask}
                 onDuplicate={handleDuplicateTask}
+                onHideTask={(task) =>
+                  taskVisibilityMutation.mutate({ task, hidden: true })
+                }
+                onShowTask={(task) =>
+                  taskVisibilityMutation.mutate({ task, hidden: false })
+                }
+                visibilityActionPending={visibilityActionPending}
               />
             </SheetContent>
           </Sheet>
@@ -1824,14 +1999,14 @@ export function KodyDashboard({
         />
         <ConfirmDialog
           open={!!pendingDeleteGoal}
-          title="Remove this goal?"
+          title="Remove this mission?"
           description={
             pendingDeleteGoal
-              ? `"${pendingDeleteGoal.name}" will be removed from the goals manifest. Tasks attached to it keep their goal:${pendingDeleteGoal.id} label until you remove it manually.`
+              ? `"${pendingDeleteGoal.name}" will be removed from missions. Tasks attached to it keep their goal:${pendingDeleteGoal.id} label until you remove it manually.`
               : ""
           }
           variant="destructive"
-          confirmLabel="Remove goal"
+          confirmLabel="Remove mission"
           onConfirm={() => {
             if (!pendingDeleteGoal) return;
             const target = pendingDeleteGoal;

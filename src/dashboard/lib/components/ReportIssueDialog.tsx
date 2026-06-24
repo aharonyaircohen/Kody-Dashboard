@@ -16,8 +16,9 @@ import {
   DialogDescription,
 } from "@dashboard/ui/dialog";
 import { AlertTriangle, Loader2, Eye, Edit } from "lucide-react";
-import ReactMarkdown from "react-markdown";
-import remarkGfm from "remark-gfm";
+import { cn } from "@dashboard/lib/utils/ui";
+import { rtlAwareMarkdownClassName } from "../text-direction";
+import { MarkdownPreview } from "./MarkdownPreview";
 
 interface ReportIssueDialogProps {
   isOpen: boolean;
@@ -96,17 +97,19 @@ export function ReportIssueDialog({
               value={notes}
               onChange={(e) => setNotes(e.target.value)}
               placeholder="What's broken or unresolved?&#10;&#10;e.g., Header overlaps the nav on mobile widths. Loading spinner never disappears after submit."
-              className="w-full h-40 px-3 py-2 text-sm bg-zinc-900 border border-zinc-800 rounded-lg resize-none focus:outline-none focus:ring-2 focus:ring-red-500/50 placeholder:text-zinc-600 font-mono"
+              dir="auto"
+              className="w-full h-40 px-3 py-2 text-sm bg-zinc-900 border border-zinc-800 rounded-lg resize-none focus:outline-none focus:ring-2 focus:ring-red-500/50 placeholder:text-zinc-600 font-mono text-start"
               autoFocus
             />
           ) : (
             <div className="min-h-[160px] px-3 py-2 bg-zinc-900 border border-zinc-800 rounded-lg overflow-y-auto">
               {notes.trim() ? (
-                <div className="prose prose-invert prose-sm max-w-none">
-                  <ReactMarkdown remarkPlugins={[remarkGfm]}>
-                    {notes}
-                  </ReactMarkdown>
-                </div>
+                <MarkdownPreview
+                  content={notes}
+                  dir="auto"
+                  variant="compact"
+                  className={cn("text-start", rtlAwareMarkdownClassName)}
+                />
               ) : (
                 <p className="text-zinc-600 text-sm italic">
                   Nothing to preview

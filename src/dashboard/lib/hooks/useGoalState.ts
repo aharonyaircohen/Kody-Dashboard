@@ -3,7 +3,7 @@
  * @domain kody
  * @pattern goal-runtime-state
  * @ai-summary React Query hooks for a single goal's runtime state file
- *   (`.kody/goals/<id>/state.json`). One query per goal id; cache is
+ *   (`goals/instances/<id>/state.json` in the configured Kody state repo). One query per goal id; cache is
  *   conservative (60s stale) since states change rarely. The mutation
  *   invalidates only the affected goal's state, not the goal list.
  */
@@ -77,7 +77,7 @@ export function useSetGoalState(goalId: string, actorLogin?: string | null) {
 
 /**
  * Toggle "let Kody manage this goal end-to-end" — the `goal-manager`
- * staff member decomposes it, QA-verifies the journey, recovers stalls, and
+ * agent decomposes it, QA-verifies the journey, recovers stalls, and
  * leaves one open deliverable PR. Enabling a never-started goal starts it.
  */
 export function useManageGoal(goalId: string, actorLogin?: string | null) {

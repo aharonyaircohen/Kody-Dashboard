@@ -7,6 +7,7 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { throttling } from "@octokit/plugin-throttling";
 import { Octokit } from "@octokit/rest";
+import { writeGitHubFileWithRetry } from "@dashboard/lib/github-contents-write";
 import {
   GITHUB_OWNER,
   GITHUB_REPO,
@@ -18,12 +19,14 @@ import {
   ALL_STAGES,
 } from "./constants";
 import { isProtectedBranch } from "./branches";
-import { STATE_BRANCH } from "./state-branch";
+import { createIssueWithBestEffortMetadata } from "./github-issue-create";
 import {
   parseActivityJsonl,
   sortActivityNewestFirst,
   type CompanyActivityRecord,
 } from "./activity/company";
+import { listStateDirectory, readStateText } from "./state-repo";
+import { parseKodyRunLogZip, type KodyRunLogsRun } from "./activity/run-logs";
 import type {
   KodyPipelineStatus,
   GitHubIssue,
@@ -123,7 +126,7 @@ function revalidateTagSafe(tag: string): void {
     const { revalidateTag } =
       require("next/cache") as typeof import("next/cache");
     /* eslint-enable @typescript-eslint/no-require-imports */
-    revalidateTag(tag);
+    revalidateTag(tag, { expire: 0 });
   } catch {
     // Outside a request scope (e.g. tests, scripts) revalidateTag throws.
     // The in-process Map invalidation above is the authoritative path here.
@@ -198,31 +201,31 @@ export function invalidateIssueCache(issueNumber?: number): void {
 }
 
 /**
- * Invalidate cache entries for duty files. Pass a slug to scope to one
- * duty, or omit to clear the listing cache (e.g. on bulk changes).
+ * Invalidate cache entries for agentResponsibility folders. Pass a slug to scope to one
+ * agentResponsibility, or omit to clear the listing cache (e.g. on bulk changes).
  */
-export function invalidateDutiesCache(slug?: string): void {
+export function invalidateAgentResponsibilitiesCache(slug?: string): void {
   if (typeof slug === "string" && slug.length > 0) {
-    // Repo-scoped key shape: `duty:owner:repo:slug`. Wipe across repos.
-    invalidateCache("duty:");
-    revalidateTagSafe(`gh:duty:${slug}`);
+    // Repo-scoped key shape: `agentResponsibility:owner:repo:slug`. Wipe across repos.
+    invalidateCache("agentResponsibility:");
+    revalidateTagSafe(`gh:agentResponsibility:${slug}`);
   } else {
-    invalidateCache("duties:");
-    revalidateTagSafe("gh:duties");
+    invalidateCache("agentResponsibilities:");
+    revalidateTagSafe("gh:agentResponsibilities");
   }
 }
 
 /**
- * Invalidate cache entries for staff files. Pass a slug to scope to one
- * staff member, or omit to clear the listing cache (e.g. on bulk changes).
- * Mirrors `invalidateDutiesCache` — staff are an independent feature
- * stored at `.kody/staff/<slug>.md`.
+ * Invalidate cache entries for agent files. Pass a slug to scope to one
+ * agent, or omit to clear the listing cache (e.g. on bulk changes).
+ * Mirrors `invalidateAgentResponsibilitiesCache` — agent are an independent feature
+ * stored at `.kody/agents/<slug>.md`.
  */
 export function invalidateStaffCache(slug?: string): void {
   if (typeof slug === "string" && slug.length > 0) {
-    // Repo-scoped key shape: `staff:owner:repo:slug`. Wipe across repos.
-    invalidateCache("staff:");
-    revalidateTagSafe(`gh:staff:${slug}`);
+    // Repo-scoped key shape: `agent:owner:repo:slug`. Wipe across repos.
+    invalidateCache("agent:");
+    revalidateTagSafe(`gh:agent:${slug}`);
   } else {
     invalidateCache("staffs:");
     revalidateTagSafe("gh:staffs");
@@ -290,6 +293,8 @@ interface GitHubContext {
   owner: string;
   repo: string;
   octokit: Octokit | null;
+  storeRepoUrl?: string;
+  storeRef?: string;
 }
 
 // Lazy AsyncLocalStorage — keeps the `async_hooks` Node builtin out of client
@@ -330,6 +335,14 @@ export function getRepo(): string {
   return requestContext()?.getStore()?.repo ?? GITHUB_REPO;
 }
 
+export function getStoreRef(): string | undefined {
+  return requestContext()?.getStore()?.storeRef;
+}
+
+export function getStoreRepoUrl(): string | undefined {
+  return requestContext()?.getStore()?.storeRepoUrl;
+}
+
 /**
  * Set the repo context for the current request.
  * API routes MUST call this before any github-client calls and
@@ -346,6 +359,8 @@ export function setGitHubContext(
   owner: string,
   repo: string,
   token?: string,
+  storeRepoUrl?: string,
+  storeRef?: string,
 ): void {
   const authToken =
     token ??
@@ -387,7 +402,13 @@ export function setGitHubContext(
     },
   });
 
-  requestContext()?.enterWith({ owner, repo, octokit });
+  requestContext()?.enterWith({
+    owner,
+    repo,
+    octokit,
+    storeRepoUrl: storeRepoUrl?.trim() || undefined,
+    storeRef: storeRef?.trim() || undefined,
+  });
 }
 
 export function clearGitHubContext(): void {
@@ -816,13 +837,13 @@ export async function findStatusOnBranch(
 }
 
 /**
- * Read `.kody/goals/<id>/state.json` from the default branch with cache +
+ * Read `goals/instances/<id>/state.json` from the configured Kody state repo with cache +
  * ETag/304 revalidation. Returns `null` when the file is missing (= the
  * engine has never ticked this goal) or unparseable.
  *
  * Uses the polling token (no per-user octokit) because the goals listing
  * route is hot — every poll fetches goals, and per-user reads would
- * multiply the rate-limit cost. The state file lives on the kody-state
+ * multiply the rate-limit cost. The state file lives in the configured Kody state repo
  * branch (engine commits it there), so the polling token is sufficient.
  */
 export async function fetchGoalStateFromRepo(goalId: string): Promise<{
@@ -830,7 +851,7 @@ export async function fetchGoalStateFromRepo(goalId: string): Promise<{
   goalPrUrl?: string;
 } | null> {
   if (!goalId || /[\\/]|\.\./.test(goalId)) return null;
-  const path = `.kody/goals/${goalId}/state.json`;
+  const path = `goals/instances/${goalId}/state.json`;
   const cacheKey = `goal-state:${getOwner()}:${getRepo()}:${goalId}`;
   const cached = getCached<{
     goalIssueNumber?: number;
@@ -845,33 +866,18 @@ export async function fetchGoalStateFromRepo(goalId: string): Promise<{
   const octokit = getOctokit();
 
   try {
-    const response = await octokit.repos.getContent({
-      owner: getOwner(),
-      repo: getRepo(),
-      path,
-      ref: STATE_BRANCH,
+    const file = await readStateText(octokit, getOwner(), getRepo(), path, {
       headers: stale?.etag ? { "If-None-Match": stale.etag } : undefined,
     });
-    const data = response.data as {
-      type?: string;
-      encoding?: string;
-      content?: string;
-    };
-    const newEtag = (response.headers as Record<string, string | undefined>)
-      ?.etag;
-    if (Array.isArray(data) || data.type !== "file" || !data.content) {
-      setCache(cacheKey, CACHE_TTL.tasks, null, { etag: newEtag });
+    if (!file) {
+      setCache(cacheKey, CACHE_TTL.tasks, null);
       return null;
     }
-    const raw = Buffer.from(
-      data.content,
-      (data.encoding ?? "base64") as BufferEncoding,
-    ).toString("utf8");
     let parsed: Record<string, unknown>;
     try {
-      parsed = JSON.parse(raw) as Record<string, unknown>;
+      parsed = JSON.parse(file.content) as Record<string, unknown>;
     } catch {
-      setCache(cacheKey, CACHE_TTL.tasks, null, { etag: newEtag });
+      setCache(cacheKey, CACHE_TTL.tasks, null, { etag: file.etag });
       return null;
     }
     const goalIssueNumber =
@@ -883,7 +889,7 @@ export async function fetchGoalStateFromRepo(goalId: string): Promise<{
         ? parsed.goalPrUrl
         : undefined;
     const result = { goalIssueNumber, goalPrUrl };
-    setCache(cacheKey, CACHE_TTL.tasks, result, { etag: newEtag });
+    setCache(cacheKey, CACHE_TTL.tasks, result, { etag: file.etag });
     return result;
   } catch (error: any) {
     if (error.status === 304 && stale) {
@@ -949,6 +955,123 @@ export async function getStatusFromArtifact(
   return null;
 }
 
+/**
+ * Read Kody run events from the Actions artifact named
+ * kody-run-logs-<run_id>-<run_attempt>.
+ */
+export async function fetchKodyRunLogArtifact(
+  run: WorkflowRun,
+): Promise<KodyRunLogsRun> {
+  const runAttempt = run.run_attempt ?? 1;
+  const artifactName = `kody-run-logs-${run.id}-${runAttempt}`;
+  const base: KodyRunLogsRun = {
+    runId: run.id,
+    runAttempt,
+    runNumber: run.run_number ?? null,
+    title: run.display_title?.trim() || `Run ${run.id}`,
+    status: run.status,
+    conclusion: run.conclusion,
+    createdAt: run.created_at,
+    updatedAt: run.updated_at,
+    htmlUrl: run.html_url,
+    artifactName,
+    artifactStatus: "missing",
+    artifactUrl: null,
+    message:
+      "Run log artifact is missing or expired. Artifacts are retained for 30 days.",
+    events: [],
+    timeline: [],
+  };
+
+  const cacheKey = `run-log-artifact:${getOwner()}:${getRepo()}:${run.id}:${runAttempt}`;
+  const cached = getCached<KodyRunLogsRun>(cacheKey);
+  if (cached) return cached;
+
+  const octokit = getOctokit();
+
+  try {
+    const { data } = await octokit.actions.listWorkflowRunArtifacts({
+      owner: getOwner(),
+      repo: getRepo(),
+      run_id: run.id,
+      per_page: 100,
+    });
+
+    const artifact = data.artifacts.find((a) => a.name === artifactName);
+    if (!artifact) {
+      setCache(cacheKey, CACHE_TTL.pipeline, base);
+      return base;
+    }
+
+    if (artifact.expired) {
+      const expired = {
+        ...base,
+        artifactStatus: "expired" as const,
+        artifactUrl: artifact.archive_download_url ?? null,
+      };
+      setCache(cacheKey, CACHE_TTL.pipeline, expired);
+      return expired;
+    }
+
+    const response = await octokit.actions.downloadArtifact({
+      owner: getOwner(),
+      repo: getRepo(),
+      artifact_id: artifact.id,
+      archive_format: "zip",
+    });
+    const parsed = parseKodyRunLogZip(
+      await artifactResponseToBuffer(response.data),
+      run.id,
+    );
+
+    const result: KodyRunLogsRun = {
+      ...base,
+      artifactStatus: parsed ? "available" : "error",
+      artifactUrl: artifact.archive_download_url ?? null,
+      message: parsed
+        ? null
+        : "Run log artifact did not contain .kody/agent-runs/<runId>/events.jsonl.",
+      events: parsed?.events ?? [],
+      timeline: parsed?.timeline ?? [],
+    };
+    setCache(cacheKey, CACHE_TTL.pipeline, result);
+    return result;
+  } catch (error: any) {
+    if (error.status !== 404 && error.status !== 410) {
+      console.warn("[Kody] Error fetching run log artifact:", error);
+      const result = {
+        ...base,
+        artifactStatus: "error" as const,
+        message:
+          error?.message ??
+          "Run log artifact could not be downloaded from GitHub Actions.",
+      };
+      setCache(cacheKey, CACHE_TTL.pipeline, result);
+      return result;
+    }
+    setCache(cacheKey, CACHE_TTL.pipeline, base);
+    return base;
+  }
+}
+
+async function artifactResponseToBuffer(data: unknown): Promise<Buffer> {
+  if (Buffer.isBuffer(data)) return data;
+  if (data instanceof ArrayBuffer) return Buffer.from(data);
+  if (ArrayBuffer.isView(data)) {
+    return Buffer.from(data.buffer, data.byteOffset, data.byteLength);
+  }
+  if (
+    data &&
+    typeof data === "object" &&
+    "arrayBuffer" in data &&
+    typeof (data as Blob).arrayBuffer === "function"
+  ) {
+    return Buffer.from(await (data as Blob).arrayBuffer());
+  }
+  if (typeof data === "string") return Buffer.from(data, "binary");
+  return Buffer.from([]);
+}
+
 // ============ Issue & Comment Fetching ============
 
 /**
@@ -956,7 +1079,7 @@ export async function getStatusFromArtifact(
  *
  * Caching:
  * - Default TTL is `CACHE_TTL.tasks` (2min). Pass `ttl` to shorten it for
- *   endpoints that need fresher data (e.g. goals manifest, duties detail).
+ *   endpoints that need fresher data (e.g. goals manifest, agentResponsibilities detail).
  * - When the TTL expires, the cached ETag is replayed via `If-None-Match`.
  *   GitHub returns 304 (free, doesn't count against the rate limit) when the
  *   issue is unchanged, and we just refresh the TTL on the existing payload.
@@ -1041,7 +1164,7 @@ export async function fetchIssue(
  *
  * Caching:
  * - Default TTL is `CACHE_TTL.tasks` (2min). Pass `ttl` to shorten it for
- *   endpoints that need fresher data (e.g. goals/duties list).
+ *   endpoints that need fresher data (e.g. goals/agent-responsibilities list).
  * - Post-TTL revalidation replays the cached ETag via `If-None-Match`. GitHub
  *   returns 304 (free, doesn't count against the rate limit) when the listing
  *   is unchanged, and the TTL is refreshed on the existing payload.
@@ -1932,7 +2055,7 @@ function derivePRCi(input: {
 //   Tracking-Issue: #1352
 // The release-prepare script writes this so the dashboard can preview the
 // release PR on the originating issue's task without auto-closing the issue
-// on merge (see kody2/src/executables/release-prepare/prepare.sh).
+// on merge (see kody2/src/agent-actions/release-prepare/prepare.sh).
 const TRACKING_ISSUE_RE = /(?:^|\n)\s*Tracking-Issue\s*:\s*#(\d+)\b/gi;
 
 function parseTrackingIssueRefs(body: string | null | undefined): number[] {
@@ -2060,16 +2183,17 @@ export async function fetchOpenPRs(): Promise<GitHubPR[]> {
 
 /**
  * Read the engine-authored Company Activity log — recent
- * `.kody/activity/<date>.jsonl` files committed by `appendCompanyActivity`.
+ * `activity/<date>.jsonl` files committed by `appendCompanyActivity`.
  * Lists the dir, reads the newest few day-files, parses + merges newest-first.
  * Each file is ETag/304-cached (rate-limit rule #2). Returns [] when the dir
  * doesn't exist yet (no engine ticks recorded).
  */
-const ACTIVITY_DIR = ".kody/activity";
+const ACTIVITY_DIR = "activity";
 const ACTIVITY_DAY_FILES = 3;
 
 export async function fetchCompanyActivity(
   limit = 100,
+  dayFiles = ACTIVITY_DAY_FILES,
 ): Promise<CompanyActivityRecord[]> {
   const octokit = getOctokit();
   const owner = getOwner();
@@ -2080,23 +2204,21 @@ export async function fetchCompanyActivity(
   const listStale = getStale<string[]>(listKey);
   let files: string[] = listStale?.data ?? [];
   try {
-    const res = await octokit.repos.getContent({
+    const { entries, etag } = await listStateDirectory(
+      octokit,
       owner,
       repo,
-      path: ACTIVITY_DIR,
-      // Engine commits the activity feed to the dedicated state branch.
-      ref: STATE_BRANCH,
-      headers: listStale?.etag
-        ? { "If-None-Match": listStale.etag }
-        : undefined,
-    });
-    const etag = (res.headers as Record<string, string | undefined>)?.etag;
-    if (Array.isArray(res.data)) {
-      files = res.data
-        .filter((e) => e.type === "file" && e.name.endsWith(".jsonl"))
-        .map((e) => e.name);
-      setCache(listKey, CACHE_TTL.tasks, files, { etag });
-    }
+      ACTIVITY_DIR,
+      {
+        headers: listStale?.etag
+          ? { "If-None-Match": listStale.etag }
+          : undefined,
+      },
+    );
+    files = entries
+      .filter((e) => e.type === "file" && e.name.endsWith(".jsonl"))
+      .map((e) => e.name);
+    setCache(listKey, CACHE_TTL.tasks, files, { etag });
   } catch (error: unknown) {
     const status = (error as { status?: number })?.status;
     if (status === 304 && listStale) {
@@ -2112,7 +2234,7 @@ export async function fetchCompanyActivity(
   }
 
   // Newest day-files first (filenames are YYYY-MM-DD.jsonl → lexicographic).
-  const recent = [...files].sort().reverse().slice(0, ACTIVITY_DAY_FILES);
+  const recent = [...files].sort().reverse().slice(0, dayFiles);
 
   const perFile = await Promise.all(
     recent.map(async (name) => {
@@ -2120,19 +2242,12 @@ export async function fetchCompanyActivity(
       const key = `activity-file:${owner}:${repo}:${name}`;
       const stale = getStale<CompanyActivityRecord[]>(key);
       try {
-        const res = await octokit.repos.getContent({
-          owner,
-          repo,
-          path,
-          ref: STATE_BRANCH,
+        const file = await readStateText(octokit, owner, repo, path, {
           headers: stale?.etag ? { "If-None-Match": stale.etag } : undefined,
         });
-        const etag = (res.headers as Record<string, string | undefined>)?.etag;
-        const data = res.data;
-        if (!Array.isArray(data) && "content" in data && data.content) {
-          const text = Buffer.from(data.content, "base64").toString("utf-8");
-          const recs = parseActivityJsonl(text);
-          setCache(key, CACHE_TTL.tasks, recs, { etag });
+        if (file) {
+          const recs = parseActivityJsonl(file.content);
+          setCache(key, CACHE_TTL.tasks, recs, { etag: file.etag });
           return recs;
         }
       } catch (error: unknown) {
@@ -2470,6 +2585,12 @@ export async function findAssociatedPRByIssueNumber(
   // even though the badge is visible.
   const openPRs = await fetchOpenPRs();
   const issueStr = String(issueNumber);
+
+  const sameNumberPr = openPRs.find((pr) => pr.number === issueNumber);
+  if (sameNumberPr) {
+    setCache(cacheKey, CACHE_TTL.prs, sameNumberPr);
+    return sameNumberPr;
+  }
 
   // Highest priority: engine-written `<!-- kody-release-pr: #N -->` marker
   // in the issue body. Persisted by release-prepare/release-deploy so the
@@ -2974,7 +3095,7 @@ export async function createIssue(
 ): Promise<GitHubIssue> {
   const octokit = userOctokit ?? getOctokit();
 
-  const { data } = await octokit.issues.create({
+  const { data } = await createIssueWithBestEffortMetadata(octokit, {
     owner: getOwner(),
     repo: getRepo(),
     title: options.title,
@@ -3056,7 +3177,13 @@ export async function uploadIssueAttachment(
 export async function uploadCommentAttachment(
   file: { name: string; contentBase64: string },
   userOctokit?: Octokit,
-): Promise<{ url: string; name: string; isImage: boolean; markdown: string }> {
+): Promise<{
+  url: string;
+  path: string;
+  name: string;
+  isImage: boolean;
+  markdown: string;
+}> {
   const octokit = userOctokit ?? getOctokit();
   const owner = getOwner();
   const repo = getRepo();
@@ -3067,7 +3194,7 @@ export async function uploadCommentAttachment(
   const safeName = cleaned.replace(/^[-.]+/, "") || "file";
   const path = `.kody/attachments/${globalThis.crypto.randomUUID()}-${safeName}`;
 
-  await octokit.repos.createOrUpdateFileContents({
+  await writeGitHubFileWithRetry(octokit, {
     owner,
     repo,
     path,
@@ -3083,7 +3210,13 @@ export async function uploadCommentAttachment(
     ? `![${safeName}](${rawUrl})`
     : `[📎 ${safeName}](${blobUrl})`;
 
-  return { url: isImage ? rawUrl : blobUrl, name: safeName, isImage, markdown };
+  return {
+    path,
+    url: isImage ? rawUrl : blobUrl,
+    name: safeName,
+    isImage,
+    markdown,
+  };
 }
 
 /**

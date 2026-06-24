@@ -141,7 +141,6 @@ export async function POST(req: NextRequest) {
       )}&token=${token}`;
     }
 
-    // Claim a warm pool machine (~1s wake) else spawn a fresh one (~3min).
     // Shared with the GitHub→Fly fallback in /interactive/start so the two
     // paths can't drift.
     const result = await claimOrSpawnFly(ctxResult.context, {

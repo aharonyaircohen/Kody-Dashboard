@@ -3,13 +3,13 @@
  * @domain kody
  * @pattern context-frontmatter
  * @ai-summary YAML frontmatter parser/serializer for context-entry files
- *   (`.kody/context/<slug>.md`). The single recognized field is `staff:` —
- *   the list of staff-member slugs that own the entry. Each consumer loads
- *   the context attached to *its* staff member:
+ *   (`.kody/context/<slug>.md`). The single recognized field is `agent:` —
+ *   the list of agent-member slugs that own the entry. Each consumer loads
+ *   the context attached to *its* agent:
  *     - the in-process kody chat loads context attached to the built-in chat
- *       staff (`kody`), and
+ *       agent (`kody`), and
  *     - the engine's QA preflight loads context attached to `qa-engineer`.
- *   Written as an inline YAML list on one line (`staff: [kody, qa-engineer]`)
+ *   Written as an inline YAML list on one line (`agent: [kody, qa-engineer]`)
  *   because the kody engine parses it with a simple inline-list reader —
  *   keep it inline, comma-separated, square brackets. Flat keys only — same
  *   ~30-line parser shape as `prompts/frontmatter.ts` and
@@ -21,67 +21,67 @@
  *   frontmatter-less file defaults to `[kody]` (legacy = chat-only).
  */
 
-/** Slug of the built-in chat staff member — the persona the in-process kody chat runs as. Constant, not a `.kody/staff/*.md` file. */
-export const KODY_CHAT_STAFF = "kody";
+/** Slug of the built-in chat agent — the agentIdentity the in-process kody chat runs as. Constant, not a `.kody/agents/*.md` file. */
+export const KODY_CHAT_AGENT = "kody";
 
-/** Slug of the QA staff member the engine's QA/ui-review preflight runs as. */
-export const QA_STAFF = "qa-engineer";
+/** Slug of the QAn agent the engine's QA/ui-review preflight runs as. */
+export const QA_AGENT = "qa-engineer";
 
 /**
  * Wildcard token: an entry owned by `*` is loaded by *every* consumer (chat,
- * QA, and any future staff). Canonicalized to a lone `["*"]` — it never
+ * QA, and any future agent). Canonicalized to a lone `["*"]` — it never
  * coexists with specific slugs.
  */
-export const ALL_STAFF = "*";
+export const ALL_AGENT = "*";
 
 /**
- * Default `staff:` for a context file with no frontmatter — preserves the
+ * Default `agent:` for a context file with no frontmatter — preserves the
  * legacy "frontmatter-less file feeds the chat prompt" behavior.
  */
-export const DEFAULT_CONTEXT_STAFF: readonly string[] = [KODY_CHAT_STAFF];
+export const DEFAULT_CONTEXT_AGENT: readonly string[] = [KODY_CHAT_AGENT];
 
-/** Map a legacy `audience:` token to its staff-member slug equivalent. */
-const LEGACY_AUDIENCE_TO_STAFF: Record<string, string> = {
-  chat: KODY_CHAT_STAFF,
-  qa: QA_STAFF,
+/** Map a legacy `audience:` token to its agent-member slug equivalent. */
+const LEGACY_AUDIENCE_TO_AGENT: Record<string, string> = {
+  chat: KODY_CHAT_AGENT,
+  qa: QA_AGENT,
 };
 
-/** Same slug shape as context/staff/duty slugs. */
-const STAFF_SLUG_RE = /^[a-z0-9][a-z0-9_-]{0,63}$/;
+/** Same slug shape as context/agents/agentResponsibility slugs. */
+const AGENT_SLUG_RE = /^[a-z0-9][a-z0-9_-]{0,63}$/;
 
 export interface ContextFrontmatter {
   /**
-   * Staff-member slugs that own this entry. Absent on disk = `["kody"]`
+   * Agent-member slugs that own this entry. Absent on disk = `["kody"]`
    * (the legacy chat default), applied by `splitContextFrontmatter`. An
-   * explicit empty list (`staff: []`) is a valid "unassigned" entry — owned
+   * explicit empty list (`agent: []`) is a valid "unassigned" entry — owned
    * by nobody, loaded by no consumer. Deduped, order-preserving.
    */
-  staff: string[];
+  agent: string[];
 }
 
-/** True if the value is a syntactically valid staff slug. */
-export function isStaffSlug(value: unknown): value is string {
-  return typeof value === "string" && STAFF_SLUG_RE.test(value);
+/** True if the value is a syntactically valid agent slug. */
+export function isAgentSlug(value: unknown): value is string {
+  return typeof value === "string" && AGENT_SLUG_RE.test(value);
 }
 
-/** True if the value is a real staff slug OR the `*` all-staff wildcard. */
+/** True if the value is a real agent slug OR the `*` all-agent wildcard. */
 function isStaffToken(value: string): boolean {
-  return value === ALL_STAFF || STAFF_SLUG_RE.test(value);
+  return value === ALL_AGENT || AGENT_SLUG_RE.test(value);
 }
 
-/** Dedupe; collapse to a lone `["*"]` when the all-staff wildcard is present. */
+/** Dedupe; collapse to a lone `["*"]` when the all-agent wildcard is present. */
 function canonicalizeStaff(values: readonly string[]): string[] {
   const out = dedupe(values);
-  return out.includes(ALL_STAFF) ? [ALL_STAFF] : out;
+  return out.includes(ALL_AGENT) ? [ALL_AGENT] : out;
 }
 
 const FRONTMATTER_RE = /^---\r?\n([\s\S]*?)\r?\n---\r?\n?/;
 
 /**
  * Parse the leading frontmatter block (if any) from a raw context file.
- * `staff` defaults to `["kody"]` when the block is missing or names no
- * recognizable staff, so frontmatter-less files keep going to the chat
- * prompt. A legacy `audience:` list is mapped onto staff slugs.
+ * `agent` defaults to `["kody"]` when the block is missing or names no
+ * recognizable agent, so frontmatter-less files keep going to the chat
+ * prompt. A legacy `audience:` list is mapped onto agent slugs.
  */
 export function splitContextFrontmatter(raw: string): {
   frontmatter: ContextFrontmatter;
@@ -90,7 +90,7 @@ export function splitContextFrontmatter(raw: string): {
   const match = FRONTMATTER_RE.exec(raw);
   if (!match) {
     return {
-      frontmatter: { staff: [...DEFAULT_CONTEXT_STAFF] },
+      frontmatter: { agent: [...DEFAULT_CONTEXT_AGENT] },
       body: raw,
     };
   }
@@ -100,17 +100,17 @@ export function splitContextFrontmatter(raw: string): {
 }
 
 /**
- * Re-attach a frontmatter block to a body. The `staff:` line is always
+ * Re-attach a frontmatter block to a body. The `agent:` line is always
  * emitted (even for the `["kody"]` default) as an inline YAML list —
- * `staff: [kody, qa-engineer]` — which the kody engine's inline-list parser
+ * `agent: [kody, qa-engineer]` — which the kody engine's inline-list parser
  * understands. Keep this format inline, comma-separated, square brackets.
  */
 export function joinContextFrontmatter(
   frontmatter: ContextFrontmatter,
   body: string,
 ): string {
-  const staff = normalizeStaff(frontmatter.staff);
-  const lines = [`staff: [${staff.join(", ")}]`];
+  const agent = normalizeStaff(frontmatter.agent);
+  const lines = [`agent: [${agent.join(", ")}]`];
   return `---\n${lines.join("\n")}\n---\n\n${body.replace(/^\s+/, "")}`;
 }
 
@@ -119,10 +119,10 @@ export function joinContextFrontmatter(
 // ────────────────────────────────────────────────────────────────────
 
 function parseFlatYaml(text: string): ContextFrontmatter {
-  // An explicit `staff:` line wins — even when empty (`staff: []` is a valid
+  // An explicit `agent:` line wins — even when empty (`agent: []` is a valid
   // "unassigned" entry, owned by nobody and loaded by no consumer). The legacy
-  // `audience:` mapping is only consulted when no `staff:` line is present.
-  let staff: string[] | null = null;
+  // `audience:` mapping is only consulted when no `agent:` line is present.
+  let agent: string[] | null = null;
   let legacyStaff: string[] | null = null;
   for (const rawLine of text.split(/\r?\n/)) {
     const line = rawLine.trim();
@@ -131,17 +131,17 @@ function parseFlatYaml(text: string): ContextFrontmatter {
     if (colon < 0) continue;
     const key = line.slice(0, colon).trim();
     const value = line.slice(colon + 1).trim();
-    if (key === "staff") {
-      staff = canonicalizeStaff(parseSlugList(value)); // may be [] → unassigned
+    if (key === "agent") {
+      agent = canonicalizeStaff(parseSlugList(value)); // may be [] → unassigned
     } else if (key === "audience" || key === "for") {
       const mapped = parseSlugList(value)
-        .map((t) => LEGACY_AUDIENCE_TO_STAFF[t])
+        .map((t) => LEGACY_AUDIENCE_TO_AGENT[t])
         .filter((s): s is string => Boolean(s));
       if (mapped.length > 0) legacyStaff = dedupe(mapped);
     }
     // Unknown keys silently dropped on read.
   }
-  return { staff: staff ?? legacyStaff ?? [...DEFAULT_CONTEXT_STAFF] };
+  return { agent: agent ?? legacyStaff ?? [...DEFAULT_CONTEXT_AGENT] };
 }
 
 /**
@@ -169,8 +169,8 @@ function parseSlugList(value: string): string[] {
  * we do NOT fall back to the default here (the frontmatter-less default
  * lives in `splitContextFrontmatter`).
  */
-function normalizeStaff(staff: readonly string[]): string[] {
-  return canonicalizeStaff(staff.filter(isStaffToken));
+function normalizeStaff(agent: readonly string[]): string[] {
+  return canonicalizeStaff(agent.filter(isStaffToken));
 }
 
 function dedupe(values: readonly string[]): string[] {

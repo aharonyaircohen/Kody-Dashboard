@@ -14,45 +14,56 @@ import {
   FolderPlus,
   FilePlus,
   Copy,
+  Download,
+  ExternalLink,
   Link2,
 } from "lucide-react";
 import { toast } from "sonner";
 import { cn } from "@dashboard/lib/utils";
-import { canWrite } from "@dashboard/lib/repo-files-perms";
-import { useAuth } from "@dashboard/lib/auth-context";
 
 interface FileContextMenuProps {
   x: number;
   y: number;
   path: string;
+  pathType?: "file" | "dir" | "symlink";
   onClose: () => void;
-  onRename?: (path: string) => void;
-  onDelete?: (path: string) => void;
+  onRename?: (path: string, pathType: "file" | "dir" | "symlink") => void;
+  onDelete?: (path: string, pathType: "file" | "dir" | "symlink") => void;
+  onDuplicate?: (path: string, pathType: "file" | "dir" | "symlink") => void;
+  onDownload?: (path: string, pathType: "file" | "dir" | "symlink") => void;
+  onOpenOnGitHub?: (path: string, pathType: "file" | "dir" | "symlink") => void;
   onNewFile?: (dirPath: string) => void;
   onNewFolder?: (dirPath: string) => void;
   onCopyPath?: (path: string) => void;
   onCreateSymlink?: (path: string) => void;
+  writeable?: boolean;
 }
 
 export function FileContextMenu({
   x,
   y,
   path,
+  pathType,
   onClose,
   onRename,
   onDelete,
+  onDuplicate,
+  onDownload,
+  onOpenOnGitHub,
   onNewFile,
   onNewFolder,
   onCopyPath,
   onCreateSymlink,
+  writeable = false,
 }: FileContextMenuProps) {
   const menuRef = useRef<HTMLDivElement>(null);
-  const { auth } = useAuth();
-  const writeable = canWrite(auth);
 
-  const dirPath = path.includes("/")
-    ? path.substring(0, path.lastIndexOf("/"))
-    : "";
+  const dirPath =
+    pathType === "dir"
+      ? path
+      : path.includes("/")
+        ? path.substring(0, path.lastIndexOf("/"))
+        : "";
 
   useEffect(() => {
     // Adjust position if menu goes off screen
@@ -78,12 +89,27 @@ export function FileContextMenu({
   };
 
   const handleRename = () => {
-    if (onRename) onRename(path);
+    if (onRename && pathType) onRename(path, pathType);
     onClose();
   };
 
   const handleDelete = () => {
-    if (onDelete) onDelete(path);
+    if (onDelete && pathType) onDelete(path, pathType);
+    onClose();
+  };
+
+  const handleDuplicate = () => {
+    if (onDuplicate && pathType) onDuplicate(path, pathType);
+    onClose();
+  };
+
+  const handleDownload = () => {
+    if (onDownload && pathType) onDownload(path, pathType);
+    onClose();
+  };
+
+  const handleOpenOnGitHub = () => {
+    if (onOpenOnGitHub && pathType) onOpenOnGitHub(path, pathType);
     onClose();
   };
 
@@ -120,6 +146,22 @@ export function FileContextMenu({
         />
       )}
 
+      {onOpenOnGitHub && (
+        <MenuItem
+          icon={<ExternalLink className="w-3.5 h-3.5" />}
+          label="Open on GitHub"
+          onClick={handleOpenOnGitHub}
+        />
+      )}
+
+      {pathType === "file" && onDownload && (
+        <MenuItem
+          icon={<Download className="w-3.5 h-3.5" />}
+          label="Download"
+          onClick={handleDownload}
+        />
+      )}
+
       <MenuDivider />
 
       {writeable && onNewFile && (
@@ -143,8 +185,16 @@ export function FileContextMenu({
       {writeable && onRename && (
         <MenuItem
           icon={<Pencil className="w-3.5 h-3.5" />}
-          label="Rename..."
+          label="Rename or move..."
           onClick={handleRename}
+        />
+      )}
+
+      {writeable && onDuplicate && (
+        <MenuItem
+          icon={<Copy className="w-3.5 h-3.5" />}
+          label="Duplicate"
+          onClick={handleDuplicate}
         />
       )}
 

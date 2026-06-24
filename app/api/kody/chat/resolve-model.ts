@@ -14,12 +14,16 @@ import { NextRequest, NextResponse } from "next/server";
 import type { LanguageModel } from "ai";
 import { createAnthropic } from "@ai-sdk/anthropic";
 import { createOpenAICompatible } from "@ai-sdk/openai-compatible";
+import { getRequestAuth, getUserOctokit } from "@dashboard/lib/auth";
+import { getEngineConfig } from "@dashboard/lib/engine/config";
 import { getSecret } from "@dashboard/lib/vault/get-secret";
 import { loadChatModels } from "@dashboard/lib/variables/load-chat-models";
 import {
+  PROVIDER_PRESETS,
   pickModelById,
   pickDefaultModel,
   type ChatModel,
+  type ProviderPreset,
 } from "@dashboard/lib/variables/models";
 
 export type ResolvedChatModel = {
@@ -27,6 +31,76 @@ export type ResolvedChatModel = {
   resolvedModel: ChatModel;
   apiKey: string;
 };
+
+const ENGINE_PROVIDER_ALIASES: Record<string, ProviderPreset> = {
+  anthropic: "anthropic",
+  claude: "anthropic",
+  google: "google",
+  gemini: "google",
+  openai: "openai",
+  openrouter: "openrouter",
+  groq: "groq",
+  mistral: "mistral",
+  deepseek: "deepseek",
+  xai: "xai",
+  grok: "xai",
+  minimax: "minimax",
+};
+
+function chatModelFromEngineSpec(
+  modelSpec: string | undefined,
+): ChatModel | null {
+  const spec = modelSpec?.trim();
+  if (!spec) return null;
+  const slash = spec.indexOf("/");
+  if (slash <= 0 || slash === spec.length - 1) return null;
+  const providerKey = spec.slice(0, slash).trim().toLowerCase();
+  const modelName = spec.slice(slash + 1).trim();
+  const provider = ENGINE_PROVIDER_ALIASES[providerKey];
+  if (!provider || !modelName) return null;
+  const preset = PROVIDER_PRESETS[provider];
+  return {
+    id: `engine:${spec}`,
+    label: `Engine default (${spec})`,
+    provider,
+    protocol: preset.protocol,
+    baseURL: preset.baseURL,
+    modelName,
+    apiKeySecret: preset.keyHint,
+    enabled: true,
+    default: true,
+    engineDefault: true,
+  };
+}
+
+async function loadEngineFallbackModel(
+  req: NextRequest,
+): Promise<ChatModel | null> {
+  const auth = getRequestAuth(req);
+  if (auth) {
+    const octokit = await getUserOctokit(req);
+    if (octokit) {
+      try {
+        const { config } = await getEngineConfig(
+          octokit,
+          auth.owner,
+          auth.repo,
+        );
+        const model = chatModelFromEngineSpec(config.agent?.model);
+        if (model) return model;
+      } catch {
+        // Keep the visible failure about chat model availability, not a
+        // secondary config read problem.
+      }
+    }
+  }
+
+  return (
+    chatModelFromEngineSpec(process.env.KODY_CHAT_MODEL) ??
+    chatModelFromEngineSpec(process.env.KODY_ENGINE_MODEL) ??
+    chatModelFromEngineSpec(process.env.E2E_CHAT_MODEL)
+  );
+}
 
 /**
  * Resolve a chat model from the request, or return a 409 `NextResponse`
@@ -43,7 +117,8 @@ export async function resolveChatModel(
   const availableModels = await loadChatModels(req);
   const resolvedModel =
     pickModelById(availableModels, modelId) ??
-    pickDefaultModel(availableModels);
+    pickDefaultModel(availableModels) ??
+    (await loadEngineFallbackModel(req));
   if (!resolvedModel) {
     return {
       error: NextResponse.json(

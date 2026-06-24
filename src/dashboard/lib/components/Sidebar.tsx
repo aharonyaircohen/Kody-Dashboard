@@ -4,12 +4,10 @@
  * @pattern app-sidebar
  * @ai-summary Persistent left navigation rail for the Kody dashboard.
  *   Desktop only (hidden below md). Collapsible (64px ↔ 220px) with
- *   localStorage persistence. Top-level entries are the primary surfaces
- *   (Dashboard, Duties, Staff); configuration screens are sourced from
- *   the shared `SETTINGS_NAV_SECTIONS` so new pages added there appear
- *   here automatically. Mobile keeps the existing in-header hamburger
- *   menu (MobileMenu) — this rail is the desktop replacement for the
- *   kebab-triggered SettingsDrawer.
+ *   localStorage persistence. Top-level entries come from the shared
+ *   workspace and settings nav lists, so desktop, mobile, and command palette
+ *   destinations stay discoverable. The desktop rail can regroup a few
+ *   repo-workspace pages without moving the underlying routes.
  */
 "use client";
 
@@ -23,24 +21,29 @@ import {
   LogOut,
   Moon,
   Search,
+  Sparkles,
   Sun,
+  Wrench,
   X,
 } from "lucide-react";
 
 import { Avatar, AvatarFallback, AvatarImage } from "@dashboard/ui/avatar";
 import { useTheme } from "@dashboard/providers/Theme";
 import { cn } from "@dashboard/lib/utils/ui";
+import {
+  shouldEnableSidebarInboxBadgeData,
+  shouldEnableSidebarMessagesBadgeData,
+  shouldEnableSidebarReportsBadgeData,
+} from "../github-background-polling";
 import { useGitHubIdentity } from "../hooks/useGitHubIdentity";
 import { SimpleTooltip } from "./SimpleTooltip";
 import { InboxBadge } from "./InboxBadge";
 import { MessagesBadge } from "./MessagesBadge";
 import { ReportsBadge } from "./ReportsBadge";
 import {
-  PRIMARY_NAV_ITEMS,
-  PRIMARY_NAV_TITLE,
-  PRIMARY_VIEW_ITEMS,
-  PRIMARY_VIEW_TITLE,
-  SETTINGS_NAV_SECTIONS,
+  DASHBOARD_NAV_ITEM,
+  ENGINEER_MODE_SECTIONS,
+  VIBE_MODE_SECTIONS,
   type SettingsNavItem,
 } from "./settings-nav";
 
@@ -53,8 +56,10 @@ function iconTintClass(item: SettingsNavItem): string | undefined {
 const APP_VERSION = process.env.NEXT_PUBLIC_APP_VERSION;
 
 type NavItem = SettingsNavItem;
+type SidebarMode = "vibe" | "engineer";
 
 const COLLAPSED_KEY = "kody.sidebar.collapsed";
+const MODE_KEY = "kody.sidebar.mode";
 
 function isActive(pathname: string, search: string, item: NavItem): boolean {
   // Hrefs may include a query string (e.g. "/reports"). Compare the
@@ -68,22 +73,42 @@ function isActive(pathname: string, search: string, item: NavItem): boolean {
   return pathname === hrefPath || pathname.startsWith(`${hrefPath}/`);
 }
 
+function isSidebarMode(value: string | null): value is SidebarMode {
+  return value === "vibe" || value === "engineer";
+}
+
+function defaultModeForPathname(pathname: string): SidebarMode {
+  if (pathname === "/vibe" || pathname.startsWith("/vibe/")) return "vibe";
+  return "engineer";
+}
+
 export function Sidebar() {
   const pathname = usePathname() ?? "/";
   const router = useRouter();
   const searchParams = useSearchParams();
   const search = searchParams?.toString() ?? "";
+  const enableInboxBadgeData = shouldEnableSidebarInboxBadgeData(pathname);
+  const enableMessagesBadgeData =
+    shouldEnableSidebarMessagesBadgeData(pathname);
+  const enableReportsBadgeData = shouldEnableSidebarReportsBadgeData(pathname);
   const { githubUser, connectedRepo, clearGitHubUser } = useGitHubIdentity();
   const { theme, setTheme } = useTheme();
   const [userMenuOpen, setUserMenuOpen] = useState<boolean>(false);
   const [collapsed, setCollapsed] = useState<boolean>(false);
   const [hydrated, setHydrated] = useState<boolean>(false);
   const [query, setQuery] = useState<string>("");
+  const [sidebarMode, setSidebarMode] = useState<SidebarMode>(() =>
+    defaultModeForPathname(pathname),
+  );
 
   useEffect(() => {
     try {
       if (window.localStorage.getItem(COLLAPSED_KEY) === "1") {
         setCollapsed(true);
+      }
+      const storedMode = window.localStorage.getItem(MODE_KEY);
+      if (isSidebarMode(storedMode)) {
+        setSidebarMode(storedMode);
       }
     } catch {
       // localStorage unavailable (private mode, etc.) — fall back to defaults
@@ -103,18 +128,31 @@ export function Sidebar() {
     });
   };
 
+  const selectSidebarMode = (next: SidebarMode) => {
+    if (next === sidebarMode) return;
+    setSidebarMode(next);
+    setQuery("");
+    try {
+      window.localStorage.setItem(MODE_KEY, next);
+    } catch {
+      // ignore — UI still updates
+    }
+    router.push(next === "vibe" ? "/vibe" : "/tasks");
+  };
+
+  useEffect(() => {
+    setQuery("");
+  }, [sidebarMode]);
+
   // Inline filter — narrows the rail's own sections by label/description as
   // the user types. Empty sections drop out so a query collapses the list to
   // just its matches.
   const filteredSections = useMemo(() => {
-    const all = [
-      { title: PRIMARY_VIEW_TITLE, items: PRIMARY_VIEW_ITEMS },
-      { title: PRIMARY_NAV_TITLE, items: PRIMARY_NAV_ITEMS },
-      ...SETTINGS_NAV_SECTIONS,
-    ];
+    const base =
+      sidebarMode === "vibe" ? VIBE_MODE_SECTIONS : ENGINEER_MODE_SECTIONS;
     const q = query.trim().toLowerCase();
-    if (!q) return all;
-    return all
+    if (!q) return base;
+    return base
       .map((section) => ({
         ...section,
         items: section.items.filter((item) =>
@@ -122,7 +160,7 @@ export function Sidebar() {
         ),
       }))
       .filter((section) => section.items.length > 0);
-  }, [query]);
+  }, [query, sidebarMode]);
 
   const firstMatch = filteredSections[0]?.items[0];
 
@@ -159,16 +197,19 @@ export function Sidebar() {
         {!collapsed && <span className="truncate">{item.label}</span>}
         {item.href === "/inbox" && (
           <InboxBadge
+            enabled={enableInboxBadgeData}
             className={cn(collapsed ? "absolute top-1 right-1" : "ml-auto")}
           />
         )}
         {item.href === "/messages" && (
           <MessagesBadge
+            enabled={enableMessagesBadgeData}
             className={cn(collapsed ? "absolute top-1 right-1" : "ml-auto")}
           />
         )}
         {item.href === "/reports" && (
           <ReportsBadge
+            enabled={enableReportsBadgeData}
             className={cn(collapsed ? "absolute top-1 right-1" : "ml-auto")}
           />
         )}
@@ -187,7 +228,7 @@ export function Sidebar() {
     <aside
       className={cn(
         "hidden md:flex flex-col shrink-0 border-r border-white/[0.06] bg-black/30",
-        "h-full z-30 transition-[width] duration-150 ease-out",
+        "h-full min-h-0 overflow-hidden z-30 transition-[width] duration-150 ease-out",
         width,
       )}
       aria-label="Primary navigation"
@@ -222,47 +263,117 @@ export function Sidebar() {
         </SimpleTooltip>
       </div>
 
-      <nav className="flex-1 overflow-y-auto py-3 px-2 space-y-1">
-        {/* Inline search — filters the rail's own items as you type. Collapsed
-            mode shows an icon that expands the rail so there's room to type. */}
-        <div className="pb-1">
+      <nav className="min-h-0 flex-1 overflow-y-auto py-3 px-2 space-y-1">
+        <div className="pb-2">{renderLink(DASHBOARD_NAV_ITEM)}</div>
+
+        <div className="pb-2">
           {collapsed ? (
-            <SimpleTooltip content="Search" side="right">
+            <SimpleTooltip
+              content={
+                sidebarMode === "vibe" ? "Switch to Engineer" : "Switch to Vibe"
+              }
+              side="right"
+            >
               <button
                 type="button"
-                onClick={toggleCollapsed}
-                aria-label="Search"
+                onClick={() =>
+                  selectSidebarMode(
+                    sidebarMode === "vibe" ? "engineer" : "vibe",
+                  )
+                }
+                aria-label={
+                  sidebarMode === "vibe"
+                    ? "Switch to Engineer"
+                    : "Switch to Vibe"
+                }
                 className="flex items-center justify-center w-full rounded-md h-9 text-muted-foreground hover:bg-accent/50 hover:text-foreground transition-colors"
               >
-                <Search className="w-4 h-4 shrink-0" />
+                {sidebarMode === "vibe" ? (
+                  <Wrench className="w-4 h-4 shrink-0" />
+                ) : (
+                  <Sparkles className="w-4 h-4 shrink-0" />
+                )}
               </button>
             </SimpleTooltip>
           ) : (
-            <div className="flex items-center gap-2 w-full rounded-md h-9 px-3 text-sm border border-white/[0.08] bg-black/20 transition-colors focus-within:border-white/[0.18]">
-              <Search className="w-4 h-4 shrink-0 text-muted-foreground" />
-              <input
-                value={query}
-                onChange={(e) => setQuery(e.target.value)}
-                onKeyDown={onSearchKeyDown}
-                placeholder="Search…"
-                aria-label="Search navigation"
-                className="min-w-0 flex-1 bg-transparent outline-none placeholder:text-muted-foreground"
-              />
-              {query && (
-                <button
-                  type="button"
-                  onClick={() => setQuery("")}
-                  aria-label="Clear search"
-                  className="text-muted-foreground hover:text-foreground"
-                >
-                  <X className="w-3.5 h-3.5 shrink-0" />
-                </button>
-              )}
+            <div
+              className="grid grid-cols-2 gap-1 rounded-md border border-white/[0.08] bg-black/20 p-1"
+              aria-label="Sidebar mode"
+            >
+              <button
+                type="button"
+                onClick={() => selectSidebarMode("vibe")}
+                aria-pressed={sidebarMode === "vibe"}
+                className={cn(
+                  "flex h-8 items-center justify-center gap-1.5 rounded text-xs font-medium transition-colors",
+                  sidebarMode === "vibe"
+                    ? "bg-accent text-foreground"
+                    : "text-muted-foreground hover:bg-accent/50 hover:text-foreground",
+                )}
+              >
+                <Sparkles className="w-3.5 h-3.5 shrink-0" />
+                <span>Vibe</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => selectSidebarMode("engineer")}
+                aria-pressed={sidebarMode === "engineer"}
+                className={cn(
+                  "flex h-8 items-center justify-center gap-1.5 rounded text-xs font-medium transition-colors",
+                  sidebarMode === "engineer"
+                    ? "bg-accent text-foreground"
+                    : "text-muted-foreground hover:bg-accent/50 hover:text-foreground",
+                )}
+              >
+                <Wrench className="w-3.5 h-3.5 shrink-0" />
+                <span>Engineer</span>
+              </button>
             </div>
           )}
         </div>
 
-        {/* Nav sections — Views / Workspace / Configuration, sourced from the
+        {/* Inline search — filters the rail's own items as you type. Collapsed
+            mode shows an icon that expands the rail so there's room to type. */}
+        {sidebarMode === "engineer" && (
+          <div className="pb-1">
+            {collapsed ? (
+              <SimpleTooltip content="Search" side="right">
+                <button
+                  type="button"
+                  onClick={toggleCollapsed}
+                  aria-label="Search"
+                  className="flex items-center justify-center w-full rounded-md h-9 text-muted-foreground hover:bg-accent/50 hover:text-foreground transition-colors"
+                >
+                  <Search className="w-4 h-4 shrink-0" />
+                </button>
+              </SimpleTooltip>
+            ) : (
+              <div className="flex items-center gap-2 w-full rounded-md h-9 px-3 text-sm border border-white/[0.08] bg-black/20 transition-colors focus-within:border-white/[0.18]">
+                <Search className="w-4 h-4 shrink-0 text-muted-foreground" />
+                <input
+                  value={query}
+                  onChange={(e) => setQuery(e.target.value)}
+                  onKeyDown={onSearchKeyDown}
+                  placeholder="Search…"
+                  aria-label="Search navigation"
+                  className="min-w-0 flex-1 bg-transparent outline-none placeholder:text-muted-foreground"
+                />
+                {query && (
+                  <button
+                    type="button"
+                    onClick={() => setQuery("")}
+                    aria-label="Clear search"
+                    className="text-muted-foreground hover:text-foreground"
+                  >
+                    <X className="w-3.5 h-3.5 shrink-0" />
+                  </button>
+                )}
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* Nav sections — ordered by the main work loop, sourced from the
             shared settings-nav so new pages appear here automatically. Filtered
             live by the inline search; section headings show only when expanded,
             collapsed mode is a flat icon list. */}

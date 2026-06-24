@@ -21,6 +21,8 @@ import type { ViewMode } from "../components/FilterBar";
 import { POLLING_INTERVALS } from "../constants";
 import { matchWorkflowRunsForTask } from "../workflow-matching";
 
+export type TasksApiViewMode = ViewMode | "all" | "intake";
+
 // Re-export new hooks
 export { useDashboardFilters } from "./useDashboardFilters";
 export { useDashboardRouter } from "./useDashboardRouter";
@@ -28,8 +30,11 @@ export { useDefaultBranchCI } from "./useDefaultBranchCI";
 
 // Query keys
 export const queryKeys = {
-  tasks: (days?: number, includeDetails?: boolean) =>
-    ["kody-tasks", days, includeDetails] as const,
+  tasks: (
+    days?: number,
+    includeDetails?: boolean,
+    viewMode?: TasksApiViewMode,
+  ) => ["kody-tasks", days, includeDetails, viewMode] as const,
   taskDetails: (issueNumber: number) => ["kody-task", issueNumber] as const,
   boards: ["kody-boards"] as const,
   collaborators: ["kody-collaborators"] as const,
@@ -41,11 +46,12 @@ export const queryKeys = {
 export interface UseKodyTasksOptions {
   days?: number;
   includeDetails?: boolean;
+  enabled?: boolean;
   /**
-   * Current view mode — 'running' or 'backlog'.
+   * Current API view mode. "all" returns the full Kody-owned task set.
    * When 'backlog', polling slows to 120s since backlog tasks change rarely.
    */
-  viewMode?: ViewMode;
+  viewMode?: TasksApiViewMode;
   /**
    * Auto-refresh interval based on task state.
    * - 'auto': Uses smart polling based on running tasks and view mode
@@ -65,7 +71,7 @@ export interface UseKodyTasksOptions {
  */
 export function getSmartInterval(
   tasks: KodyTask[] | undefined,
-  viewMode: ViewMode = "running",
+  viewMode: TasksApiViewMode = "all",
 ): number {
   if (!tasks || tasks.length === 0) return POLLING_INTERVALS.idle;
 
@@ -86,15 +92,16 @@ export function useKodyTasks(options: UseKodyTasksOptions = {}) {
   const {
     days,
     includeDetails = false,
-    viewMode = "running",
+    enabled = true,
+    viewMode = "all",
     refetchInterval = "auto",
   } = options;
 
   return useQuery({
-    queryKey: queryKeys.tasks(days, includeDetails),
-    queryFn: () => kodyApi.tasks.list({ days, includeDetails }),
+    queryKey: queryKeys.tasks(days, includeDetails, viewMode),
+    queryFn: () => kodyApi.tasks.list({ days, includeDetails, viewMode }),
     // Don't fire requests when no auth token exists — avoids 401 on mount
-    enabled: !!getStoredAuth(),
+    enabled: enabled && !!getStoredAuth(),
     refetchInterval: (query): number | false => {
       if (refetchInterval === false) return false;
 

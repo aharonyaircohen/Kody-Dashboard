@@ -5,7 +5,7 @@
  *
  * POST /api/kody/vibe/execute
  *
- * Spawns a Fly Machine that runs the engine in agent mode (run-executable)
+ * Spawns a Fly Machine that runs the engine in agent mode (run-agentAction)
  * against a specific issue. The engine reads ISSUE_NUMBER from env (via
  * runner/entrypoint.sh translating it to `kody run --issue N`), then
  * branches, codes, commits, and opens a PR — using the issue body as the
@@ -55,16 +55,8 @@ export async function POST(req: NextRequest) {
       { status: ctxResult.status },
     );
   }
-  const {
-    owner,
-    repo,
-    githubToken,
-    octokit,
-    allSecrets,
-    flyToken,
-    perfTier,
-    litellmUrl,
-  } = ctxResult.context;
+  const { owner, repo, githubToken, octokit, allSecrets, flyToken, perfTier } =
+    ctxResult.context;
 
   // sessionId is traceable but unused by the engine in agent mode —
   // entry.ts only consults SESSION_ID when argv is empty, and our
@@ -95,13 +87,6 @@ export async function POST(req: NextRequest) {
   }
 
   try {
-    // Fast path: claim a pre-booted, frozen runner from the warm pool. The
-    // pool owner wakes it (~1s) and hands it the job over HTTP. On any miss
-    // (empty pool, unreachable, unconfigured) claimFromPool returns ok:false
-    // and we fall through to create-fresh below — the pool is an accelerator,
-    // never a hard dependency.
-    // Slim request — the pool owner reads this repo's secrets from its vault
-    // and clones with the operator token, so no secrets cross the wire.
     const claim = await claimFromPool({
       jobId: sessionId,
       repo: `${owner}/${repo}`,
@@ -137,7 +122,6 @@ export async function POST(req: NextRequest) {
       allSecrets,
       flyToken,
       perfTier,
-      litellmUrl,
     });
 
     logger.info(

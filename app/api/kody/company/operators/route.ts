@@ -4,7 +4,7 @@
  * @pattern operators-api
  * @ai-summary Company operators API. GET lists `github.operators` from the
  *   connected repo's kody.config.json — the GitHub logins recommendation
- *   duties (pr-health/CTO) @-mention so their comments route into the
+ *   agentResponsibilities (pr-health/CTO) @-mention so their comments route into the
  *   dashboard inbox. PUT replaces the list (company-set, explicit — never
  *   auto-filled). Empty list = recommendations reach no inbox, which the UI
  *   surfaces as a warning. Mirrors the models route auth pattern.

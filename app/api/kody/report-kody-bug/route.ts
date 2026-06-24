@@ -12,6 +12,7 @@ import {
   getRequestAuth,
   getUserOctokit,
   requireKodyAuth,
+  verifyActorLogin,
 } from "@dashboard/lib/auth";
 import {
   clearGitHubContext,
@@ -103,6 +104,10 @@ export async function POST(req: NextRequest) {
 
   try {
     const input = reportSchema.parse(await req.json());
+    const actorResult = await verifyActorLogin(req, input.reporterLogin);
+    if (actorResult instanceof NextResponse) return actorResult;
+
+    const reporterLogin = actorResult.identity.login;
 
     // Always target the dashboard's OWN repo, regardless of the connected repo.
     // Keep the reporter's token so the issue is attributed to them.
@@ -125,8 +130,9 @@ export async function POST(req: NextRequest) {
     const issue = await createIssue(
       {
         title: `[${input.area}] ${input.title}`,
-        body: formatBody(input),
+        body: formatBody({ ...input, reporterLogin }),
         labels,
+        assignees: [reporterLogin],
       },
       userOctokit ?? undefined,
     );

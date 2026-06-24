@@ -12,7 +12,7 @@ const minimalState: KodyTaskState = {
   core: {
     phase: "planning",
     status: "running",
-    currentExecutable: "plan",
+    currentAgentAction: "plan",
     lastOutcome: {
       type: "PLAN_STARTED",
       payload: {},
@@ -82,7 +82,7 @@ describe("parseKodyStateComment", () => {
     const parsed = parseKodyStateComment(body);
     expect(parsed?.core.phase).toBe("planning");
     expect(parsed?.core.status).toBe("running");
-    expect(parsed?.core.currentExecutable).toBe("plan");
+    expect(parsed?.core.currentAgentAction).toBe("plan");
     expect(parsed?.core.attempts).toEqual({ plan: 1 });
   });
 
@@ -93,7 +93,7 @@ describe("parseKodyStateComment", () => {
       history: [
         {
           timestamp: "2026-05-10T14:00:00Z",
-          executable: "plan",
+          agentAction: "plan",
           action: "PLAN_STARTED",
           flavor: "instant",
           status: "succeeded",
@@ -101,11 +101,11 @@ describe("parseKodyStateComment", () => {
         },
         {
           timestamp: "2026-05-10T15:00:00Z",
-          executable: "qa-verify",
+          agentAction: "qa-verify",
           action: "VERIFIED",
           flavor: "scheduled",
           schedule: "0 */6 * * *",
-          staff: "qa-engineer",
+          agent: "qa-engineer",
           status: "failed",
           runUrl: "https://github.com/x/y/actions/runs/123",
         },
@@ -162,7 +162,7 @@ describe("parseKodyStateComment", () => {
     const body = renderComment(partial as unknown as KodyTaskState);
     const parsed = parseKodyStateComment(body);
     expect(parsed?.core.status).toBe("pending");
-    expect(parsed?.core.currentExecutable).toBeNull();
+    expect(parsed?.core.currentAgentAction).toBeNull();
     expect(parsed?.core.lastOutcome).toBeNull();
     expect(parsed?.core.attempts).toEqual({});
   });

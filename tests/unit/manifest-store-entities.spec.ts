@@ -3,8 +3,6 @@
  * semantics beyond the generic core:
  *   - inbox-feed `appendInboxFeed`: dedupe-by-id, FIFO sort by `sentAt`,
  *     cap at INBOX_FEED_MAX_ENTRIES, return count added, noop on all-dupes;
- *   - cto-decisions: mutator never noops → resolves to MutationOutcome;
- *     `readCtoDecisions` uses the cached read;
  *   - goals: field-by-field equality is order-sensitive.
  *
  * These guard the refactor onto the shared core against behavior drift.
@@ -37,15 +35,6 @@ import {
   INBOX_FEED_MAX_BODY_CHARS,
   type InboxFeedEntry,
 } from "@dashboard/lib/inbox/feed";
-import {
-  mutateCtoDecisions,
-  readCtoDecisions,
-} from "@dashboard/lib/cto/decisions-server";
-import {
-  applyDecision,
-  serializeCtoDecisionsBody,
-  EMPTY_CTO_DECISIONS_MANIFEST,
-} from "@dashboard/lib/cto/decisions";
 
 const mFetchIssues = vi.mocked(fetchIssues);
 const mFetchIssue = vi.mocked(fetchIssue);
@@ -167,37 +156,6 @@ describe("inbox-feed · appendInboxFeed", () => {
     );
     const feed = await readInboxFeed();
     expect(feed.entries.map((e) => e.id)).toEqual(["u:9"]);
-    expect(mFetchIssues).toHaveBeenCalledWith(
-      expect.not.objectContaining({ noCache: true }),
-    );
-  });
-});
-
-describe("cto-decisions · no-noop + cached read", () => {
-  it("mutateCtoDecisions resolves to a MutationOutcome (never a noop union)", async () => {
-    wire(null);
-    const out = await mutateCtoDecisions((cur) => {
-      const next = applyDecision(cur, {
-        taskNumber: 1,
-        action: "execute",
-        decision: "approve",
-      });
-      return { next, result: next.staff.cto.execute.approvals };
-    });
-    // No `kind` discriminant — it's the outcome shape directly.
-    expect(out).toMatchObject({ result: 1, issueNumber: 101 });
-    expect("kind" in out).toBe(false);
-  });
-
-  it("readCtoDecisions uses the cached (ETag/304) read path", async () => {
-    const m = applyDecision(EMPTY_CTO_DECISIONS_MANIFEST, {
-      taskNumber: 1,
-      action: "execute",
-      decision: "approve",
-    });
-    wire(serializeCtoDecisionsBody(m));
-    const ledger = await readCtoDecisions();
-    expect(ledger.staff.cto.execute.approvals).toBe(1);
     expect(mFetchIssues).toHaveBeenCalledWith(
       expect.not.objectContaining({ noCache: true }),
     );

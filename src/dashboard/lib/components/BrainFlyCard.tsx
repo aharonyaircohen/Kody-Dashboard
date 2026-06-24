@@ -42,7 +42,11 @@ import { Button } from "@dashboard/ui/button";
 import { Card, CardContent } from "@dashboard/ui/card";
 import { ConfirmDialog } from "./ConfirmDialog";
 import { SimpleTooltip } from "./SimpleTooltip";
-import { useAuth, type FlyPerfTier } from "../auth-context";
+import {
+  useAuth,
+  type BrainTerminalActivityLimit,
+  type FlyPerfTier,
+} from "../auth-context";
 
 // Brain has its own size, independent of the task-run speed. Same intent
 // names as Task runners; the spec is in the hint.
@@ -54,6 +58,38 @@ const BRAIN_SIZE_LABELS: Record<FlyPerfTier, { label: string; hint: string }> =
     medium: { label: "Balanced", hint: "performance 1× / 2 GB — default" },
     high: { label: "Fast", hint: "performance 2× / 4 GB — costs more" },
   };
+const BRAIN_TERMINAL_ACTIVITY_DEFAULT = 30 * 60_000;
+const BRAIN_TERMINAL_ACTIVITY_OPTIONS: Array<{
+  value: BrainTerminalActivityLimit;
+  label: string;
+  hint: string;
+}> = [
+  {
+    value: 30 * 60_000,
+    label: "30 min",
+    hint: "Default. Good for normal terminal checks.",
+  },
+  {
+    value: 60 * 60_000,
+    label: "1 hour",
+    hint: "Enough for slower installs or tests.",
+  },
+  {
+    value: 4 * 60 * 60_000,
+    label: "4 hours",
+    hint: "For long terminal jobs.",
+  },
+  {
+    value: 12 * 60 * 60_000,
+    label: "12 hours",
+    hint: "For very long terminal jobs.",
+  },
+  {
+    value: "never",
+    label: "Never",
+    hint: "Keep the terminal session until you restart or close it.",
+  },
+];
 
 export type BrainFlyState =
   | "off"
@@ -143,6 +179,8 @@ export function BrainFlyCard({
 }: BrainFlyCardProps) {
   const { auth, updateIntegrations } = useAuth();
   const brainPerf: FlyPerfTier = auth?.brainPerf ?? BRAIN_SIZE_DEFAULT;
+  const brainTerminalActivityLimit: BrainTerminalActivityLimit =
+    auth?.brainTerminalActivityLimit ?? BRAIN_TERMINAL_ACTIVITY_DEFAULT;
   const [state, setState] = useState<BrainFlyState>("unknown");
   const [app, setApp] = useState<string | null>(null);
   const [stored, setStored] = useState<StatusResponse["stored"]>(null);
@@ -412,7 +450,7 @@ export function BrainFlyCard({
   }
 
   /**
-   * Clear the stored record at `.kody/users/<login>/data/brain.json`
+   * Clear the stored record at `users/<login>/data/brain.json` in the configured Kody state repo
    * without touching Fly. Use this for the orphan case: the dashboard
    * remembers a brain app the user can no longer reach (token revoked,
    * app moved orgs, etc.) and the user wants to start fresh.
@@ -556,6 +594,46 @@ export function BrainFlyCard({
                   );
                 })}
               </div>
+            </div>
+          )}
+
+          {flyTokenConfigured && (
+            <div className="space-y-1.5">
+              <div className="flex items-center gap-2">
+                <span className="text-xs text-white/70">
+                  Brain terminal activity
+                </span>
+                <SimpleTooltip
+                  content="How long a Brain terminal stays alive after its last input or output."
+                  side="right"
+                >
+                  <Info className="w-3 h-3 text-white/50 hover:text-white/80 cursor-help" />
+                </SimpleTooltip>
+              </div>
+              <select
+                value={String(brainTerminalActivityLimit)}
+                onChange={(event) => {
+                  const value =
+                    event.target.value === "never"
+                      ? "never"
+                      : Number(event.target.value);
+                  updateIntegrations({
+                    brainTerminalActivityLimit:
+                      value === BRAIN_TERMINAL_ACTIVITY_DEFAULT ? null : value,
+                  });
+                }}
+                className="h-8 w-full rounded-md border border-white/10 bg-black/30 px-2 text-xs text-white/80 outline-none focus:border-violet-500/50"
+              >
+                {BRAIN_TERMINAL_ACTIVITY_OPTIONS.map((option) => (
+                  <option
+                    key={String(option.value)}
+                    value={String(option.value)}
+                    title={option.hint}
+                  >
+                    {option.label}
+                  </option>
+                ))}
+              </select>
             </div>
           )}
 

@@ -16,6 +16,7 @@
  */
 
 import type { Octokit } from "@octokit/rest";
+import { writeGitHubFileWithRetry } from "@dashboard/lib/github-contents-write";
 import { getOctokit, getOwner, getRepo } from "../github-client";
 
 const INSTRUCTIONS_PATH = ".kody/instructions.md";
@@ -100,7 +101,7 @@ export async function writeInstructionsFile(
     opts.message ??
     `${opts.sha ? "chore" : "feat"}(instructions): ${opts.sha ? "update" : "add"} chat instructions`;
 
-  await opts.octokit.repos.createOrUpdateFileContents({
+  await writeGitHubFileWithRetry(opts.octokit, {
     owner: getOwner(),
     repo: getRepo(),
     path: INSTRUCTIONS_PATH,

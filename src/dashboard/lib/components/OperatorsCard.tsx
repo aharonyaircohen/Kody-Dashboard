@@ -3,7 +3,7 @@
  * @domain kody
  * @pattern operators-card
  * @ai-summary Company-page card to manage the operator list
- *   (`github.operators`) — the logins recommendation duties (pr-health/CTO)
+ *   (`github.operators`) — the logins recommendation agentResponsibilities (pr-health/CTO)
  *   @-mention so their comments reach the inbox. Add/remove handles; the list
  *   is the company's explicit choice (no auto-fill). Warns when empty, since
  *   an empty list means recommendations reach nobody's inbox.
@@ -43,7 +43,7 @@ export function OperatorsCard() {
             Operators
           </p>
           <p className="text-xs text-white/50 mt-1">
-            Who gets recommendations in their inbox. Duties @-mention these
+            Who gets recommendations in their inbox. AgentResponsibilities @-mention these
             people; an empty list means recommendations reach no one.
           </p>
         </div>

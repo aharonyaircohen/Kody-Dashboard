@@ -31,28 +31,27 @@ import {
   getOwner,
   getRepo,
 } from "@dashboard/lib/github-client";
-import { flyHostname } from "@dashboard/lib/previews/fly-previews";
-import { previewAppName } from "@dashboard/lib/previews/preview-key";
 import { resolvePreviewConfigForOctokit } from "@dashboard/lib/previews/config";
+import { buildPreviewUrlByPrNumber } from "@dashboard/lib/tasks/preview-urls";
 import type { KodyTaskState } from "@dashboard/lib/kody-state";
 import type {
   KodyTask,
   ColumnId,
-  GitHubIssue,
-  GitHubPR,
   WorkflowRun,
   KodyPipelineStatus,
 } from "@dashboard/lib/types";
 import { matchWorkflowRunToTask } from "@dashboard/lib/workflow-matching";
+import { deriveTaskColumn } from "@dashboard/lib/tasks/derive-column";
 import {
-  deriveTaskColumn,
-  getColumnForIssue,
-} from "@dashboard/lib/tasks/derive-column";
+  isDashboardIntakeIssue,
+  isDashboardKodyOwnedIssue,
+  isDashboardUnassignedIssue,
+} from "@dashboard/lib/tasks/visibility";
 import {
   parseKodyPhase,
   parseKodyFlow,
   TASK_ID_REGEX,
-  INTERNAL_ISSUE_LABELS,
+  TASK_LIST_EXCLUDED_LABELS,
 } from "@dashboard/lib/constants";
 
 /**
@@ -98,6 +97,19 @@ function deriveGateType(
   return undefined;
 }
 
+function getKodyAssigneeLogins(): string[] {
+  const raw =
+    process.env.KODY_ASSIGNEE_LOGINS ?? process.env.KODY_ASSIGNEE_LOGIN;
+  if (!raw) return ["kody"];
+
+  const configured = raw
+    .split(",")
+    .map((login) => login.trim())
+    .filter(Boolean);
+
+  return configured.length > 0 ? configured : ["kody"];
+}
+
 export async function GET(req: NextRequest) {
   const authResult = await requireKodyAuth(req);
   if (authResult instanceof NextResponse) return authResult;
@@ -126,20 +138,40 @@ export async function GET(req: NextRequest) {
     }
 
     // Fetch issues, workflow runs, and open PRs in parallel (3 API calls, all cached)
-    const [issues, workflowRuns, openPRs] = await Promise.all([
+    const [rawIssues, workflowRuns, openPRs] = await Promise.all([
       fetchIssues({
         state: "open",
         perPage: 100,
         since: sinceDate,
-        // Dashboard infrastructure stored in issue bodies (manifest stores,
-        // the Run-now audit trail) — not real tasks. Single source of truth
-        // in constants; new infra issue types get `kody:internal` stamped at
-        // creation, so this site never needs editing again.
-        excludeLabels: [...INTERNAL_ISSUE_LABELS],
+        // Dashboard infrastructure and user-hidden tasks are not part of the
+        // main task list. Keep the source of truth in constants so every list
+        // reader applies the same exclusion set.
+        excludeLabels: [...TASK_LIST_EXCLUDED_LABELS],
       }),
       fetchWorkflowRuns({ perPage: 30 }),
       fetchOpenPRs(),
     ]);
+    const kodyAssigneeLogins = [
+      ...getKodyAssigneeLogins(),
+      ...(headerAuth?.userLogin ? [headerAuth.userLogin] : []),
+    ];
+    const issues = rawIssues.filter((issue) => {
+      const visibilityIssue = {
+        labels: issue.labels.map((label) => label.name),
+        assignees: issue.assignees,
+        isKodyAssigned: issue.isKodyAssigned,
+        title: issue.title,
+        body: issue.body,
+      };
+
+      if (view === "unassigned") {
+        return isDashboardUnassignedIssue(visibilityIssue, kodyAssigneeLogins);
+      }
+      if (view === "intake") {
+        return isDashboardIntakeIssue(visibilityIssue, kodyAssigneeLogins);
+      }
+      return isDashboardKodyOwnedIssue(visibilityIssue, kodyAssigneeLogins);
+    });
 
     // Workflow runs are matched per-task below using matchWorkflowRunToTask()
     // which prefers active (in_progress/queued) runs over stale completed ones.
@@ -151,7 +183,7 @@ export async function GET(req: NextRequest) {
     const prsByIssueNumber = new Map<number, (typeof openPRs)[number]>();
     // Direct PR-number lookup, used by the kody-release-pr issue-body marker
     // (engine-written, durable across @kody fix on the PR side — see
-    // kody2/src/executables/release-{prepare,deploy}/*.sh).
+    // kody2/src/agent-actions/release-{prepare,deploy}/*.sh).
     const prByNumber = new Map<number, (typeof openPRs)[number]>();
     for (const pr of openPRs) prByNumber.set(pr.number, pr);
     for (const pr of openPRs) {
@@ -233,31 +265,17 @@ export async function GET(req: NextRequest) {
       }
     })();
 
-    // Build SHA -> preview URL lookup keyed by PR number.
+    // Build preview URL lookup keyed by PR number.
     //
-    // Precedence: when the repo has Fly previews opted in (FLY_API_TOKEN
-    // in vault), the deterministic Fly URL wins over the GitHub
-    // Deployments URL — that's where Vercel registers its previews, and
-    // we want repos that have moved off Vercel previews to show the new
-    // Fly URL in the dashboard. Repos without Fly opted in keep the
-    // Vercel-via-Deployments URL.
-    const previewByPrNumber = new Map<number, string>();
-    for (const pr of openPRs) {
-      if (flyPreviewCfg) {
-        previewByPrNumber.set(
-          pr.number,
-          flyHostname(
-            previewAppName({
-              repo: `${getOwner()}/${getRepo()}`,
-              pr: pr.number,
-            }),
-          ),
-        );
-        continue;
-      }
-      const url = previewUrls.get(pr.head.sha);
-      if (url) previewByPrNumber.set(pr.number, url);
-    }
+    // Fly previews win only when the per-PR app actually has a ready URL.
+    // Otherwise we fall back to deployment previews (Vercel) or leave the
+    // task without a preview link, instead of publishing a DNS-dead Fly host.
+    const previewByPrNumber = await buildPreviewUrlByPrNumber({
+      openPRs,
+      deploymentPreviewUrls: previewUrls,
+      flyPreviewConfig: flyPreviewCfg,
+      repo: `${getOwner()}/${getRepo()}`,
+    });
 
     // First pass: match workflow runs once per issue (reused later in the
     // mapping loop) and identify issue numbers that need branch lookup

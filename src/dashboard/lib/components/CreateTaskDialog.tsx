@@ -515,6 +515,8 @@ export function CreateTaskDialog({
               id="task-title"
               value={title}
               onChange={(e) => setTitle(e.target.value)}
+              dir="auto"
+              className="text-start"
               placeholder={
                 category === "feature"
                   ? "e.g., Add dark mode toggle to settings page"
@@ -583,6 +585,8 @@ export function CreateTaskDialog({
               onChange={(e) => setSummary(e.target.value)}
               placeholder="Describe the goal in 2-3 sentences. What problem does this solve and for whom?"
               rows={3}
+              dir="auto"
+              className="text-start"
               required
             />
           </div>
@@ -596,6 +600,8 @@ export function CreateTaskDialog({
               onChange={(e) => setRequirements(e.target.value)}
               placeholder={getRequirementsPlaceholder()}
               rows={4}
+              dir="auto"
+              className="text-start"
             />
             <p className="text-xs text-muted-foreground">
               Use bullet points for individual items. Markdown supported.
@@ -627,6 +633,8 @@ export function CreateTaskDialog({
                 "- [ ] Users can …\n- [ ] Tests pass for …\n- [ ] No regressions in …"
               }
               rows={3}
+              dir="auto"
+              className="text-start"
             />
             <p className="text-xs text-muted-foreground">
               Checkboxes Kody will verify before marking done.
@@ -747,6 +755,8 @@ export function CreateTaskDialog({
                   onChange={(e) => setAdditionalContext(e.target.value)}
                   placeholder="Links, design references, related issues, constraints..."
                   rows={2}
+                  dir="auto"
+                  className="text-start"
                 />
               </div>
 

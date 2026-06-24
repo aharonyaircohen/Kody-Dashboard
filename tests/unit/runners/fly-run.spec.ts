@@ -25,7 +25,6 @@ function ctx(over: Partial<FlyContext> = {}): FlyContext {
     allSecrets: { MINIMAX_API_KEY: "k" },
     flyToken: "fly_tok",
     perfTier: "medium",
-    litellmUrl: "https://litellm.test",
     ...over,
   };
 }
@@ -80,7 +79,6 @@ describe("claimOrSpawnFly", () => {
         flyToken: "fly_tok",
         perfTier: "medium",
         allSecrets: { MINIMAX_API_KEY: "k" },
-        litellmUrl: "https://litellm.test",
         idleExitMs: 1000,
         hardCapMs: 5000,
         dashboardUrl: "https://dash.test/ingest?token=t",

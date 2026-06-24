@@ -7,7 +7,9 @@
  * /api/webhooks/github endpoint. Safe to call repeatedly — if a hook
  * already points at the URL, it's PATCHed to refresh the events list.
  *
- * No webhook secret. Verification is by source IP — see github-ip.ts.
+ * When `GITHUB_WEBHOOK_SECRET` or `KODY_WEBHOOK_SECRET` is configured, the
+ * hook is registered with that shared secret and deliveries are verified by
+ * HMAC. Deployments without a secret keep the legacy IP-gated behavior.
  *
  * Used by:
  * - POST /api/webhooks/register (explicit; user POSTs after login).
@@ -61,6 +63,14 @@ export interface EnsureWebhookResult {
   status?: number;
 }
 
+function getWebhookSecret(): string | undefined {
+  return (
+    process.env.GITHUB_WEBHOOK_SECRET?.trim() ||
+    process.env.KODY_WEBHOOK_SECRET?.trim() ||
+    undefined
+  );
+}
+
 async function gh(
   token: string,
   path: string,
@@ -84,11 +94,11 @@ export async function ensureWebhook(
   const { token, owner, repo, hookUrl } = input;
   const events = input.events?.length ? input.events : DEFAULT_WEBHOOK_EVENTS;
 
-  // No `secret` field — verification is by source IP, see github-ip.ts.
   const config = {
     url: hookUrl,
     content_type: "json",
     insecure_ssl: "0",
+    ...(getWebhookSecret() ? { secret: getWebhookSecret() } : {}),
   };
 
   // 1) List hooks; reuse if one already points at us.

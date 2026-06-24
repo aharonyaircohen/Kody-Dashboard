@@ -11,10 +11,11 @@ import { useInbox } from "../inbox/useInbox";
 
 interface InboxBadgeProps {
   className?: string;
+  enabled?: boolean;
 }
 
-export function InboxBadge({ className }: InboxBadgeProps) {
-  const { unreadCount, isLoading } = useInbox();
+export function InboxBadge({ className, enabled = true }: InboxBadgeProps) {
+  const { unreadCount, isLoading } = useInbox({ enabled });
   if (isLoading || unreadCount <= 0) return null;
   return (
     <span

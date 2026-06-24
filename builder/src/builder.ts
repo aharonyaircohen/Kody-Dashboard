@@ -49,9 +49,12 @@ import {
   appExists,
   createApp,
   createPreviewMachine,
+  destroyApp,
   destroyMachine,
   listMachines,
 } from "./fly-api.ts";
+
+const DEFAULT_BUILD_TIMEOUT_MS = 45 * 60 * 1000;
 
 function defaultDockerfilePath(): string {
   // PREVIEW_BUILD_MODE selects which bundled template to drop in when
@@ -88,15 +91,40 @@ async function exists(path: string): Promise<boolean> {
 function run(
   cmd: string,
   args: string[],
-  opts: { cwd?: string; env?: Record<string, string> } = {},
+  opts: { cwd?: string; env?: Record<string, string>; timeoutMs?: number } = {},
 ): Promise<number> {
   return new Promise((resolveFn) => {
     const child = spawn(cmd, args, {
       cwd: opts.cwd,
       env: { ...process.env, ...(opts.env ?? {}) },
       stdio: "inherit",
+      detached: true,
     });
-    child.on("close", (code) => resolveFn(code ?? -1));
+    const killChildGroup = (signal: NodeJS.Signals): void => {
+      if (!child.pid) return;
+      try {
+        process.kill(-child.pid, signal);
+      } catch {
+        child.kill(signal);
+      }
+    };
+    const timeoutMs = opts.timeoutMs;
+    let timeout: ReturnType<typeof setTimeout> | undefined;
+    if (timeoutMs && timeoutMs > 0) {
+      timeout = setTimeout(() => {
+        console.error(
+          `[builder] ${cmd} timed out after ${Math.round(timeoutMs / 1000)}s`,
+        );
+        killChildGroup("SIGTERM");
+        const forceKill = setTimeout(() => killChildGroup("SIGKILL"), 10_000);
+        forceKill.unref?.();
+      }, timeoutMs);
+      timeout.unref?.();
+    }
+    child.on("close", (code) => {
+      if (timeout) clearTimeout(timeout);
+      resolveFn(code ?? -1);
+    });
   });
 }
 
@@ -411,6 +439,9 @@ async function pushPreviewImage(
         // Tell flyctl's heartbeat to give up quickly rather than retry.
         FLY_NO_DEPLOY_PROGRESS: "1",
       },
+      timeoutMs:
+        Number.parseInt(process.env.PREVIEW_BUILD_TIMEOUT_MS ?? "", 10) ||
+        DEFAULT_BUILD_TIMEOUT_MS,
     });
     if (built === 0) break;
     if (attempt < 3) {
@@ -420,7 +451,24 @@ async function pushPreviewImage(
       await new Promise((r) => setTimeout(r, (attempt + 1) * 15_000));
     }
   }
-  if (built !== 0) process.exit(3);
+  if (built !== 0) {
+    const err = new Error(
+      `flyctl deploy failed after 4 attempts (last exit ${built})`,
+    ) as Error & { exitCode?: number };
+    err.exitCode = 3;
+    throw err;
+  }
+}
+
+async function destroyEmptyPreviewApp(
+  appName: string,
+  flyToken: string,
+): Promise<void> {
+  if (appName.endsWith("-base")) return;
+  const machines = await listMachines(appName, flyToken).catch(() => []);
+  if (machines.length > 0) return;
+  console.warn(`[builder] destroying empty failed preview app ${appName}`);
+  await destroyApp(appName, flyToken);
 }
 
 async function main() {
@@ -602,7 +650,10 @@ async function main() {
     process.exit(0);
   } catch (err) {
     console.error("[builder] orchestration failed:", err);
-    process.exit(4);
+    await destroyEmptyPreviewApp(appName, flyToken).catch((cleanupErr) => {
+      console.warn("[builder] failed preview cleanup failed:", cleanupErr);
+    });
+    process.exit((err as { exitCode?: number }).exitCode ?? 4);
   }
 }
 

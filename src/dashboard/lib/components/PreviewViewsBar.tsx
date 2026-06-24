@@ -35,6 +35,7 @@ interface PreviewViewsBarProps {
   repo: string;
   selectedId: string | null;
   onSelect: (view: PreviewView) => void;
+  variant?: "toolbar" | "address";
 }
 
 export function PreviewViewsBar({
@@ -42,6 +43,7 @@ export function PreviewViewsBar({
   repo,
   selectedId,
   onSelect,
+  variant = "toolbar",
 }: PreviewViewsBarProps) {
   const [views, setViews] = useState<PreviewView[]>(() =>
     readPreviewViews(owner, repo),
@@ -139,9 +141,19 @@ export function PreviewViewsBar({
         aria-haspopup="listbox"
         aria-expanded={menuOpen}
         title="Switch preview view"
-        className="inline-flex items-center gap-1 px-2.5 py-1 text-xs font-medium rounded-md bg-emerald-500/15 text-emerald-400 border border-emerald-500/20 hover:bg-emerald-500/25 transition-colors"
+        className={cn(
+          "inline-flex items-center gap-1 text-xs font-medium transition-colors",
+          variant === "address"
+            ? "h-7 rounded-sm px-2 text-zinc-300 hover:bg-zinc-800 hover:text-white"
+            : "rounded-md border border-emerald-500/20 bg-emerald-500/15 px-2.5 py-1 text-emerald-400 hover:bg-emerald-500/25",
+        )}
       >
-        <span className="truncate max-w-[8rem]">
+        <span
+          className={cn(
+            "truncate",
+            variant === "address" ? "max-w-[5rem]" : "max-w-[8rem]",
+          )}
+        >
           {active ? active.name : "View"}
         </span>
         <ChevronDown className="w-3 h-3" />

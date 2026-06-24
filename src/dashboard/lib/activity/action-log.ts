@@ -24,7 +24,7 @@ export interface AuditEvent {
   id: string;
   /** Server clock, ISO. */
   at: string;
-  /** Coarse verb, e.g. "duty.run", "task.action", "vault.write". */
+  /** Coarse verb, e.g. "agentResponsibility.run", "task.action", "vault.write". */
   type: string;
   /** What was acted on, e.g. "#1587", "changelog-verify", a secret name. */
   target: string;
@@ -38,10 +38,10 @@ export interface AuditEvent {
   // ── Richer audit fields (optional; populated by `recordAudit`) ──────────
   /** Classifies the actor — defaults to "user" for dashboard actions. */
   actorType?: AuditActorType;
-  /** Duty slug, when the action targets or is performed by a duty. */
-  duty?: string | null;
-  /** Staff (persona) slug that executed, when known. */
-  staff?: string | null;
+  /** AgentResponsibility slug, when the action targets or is performed by a agentResponsibility. */
+  agentResponsibility?: string | null;
+  /** Agent (agentIdentity) slug that executed, when known. */
+  agent?: string | null;
   /** Coarse result of the action. Defaults to "ok". */
   outcome?: AuditOutcome;
   /** Deep link to the acted-on resource (issue/PR/run URL), when known. */

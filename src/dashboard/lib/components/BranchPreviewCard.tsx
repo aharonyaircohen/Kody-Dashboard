@@ -37,7 +37,13 @@ interface BranchPreviewCardProps {
   flyTokenConfigured: boolean;
 }
 
-type PreviewState = "pending" | "starting" | "running" | "unknown";
+type PreviewState =
+  | "building"
+  | "failed"
+  | "pending"
+  | "starting"
+  | "running"
+  | "unknown";
 
 interface BranchPreview {
   branch: string;
@@ -59,8 +65,11 @@ function pillClasses(state: PreviewState): string {
       return "bg-emerald-500/15 text-emerald-300 border-emerald-500/30";
     case "starting":
       return "bg-sky-500/15 text-sky-300 border-sky-500/30";
+    case "building":
     case "pending":
       return "bg-amber-500/15 text-amber-300 border-amber-500/30";
+    case "failed":
+      return "bg-rose-500/15 text-rose-300 border-rose-500/30";
     default:
       return "bg-white/5 text-white/40 border-white/10";
   }
@@ -72,8 +81,11 @@ function pillLabel(state: PreviewState): string {
       return "Running";
     case "starting":
       return "Starting";
+    case "building":
     case "pending":
       return "Building";
+    case "failed":
+      return "Failed";
     default:
       return "Unknown";
   }

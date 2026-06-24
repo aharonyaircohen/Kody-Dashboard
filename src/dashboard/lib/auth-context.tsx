@@ -26,6 +26,10 @@ import {
   useCallback,
 } from "react";
 
+export const DEFAULT_KODY_STORE_REPO_URL =
+  "https://github.com/aharonyaircohen/kody-company-store";
+export const DEFAULT_KODY_STORE_REF = "stable";
+
 export interface KodyRepoEntry {
   /** Original `https://github.com/owner/repo` URL the user pasted (optional). */
   repoUrl: string;
@@ -71,9 +75,20 @@ export interface KodyAuth {
    * guest mapping as flyPerf. Absent → server default (medium).
    */
   brainPerf?: "low" | "medium" | "high";
+  /**
+   * Brain Fly terminal activity limit. Number = milliseconds; "never" keeps
+   * the terminal session until the user closes/restarts it or the machine dies.
+   * Absent = bridge default.
+   */
+  brainTerminalActivityLimit?: BrainTerminalActivityLimit;
+  /** Shared Kody store repository URL used for company-level agentResponsibilities/agent-actions. */
+  storeRepoUrl?: string;
+  /** Shared Kody store ref used for company-level agentResponsibilities/agent-actions. */
+  storeRef?: string;
 }
 
 export type FlyPerfTier = NonNullable<KodyAuth["flyPerf"]>;
+export type BrainTerminalActivityLimit = number | "never";
 
 interface AuthContextValue {
   auth: KodyAuth | null;
@@ -102,6 +117,9 @@ interface AuthContextValue {
     vercelBypassSecret?: string | null;
     flyPerf?: FlyPerfTier | null;
     brainPerf?: FlyPerfTier | null;
+    brainTerminalActivityLimit?: BrainTerminalActivityLimit | null;
+    storeRepoUrl?: string | null;
+    storeRef?: string | null;
   }) => void;
 }
 
@@ -124,6 +142,7 @@ function migrateAuth(raw: unknown): KodyAuth | null {
   const a = raw as Partial<KodyAuth> & {
     repos?: KodyRepoEntry[];
     currentRepoIndex?: number;
+    storeRepo?: string;
   };
 
   if (!a.owner || !a.repo || !a.token || !a.user) return null;
@@ -144,6 +163,11 @@ function migrateAuth(raw: unknown): KodyAuth | null {
       owner: cur.owner,
       repo: cur.repo,
       token: cur.token,
+      storeRepoUrl:
+        a.storeRepoUrl ??
+        (typeof a.storeRepo === "string" && a.storeRepo
+          ? `https://github.com/${a.storeRepo}`
+          : undefined),
     };
   }
 
@@ -170,6 +194,12 @@ function migrateAuth(raw: unknown): KodyAuth | null {
     vercelBypassSecret: a.vercelBypassSecret,
     flyPerf: a.flyPerf,
     brainPerf: a.brainPerf,
+    storeRepoUrl:
+      a.storeRepoUrl ??
+      (typeof a.storeRepo === "string" && a.storeRepo
+        ? `https://github.com/${a.storeRepo}`
+        : undefined),
+    storeRef: a.storeRef,
   };
 }
 
@@ -215,6 +245,26 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       entry: Omit<KodyRepoEntry, "addedAt" | "isLogin">,
       user?: KodyAuth["user"],
     ) => {
+      const owner = entry.owner?.trim() ?? "";
+      const repo = entry.repo?.trim() ?? "";
+      const token = entry.token?.trim() ?? "";
+      const nextEntry: Omit<KodyRepoEntry, "addedAt" | "isLogin"> = {
+        ...entry,
+        repoUrl:
+          entry.repoUrl ||
+          (owner && repo ? `https://github.com/${owner}/${repo}` : ""),
+        owner,
+        repo,
+        token,
+      };
+      if (!nextEntry.owner || !nextEntry.repo || !nextEntry.token) {
+        console.warn("Skipping malformed repository entry", {
+          owner: nextEntry.owner,
+          repo: nextEntry.repo,
+          hasToken: Boolean(nextEntry.token),
+        });
+        return;
+      }
       setAuth((prev) => {
         // Bootstrap: empty store, this is the first repo. Requires user info.
         if (!prev) {
@@ -225,7 +275,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           }
           const now = Date.now();
           const loginEntry: KodyRepoEntry = {
-            ...entry,
+            ...nextEntry,
             addedAt: now,
             isLogin: true,
           };
@@ -242,25 +292,25 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           persist(next);
           return next;
         }
-        const ownerLc = entry.owner.toLowerCase();
-        const repoLc = entry.repo.toLowerCase();
+        const ownerLc = nextEntry.owner.toLowerCase();
+        const repoLc = nextEntry.repo.toLowerCase();
         // Dedupe: if the same owner/repo already exists, replace its token instead.
         const existingIdx = prev.repos.findIndex(
           (r) =>
-            r.owner.toLowerCase() === ownerLc &&
-            r.repo.toLowerCase() === repoLc,
+            r.owner?.toLowerCase() === ownerLc &&
+            r.repo?.toLowerCase() === repoLc,
         );
         let nextRepos: KodyRepoEntry[];
         if (existingIdx >= 0) {
           nextRepos = prev.repos.map((r, i) =>
             i === existingIdx
-              ? { ...r, token: entry.token, repoUrl: entry.repoUrl }
+              ? { ...r, token: nextEntry.token, repoUrl: nextEntry.repoUrl }
               : r,
           );
         } else {
           nextRepos = [
             ...prev.repos,
-            { ...entry, addedAt: Date.now(), isLogin: false },
+            { ...nextEntry, addedAt: Date.now(), isLogin: false },
           ];
         }
         const next: KodyAuth = { ...prev, repos: nextRepos };
@@ -345,6 +395,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       vercelBypassSecret?: string | null;
       flyPerf?: FlyPerfTier | null;
       brainPerf?: FlyPerfTier | null;
+      brainTerminalActivityLimit?: BrainTerminalActivityLimit | null;
+      storeRepoUrl?: string | null;
+      storeRef?: string | null;
     }) => {
       setAuth((prev) => {
         if (!prev) return prev;
@@ -364,6 +417,20 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         if (patch.brainPerf !== undefined) {
           next.brainPerf =
             patch.brainPerf === null ? undefined : patch.brainPerf;
+        }
+        if (patch.brainTerminalActivityLimit !== undefined) {
+          next.brainTerminalActivityLimit =
+            patch.brainTerminalActivityLimit === null
+              ? undefined
+              : patch.brainTerminalActivityLimit;
+        }
+        if (patch.storeRepoUrl !== undefined) {
+          const storeRepoUrl = patch.storeRepoUrl?.trim();
+          next.storeRepoUrl = storeRepoUrl ? storeRepoUrl : undefined;
+        }
+        if (patch.storeRef !== undefined) {
+          const storeRef = patch.storeRef?.trim();
+          next.storeRef = storeRef ? storeRef : undefined;
         }
         persist(next);
         return next;
@@ -405,5 +472,7 @@ export function buildAuthHeaders(
     "x-kody-token": auth.token,
     "x-kody-owner": auth.owner,
     "x-kody-repo": auth.repo,
+    "x-kody-store-repo-url": auth.storeRepoUrl ?? DEFAULT_KODY_STORE_REPO_URL,
+    "x-kody-store-ref": auth.storeRef ?? DEFAULT_KODY_STORE_REF,
   };
 }

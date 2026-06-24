@@ -1,9 +1,13 @@
 import { describe, it, expect } from "vitest";
 
 import {
+  addRepoViewEnvironment,
   addUploadedEnvironment,
   daysUntilExpiry,
   expiredUploads,
+  normalizeEnvUrl,
+  normalizeRepoViewPath,
+  repoViewIdFromPath,
   resolveEnvironments,
   setEnvExpiry,
   STATIC_PREVIEW_TTL_MS,
@@ -50,10 +54,67 @@ describe("addUploadedEnvironment", () => {
     });
   });
 
+  it("keeps a readable upload context for chat", () => {
+    const next = addUploadedEnvironment(
+      [],
+      "landing.html",
+      "https://kp-x.fly.dev",
+      "abc123",
+      NOW + STATIC_PREVIEW_TTL_MS,
+      {
+        name: "landing.html",
+        mimeType: "text/html",
+        size: 2048,
+        title: "Landing",
+        outline: "h1: Welcome\nbutton: Start",
+      },
+    );
+    expect(next[0].uploadContext).toMatchObject({
+      name: "landing.html",
+      title: "Landing",
+      outline: "h1: Welcome\nbutton: Start",
+    });
+  });
+
   it("is a no-op on a missing staticId or bad url", () => {
     expect(addUploadedEnvironment([], "x", "not-a-url", "id", NOW)).toEqual([]);
     expect(addUploadedEnvironment([], "x", "https://ok.dev", "", NOW)).toEqual(
       [],
+    );
+  });
+});
+
+describe("repo view paths", () => {
+  it("reads legacy and state-root repo view paths", () => {
+    expect(repoViewIdFromPath(".kody/views/mobile-html-1234")).toBe(
+      "mobile-html-1234",
+    );
+    expect(repoViewIdFromPath("views/mobile-html-1234")).toBe(
+      "mobile-html-1234",
+    );
+  });
+
+  it("stores new repo view environments with state-root paths", () => {
+    expect(normalizeRepoViewPath(".kody/views/mobile-html-1234")).toBe(
+      "views/mobile-html-1234",
+    );
+
+    const next = addRepoViewEnvironment(
+      [],
+      "Mobile",
+      "/api/kody/views/mobile-html-1234/index.html",
+      ".kody/views/mobile-html-1234",
+    );
+
+    expect(next).toHaveLength(1);
+    expect(next[0]?.repoViewPath).toBe("views/mobile-html-1234");
+  });
+});
+
+describe("normalizeEnvUrl", () => {
+  it("accepts dashboard-served view URLs", () => {
+    expect(normalizeEnvUrl("/api/kody/views/mobile-html-1234/index.html")).toBe(
+      "/api/kody/views/mobile-html-1234/index.html",
     );
   });
 });
@@ -89,10 +150,39 @@ describe("setEnvExpiry", () => {
 });
 
 describe("resolveEnvironments", () => {
+  it("treats an explicit empty list as empty instead of falling back", () => {
+    expect(
+      resolveEnvironments({
+        namedPreviews: [],
+        defaultPreviewUrl: "https://legacy.example.com",
+      }),
+    ).toEqual([]);
+  });
+
   it("preserves staticId + expiresAt through the read mapping", () => {
     const out = resolveEnvironments({
       namedPreviews: [uploaded("up", NOW + DAY)],
     });
     expect(out[0]).toMatchObject({ staticId: "up", expiresAt: NOW + DAY });
+  });
+
+  it("preserves uploadContext through the read mapping", () => {
+    const out = resolveEnvironments({
+      namedPreviews: [
+        {
+          ...uploaded("up", NOW + DAY),
+          uploadContext: {
+            name: "up.html",
+            mimeType: "text/html",
+            size: 123,
+            outline: "h1: Uploaded",
+          },
+        },
+      ],
+    });
+    expect(out[0].uploadContext).toMatchObject({
+      name: "up.html",
+      outline: "h1: Uploaded",
+    });
   });
 });

@@ -22,7 +22,9 @@
  *   fetches. Net reduction. See CLAUDE.md > "GitHub API rate-limit rules".
  */
 import { useEffect, useRef } from "react";
+import { usePathname } from "next/navigation";
 import { buildAuthHeaders, useAuth } from "../auth-context";
+import { shouldPollInboxFeedForRoute } from "../github-background-polling";
 import { useInboxAppend } from "./useInbox";
 import type { InboxEntry } from "./types";
 
@@ -43,8 +45,8 @@ interface FeedEntry {
   sentAt: string;
   ctoAction?: string;
   ctoCommand?: string;
-  ctoStaff?: string;
-  ctoDuty?: string;
+  ctoAgent?: string;
+  ctoAgentResponsibility?: string;
   category?: InboxEntry["category"];
 }
 
@@ -103,8 +105,10 @@ async function runOnce(opts: {
     readAt: null,
     ...(f.ctoAction ? { ctoAction: f.ctoAction } : {}),
     ...(f.ctoCommand ? { ctoCommand: f.ctoCommand } : {}),
-    ...(f.ctoStaff ? { ctoStaff: f.ctoStaff } : {}),
-    ...(f.ctoDuty ? { ctoDuty: f.ctoDuty } : {}),
+    ...(f.ctoAgent ? { ctoAgent: f.ctoAgent } : {}),
+    ...(f.ctoAgentResponsibility
+      ? { ctoAgentResponsibility: f.ctoAgentResponsibility }
+      : {}),
     ...(f.category ? { category: f.category } : {}),
   }));
 
@@ -124,11 +128,13 @@ async function runOnce(opts: {
 
 export function InboxWatcher(): null {
   const { auth } = useAuth();
+  const pathname = usePathname();
+  const shouldPoll = shouldPollInboxFeedForRoute(pathname);
   const append = useInboxAppend();
   const running = useRef(false);
 
   useEffect(() => {
-    if (!auth) return;
+    if (!auth || !shouldPoll) return;
     const { owner, repo } = auth;
     const headers: Record<string, string> = {
       "Content-Type": "application/json",
@@ -155,10 +161,10 @@ export function InboxWatcher(): null {
       window.clearInterval(id);
       window.removeEventListener("focus", onFocus);
     };
-    // `append` is a stable callback that captures auth via context; only
-    // re-mount when (owner, repo, token) actually change.
+    // `append` is a stable callback that captures auth via context; re-mount
+    // only when auth or route polling eligibility changes.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [auth?.owner, auth?.repo, auth?.token]);
+  }, [auth?.owner, auth?.repo, auth?.token, shouldPoll]);
 
   return null;
 }

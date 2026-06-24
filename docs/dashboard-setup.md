@@ -15,8 +15,8 @@ through the dashboard once you're logged in.
 
 | Store         | Page         | In the repo            | Secret?               | Doc                                          |
 | ------------- | ------------ | ---------------------- | --------------------- | -------------------------------------------- |
-| **Staff**     | `/staff`     | `.kody/staff/*.md`     | No (plaintext)        | [Staff & Duties](./concepts/staff-duties.md) |
-| **Duties**    | `/duties`    | `.kody/duties/*.md`    | No (plaintext)        | [Staff & Duties](./concepts/staff-duties.md) |
+| **Agents**     | `/agent`     | `.kody/agents/*.md`     | No (plaintext)        | [Agents & AgentResponsibilities](./concepts/agents-agent-responsibilities.md) |
+| **AgentResponsibilities**    | `/agent-responsibilities`    | `.kody/agent-responsibilities/<slug>/` | No (plaintext)        | [Agents & AgentResponsibilities](./concepts/agents-agent-responsibilities.md) |
 | **Commands**  | `/commands`  | `.kody/commands/*.md`  | No (plaintext)        | [Commands](./commands.md)                    |
 | **Secrets**   | `/secrets`   | `.kody/secrets.enc`    | **Yes** (AES-256-GCM) | [Secrets vault](./secrets-vault.md)          |
 | **Variables** | `/variables` | `.kody/variables.json` | No (plaintext)        | [Variables](./variables.md)                  |
@@ -28,21 +28,22 @@ Contents API, so changes show up in the repo history.
 
 ## What goes where
 
-### Staff — `/staff`
+### Agents — `/agent`
 
-Identity-only personas: a staff file says _who_ an agent is (intent,
+Identity-only personas: a agent file says _who_ an agent is (intent,
 values, allowed commands, restrictions) and nothing about _what_ it does
-on a schedule. Duties reference a staff member by slug; the engine
-injects the persona ahead of the duty body at run time. Keep these pure
+on a schedule. AgentResponsibilities reference a agent member by slug; the engine
+injects the agent ahead of the agentResponsibility body at run time. Keep these pure
 identity — no tasks or domains. See
-[Staff & Duties](./concepts/staff-duties.md).
+[Agents & AgentResponsibilities](./concepts/agents-agent-responsibilities.md).
 
-### Duties — `/duties`
+### AgentResponsibilities — `/agent-responsibilities`
 
-Scheduled jobs: a duty file describes intent, system prompt, allowed
-commands, and restrictions, names a `staff:` persona, and is ticked by
-the engine every ~5 min. Toggle a duty off with `disabled: true`. See
-[Staff & Duties](./concepts/staff-duties.md).
+Scheduled jobs: a agentResponsibility folder describes intent, allowed commands, and
+restrictions in `agent-responsibility.md`, stores agent/cadence/action metadata in
+`profile.json`, and is ticked by the engine scheduler. Toggle a agentResponsibility off
+with `disabled: true`. See
+[Agents & AgentResponsibilities](./concepts/agents-agent-responsibilities.md).
 
 ### Commands — `/commands`
 
@@ -93,12 +94,12 @@ dashboard-managed — no env vars, no hand-edited files:
      goes in Variables).
 3. **Profile** (`/profile`) — write the QA scenarios and key routes so
    the agent knows what to exercise and what "correct" looks like.
-4. **Duties** (`/duties`) — enable the two QA duties by flipping
+4. **AgentResponsibilities** (`/agent-responsibilities`) — enable the two QA agentResponsibilities by flipping
    `disabled: false`:
    - `qa` — the targeted QA pass.
    - `qa-sweep` — the broad, no-scope exploratory sweep.
 
 That's the whole loop: targeting in Variables, the secret in the vault,
-the playbook in Profile, and the schedule in Duties. The engine reads
+the playbook in Profile, and the schedule in AgentResponsibilities. The engine reads
 all four at tick time. Full walkthrough and the migration steps live in
 [QA automation](./qa.md).

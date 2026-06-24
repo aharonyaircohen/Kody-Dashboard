@@ -11,8 +11,6 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
-import ReactMarkdown from "react-markdown";
-import remarkGfm from "remark-gfm";
 import {
   Bold,
   ChevronDown,
@@ -54,6 +52,7 @@ import { useChannelsUnread } from "../hooks/useChannelsUnread";
 import { useGitHubIdentity } from "../hooks/useGitHubIdentity";
 import { useCommentAttachments } from "../hooks/useCommentAttachments";
 import { AttachmentBar } from "./AttachmentBar";
+import { MarkdownPreview } from "./MarkdownPreview";
 import { DiscussionsDisabledBadge } from "./GoalDiscussion";
 import { type GoalDiscussionComment } from "../api";
 import { useMentionRoster } from "../hooks/useMentionRoster";
@@ -61,7 +60,7 @@ import { useMentionRoster } from "../hooks/useMentionRoster";
 interface Mention {
   login: string;
   avatar_url: string;
-  /** True for staff personas — mentioning one dispatches an ad-hoc tick. */
+  /** True for agentIdentity identities — mentioning one dispatches an ad-hoc tick. */
   isStaff?: boolean;
 }
 
@@ -93,78 +92,21 @@ function MessageMarkdown({
   onPrimary,
 }: {
   body: string;
-  /** Rendered inside a primary-colored "my message" bubble — flip
-   *  link/code colors so they stay legible on the dark fill. */
+  /** Rendered inside primary-colored "my message" bubble — flip
+   * link/code colors so they stay legible on dark fill. */
   onPrimary?: boolean;
 }) {
   return (
-    <div
+    <MarkdownPreview
       dir="auto"
+      content={body}
+      variant="compact"
       className={cn(
-        "prose prose-sm max-w-none text-[15px] leading-relaxed break-words",
-        onPrimary
-          ? "prose-invert prose-p:text-primary-foreground"
-          : "dark:prose-invert",
+        "text-[15px] leading-relaxed break-words",
+        onPrimary &&
+          "prose-invert prose-p:text-primary-foreground prose-a:text-primary-foreground prose-a:underline prose-code:bg-primary-foreground/20 prose-pre:bg-primary-foreground/15",
       )}
-    >
-      <ReactMarkdown
-        remarkPlugins={[remarkGfm]}
-        components={{
-          code({ className, children, ...props }) {
-            const match = /language-(\w+)/.exec(className || "");
-            if (!match) {
-              return (
-                <code
-                  className={cn(
-                    "px-1 py-0.5 rounded text-xs",
-                    onPrimary ? "bg-primary-foreground/20" : "bg-muted",
-                  )}
-                  {...props}
-                >
-                  {children}
-                </code>
-              );
-            }
-            return (
-              <pre
-                className={cn(
-                  "p-2 rounded-md overflow-x-auto",
-                  onPrimary ? "bg-primary-foreground/15" : "bg-muted",
-                )}
-              >
-                <code className={className} {...props}>
-                  {children}
-                </code>
-              </pre>
-            );
-          },
-          a({ href, children, ...props }) {
-            return (
-              <a
-                href={href}
-                target="_blank"
-                rel="noopener noreferrer"
-                className={cn(
-                  "hover:underline break-all",
-                  onPrimary
-                    ? "text-primary-foreground underline"
-                    : "text-primary",
-                )}
-                {...props}
-              >
-                {children}
-              </a>
-            );
-          },
-          img: (props) => (
-            // eslint-disable-next-line @next/next/no-img-element, jsx-a11y/alt-text
-            <img {...props} className="max-w-full h-auto rounded-md" />
-          ),
-        }}
-      >
-        {body}
-      </ReactMarkdown>
-    </div>
+    />
   );
 }
 
@@ -337,7 +279,6 @@ function MessageList({
     </div>
   );
 }
-
 function MessageComposer({
   channelNumber,
   channelName,
@@ -355,7 +296,7 @@ function MessageComposer({
   const [showMentions, setShowMentions] = useState(false);
   const [selectedMentionIndex, setSelectedMentionIndex] = useState(0);
 
-  // Shared roster: collaborators + staff + self. Staff (e.g. @cto)
+  // Shared roster: collaborators + agent + self. Agent (e.g. @cto)
   // are offered here and in every other composer via the same hook.
   const mentions = useMentionRoster({
     login: githubUser?.login,
@@ -380,9 +321,9 @@ function MessageComposer({
 
   const handleSubmit = () => {
     if (!canSubmit) return;
-    // Staff @mentions are handled server-side: the message becomes a
-    // Discussion comment, the webhook detects `@staff` and dispatches the
-    // one-shot worker-ask tick, and the reply lands back in this thread.
+    // Agent @mentions are handled server-side: the message becomes a
+    // Discussion comment, the webhook detects `@agent` and dispatches the
+    // one-shot agent-ask tick, and the reply lands back in this thread.
     postMessage(att.withAttachments(body.trim()), {
       onSuccess: () => {
         setBody("");
@@ -547,13 +488,12 @@ function MessageComposer({
       ) : null}
 
       {showPreview ? (
-        <div
-          dir="auto"
-          className="mb-2 min-h-[44px] p-3 rounded-2xl bg-muted/50 text-sm prose prose-sm dark:prose-invert max-w-none"
-        >
-          <ReactMarkdown remarkPlugins={[remarkGfm]}>
-            {body || "*Nothing to preview*"}
-          </ReactMarkdown>
+        <div className="mb-2 min-h-[44px] p-3 rounded-2xl bg-muted/50 text-sm">
+          <MarkdownPreview
+            content={body || "*Nothing to preview*"}
+            dir="auto"
+            variant="compact"
+          />
         </div>
       ) : null}
 
@@ -632,7 +572,7 @@ function MessageComposer({
                     <span className="text-sm truncate">{mention.login}</span>
                     {mention.isStaff ? (
                       <span className="ml-auto text-[10px] font-medium uppercase tracking-wide text-primary bg-primary/10 rounded px-1.5 py-0.5">
-                        staff
+                        agent
                       </span>
                     ) : null}
                   </button>

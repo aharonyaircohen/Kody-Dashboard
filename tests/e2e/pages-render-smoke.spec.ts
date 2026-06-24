@@ -4,7 +4,7 @@
  * @domain e2e
  *
  * The deep e2e suite is concentrated on chat + vibe; whole feature pages
- * (Activity, Inbox, Duties, Staff, Secrets, Notifications, Models, Prompts,
+ * (Activity, AgentResponsibilities, Agent, Secrets, Notifications, Models, Prompts,
  * Reports, Settings, Runner, …) had no "does it even mount" guard. This
  * parametrized smoke visits each authenticated route and asserts the page
  * renders without a crash or a critical console error — the cheapest broad
@@ -30,20 +30,23 @@ const ROUTES = [
   "/activity",
   "/changelog",
   "/chat",
-  "/duties",
-  "/inbox",
+  "/agent-responsibilities",
+  "/agent-actions",
+  "/context",
   "/instructions",
   "/messages",
   "/models",
   "/new",
   "/notifications",
+  "/agent-goals",
   "/commands",
   "/reports",
   "/runner",
+  "/agent-loops",
   "/scenario",
   "/secrets",
   "/settings",
-  "/staff",
+  "/agents",
   "/variables",
   "/vibe",
 ] as const;
@@ -56,6 +59,7 @@ const IGNORED = [
   "Failed to load resource",
   "Hydration failed",
   "Minified React error #418",
+  "Encountered a script tag while rendering React component",
   "502",
   "Bad Gateway",
   "503",

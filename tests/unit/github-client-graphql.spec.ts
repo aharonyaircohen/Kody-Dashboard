@@ -38,6 +38,7 @@ vi.mock("@octokit/rest", () => {
 import {
   fetchOpenPRs,
   fetchIssues,
+  findAssociatedPRByIssueNumber,
   invalidatePRCache,
   setGitHubContext,
   clearGitHubContext,
@@ -159,6 +160,19 @@ describe("fetchOpenPRs", () => {
     await fetchOpenPRs();
 
     expect(graphql).toHaveBeenCalledTimes(1);
+  });
+
+  it("matches an issue that is itself an open PR by number", async () => {
+    graphql.mockResolvedValueOnce(openPRsResponse([350]));
+
+    const pr = await findAssociatedPRByIssueNumber(350);
+
+    expect(pr).toMatchObject({
+      number: 350,
+      head: { ref: "350-feature" },
+      html_url: "https://github.com/acme/widgets/pull/350",
+    });
+    expect(issuesGet).not.toHaveBeenCalled();
   });
 
   it("collapses concurrent polls into one GraphQL call (in-flight dedup)", async () => {

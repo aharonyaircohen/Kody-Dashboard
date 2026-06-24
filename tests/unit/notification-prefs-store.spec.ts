@@ -4,7 +4,6 @@
  * (with ETag caching) and the write path (CAS with retry on conflict).
  */
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
-import { STATE_BRANCH } from "@dashboard/lib/state-branch";
 
 const h = vi.hoisted(() => ({
   getOwner: vi.fn(() => "acme"),
@@ -12,6 +11,16 @@ const h = vi.hoisted(() => ({
   getOctokit: vi.fn(),
   setGitHubContext: vi.fn(),
   clearGitHubContext: vi.fn(),
+}));
+
+vi.mock("@dashboard/lib/engine/config", () => ({
+  getEngineConfig: vi.fn().mockResolvedValue({
+    config: {
+      agentActions: { default: "run" },
+      state: { repo: "https://github.com/acme/kody-state", path: "widgets" },
+    },
+    sha: null,
+  }),
 }));
 
 vi.mock("@dashboard/lib/github-client", () => ({
@@ -41,7 +50,29 @@ beforeEach(() => {
 function mockResponse(data: unknown, etag?: string, status = 200) {
   const headers: Record<string, string | undefined> = {};
   if (etag) headers.etag = etag;
-  return { data, headers, status };
+  let responseData: unknown =
+    data && typeof data === "object" && !Array.isArray(data)
+      ? {
+          type: "file",
+          encoding: "base64",
+          ...(data as Record<string, unknown>),
+        }
+      : data;
+  if (
+    responseData &&
+    typeof responseData === "object" &&
+    !Array.isArray(responseData) &&
+    !(
+      "content" in responseData &&
+      (responseData as Record<string, unknown>).content
+    )
+  ) {
+    (responseData as Record<string, unknown>).content = Buffer.from(
+      "{}",
+      "utf-8",
+    ).toString("base64");
+  }
+  return { data: responseData, headers, status };
 }
 
 describe("readNotificationPrefs", () => {
@@ -164,11 +195,10 @@ describe("writeNotificationPrefs", () => {
     const createCall =
       mockOctokit.repos.createOrUpdateFileContents.mock.calls[0]![0];
     expect(createCall).toMatchObject({
-      path: ".kody/notifications/preferences/alice.json",
-      branch: STATE_BRANCH,
+      path: "widgets/notifications/preferences/alice.json",
       message: "feat(notifications): update prefs for alice",
-      sha: undefined,
     });
+    expect(createCall.sha).toBeUndefined();
   });
 
   it("updates an existing file when SHA is provided", async () => {

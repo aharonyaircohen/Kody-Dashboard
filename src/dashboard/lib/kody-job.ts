@@ -4,39 +4,31 @@
  * @pattern engine-mirror
  * @ai-summary The dashboard's mirror of the engine's `Job` — the unified
  * execution unit. A job ASSEMBLES the reusable nouns into one runnable thing:
- *   - executable (HOW)  · duty (WHY, by slug)  · persona/staff (WHO)
+ *   - agentResponsibility (public action/WHY) · agentAction (HOW) · agent/agents (WHO)
  *   - schedule (WHEN)   · target (issue/PR)    · cliArgs · flavor · force
  *
- * This type is a verbatim mirror of `Job` in the kody engine — keep them in
- * lockstep. Source of truth:
- *   kody2/src/executables/types.ts:457-479  (Job interface)
- *   kody2/src/job.ts:46-74                   (validateJob boundary rules)
- *   kody2/src/job.ts:153-192                 (mintInstantJob / mintScheduledJob)
- *
- * The engine validates that a job names at least one of `executable` or `duty`,
- * has a known `flavor`, and carries an object `cliArgs` (defaulting to `{}`).
- * `validateKodyJob` below reproduces those exact rules so the composer can't
- * build a job the engine would reject.
+ * Kody now dispatches agentResponsibilities only. An agentAction can still be linked as the
+ * implementation, but it cannot be the public run target by itself.
  */
 
 /** Run once now (`@kody`) or on a cron cadence (the tick path). */
 export type KodyJobFlavor = "instant" | "scheduled";
 
-/** Mirror of the engine `Job` (kody2/src/executables/types.ts:457). */
+/** Mirror of the engine `Job` (kody2/src/agent-actions/types.ts:457). */
 export interface KodyJob {
-  /** HOW: executable (profile) name to run. Omitted for agent-only intent. */
-  executable?: string;
-  /** WHY (referenced): a duty slug whose intent drives the run. */
-  duty?: string;
+  /** HOW: implementation agentAction linked by the agentResponsibility. Not a run target. */
+  agentAction?: string;
+  /** Public agentResponsibility slug/action whose intent drives the run. Required. */
+  agentResponsibility?: string;
   /** WHY (inline): free-text intent, e.g. an `@kody` comment body. */
   why?: string;
-  /** WHO: a staff persona slug. */
-  persona?: string;
+  /** WHO: an agentIdentity slug. */
+  agent?: string;
   /** WHEN: cron expression. Set for scheduled jobs, absent for instant. */
   schedule?: string;
   /** The issue/PR number this job acts on, when applicable. */
   target?: number;
-  /** Args passed through to the executable. */
+  /** Args passed through to the agentAction. */
   cliArgs: Record<string, unknown>;
   /** Run once now ("instant") or on the schedule ("scheduled"). */
   flavor: KodyJobFlavor;
@@ -52,19 +44,24 @@ export class InvalidKodyJobError extends Error {
   }
 }
 
+function isValidAgentResponsibilitySlug(slug: string): boolean {
+  return /^[a-z0-9][a-z0-9_-]{0,63}$/.test(slug);
+}
+
 /**
- * Validate + normalize a composed job at the boundary — a faithful port of the
- * engine's `validateJob` (kody2/src/job.ts:46). A job must reference an
- * executable OR a duty, declare a known flavor, and (if present) carry an
- * object `cliArgs`; unknown/empty optionals collapse to `undefined`/`{}`.
+ * Validate + normalize a composed job at the boundary. A dashboard-created job
+ * must reference a agentResponsibility, declare a known flavor, and carry object cliArgs.
  */
 export function validateKodyJob(input: unknown): KodyJob {
   if (!input || typeof input !== "object") {
     throw new InvalidKodyJobError("job must be an object");
   }
   const j = input as Record<string, unknown>;
-  if (typeof j.executable !== "string" && typeof j.duty !== "string") {
-    throw new InvalidKodyJobError("job must reference an executable or a duty");
+  if (typeof j.agentResponsibility !== "string" || j.agentResponsibility.trim().length === 0) {
+    throw new InvalidKodyJobError("job must reference a agentResponsibility");
+  }
+  if (!isValidAgentResponsibilitySlug(j.agentResponsibility)) {
+    throw new InvalidKodyJobError("job.agentResponsibility must be a valid agentResponsibility slug");
   }
   if (j.flavor !== "instant" && j.flavor !== "scheduled") {
     throw new InvalidKodyJobError(
@@ -78,10 +75,10 @@ export function validateKodyJob(input: unknown): KodyJob {
     throw new InvalidKodyJobError("job.cliArgs must be an object when present");
   }
   return {
-    executable: typeof j.executable === "string" ? j.executable : undefined,
-    duty: typeof j.duty === "string" ? j.duty : undefined,
+    agentAction: typeof j.agentAction === "string" ? j.agentAction : undefined,
+    agentResponsibility: j.agentResponsibility,
     why: typeof j.why === "string" && j.why.length > 0 ? j.why : undefined,
-    persona: typeof j.persona === "string" ? j.persona : undefined,
+    agent: typeof j.agent === "string" ? j.agent : undefined,
     schedule: typeof j.schedule === "string" ? j.schedule : undefined,
     target: typeof j.target === "number" ? j.target : undefined,
     cliArgs: (j.cliArgs as Record<string, unknown> | undefined) ?? {},
@@ -90,16 +87,15 @@ export function validateKodyJob(input: unknown): KodyJob {
   };
 }
 
-/** The executable the engine actually runs: `executable ?? duty` (job.ts:106). */
+/** The public action the dashboard dispatches. It is always the agentResponsibility. */
 export function resolveJobProfile(job: KodyJob): string | undefined {
-  return job.executable ?? job.duty;
+  return job.agentResponsibility;
 }
 
 /**
- * Render an INSTANT job as the `@kody` dispatch comment the engine resolves —
- * the same path the executable "Run" button and chat tools use. `why` is
- * appended as free text (the engine surfaces it as the operator request).
- * Scheduled jobs are not dispatched this way; they persist as a duty file.
+ * Render an INSTANT job as the `@kody` dispatch comment the engine resolves.
+ * `why` is appended as free text.
+ * Scheduled jobs are not dispatched this way; they persist as a agentResponsibility folder.
  */
 export function renderInstantJobComment(job: KodyJob): string {
   const verb = resolveJobProfile(job);

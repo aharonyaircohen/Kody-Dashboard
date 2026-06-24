@@ -1,23 +1,21 @@
 /**
  * @fileType component
  * @domain runner
- * @pattern runner-manager
- * @ai-summary The Fly page (/runner), three tabs: Configuration (default),
- *   Machines (live inventory + actions), Activity. The Configuration tab is
- *   grouped BY FEATURE so each setting's owner + effect is obvious:
- *     • Previews — per-PR preview size, idle-suspend, expiry (PreviewsCard) +
- *       manual branch previews.
- *     • Runners — warm-pool size (POOL_MIN vault, repo-wide) + VM size (the
- *       per-user perf tier, this browser only, localStorage.kody_auth.flyPerf).
- *     • Brain — per-user Brain-on-Fly. • LiteLLM — shared proxy status.
- *   Fly token status sits on top (gates everything); the token is set on
- *   /secrets. Health-check is deliberately not exposed (footgun — defeats
- *   idle sleep); it defaults off in code.
+ * @pattern fly-pages
+ * @ai-summary Shared Fly page shell for /fly/config, /fly/machines, and
+ * /fly/history. Config owns settings; machines owns live inventory; history
+ * owns activity snapshots.
  */
 "use client";
 
 import Link from "next/link";
-import { useCallback, useEffect, useState } from "react";
+import {
+  useCallback,
+  useEffect,
+  useMemo,
+  useState,
+  type ReactNode,
+} from "react";
 import { toast } from "sonner";
 import {
   Brain,
@@ -27,72 +25,47 @@ import {
   KeyRound,
   Rocket,
   Server,
-  SquareTerminal,
   type LucideIcon,
 } from "lucide-react";
 import { Button } from "@dashboard/ui/button";
 import { Card, CardContent } from "@dashboard/ui/card";
 import { Input } from "@dashboard/ui/input";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@dashboard/ui/tabs";
 import { BrainFlyCard, type BrainFlyState } from "./BrainFlyCard";
 import { FlyActivityTab } from "./FlyActivityTab";
 import { FlyMachinesTable } from "./FlyMachinesTable";
-import { LitellmFlyCard, type LitellmStatus } from "./LitellmFlyCard";
 import { PreviewsCard } from "./PreviewsCard";
 import { PageShell } from "./PageShell";
 import { SimpleTooltip } from "./SimpleTooltip";
 import { VaultLockedBanner } from "./VaultLockedBanner";
 import { useAuth, type FlyPerfTier } from "../auth-context";
-import { getStoredAuth } from "../api";
 
-/** Vault key under which the project-scoped Fly Machines token is stored. */
 const FLY_VAULT_KEY = "FLY_API_TOKEN";
-/** Vault key sizing the per-repo warm pool. Kept byte-identical to the engine
- * (kody2 src/pool/registry.ts POOL_MIN_VAULT_KEY) which reads it. */
 const POOL_MIN_VAULT_KEY = "POOL_MIN";
-/** Default + ceiling — mirror the engine's clamp so the UI rejects what the
- * pool would clamp anyway. */
 const POOL_MIN_DEFAULT = 2;
 const POOL_MIN_MAX = 10;
-
 const FLY_PERF_DEFAULT: FlyPerfTier = "medium";
+const EMPTY_HEADERS: Record<string, string> = {};
 
-// Plain-intent names for the per-user perf tier; the real Fly spec lives in
-// the hint. Order low→medium→high == Economy→Balanced→Fast.
 const FLY_PERF_LABELS: Record<FlyPerfTier, { label: string; hint: string }> = {
   low: {
     label: "Economy",
-    hint: "Cheapest (shared 2× / 2 GB). Fine for chat; installs/tests are slower.",
+    hint: "Cheapest (shared 2x / 2 GB). Fine for chat; installs and tests are slower.",
   },
   medium: {
     label: "Balanced",
-    hint: "Default (performance 1× / 2 GB). Good for most Vibe / build-test work.",
+    hint: "Default (performance 1x / 2 GB). Good for most Vibe and build-test work.",
   },
   high: {
     label: "Fast",
-    hint: "Fastest (performance 2× / 4 GB). For heavy installs or big repos. Costs more.",
+    hint: "Fastest (performance 2x / 4 GB). Best for heavy installs and big repos. Costs more.",
   },
 };
 
 const PERF_ORDER: FlyPerfTier[] = ["low", "medium", "high"];
 
-function vaultHeaders(): Record<string, string> {
-  const auth = getStoredAuth();
-  return auth
-    ? {
-        "x-kody-token": auth.token,
-        "x-kody-owner": auth.owner,
-        "x-kody-repo": auth.repo,
-      }
-    : {};
-}
-
-/** Tooltip copy for the blast-radius chips. Kept in one place so the wording
- * stays consistent between the per-section chips and any future chips. */
 const SCOPE_CHIP_HINTS = {
-  wholeRepo: "Applies to everyone using the repo.",
-  justYou: "Only affects this browser — not other users.",
-  readOnly: "Status display — you can't change it from here.",
+  wholeRepo: "Applies to everyone using this repo.",
+  justYou: "Only affects this browser.",
 };
 
 const STATUS_DOT_COLORS: Record<string, string> = {
@@ -108,20 +81,40 @@ const STATUS_LABELS: Record<string, string> = {
   suspended: "Sleeping",
   stopped: "Stopped",
   off: "Off",
-  unknown: "—",
+  unknown: "-",
+};
+
+export type RunnerView = "config" | "machines" | "history";
+
+interface RunnerManagerProps {
+  view?: RunnerView;
+}
+
+const FLY_VIEW_COPY: Record<RunnerView, { title: string; subtitle: string }> = {
+  config: {
+    title: "Fly Config",
+    subtitle: "Rules and sizes for Fly preview and runner work.",
+  },
+  machines: {
+    title: "Fly Machines",
+    subtitle: "Live Fly machines and actions.",
+  },
+  history: {
+    title: "Fly History",
+    subtitle: "Past Fly machine activity from state snapshots.",
+  },
 };
 
 function StatusDot({ state }: { state: string }) {
   return (
     <span
-      className={`w-1.5 h-1.5 rounded-full inline-block ${STATUS_DOT_COLORS[state] ?? STATUS_DOT_COLORS.unknown}`}
+      className={`w-1.5 h-1.5 rounded-full inline-block ${
+        STATUS_DOT_COLORS[state] ?? STATUS_DOT_COLORS.unknown
+      }`}
     />
   );
 }
 
-/** Group divider — labels each block by who it affects. The optional
- * `status` slot is for an at-a-glance live status pulled up from the
- * child card (e.g. "● Running · 3 ready" on the LiteLLM divider). */
 function GroupHeader({
   icon: Icon,
   label,
@@ -131,7 +124,7 @@ function GroupHeader({
   icon: LucideIcon;
   label: string;
   hint: string;
-  status?: React.ReactNode;
+  status?: ReactNode;
 }) {
   return (
     <div className="flex items-center gap-2 px-1">
@@ -151,49 +144,93 @@ function GroupHeader({
   );
 }
 
-export function RunnerManager() {
-  const { auth, updateIntegrations } = useAuth();
-
-  // ─── Repo-wide: FLY_API_TOKEN probe + warm pool size ────────────────────
+function useFlyTokenConfigured(headers: Record<string, string>): boolean {
   const [flyTokenConfigured, setFlyTokenConfigured] = useState(false);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    async function probeFlyToken() {
+      if (Object.keys(headers).length === 0) {
+        if (!cancelled) setFlyTokenConfigured(false);
+        return;
+      }
+      try {
+        const res = await fetch(`/api/kody/secrets/${FLY_VAULT_KEY}/value`, {
+          headers,
+        });
+        if (!res.ok) {
+          if (!cancelled) setFlyTokenConfigured(false);
+          return;
+        }
+        const body = (await res.json()) as { value?: string };
+        if (!cancelled) setFlyTokenConfigured(Boolean(body.value));
+      } catch {
+        if (!cancelled) setFlyTokenConfigured(false);
+      }
+    }
+
+    void probeFlyToken();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [headers]);
+
+  return flyTokenConfigured;
+}
+
+function FlyTokenCard({ flyTokenConfigured }: { flyTokenConfigured: boolean }) {
+  return (
+    <Card className="border-white/[0.08] bg-white/[0.03]">
+      <CardContent className="p-4 space-y-2">
+        <div className="flex items-center gap-2">
+          <KeyRound className="w-4 h-4 text-sky-400" />
+          <h2 className="text-sm font-semibold">Fly token</h2>
+          <SimpleTooltip
+            side="right"
+            content={
+              <>
+                Required for everything below. Set{" "}
+                <span className="font-mono">FLY_API_TOKEN</span> on the{" "}
+                <Link href="/secrets" className="text-sky-400 hover:underline">
+                  Secrets
+                </Link>{" "}
+                page. Without it, every Fly feature falls back to GitHub
+                Actions.
+              </>
+            }
+          >
+            <Info className="w-3.5 h-3.5 text-white/50 hover:text-white/80 cursor-help" />
+          </SimpleTooltip>
+          <span
+            className={`ml-auto text-[11px] ${
+              flyTokenConfigured ? "text-emerald-300" : "text-amber-300"
+            }`}
+          >
+            {flyTokenConfigured ? "configured" : "not set"}
+          </span>
+        </div>
+      </CardContent>
+    </Card>
+  );
+}
+
+function RunnerConfigView({
+  flyTokenConfigured,
+  headers,
+}: {
+  flyTokenConfigured: boolean;
+  headers: Record<string, string>;
+}) {
+  const { auth, updateIntegrations } = useAuth();
   const [poolMin, setPoolMin] = useState("");
   const [poolMinSaved, setPoolMinSaved] = useState("");
   const [poolMinSaving, setPoolMinSaving] = useState(false);
-
-  // ─── Per-user: perf tier (VM size for THIS browser's runs) ──────────────
   const [flyPerf, setFlyPerf] = useState<FlyPerfTier>(FLY_PERF_DEFAULT);
-
-  // ─── At-a-glance section status (lifted from the child cards so the
-  //     GroupHeader can show "● Running" / "● 3 ready" without scrolling). ─
   const [brainState, setBrainState] = useState<BrainFlyState>("unknown");
-  const [litellmStatus, setLitellmStatus] = useState<LitellmStatus>({
-    state: "unknown",
-    free: null,
-  });
-
-  const probeFlyToken = useCallback(async () => {
-    const headers = vaultHeaders();
-    if (Object.keys(headers).length === 0) {
-      setFlyTokenConfigured(false);
-      return;
-    }
-    try {
-      const res = await fetch(`/api/kody/secrets/${FLY_VAULT_KEY}/value`, {
-        headers,
-      });
-      if (!res.ok) {
-        setFlyTokenConfigured(false);
-        return;
-      }
-      const body = (await res.json()) as { value?: string };
-      setFlyTokenConfigured(Boolean(body.value));
-    } catch {
-      setFlyTokenConfigured(false);
-    }
-  }, []);
 
   const loadPoolMin = useCallback(async () => {
-    const headers = vaultHeaders();
     if (Object.keys(headers).length === 0) {
       setPoolMin("");
       setPoolMinSaved("");
@@ -216,14 +253,12 @@ export function RunnerManager() {
       setPoolMin("");
       setPoolMinSaved("");
     }
-  }, []);
+  }, [headers]);
 
   useEffect(() => {
-    void probeFlyToken();
     void loadPoolMin();
-  }, [probeFlyToken, loadPoolMin]);
+  }, [loadPoolMin]);
 
-  // Seed the per-user perf tier from auth (or on repo switch).
   useEffect(() => {
     setFlyPerf(auth?.flyPerf ?? FLY_PERF_DEFAULT);
   }, [auth?.flyPerf]);
@@ -250,7 +285,7 @@ export function RunnerManager() {
     try {
       const res = await fetch(`/api/kody/secrets`, {
         method: "POST",
-        headers: { "content-type": "application/json", ...vaultHeaders() },
+        headers: { "content-type": "application/json", ...headers },
         body: JSON.stringify({ name: POOL_MIN_VAULT_KEY, value: String(n) }),
       });
       if (!res.ok) {
@@ -259,300 +294,193 @@ export function RunnerManager() {
         };
         throw new Error(body.message ?? `Save failed (${res.status})`);
       }
-      setPoolMin(String(n));
       setPoolMinSaved(String(n));
+      setPoolMin(String(n));
       toast.success("Warm pool size saved");
     } catch (err) {
-      toast.error(
-        err instanceof Error ? err.message : "Failed to save warm pool size",
-      );
+      toast.error(err instanceof Error ? err.message : "Save failed");
     } finally {
       setPoolMinSaving(false);
     }
   }
 
   return (
-    <PageShell
-      title="Fly Runner"
-      icon={Rocket}
-      iconClassName="text-sky-400"
-      subtitle="Fly.io runner configuration"
-    >
-      <div className="space-y-4">
-        {/* If the vault can't be read, the FLY_API_TOKEN probe below reports
-            "not configured" for the wrong reason — surface the real failure. */}
-        <VaultLockedBanner feature="Fly runners and previews stay off until the vault can be read." />
+    <div className="space-y-6">
+      <FlyTokenCard flyTokenConfigured={flyTokenConfigured} />
 
-        {/* Two tabs keep the (potentially long) live-machine list from burying
-            the settings: Machines = what's running + inline actions;
-            Configuration = the per-feature knobs. */}
-        <Tabs defaultValue="config">
-          <TabsList>
-            <TabsTrigger value="config">configuration</TabsTrigger>
-            <SimpleTooltip
-              content="Set FLY_API_TOKEN on the Secrets page to view live machines and activity."
-              side="bottom"
-              delayDuration={200}
-            >
-              <TabsTrigger value="machines" disabled={!flyTokenConfigured}>
-                live machines
-              </TabsTrigger>
-            </SimpleTooltip>
-            <SimpleTooltip
-              content="Set FLY_API_TOKEN on the Secrets page to view live machines and activity."
-              side="bottom"
-              delayDuration={200}
-            >
-              <TabsTrigger value="activity" disabled={!flyTokenConfigured}>
-                history
-              </TabsTrigger>
-            </SimpleTooltip>
-          </TabsList>
-
-          {/* ═══ Machines: what's running, act on it ════════════════════ */}
-          <TabsContent value="machines" className="mt-4">
-            <FlyMachinesTable
-              headers={vaultHeaders()}
+      {flyTokenConfigured && (
+        <>
+          <section className="space-y-3">
+            <GroupHeader
+              icon={Globe}
+              label="Previews"
+              hint="temporary sites built for each PR"
+            />
+            <PreviewsCard
+              headers={headers}
               flyTokenConfigured={flyTokenConfigured}
             />
-          </TabsContent>
+          </section>
 
-          {/* ═══ Activity: working time / uptime / est. cost over time ═══ */}
-          <TabsContent value="activity" className="mt-4">
-            <FlyActivityTab
-              headers={vaultHeaders()}
-              flyTokenConfigured={flyTokenConfigured}
+          <section className="space-y-3">
+            <GroupHeader
+              icon={Server}
+              label="Task runners"
+              hint="machines that run chat and Vibe tasks"
             />
-          </TabsContent>
-
-          {/* ═══ Configuration: grouped by feature ══════════════════════ */}
-          <TabsContent value="config" className="mt-4 space-y-6">
-            {/* Fly token — gates every feature below. */}
             <Card className="border-white/[0.08] bg-white/[0.03]">
-              <CardContent className="p-4 space-y-2">
-                <div className="flex items-center gap-2">
-                  <KeyRound className="w-4 h-4 text-sky-400" />
-                  <h2 className="text-sm font-semibold">Fly token</h2>
-                  <SimpleTooltip
-                    side="right"
-                    content={
-                      <>
-                        Required for everything below. Set{" "}
-                        <span className="font-mono">FLY_API_TOKEN</span> on the{" "}
-                        <Link
-                          href="/secrets"
-                          className="text-sky-400 hover:underline"
+              <CardContent className="p-4 space-y-3">
+                <div className="space-y-2">
+                  <div className="flex items-center gap-2">
+                    <Cpu className="w-4 h-4 text-sky-400" />
+                    <h2 className="text-sm font-semibold">Warm pool size</h2>
+                    <SimpleTooltip
+                      content="How many pre-warmed runner machines to keep ready for this repo."
+                      side="right"
+                    >
+                      <Info className="w-3.5 h-3.5 text-white/50 hover:text-white/80 cursor-help" />
+                    </SimpleTooltip>
+                    <SimpleTooltip
+                      content={SCOPE_CHIP_HINTS.wholeRepo}
+                      side="bottom"
+                    >
+                      <span className="ml-auto text-[10px] text-white/35 uppercase tracking-wide cursor-help">
+                        whole repo
+                      </span>
+                    </SimpleTooltip>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <Input
+                      value={poolMin}
+                      onChange={(e) => setPoolMin(e.target.value)}
+                      placeholder={String(POOL_MIN_DEFAULT)}
+                      inputMode="numeric"
+                      className="w-24"
+                    />
+                    <Button
+                      size="sm"
+                      onClick={savePoolMin}
+                      disabled={!poolMinHasChanges || poolMinSaving}
+                    >
+                      Save pool
+                    </Button>
+                  </div>
+                </div>
+
+                <div className="space-y-2">
+                  <div className="flex items-center gap-2">
+                    <Rocket className="w-4 h-4 text-sky-400" />
+                    <h2 className="text-sm font-semibold">Speed of my runs</h2>
+                    <SimpleTooltip
+                      content="Pick the VM size for your chat and Vibe runs. Hover each tier for the spec."
+                      side="right"
+                    >
+                      <Info className="w-3.5 h-3.5 text-white/50 hover:text-white/80 cursor-help" />
+                    </SimpleTooltip>
+                    <SimpleTooltip
+                      content={SCOPE_CHIP_HINTS.justYou}
+                      side="bottom"
+                    >
+                      <span className="ml-auto text-[10px] text-white/35 uppercase tracking-wide cursor-help">
+                        just you
+                      </span>
+                    </SimpleTooltip>
+                  </div>
+                  <div className="flex gap-1.5">
+                    {PERF_ORDER.map((tier) => {
+                      const active = flyPerf === tier;
+                      return (
+                        <button
+                          key={tier}
+                          type="button"
+                          onClick={() => setFlyPerf(tier)}
+                          title={FLY_PERF_LABELS[tier].hint}
+                          className={`flex-1 rounded-md border px-2 py-1.5 text-xs transition ${
+                            active
+                              ? "border-sky-500/50 bg-sky-500/15 text-sky-200"
+                              : "border-white/10 bg-black/20 text-white/60 hover:text-white/80"
+                          }`}
                         >
-                          Secrets
-                        </Link>{" "}
-                        page. Without it, every Fly feature falls back to GitHub
-                        Actions.
-                      </>
-                    }
-                  >
-                    <Info className="w-3.5 h-3.5 text-white/50 hover:text-white/80 cursor-help" />
-                  </SimpleTooltip>
-                  <span
-                    className={`ml-auto text-[11px] ${flyTokenConfigured ? "text-emerald-300" : "text-amber-300"}`}
-                  >
-                    {flyTokenConfigured ? "configured" : "not set"}
-                  </span>
+                          {FLY_PERF_LABELS[tier].label}
+                        </button>
+                      );
+                    })}
+                  </div>
+                  <Button size="sm" onClick={saveFly} disabled={!flyHasChanges}>
+                    Save my speed
+                  </Button>
                 </div>
               </CardContent>
             </Card>
+          </section>
 
-            {/* The four feature sections are gated by FLY_API_TOKEN. Until
-                the token is set, the Fly token card above IS the page. */}
-            {flyTokenConfigured && (
-              <>
-                {/* ── Previews ─────────────────────────────────────────────── */}
-                <section className="space-y-3">
-                  <GroupHeader
-                    icon={Globe}
-                    label="Previews"
-                    hint="temporary sites built for each PR"
-                  />
-                  {/* Branch previews are folded into PreviewsCard ▸ Advanced. */}
-                  <PreviewsCard
-                    headers={vaultHeaders()}
-                    flyTokenConfigured={flyTokenConfigured}
-                  />
-                </section>
+          <section className="space-y-3">
+            <GroupHeader
+              icon={Brain}
+              label="Brain"
+              hint="your personal Brain server"
+              status={
+                <span className="flex items-center gap-1.5">
+                  <StatusDot state={brainState} />
+                  {STATUS_LABELS[brainState]}
+                </span>
+              }
+            />
+            <BrainFlyCard
+              headers={headers}
+              flyTokenConfigured={flyTokenConfigured}
+              onStatusChange={setBrainState}
+            />
+          </section>
+        </>
+      )}
+    </div>
+  );
+}
 
-                {/* ── Task runners ─────────────────────────────────────────── */}
-                <section className="space-y-3">
-                  <GroupHeader
-                    icon={Server}
-                    label="Task runners"
-                    hint="machines that run chat & Vibe tasks"
-                    status={
-                      litellmStatus.free != null ? (
-                        <span className="flex items-center gap-1.5">
-                          <StatusDot state={litellmStatus.state} />
-                          {litellmStatus.free} ready
-                        </span>
-                      ) : null
-                    }
-                  />
-                  <Card className="border-white/[0.08] bg-white/[0.03]">
-                    <CardContent className="p-4 space-y-4">
-                      {/* Speed of my runs — per-user (this browser) */}
-                      <div className="space-y-2">
-                        <div className="flex items-center gap-2">
-                          <Rocket className="w-4 h-4 text-sky-400" />
-                          <h2 className="text-sm font-semibold">
-                            Speed of my runs
-                          </h2>
-                          <SimpleTooltip
-                            content="Pick the VM size for YOUR chat & Vibe runs. Hover each tier for the spec."
-                            side="right"
-                          >
-                            <Info className="w-3.5 h-3.5 text-white/50 hover:text-white/80 cursor-help" />
-                          </SimpleTooltip>
-                          <SimpleTooltip
-                            content={SCOPE_CHIP_HINTS.justYou}
-                            side="bottom"
-                          >
-                            <span className="ml-auto text-[10px] text-white/35 uppercase tracking-wide cursor-help">
-                              just you
-                            </span>
-                          </SimpleTooltip>
-                        </div>
-                        <div className="flex gap-1.5">
-                          {PERF_ORDER.map((tier) => {
-                            const active = flyPerf === tier;
-                            return (
-                              <button
-                                key={tier}
-                                type="button"
-                                onClick={() => setFlyPerf(tier)}
-                                title={FLY_PERF_LABELS[tier].hint}
-                                className={`flex-1 rounded-md border px-2 py-1.5 text-xs transition ${
-                                  active
-                                    ? "border-sky-500/50 bg-sky-500/15 text-sky-200"
-                                    : "border-white/10 bg-black/20 text-white/60 hover:text-white/80"
-                                }`}
-                              >
-                                {FLY_PERF_LABELS[tier].label}
-                              </button>
-                            );
-                          })}
-                        </div>
-                        <Button
-                          size="sm"
-                          onClick={saveFly}
-                          disabled={!flyHasChanges}
-                        >
-                          Save my speed
-                        </Button>
-                      </div>
+export function RunnerManager({ view = "config" }: RunnerManagerProps) {
+  const { auth } = useAuth();
+  const headers = useMemo<Record<string, string>>(() => {
+    if (!auth) return EMPTY_HEADERS;
+    return {
+      "x-kody-token": auth.token,
+      "x-kody-owner": auth.owner,
+      "x-kody-repo": auth.repo,
+    };
+  }, [auth]);
+  const flyTokenConfigured = useFlyTokenConfigured(headers);
+  const copy = FLY_VIEW_COPY[view];
 
-                      <div className="border-t border-white/[0.06]" />
+  return (
+    <PageShell
+      title={copy.title}
+      icon={Rocket}
+      iconClassName="text-sky-400"
+      subtitle={copy.subtitle}
+    >
+      <div className="space-y-4">
+        <VaultLockedBanner feature="Fly runners and previews stay off until the vault can be read." />
 
-                      {/* Keep machines ready — repo-wide (warm pool) */}
-                      <div className="space-y-2">
-                        <div className="flex items-center gap-2">
-                          <Server className="w-4 h-4 text-sky-400" />
-                          <h2 className="text-sm font-semibold">
-                            Keep machines ready
-                          </h2>
-                          <SimpleTooltip
-                            content="Machines kept pre-booted so a run starts instantly instead of cold-starting. 0 = always cold-start. Each ready machine is a paid VM everyone shares."
-                            side="right"
-                          >
-                            <Info className="w-3.5 h-3.5 text-white/50 hover:text-white/80 cursor-help" />
-                          </SimpleTooltip>
-                          <SimpleTooltip
-                            content={SCOPE_CHIP_HINTS.wholeRepo}
-                            side="bottom"
-                          >
-                            <span className="ml-auto text-[10px] text-white/35 uppercase tracking-wide cursor-help">
-                              whole repo
-                            </span>
-                          </SimpleTooltip>
-                        </div>
-                        <div className="flex items-center gap-2">
-                          <Input
-                            id="pool-min"
-                            type="number"
-                            min={0}
-                            max={POOL_MIN_MAX}
-                            step={1}
-                            placeholder={`${POOL_MIN_DEFAULT}`}
-                            value={poolMin}
-                            onChange={(e) => setPoolMin(e.target.value)}
-                            className="bg-black/30 border-white/10 w-24"
-                          />
-                          <span className="text-xs text-white/50">
-                            machines
-                          </span>
-                        </div>
-                        <Button
-                          size="sm"
-                          onClick={savePoolMin}
-                          disabled={!poolMinHasChanges || poolMinSaving}
-                        >
-                          {poolMinSaving ? "Saving…" : "Save for everyone"}
-                        </Button>
-                      </div>
-                    </CardContent>
-                  </Card>
-                </section>
+        {view === "config" && (
+          <RunnerConfigView
+            headers={headers}
+            flyTokenConfigured={flyTokenConfigured}
+          />
+        )}
 
-                {/* ── Brain ────────────────────────────────────────────────── */}
-                <section className="space-y-3">
-                  <div className="flex items-center justify-between gap-3">
-                    <GroupHeader
-                      icon={Brain}
-                      label="Brain"
-                      hint="your personal Brain server"
-                      status={
-                        <span className="flex items-center gap-1.5">
-                          <StatusDot state={brainState} />
-                          {STATUS_LABELS[brainState]}
-                        </span>
-                      }
-                    />
-                    <Button asChild size="sm" variant="outline">
-                      <Link href="/terminal">
-                        <SquareTerminal className="w-3.5 h-3.5" />
-                        Terminal
-                      </Link>
-                    </Button>
-                  </div>
-                  <BrainFlyCard
-                    headers={vaultHeaders()}
-                    flyTokenConfigured={flyTokenConfigured}
-                    onStatusChange={setBrainState}
-                  />
-                </section>
+        {view === "machines" && (
+          <FlyMachinesTable
+            headers={headers}
+            flyTokenConfigured={flyTokenConfigured}
+          />
+        )}
 
-                {/* ── LiteLLM ──────────────────────────────────────────────── */}
-                <section className="space-y-3">
-                  <GroupHeader
-                    icon={Cpu}
-                    label="LiteLLM"
-                    hint="shared model proxy"
-                    status={
-                      <span className="flex items-center gap-1.5">
-                        <StatusDot state={litellmStatus.state} />
-                        {STATUS_LABELS[litellmStatus.state]}
-                        {litellmStatus.free != null && (
-                          <span>· {litellmStatus.free} ready</span>
-                        )}
-                      </span>
-                    }
-                  />
-                  <LitellmFlyCard
-                    headers={vaultHeaders()}
-                    flyTokenConfigured={flyTokenConfigured}
-                    onStatusChange={setLitellmStatus}
-                  />
-                </section>
-              </>
-            )}
-          </TabsContent>
-        </Tabs>
+        {view === "history" && (
+          <FlyActivityTab
+            headers={headers}
+            flyTokenConfigured={flyTokenConfigured}
+          />
+        )}
       </div>
     </PageShell>
   );

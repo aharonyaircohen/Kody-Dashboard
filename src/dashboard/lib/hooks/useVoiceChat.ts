@@ -18,6 +18,8 @@ export interface UseVoiceChatOptions {
   lang?: string;
   /** Piper voice id to speak English replies with (see voice/voices.ts). */
   voiceId?: string;
+  /** Avoid loading the heavy voice engine until the voice UI is active. */
+  enabled?: boolean;
 }
 export interface UseVoiceChatReturn {
   state: VoiceChatState;
@@ -42,7 +44,7 @@ export interface UseVoiceChatReturn {
 }
 
 export function useVoiceChat(options: UseVoiceChatOptions): UseVoiceChatReturn {
-  const { onSendMessage, lang = "en-US", voiceId } = options;
+  const { onSendMessage, lang = "en-US", voiceId, enabled = true } = options;
   const [state, setState] = useState<VoiceChatState>("idle");
   const [turnCount, setTurnCount] = useState(0);
   const [error, setError] = useState<string | null>(null);
@@ -72,15 +74,25 @@ export function useVoiceChat(options: UseVoiceChatOptions): UseVoiceChatReturn {
     wakeLockRef.current = null;
   }, []);
 
-  // Re-acquire wake lock when the page becomes visible again
+  // Re-acquire wake lock when the page becomes visible again. Android
+  // Chrome fires `visibilitychange` synchronously when the user taps the
+  // screen to wake it, but the tap isn't yet counted as a "user gesture"
+  // for the Wake Lock API at that microtask — calling
+  // navigator.wakeLock.request() straight away throws NotAllowedError and
+  // the lock is never re-acquired, so the screen dims ~30s later. Defer
+  // to the next tick so the wake-up tap is treated as a gesture.
   useEffect(() => {
-    const handleVisibilityChange = async () => {
+    const handleVisibilityChange = () => {
       if (
         document.visibilityState === "visible" &&
         wakeLockRef.current === null &&
         stateRef.current !== "idle"
       ) {
-        await acquireWakeLock();
+        setTimeout(() => {
+          if (wakeLockRef.current === null && stateRef.current !== "idle") {
+            void acquireWakeLock();
+          }
+        }, 100);
       }
     };
     document.addEventListener("visibilitychange", handleVisibilityChange);
@@ -97,6 +109,7 @@ export function useVoiceChat(options: UseVoiceChatOptions): UseVoiceChatReturn {
   }, []);
 
   const tts = useKodyTTSPiper({
+    enabled,
     voiceId,
     onEnd: () => {
       if (stateRef.current === "speaking" && !pausedRef.current) {
@@ -207,7 +220,8 @@ export function useVoiceChat(options: UseVoiceChatOptions): UseVoiceChatReturn {
     setError(null);
     setS("listening");
     stt.start();
-  }, [isSupported, setS, stt, tts]);
+    acquireWakeLock(); // re-arm the screen wake lock (released in pauseConversation)
+  }, [isSupported, setS, stt, tts, acquireWakeLock]);
 
   // NEW: Allow interrupting AI while it's speaking to start listening
   const interruptConversation = useCallback(() => {

@@ -11,18 +11,16 @@
  * transmitted; both sides derive it from KODY_MASTER_KEY.
  *
  * Design contract: claimFromPool NEVER throws. On any failure (no master key,
- * pool unreachable, empty pool → 503) it returns { ok: false }, and the caller
- * falls back to the existing create-fresh `spawnRunner`. The pool is an
- * accelerator, not a hard dependency — GitHub Actions remains the ultimate
- * fallback (see project_fly_optional_gh_default).
+ * missing FLY_POOL_URL, pool unreachable, empty pool → 503) it returns
+ * { ok: false }, and the caller falls back to the existing create-fresh
+ * `spawnRunner`. The pool is an accelerator, not a hard dependency.
  */
 import { logger } from "@dashboard/lib/logger";
 import { derivePoolApiKey } from "@dashboard/lib/runners/pool-keys";
 
-const DEFAULT_POOL_URL = "https://kody-litellm.fly.dev";
-
-function poolBaseUrl(): string {
-  return (process.env.FLY_POOL_URL ?? DEFAULT_POOL_URL).replace(/\/+$/, "");
+function poolBaseUrl(): string | null {
+  const raw = process.env.FLY_POOL_URL?.trim();
+  return raw ? raw.replace(/\/+$/, "") : null;
 }
 
 /**
@@ -45,6 +43,14 @@ export interface PoolJob {
   hardCapMs?: number;
   ref?: string;
   model?: string;
+  /**
+   * Thinking level for the chat runner (off|low|medium|high). Forwarded
+   * to the engine via the REASONING_EFFORT env var on the claimed
+   * machine. Pool-side support depends on the pool server version;
+   * unknown values are ignored, matching the kody.yml workflow's
+   * behavior for unknown inputs.
+   */
+  reasoningEffort?: string;
   /** Event-ingest URL (interactive runner streams chat events here). */
   dashboardUrl?: string;
 }
@@ -61,8 +67,10 @@ export type ClaimOutcome =
 export async function claimFromPool(job: PoolJob): Promise<ClaimOutcome> {
   const apiKey = derivePoolApiKey();
   if (!apiKey) return { ok: false, reason: "no master key" };
+  const baseUrl = poolBaseUrl();
+  if (!baseUrl) return { ok: false, reason: "pool url not configured" };
 
-  const url = `${poolBaseUrl()}/pool/claim`;
+  const url = `${baseUrl}/pool/claim`;
   try {
     const res = await fetch(url, {
       method: "POST",
@@ -111,8 +119,10 @@ export async function fetchPoolStatus(
 ): Promise<PoolStatus | null> {
   const apiKey = derivePoolApiKey();
   if (!apiKey || !owner || !repo) return null;
+  const baseUrl = poolBaseUrl();
+  if (!baseUrl) return null;
   try {
-    const url = `${poolBaseUrl()}/pool/status?repo=${encodeURIComponent(`${owner}/${repo}`)}`;
+    const url = `${baseUrl}/pool/status?repo=${encodeURIComponent(`${owner}/${repo}`)}`;
     const res = await fetch(url, {
       headers: { authorization: `Bearer ${apiKey}` },
       signal: AbortSignal.timeout(6_000),

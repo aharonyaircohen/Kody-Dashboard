@@ -20,9 +20,6 @@
  *   - previews need app creation + IP allocation per PR (each preview is
  *     its own app, so it gets its own <app>.fly.dev hostname).
  *   - runners share one `kody-runner` app; previews can't.
- *
- * The pool path (see `pool-claim.ts`) skips most of this — it claims a
- * pre-booted suspended machine and only swaps the image.
  */
 
 const FLY_MACHINES_BASE = "https://api.machines.dev/v1";
@@ -73,6 +70,21 @@ export interface MachineInfo {
   name?: string;
   /** Guest sizing — populated for the machines-inventory view. */
   guest?: { cpuKind?: string; cpus?: number; memoryMb?: number };
+  /** Full Fly machine config, present on direct machine reads/list calls. */
+  config?: MachineConfig;
+}
+
+export type MachineServiceConfig = Record<string, unknown> & {
+  autostop?: boolean | "suspend";
+  autostart?: boolean;
+  min_machines_running?: number;
+};
+
+export interface MachineConfig {
+  checks?: unknown;
+  guest?: { cpu_kind?: string; cpus?: number; memory_mb?: number };
+  services?: MachineServiceConfig[];
+  [key: string]: unknown;
 }
 
 function autostopForMemory(memoryMb: number | undefined): "suspend" | true {
@@ -326,9 +338,7 @@ export async function listMachines(
     state: string;
     region: string;
     created_at?: string;
-    config?: {
-      guest?: { cpu_kind?: string; cpus?: number; memory_mb?: number };
-    };
+    config?: MachineConfig;
   }>;
   return data.map((m) => ({
     id: m.id,
@@ -343,7 +353,136 @@ export async function listMachines(
           memoryMb: m.config.guest.memory_mb,
         }
       : undefined,
+    config: m.config,
   }));
+}
+
+async function getMachine(
+  appName: string,
+  machineId: string,
+  cfg: FlyPreviewConfig,
+): Promise<MachineInfo | null> {
+  const res = await flyFetch(
+    `${FLY_MACHINES_BASE}/apps/${encodeURIComponent(appName)}/machines/${encodeURIComponent(machineId)}`,
+    { method: "GET" },
+    cfg.token,
+  );
+  if (res.status === 404) return null;
+  await assertOk(res, "getMachine");
+  const data = (await res.json()) as {
+    id: string;
+    name?: string;
+    state: string;
+    region: string;
+    created_at?: string;
+    config?: MachineConfig;
+  };
+  return {
+    id: data.id,
+    name: data.name,
+    state: data.state,
+    region: data.region,
+    createdAt: data.created_at,
+    guest: data.config?.guest
+      ? {
+          cpuKind: data.config.guest.cpu_kind,
+          cpus: data.config.guest.cpus,
+          memoryMb: data.config.guest.memory_mb,
+        }
+      : undefined,
+    config: data.config,
+  };
+}
+
+async function updateMachineConfig(
+  appName: string,
+  machineId: string,
+  config: MachineConfig,
+  cfg: FlyPreviewConfig,
+): Promise<void> {
+  const res = await flyFetch(
+    `${FLY_MACHINES_BASE}/apps/${encodeURIComponent(appName)}/machines/${encodeURIComponent(machineId)}`,
+    { method: "POST", body: JSON.stringify({ config }) },
+    cfg.token,
+  );
+  if (res.status === 404) return;
+  await assertOk(res, "updateMachineConfig");
+}
+
+export interface AlignPreviewMachineSleepOptions {
+  idleSuspend: boolean;
+  healthCheck: boolean;
+  memoryMb?: number;
+}
+
+export type AlignPreviewMachineSleepResult =
+  | { changed: true; skipped: false }
+  | { changed: false; skipped: false }
+  | { changed: false; skipped: true; reason: string };
+
+export type SleepPreviewMachineResult =
+  | { slept: true; mode: "suspend" | "stop" }
+  | { slept: false; reason: string };
+
+export function alignPreviewMachineSleepConfig(
+  config: MachineConfig | undefined,
+  options: AlignPreviewMachineSleepOptions,
+): AlignPreviewMachineSleepResult & { config?: MachineConfig } {
+  if (!config) {
+    return { changed: false, skipped: true, reason: "missing_config" };
+  }
+  if (!Array.isArray(config.services) || config.services.length === 0) {
+    return { changed: false, skipped: true, reason: "missing_services" };
+  }
+
+  const memoryMb =
+    options.memoryMb ??
+    (typeof config.guest?.memory_mb === "number"
+      ? config.guest.memory_mb
+      : undefined);
+  const targetAutostop = options.idleSuspend
+    ? autostopForMemory(memoryMb)
+    : false;
+
+  let changed = false;
+  const services = config.services.map((service) => {
+    const next = { ...service };
+    if (next.autostop !== targetAutostop) {
+      next.autostop = targetAutostop;
+      changed = true;
+    }
+    if (next.autostart !== true) {
+      next.autostart = true;
+      changed = true;
+    }
+    if (next.min_machines_running !== 0) {
+      next.min_machines_running = 0;
+      changed = true;
+    }
+    return next;
+  });
+
+  const nextConfig: MachineConfig = { ...config, services };
+  if (!options.healthCheck && "checks" in nextConfig) {
+    delete nextConfig.checks;
+    changed = true;
+  }
+
+  return { config: nextConfig, changed, skipped: false };
+}
+
+export async function alignPreviewMachineSleep(
+  appName: string,
+  machineId: string,
+  cfg: FlyPreviewConfig,
+  options: AlignPreviewMachineSleepOptions,
+): Promise<AlignPreviewMachineSleepResult> {
+  const machine = await getMachine(appName, machineId, cfg);
+  const aligned = alignPreviewMachineSleepConfig(machine?.config, options);
+  if (aligned.skipped) return aligned;
+  if (!aligned.changed) return { changed: false, skipped: false };
+  await updateMachineConfig(appName, machineId, aligned.config!, cfg);
+  return { changed: true, skipped: false };
 }
 
 /**
@@ -388,6 +527,21 @@ export async function destroyMachine(
   await assertOk(res, "destroyMachine");
 }
 
+/** Stop a machine: cold sleep, wakes on request when service autostart=true. */
+export async function stopMachine(
+  appName: string,
+  machineId: string,
+  cfg: FlyPreviewConfig,
+): Promise<void> {
+  const res = await flyFetch(
+    `${FLY_MACHINES_BASE}/apps/${encodeURIComponent(appName)}/machines/${encodeURIComponent(machineId)}/stop`,
+    { method: "POST" },
+    cfg.token,
+  );
+  if (res.status === 404) return;
+  await assertOk(res, "stopMachine");
+}
+
 /** Suspend a machine: snapshot RAM to disk, ~$0 while idle, wakes on request
  * (or via {@link startMachine}). No-op (404 tolerated) if it's already gone. */
 export async function suspendMachine(
@@ -417,6 +571,26 @@ export async function startMachine(
   );
   if (res.status === 404) return;
   await assertOk(res, "startMachine");
+}
+
+/** Put a preview machine to sleep now. Uses suspend when Fly supports it and
+ * cold-stop for larger machines; both wake on request once autostart is set. */
+export async function sleepPreviewMachine(
+  appName: string,
+  machineId: string,
+  cfg: FlyPreviewConfig,
+  input: { state: string; memoryMb?: number },
+): Promise<SleepPreviewMachineResult> {
+  if (input.state !== "started") {
+    return { slept: false, reason: "not_started" };
+  }
+  const effectiveMemoryMb = input.memoryMb ?? 512;
+  if (effectiveMemoryMb <= FLY_SUSPEND_MEMORY_LIMIT_MB) {
+    await suspendMachine(appName, machineId, cfg);
+    return { slept: true, mode: "suspend" };
+  }
+  await stopMachine(appName, machineId, cfg);
+  return { slept: true, mode: "stop" };
 }
 
 export async function destroyApp(

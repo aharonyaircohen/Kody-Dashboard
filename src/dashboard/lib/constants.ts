@@ -449,10 +449,17 @@ export const INTERNAL_ISSUE_LABELS = [
   INTERNAL_ISSUE_LABEL,
   "kody:control",
   "kody:inbox-feed",
-  "kody:cto-decisions",
   "kody:goals-manifest",
   "kody:push-subscriptions",
   "kody:audit-log",
+] as const;
+
+export const HIDDEN_TASK_LABEL = "kody:hidden";
+export const KODY_BACKLOG_LABEL = "kody:backlog";
+
+export const TASK_LIST_EXCLUDED_LABELS = [
+  ...INTERNAL_ISSUE_LABELS,
+  HIDDEN_TASK_LABEL,
 ] as const;
 
 /**

@@ -6,7 +6,7 @@
  * GET /api/kody/brain/stored   — read the user's stored brain record.
  * DELETE /api/kody/brain/stored — clear the stored record (orphan recovery).
  *
- * The stored record at `.kody/users/<login>/data/brain.json` is the
+ * The stored record at `users/<login>/data/brain.json` is the
  * dashboard's record of "here is the Fly app we believe this user has."
  * It can outlive the user's access to the app on Fly (token revoked, app
  * moved to a different org, slug taken by another account, etc.), in

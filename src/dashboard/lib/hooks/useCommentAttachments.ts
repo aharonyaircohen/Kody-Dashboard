@@ -12,7 +12,7 @@ import { useCallback, useRef, useState } from "react";
 
 import { getStoredAuth } from "../api";
 
-const MAX_BYTES = 10 * 1024 * 1024; // keep in sync with the route's cap
+export const MAX_COMMENT_ATTACHMENT_BYTES = 10 * 1024 * 1024; // keep in sync with the route's cap
 
 export interface CommentAttachment {
   id: string;
@@ -20,6 +20,8 @@ export interface CommentAttachment {
   status: "uploading" | "done" | "error";
   /** Markdown snippet to embed in the comment body once uploaded. */
   markdown?: string;
+  /** Repo-relative path to the committed attachment. */
+  path?: string;
   error?: string;
 }
 
@@ -34,6 +36,42 @@ function readAsBase64(file: File): Promise<string> {
     };
     reader.readAsDataURL(file);
   });
+}
+
+export async function uploadCommentAttachmentFile(file: File): Promise<{
+  markdown: string;
+  name: string;
+  path: string;
+}> {
+  if (file.size > MAX_COMMENT_ATTACHMENT_BYTES) {
+    throw new Error("File too large (10 MB max)");
+  }
+
+  const contentBase64 = await readAsBase64(file);
+  const auth = getStoredAuth();
+  const res = await fetch("/api/kody/attachments", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      ...(auth
+        ? {
+            "x-kody-token": auth.token,
+            "x-kody-owner": auth.owner,
+            "x-kody-repo": auth.repo,
+          }
+        : {}),
+    },
+    body: JSON.stringify({ name: file.name, contentBase64 }),
+  });
+  if (!res.ok) {
+    const detail = await res.json().catch(() => ({}));
+    throw new Error(detail.error || `Upload failed (${res.status})`);
+  }
+  return (await res.json()) as {
+    markdown: string;
+    name: string;
+    path: string;
+  };
 }
 
 export function useCommentAttachments() {
@@ -54,7 +92,7 @@ export function useCommentAttachments() {
         globalThis.crypto?.randomUUID?.() ??
         `${Date.now()}-${Math.random().toString(36).slice(2)}`;
 
-      if (file.size > MAX_BYTES) {
+      if (file.size > MAX_COMMENT_ATTACHMENT_BYTES) {
         setAttachments((prev) => [
           ...prev,
           {
@@ -73,31 +111,9 @@ export function useCommentAttachments() {
       ]);
 
       try {
-        const contentBase64 = await readAsBase64(file);
-        const auth = getStoredAuth();
-        const res = await fetch("/api/kody/attachments", {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            ...(auth
-              ? {
-                  "x-kody-token": auth.token,
-                  "x-kody-owner": auth.owner,
-                  "x-kody-repo": auth.repo,
-                }
-              : {}),
-          },
-          body: JSON.stringify({ name: file.name, contentBase64 }),
-        });
-        if (!res.ok) {
-          const detail = await res.json().catch(() => ({}));
-          throw new Error(detail.error || `Upload failed (${res.status})`);
-        }
-        const { markdown, name } = (await res.json()) as {
-          markdown: string;
-          name: string;
-        };
-        patch(id, { status: "done", markdown, name });
+        const { markdown, name, path } =
+          await uploadCommentAttachmentFile(file);
+        patch(id, { status: "done", markdown, name, path });
       } catch (err) {
         patch(id, {
           status: "error",
@@ -142,7 +158,7 @@ export function useCommentAttachments() {
     onDragOver: (e: React.DragEvent) => {
       if (e.dataTransfer.types.includes("Files")) e.preventDefault();
     },
-    onDragLeave: (e: React.DragEvent) => {
+    onDragLeave: () => {
       dragDepth.current -= 1;
       if (dragDepth.current <= 0) {
         dragDepth.current = 0;

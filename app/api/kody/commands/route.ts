@@ -2,8 +2,8 @@
  * @fileType api-endpoint
  * @domain kody
  * @pattern commands-api
- * @ai-summary Command Control API — GET lists commands (builtins merged
- *   with `.kody/commands/<slug>.md`), POST creates a new repo command.
+ * @ai-summary Command Control API — GET lists repo commands, activated Store
+ * commands, and fallback built-ins; POST creates a new repo command.
  *   Slash commands in the chat input are populated from this endpoint.
  */
 /* eslint-disable @typescript-eslint/no-explicit-any */
@@ -26,6 +26,12 @@ import {
   isValidSlug,
 } from "@dashboard/lib/commands";
 import { recordAudit } from "@dashboard/lib/activity/audit";
+import { getEngineConfig } from "@dashboard/lib/engine/config";
+
+export const dynamic = "force-dynamic";
+export const revalidate = 0;
+
+const NO_STORE_HEADERS = { "Cache-Control": "no-store, max-age=0" };
 
 export async function GET(req: NextRequest) {
   const authResult = await requireKodyAuth(req);
@@ -33,28 +39,47 @@ export async function GET(req: NextRequest) {
 
   const headerAuth = getRequestAuth(req);
   if (headerAuth)
-    setGitHubContext(headerAuth.owner, headerAuth.repo, headerAuth.token);
+    setGitHubContext(
+      headerAuth.owner,
+      headerAuth.repo,
+      headerAuth.token,
+      headerAuth.storeRepoUrl,
+      headerAuth.storeRef,
+    );
 
   try {
-    const commands = await listCommands();
-    return NextResponse.json({ commands });
+    const activeCommands = new Set<string>();
+    const octokit = await getUserOctokit(req);
+    if (octokit && headerAuth) {
+      const { config } = await getEngineConfig(
+        octokit,
+        headerAuth.owner,
+        headerAuth.repo,
+      );
+      for (const slug of config.company?.activeCommands ?? []) {
+        activeCommands.add(slug);
+      }
+    }
+
+    const commands = await listCommands({ activeStoreSlugs: activeCommands });
+    return NextResponse.json({ commands }, { headers: NO_STORE_HEADERS });
   } catch (error: any) {
     console.error("[Commands] Error listing commands:", error);
     if (error?.status === 401) {
       return NextResponse.json(
         { error: "github_token_expired" },
-        { status: 401 },
+        { status: 401, headers: NO_STORE_HEADERS },
       );
     }
     if (error?.status === 403 || error?.message?.includes("rate limit")) {
       return NextResponse.json(
         { error: "rate_limited", message: "GitHub API rate limit exceeded" },
-        { status: 429 },
+        { status: 429, headers: NO_STORE_HEADERS },
       );
     }
     return NextResponse.json(
       { commands: [], error: error?.message || "Failed to list commands" },
-      { status: 500 },
+      { status: 500, headers: NO_STORE_HEADERS },
     );
   } finally {
     clearGitHubContext();
@@ -75,7 +100,13 @@ export async function POST(req: NextRequest) {
 
   const headerAuth = getRequestAuth(req);
   if (headerAuth)
-    setGitHubContext(headerAuth.owner, headerAuth.repo, headerAuth.token);
+    setGitHubContext(
+      headerAuth.owner,
+      headerAuth.repo,
+      headerAuth.token,
+      headerAuth.storeRepoUrl,
+      headerAuth.storeRef,
+    );
 
   try {
     const payload = await req.json();

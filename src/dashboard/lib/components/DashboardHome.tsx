@@ -4,8 +4,8 @@
  * @pattern dashboard-overview
  * @ai-summary The operations overview rendered at `/` (the "Dashboard" view).
  *   An at-a-glance control panel built top-to-bottom around "what needs me,
- *   what's broken": an attention row (inbox approvals + failures), a task
- *   pulse, duties health, latest reports, and engine health. Every section
+ *   what's broken": an attention row (reports + failures), a task
+ *   pulse, agentResponsibilities health, latest reports, and engine health. Every section
  *   rides a hook the rest of the dashboard already polls, so it adds no new
  *   GitHub load — it just composes existing caches into one screen. `/` used
  *   to redirect to /tasks; it now lands here, with Tasks/Vibe one click away
@@ -28,7 +28,6 @@ import {
   Loader2,
   type LucideIcon,
   MessageCircle,
-  Play,
   Plus,
   RefreshCw,
   Target,
@@ -43,12 +42,9 @@ import { useKodyTasks } from "../hooks";
 import { useReports } from "../hooks/useReports";
 import { useDefaultBranchCI } from "../hooks/useDefaultBranchCI";
 import { useHealth } from "../hooks/useHealth";
-import { useGoals } from "../hooks/useGoals";
-import { useGoalState, useSetGoalState } from "../hooks/useGoalState";
 import { useMessageChannels } from "../hooks/useMessages";
 import { useChannelsUnread } from "../hooks/useChannelsUnread";
 import { useActivityLog } from "../hooks/useActivityLog";
-import { useInbox } from "../inbox/useInbox";
 import {
   useAcknowledgeHealthSignal,
   useCreateFixCITask,
@@ -56,12 +52,17 @@ import {
   useRetryTask,
 } from "../hooks/useDashboardActions";
 import { useGitHubIdentity } from "../hooks/useGitHubIdentity";
+import { useManagedGoals } from "../hooks/useManagedGoals";
+import { useAuth } from "../auth-context";
+import { managedGoalModel, type ManagedGoalRecord } from "../managed-goals";
 import { CreateTaskDialog } from "./CreateTaskDialog";
 import { CreateGoalDialog } from "./GoalControl";
+import { RepoManager } from "./RepoManager";
 import { cn } from "../utils";
+import { autoDirProps } from "../text-direction";
 import type { ColumnId, KodyTask } from "../types";
 import type { HealthLevel } from "../health/types";
-import type { Goal, Report } from "../api";
+import type { Report } from "../api";
 import { getStoredAuth } from "../api";
 import type { ActionLogEntry } from "../activity/action-log";
 
@@ -177,28 +178,31 @@ function AllClear({ message }: { message: string }) {
 // ── attention cards ─────────────────────────────────────────────────────────
 
 /**
- * "Needs you" — unread inbox count plus a breakdown by what kind of thing is
- * waiting (approvals / mentions / reviews / other). Stats, not a scrolling list
- * of items — the full items live one click away on /inbox.
+ * "Needs you" — reports with review status or suggested actions. Stats, not a
+ * scrolling list of items; the full reports live one click away on /reports.
  */
 function NeedsYouCard() {
-  const { unread, unreadCount, isLoading } = useInbox();
-
-  const approvals = unread.filter((e) => e.ctoAction).length;
-  const mentions = unread.filter(
-    (e) =>
-      !e.ctoAction && (e.source === "mention" || e.source === "team_mention"),
+  const { data: reports = [], isLoading } = useReports();
+  const needsReview = reports.filter(
+    (r) =>
+      r.reviewStatus === "action-needed" ||
+      r.reviewStatus === "assigned" ||
+      (r.suggestedActions ?? []).length > 0,
+  );
+  const actionNeeded = reports.filter(
+    (r) => r.reviewStatus === "action-needed",
   ).length;
-  const reviews = unread.filter(
-    (e) => !e.ctoAction && e.source === "review_requested",
-  ).length;
-  const other = unreadCount - approvals - mentions - reviews;
+  const assigned = reports.filter((r) => r.reviewStatus === "assigned").length;
+  const suggestedActions = reports.reduce(
+    (sum, report) => sum + (report.suggestedActions ?? []).length,
+    0,
+  );
 
   const stats = [
-    { label: "Approvals", value: approvals, tone: "text-amber-300" },
-    { label: "Mentions", value: mentions, tone: "text-sky-300" },
-    { label: "Reviews", value: reviews, tone: "text-violet-300" },
-    { label: "Other", value: other, tone: "text-foreground" },
+    { label: "Reports", value: needsReview.length, tone: "text-sky-300" },
+    { label: "Actions", value: suggestedActions, tone: "text-amber-300" },
+    { label: "Assigned", value: assigned, tone: "text-violet-300" },
+    { label: "Action needed", value: actionNeeded, tone: "text-rose-300" },
   ].filter((s) => s.value > 0);
 
   return (
@@ -208,36 +212,38 @@ function NeedsYouCard() {
           <span
             className={cn(
               "inline-flex h-8 w-8 items-center justify-center rounded-md",
-              unreadCount > 0
-                ? "text-amber-300 bg-amber-500/10"
+              needsReview.length > 0
+                ? "text-sky-300 bg-sky-500/10"
                 : "text-emerald-300 bg-emerald-500/10",
             )}
           >
-            <Inbox className="w-4 h-4" />
+            <FileText className="w-4 h-4" />
           </span>
           <div>
             <div className="text-sm font-medium">Needs you</div>
             <div className="text-xs text-muted-foreground">
-              {isLoading ? "Loading…" : `${unreadCount} awaiting your decision`}
+              {isLoading
+                ? "Loading…"
+                : `${needsReview.length} report${needsReview.length === 1 ? "" : "s"} need review`}
             </div>
           </div>
         </div>
         <Link
-          href="/inbox"
+          href="/reports"
           className="text-xs text-muted-foreground hover:text-foreground inline-flex items-center gap-1"
         >
-          Inbox <ArrowRight className="w-3 h-3" />
+          Reports <ArrowRight className="w-3 h-3" />
         </Link>
       </div>
 
-      {!isLoading && unreadCount === 0 ? (
-        <AllClear message="You're all caught up." />
+      {!isLoading && needsReview.length === 0 ? (
+        <AllClear message="No reports need review." />
       ) : (
         <div className="flex flex-wrap gap-x-5 gap-y-2">
           {stats.map((s) => (
             <Link
               key={s.label}
-              href="/inbox"
+              href="/reports"
               className="flex items-baseline gap-1.5"
             >
               <span
@@ -382,7 +388,12 @@ function FailingCard({
                   #{t.issueNumber}
                 </span>
                 <div className="min-w-0 flex-1">
-                  <div className="text-sm truncate">{t.title}</div>
+                  <div
+                    {...autoDirProps}
+                    className="text-sm truncate text-start"
+                  >
+                    {t.title}
+                  </div>
                   {t.failureReason && (
                     <div className="text-xs text-rose-300/80 truncate">
                       {t.failureReason}
@@ -444,7 +455,7 @@ function LatestReports() {
         <p className="text-sm text-muted-foreground">Loading reports…</p>
       ) : reports.length === 0 ? (
         <Card className="p-4 text-sm text-muted-foreground">
-          No reports yet — duty runs write them here.
+          No reports yet — agentResponsibility runs write them here.
         </Card>
       ) : (
         <Card className="divide-y divide-white/[0.04] overflow-hidden">
@@ -469,10 +480,10 @@ function LatestReports() {
                   variant="outline"
                   className="h-6 px-2 text-[11px] gap-1"
                   onClick={() => setGoalFromReport(r)}
-                  title="Plan a new goal from this report"
+                  title="Plan a new mission from this report"
                 >
                   <Target className="w-3 h-3 text-emerald-400" />
-                  Plan goal
+                  Plan mission
                 </Button>
                 <Button
                   size="sm"
@@ -497,7 +508,7 @@ function LatestReports() {
             ? {
                 title: `Address: ${issueFromReport.title}`,
                 body:
-                  `Source report: [\`.kody/reports/${issueFromReport.slug}.md\`](${issueFromReport.htmlUrl})\n\n` +
+                  `Source report: [\`reports/${issueFromReport.slug}.md\`](${issueFromReport.htmlUrl})\n\n` +
                   `---\n\n${issueFromReport.body}`,
                 labels: [`from-report:${issueFromReport.slug}`],
               }
@@ -513,7 +524,7 @@ function LatestReports() {
             ? {
                 name: goalFromReport.title,
                 description:
-                  `Source report: [\`.kody/reports/${goalFromReport.slug}.md\`](${goalFromReport.htmlUrl})\n\n` +
+                  `Source report: [\`reports/${goalFromReport.slug}.md\`](${goalFromReport.htmlUrl})\n\n` +
                   `---\n\n${goalFromReport.body}`,
               }
             : undefined
@@ -615,89 +626,106 @@ function EngineHealth() {
 
 // ── strategic & historical slices ────────────────────────────────────────────
 
-function GoalsOverview() {
-  const { data: goals = [], isLoading } = useGoals();
-  const top = [...goals]
-    .sort(
-      (a, b) =>
-        Date.parse(b.updatedAt ?? b.createdAt) -
-        Date.parse(a.updatedAt ?? a.createdAt),
-    )
+function ModelsOverview() {
+  const { data: models = [], isLoading } = useManagedGoals();
+  const top = [...models]
+    .sort((a, b) => managedModelTime(b) - managedModelTime(a))
     .slice(0, 4);
+  const objectiveCount = models.filter(
+    (model) => managedGoalModel(model) === "agentGoal",
+  ).length;
+  const routineCount = models.filter(
+    (model) => managedGoalModel(model) === "agentLoop",
+  ).length;
 
   return (
     <section>
-      <SectionHeader title="Goals" />
+      <SectionHeader
+        title="AgentGoals / agentLoops"
+        href="/agent-goals"
+        cta="Open"
+      />
       {isLoading ? (
-        <p className="text-sm text-muted-foreground">Loading goals…</p>
-      ) : goals.length === 0 ? (
+        <p className="text-sm text-muted-foreground">Loading models...</p>
+      ) : models.length === 0 ? (
         <Card className="p-4 text-sm text-muted-foreground">
-          No goals yet — plan one from a report.
+          No agentGoals or agentLoops yet.
         </Card>
       ) : (
-        <Card className="divide-y divide-white/[0.04] overflow-hidden">
-          {top.map((g: Goal) => (
-            <GoalOverviewRow key={g.id} goal={g} />
-          ))}
+        <Card className="overflow-hidden">
+          <div className="grid grid-cols-2 divide-x divide-white/[0.04] border-b border-white/[0.04] text-xs">
+            <Link
+              href="/agent-goals"
+              className="flex items-center justify-between px-4 py-3 text-muted-foreground hover:bg-white/[0.04] hover:text-foreground"
+            >
+              <span>AgentGoals</span>
+              <span className="font-mono text-white/70">{objectiveCount}</span>
+            </Link>
+            <Link
+              href="/agent-loops"
+              className="flex items-center justify-between px-4 py-3 text-muted-foreground hover:bg-white/[0.04] hover:text-foreground"
+            >
+              <span>AgentLoops</span>
+              <span className="font-mono text-white/70">{routineCount}</span>
+            </Link>
+          </div>
+          <div className="divide-y divide-white/[0.04]">
+            {top.map((model) => (
+              <ManagedModelOverviewRow key={model.id} model={model} />
+            ))}
+          </div>
         </Card>
       )}
     </section>
   );
 }
 
-function GoalOverviewRow({ goal }: { goal: Goal }) {
-  const { githubUser } = useGitHubIdentity();
-  const { data: runState } = useGoalState(goal.id);
-  const setState = useSetGoalState(goal.id, githubUser?.login);
-  const isActive = runState?.state === "active";
-  const isPaused = runState?.state === "paused";
-  const showToggle = isActive || isPaused;
+function managedModelTime(model: ManagedGoalRecord): number {
+  const raw =
+    model.updatedAt ??
+    (typeof model.state.updatedAt === "string" ? model.state.updatedAt : "") ??
+    (typeof model.state.createdAt === "string" ? model.state.createdAt : "");
+  const parsed = Date.parse(raw);
+  return Number.isFinite(parsed) ? parsed : 0;
+}
+
+function ManagedModelOverviewRow({ model }: { model: ManagedGoalRecord }) {
+  const kind = managedGoalModel(model);
+  const href = kind === "agentLoop" ? "/agent-loops" : "/agent-goals";
+  const state = model.state.state;
 
   return (
-    <div className="flex items-center gap-2 px-4 py-3 hover:bg-white/[0.04] transition-colors">
+    <Link
+      href={href}
+      className="flex items-center gap-2 px-4 py-3 hover:bg-white/[0.04] transition-colors"
+    >
       <div className="flex items-center gap-2 min-w-0 flex-1">
-        <Target className="w-3.5 h-3.5 text-emerald-400 shrink-0" />
-        <span className="text-sm flex-1 truncate">{goal.name}</span>
-        {goal.assignee ? (
-          <span className="text-[11px] text-muted-foreground shrink-0">
-            @{goal.assignee}
-          </span>
-        ) : null}
-        {goal.dueDate ? (
-          <span className="text-[11px] text-muted-foreground shrink-0 tabular-nums">
-            due {new Date(goal.dueDate).toLocaleDateString()}
-          </span>
-        ) : null}
-        {isPaused ? (
-          <span className="text-[10px] uppercase tracking-wide px-1.5 py-0.5 rounded bg-amber-500/15 text-amber-200 shrink-0">
-            paused
-          </span>
-        ) : null}
+        {kind === "agentLoop" ? (
+          <Activity className="w-3.5 h-3.5 text-sky-400 shrink-0" />
+        ) : (
+          <Target className="w-3.5 h-3.5 text-emerald-400 shrink-0" />
+        )}
+        <span className="text-sm flex-1 truncate">
+          {model.state.destination.outcome || model.id}
+        </span>
+        <span className="text-[10px] uppercase tracking-wide px-1.5 py-0.5 rounded bg-white/[0.06] text-white/55 shrink-0">
+          {kind}
+        </span>
+        <span className="text-[10px] uppercase tracking-wide px-1.5 py-0.5 rounded bg-white/[0.06] text-white/55 shrink-0">
+          {state}
+        </span>
       </div>
-      {showToggle ? (
-        <Button
-          size="sm"
-          variant="outline"
-          className="h-6 px-2 text-[11px] gap-1 shrink-0"
-          disabled={setState.isPending}
-          onClick={() =>
-            setState.mutate({ state: isActive ? "paused" : "active" })
-          }
-          title={
-            isActive ? "Pause this goal's runner" : "Resume this goal's runner"
-          }
-        >
-          {setState.isPending ? (
-            <Loader2 className="w-3 h-3 animate-spin" />
-          ) : isActive ? (
-            <X className="w-3 h-3" />
-          ) : (
-            <Play className="w-3 h-3" />
+      {managedModelTime(model) > 0 ? (
+        <span className="text-[11px] text-muted-foreground shrink-0 tabular-nums">
+          {timeAgo(
+            model.updatedAt ??
+              (typeof model.state.updatedAt === "string"
+                ? model.state.updatedAt
+                : undefined),
           )}
-          {isActive ? "Pause" : "Resume"}
-        </Button>
+        </span>
       ) : null}
-    </div>
+    </Link>
   );
 }
 
@@ -921,6 +949,8 @@ function ActivityOverview() {
 // ── page ─────────────────────────────────────────────────────────────────────
 
 export function DashboardHome() {
+  const { auth } = useAuth();
+
   // refetchInterval "auto" — the "Happening now" panel needs to feel live, so
   // we poll at the board cadence (30s) while work is in flight and back off to
   // idle (60s) when nothing is running. Still one shared task query — no extra
@@ -933,6 +963,10 @@ export function DashboardHome() {
     refetchInterval: "auto",
   });
   const all = tasks ?? [];
+
+  if (!auth) {
+    return <RepoManager />;
+  }
 
   return (
     <div className="flex-1 min-h-0 overflow-y-auto">
@@ -1011,7 +1045,7 @@ export function DashboardHome() {
               & engine health below. Keeps the page dense without long
               single-column stacks. */}
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-x-6 gap-y-10">
-          <GoalsOverview />
+          <ModelsOverview />
           <ChannelsOverview />
           <LatestReports />
           <EngineHealth />

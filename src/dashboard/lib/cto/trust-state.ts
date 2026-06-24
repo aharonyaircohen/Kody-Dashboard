@@ -1,29 +1,29 @@
 /**
  * @fileType utility
  * @domain kody
- * @pattern duty-trust-ledger
- * @ai-summary The duty-keyed trust ledger — types + pure transforms. Trust is
- *   tracked **per duty** (whole-duty, not per action): one mode + streak per
- *   duty slug. Two duties sharing a persona earn autonomy independently.
+ * @pattern agentResponsibility-trust-ledger
+ * @ai-summary The agentResponsibility-keyed trust ledger — types + pure transforms. Trust is
+ *   tracked **per agentResponsibility** (whole-agentResponsibility, not per action): one mode + streak per
+ *   agentResponsibility slug. Two agentResponsibilities sharing an agentIdentity earn autonomy independently.
  *
- *     - keyed by DUTY slug → stats (mode/approvals/rejections/streak);
- *     - stored as a JSON FILE on the `kody-state` branch (see `trust-store.ts`),
+ *     - keyed by AGENT_RESPONSIBILITY slug → stats (mode/approvals/rejections/streak);
+ *     - stored as a JSON file in the configured Kody state repo (see `trust-store.ts`),
  *       never on an issue;
- *     - read by BOTH the engine (the gate that lets a trusted duty self-dispatch)
+ *     - read by BOTH the engine (the gate that lets a trusted agentResponsibility self-dispatch)
  *       and the dashboard (the /trust page), so this shape is a shared contract.
  *
  *   All transforms are pure + immutable. Keep the JSON shape stable across repos.
  */
 
-/** Path of the single per-repo ledger file on the `kody-state` branch. */
-export const TRUST_FILE_PATH = ".kody/state/trust.json";
+/** Path of the single per-repo ledger file in the configured Kody state repo. */
+export const TRUST_FILE_PATH = "state/trust.json";
 export const TRUST_MANIFEST_VERSION = 1 as const;
 
 /** Bound the log — it's a recent-activity signal, not an archive. */
 export const TRUST_LOG_MAX = 500;
 
 /**
- * Clean approvals a duty needs before it stops asking and the engine lets it
+ * Clean approvals a agentResponsibility needs before it stops asking and the engine lets it
  * self-dispatch. A single reject zeroes the streak and de-graduates it.
  */
 export const TRUST_GRADUATION_THRESHOLD = 10;
@@ -31,20 +31,20 @@ export const TRUST_GRADUATION_THRESHOLD = 10;
 export type TrustMode = "ask" | "auto";
 export type TrustDecision = "approve" | "reject" | "dismiss";
 
-/** Whole-duty trust stats. */
-export interface TrustDutyStats {
+/** Whole-agentResponsibility trust stats. */
+export interface TrustAgentResponsibilityStats {
   approvals: number;
   rejections: number;
   /** Resets to 0 on any reject. Drives graduation. */
   consecutiveApprovals: number;
-  /** "ask" until graduated; "auto" lets the engine run the duty without asking. */
+  /** "ask" until graduated; "auto" lets the engine run the agentResponsibility without asking. */
   mode: TrustMode;
 }
 
 export interface TrustDecisionLogEntry {
-  /** Duty slug whose recommendation this verdict decided. */
-  duty: string;
-  /** Action verb of the rec — kept for display only; trust is keyed per duty. */
+  /** AgentResponsibility slug whose recommendation this verdict decided. */
+  agentResponsibility: string;
+  /** Action verb of the rec — kept for display only; trust is keyed per agentResponsibility. */
   action?: string;
   decision: TrustDecision;
   taskNumber: number;
@@ -54,45 +54,50 @@ export interface TrustDecisionLogEntry {
 
 export interface TrustManifest {
   version: typeof TRUST_MANIFEST_VERSION;
-  /** Trust stats keyed by duty slug. */
-  duties: Record<string, TrustDutyStats>;
+  /** Trust stats keyed by agentResponsibility slug. */
+  agentResponsibilities: Record<string, TrustAgentResponsibilityStats>;
   log: TrustDecisionLogEntry[];
+}
+
+export interface TrustLatestDecision {
+  decision: TrustDecision;
+  at: string;
 }
 
 export const EMPTY_TRUST_MANIFEST: TrustManifest = {
   version: TRUST_MANIFEST_VERSION,
-  duties: {},
+  agentResponsibilities: {},
   log: [],
 };
 
-export function freshStats(): TrustDutyStats {
+export function freshStats(): TrustAgentResponsibilityStats {
   return { approvals: 0, rejections: 0, consecutiveApprovals: 0, mode: "ask" };
 }
 
 function withStats(
   manifest: TrustManifest,
-  duty: string,
-  stats: TrustDutyStats,
+  agentResponsibility: string,
+  stats: TrustAgentResponsibilityStats,
 ): TrustManifest {
-  return { ...manifest, duties: { ...manifest.duties, [duty]: stats } };
+  return { ...manifest, agentResponsibilities: { ...manifest.agentResponsibilities, [agentResponsibility]: stats } };
 }
 
 export function statsFor(
   manifest: TrustManifest,
-  duty: string,
-): TrustDutyStats {
-  return manifest.duties[duty] ?? freshStats();
+  agentResponsibility: string,
+): TrustAgentResponsibilityStats {
+  return manifest.agentResponsibilities[agentResponsibility] ?? freshStats();
 }
 
 /**
- * Pure: apply an Approve/Reject/Dismiss verdict to a duty, returning a new
+ * Pure: apply an Approve/Reject/Dismiss verdict to a agentResponsibility, returning a new
  * manifest. Approve bumps the streak (graduating at the threshold); reject
  * zeroes it and de-graduates (kill switch); dismiss is neutral (log only).
  */
 export function applyTrustDecision(
   manifest: TrustManifest,
   entry: {
-    duty: string;
+    agentResponsibility: string;
     decision: TrustDecision;
     taskNumber: number;
     action?: string;
@@ -101,7 +106,7 @@ export function applyTrustDecision(
   },
   threshold: number = TRUST_GRADUATION_THRESHOLD,
 ): TrustManifest {
-  const prev = statsFor(manifest, entry.duty);
+  const prev = statsFor(manifest, entry.agentResponsibility);
   const isApprove = entry.decision === "approve";
   const isReject = entry.decision === "reject";
   const consecutiveApprovals = isApprove
@@ -114,14 +119,14 @@ export function applyTrustDecision(
     : isApprove && consecutiveApprovals >= threshold
       ? "auto"
       : prev.mode;
-  const next = withStats(manifest, entry.duty, {
+  const next = withStats(manifest, entry.agentResponsibility, {
     approvals: prev.approvals + (isApprove ? 1 : 0),
     rejections: prev.rejections + (isReject ? 1 : 0),
     consecutiveApprovals,
     mode,
   });
   const logEntry: TrustDecisionLogEntry = {
-    duty: entry.duty,
+    agentResponsibility: entry.agentResponsibility,
     decision: entry.decision,
     taskNumber: entry.taskNumber,
     at: entry.at ?? new Date().toISOString(),
@@ -131,6 +136,28 @@ export function applyTrustDecision(
   return { ...next, log: [...manifest.log, logEntry].slice(-TRUST_LOG_MAX) };
 }
 
+export function trustDecisionKey(
+  agentResponsibility: string,
+  taskNumber: number,
+  action: string,
+): string {
+  return `${agentResponsibility}:${taskNumber}:${action}`;
+}
+
+export function latestTrustDecisions(
+  manifest: TrustManifest,
+): Record<string, TrustLatestDecision> {
+  const out: Record<string, TrustLatestDecision> = {};
+  for (const e of manifest.log) {
+    if (!e.action) continue;
+    out[trustDecisionKey(e.agentResponsibility, e.taskNumber, e.action)] = {
+      decision: e.decision,
+      at: e.at,
+    };
+  }
+  return out;
+}
+
 // ─────────────────────────────────────────────────────────────────────────────
 // Operator overrides (the /trust page buttons) — pure
 // ─────────────────────────────────────────────────────────────────────────────
@@ -138,25 +165,25 @@ export function applyTrustDecision(
 export const TRUST_OPS = ["reset", "graduate", "degrade"] as const;
 export type TrustOp = (typeof TRUST_OPS)[number];
 
-/** Wipe a duty's trust back to zero / "ask". */
-export function resetDuty(
+/** Wipe a agentResponsibility's trust back to zero / "ask". */
+export function resetAgentResponsibility(
   manifest: TrustManifest,
-  duty: string,
+  agentResponsibility: string,
 ): TrustManifest {
-  return withStats(manifest, duty, freshStats());
+  return withStats(manifest, agentResponsibility, freshStats());
 }
 
 /**
- * Instant grant — force a duty to "auto" now. Lifts the streak to the threshold
+ * Instant grant — force a agentResponsibility to "auto" now. Lifts the streak to the threshold
  * so the engine (which gates on `consecutiveApprovals`) agrees. Totals kept.
  */
-export function graduateDuty(
+export function graduateAgentResponsibility(
   manifest: TrustManifest,
-  duty: string,
+  agentResponsibility: string,
   threshold: number = TRUST_GRADUATION_THRESHOLD,
 ): TrustManifest {
-  const prev = statsFor(manifest, duty);
-  return withStats(manifest, duty, {
+  const prev = statsFor(manifest, agentResponsibility);
+  return withStats(manifest, agentResponsibility, {
     ...prev,
     mode: "auto",
     consecutiveApprovals: Math.max(prev.consecutiveApprovals, threshold),
@@ -164,12 +191,12 @@ export function graduateDuty(
 }
 
 /** Manual kill switch — back to "ask", streak zeroed. Totals kept. */
-export function degradeDuty(
+export function degradeAgentResponsibility(
   manifest: TrustManifest,
-  duty: string,
+  agentResponsibility: string,
 ): TrustManifest {
-  const prev = statsFor(manifest, duty);
-  return withStats(manifest, duty, {
+  const prev = statsFor(manifest, agentResponsibility);
+  return withStats(manifest, agentResponsibility, {
     ...prev,
     mode: "ask",
     consecutiveApprovals: 0,
@@ -179,21 +206,21 @@ export function degradeDuty(
 export function applyTrustOp(
   manifest: TrustManifest,
   op: TrustOp,
-  duty: string,
+  agentResponsibility: string,
 ): TrustManifest {
   switch (op) {
     case "reset":
-      return resetDuty(manifest, duty);
+      return resetAgentResponsibility(manifest, agentResponsibility);
     case "graduate":
-      return graduateDuty(manifest, duty);
+      return graduateAgentResponsibility(manifest, agentResponsibility);
     case "degrade":
-      return degradeDuty(manifest, duty);
+      return degradeAgentResponsibility(manifest, agentResponsibility);
   }
 }
 
-/** True when the engine may let this duty self-dispatch. */
-export function isGraduated(manifest: TrustManifest, duty: string): boolean {
-  return manifest.duties[duty]?.mode === "auto";
+/** True when the engine may let this agentResponsibility self-dispatch. */
+export function isGraduated(manifest: TrustManifest, agentResponsibility: string): boolean {
+  return manifest.agentResponsibilities[agentResponsibility]?.mode === "auto";
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -208,8 +235,8 @@ export function parseTrustManifest(
     const parsed = JSON.parse(raw) as Partial<TrustManifest>;
     return {
       version: TRUST_MANIFEST_VERSION,
-      duties:
-        parsed.duties && typeof parsed.duties === "object" ? parsed.duties : {},
+      agentResponsibilities:
+        parsed.agentResponsibilities && typeof parsed.agentResponsibilities === "object" ? parsed.agentResponsibilities : {},
       log: Array.isArray(parsed.log) ? parsed.log : [],
     };
   } catch {
@@ -222,55 +249,55 @@ export function serializeTrustManifest(manifest: TrustManifest): string {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// View model for the /trust page — one row per duty
+// View model for the /trust page — one row per agentResponsibility
 // ─────────────────────────────────────────────────────────────────────────────
 
-export interface TrustDutyView extends TrustDutyStats {
-  duty: string;
-  /** Persona the duty runs as (from the roster), or null if unknown. */
-  staff: string | null;
+export interface TrustAgentResponsibilityView extends TrustAgentResponsibilityStats {
+  agentResponsibility: string;
+  /** AgentIdentity the agentResponsibility runs as (from the roster), or null if unknown. */
+  agent: string | null;
   /** Clean approvals still needed to graduate (0 once "auto"). */
   remaining: number;
   /** 0..1 streak progress toward the threshold. */
   progress: number;
-  /** True once any verdict has been recorded for this duty. */
+  /** True once any verdict has been recorded for this agentResponsibility. */
   hasHistory: boolean;
 }
 
-/** Pair of `(duty slug, persona it runs as)` — the only roster fields needed. */
-export interface DutyStaffLink {
+/** Pair of `(agentResponsibility slug, agentIdentity it runs as)` — the only roster fields needed. */
+export interface AgentResponsibilityStaffLink {
   slug: string;
-  staff: string | null;
+  agent: string | null;
 }
 
 /**
- * Project the manifest + duty roster into one view row per duty: EVERY duty in
+ * Project the manifest + agentResponsibility roster into one view row per agentResponsibility: EVERY agentResponsibility in
  * the roster appears (so its Auto toggle is always available, even with zero
- * history), plus any duty with recorded trust. Pure + deterministic.
+ * history), plus any agentResponsibility with recorded trust. Pure + deterministic.
  */
 export function summarizeTrust(
   manifest: TrustManifest,
-  duties: readonly DutyStaffLink[],
+  agentResponsibilities: readonly AgentResponsibilityStaffLink[],
   threshold: number = TRUST_GRADUATION_THRESHOLD,
-): TrustDutyView[] {
-  const staffByDuty = new Map<string, string | null>();
-  for (const d of duties) staffByDuty.set(d.slug, d.staff);
+): TrustAgentResponsibilityView[] {
+  const staffByAgentResponsibility = new Map<string, string | null>();
+  for (const d of agentResponsibilities) staffByAgentResponsibility.set(d.slug, d.agent);
 
   const slugs = new Set<string>([
-    ...Object.keys(manifest.duties),
-    ...staffByDuty.keys(),
+    ...Object.keys(manifest.agentResponsibilities),
+    ...staffByAgentResponsibility.keys(),
   ]);
 
-  const views: TrustDutyView[] = [...slugs].map((duty) => {
-    const stats = manifest.duties[duty];
+  const views: TrustAgentResponsibilityView[] = [...slugs].map((agentResponsibility) => {
+    const stats = manifest.agentResponsibilities[agentResponsibility];
     const s = stats ?? freshStats();
     const remaining =
       s.mode === "auto" ? 0 : Math.max(0, threshold - s.consecutiveApprovals);
     const progress =
       threshold <= 0 ? 1 : Math.min(1, s.consecutiveApprovals / threshold);
     return {
-      duty,
-      staff: staffByDuty.get(duty) ?? null,
+      agentResponsibility,
+      agent: staffByAgentResponsibility.get(agentResponsibility) ?? null,
       ...s,
       remaining,
       progress,
@@ -278,10 +305,10 @@ export function summarizeTrust(
     };
   });
 
-  // Auto duties first, then those with history, then alpha.
+  // Auto agentResponsibilities first, then those with history, then alpha.
   return views.sort((a, b) => {
     if (a.mode !== b.mode) return a.mode === "auto" ? -1 : 1;
     if (a.hasHistory !== b.hasHistory) return a.hasHistory ? -1 : 1;
-    return a.duty.localeCompare(b.duty);
+    return a.agentResponsibility.localeCompare(b.agentResponsibility);
   });
 }

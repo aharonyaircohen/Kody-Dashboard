@@ -15,7 +15,7 @@ export const fetchCache = "force-cache";
 export const metadata = buildKodyMetadata({
   title: "Settings — Kody Operations Dashboard",
   description:
-    "Manage per-browser credentials: Brain server config, Vercel preview bypass, and sign-out.",
+    "Manage per-browser credentials, local integrations, and sign-out.",
   path: "/settings",
 });
 

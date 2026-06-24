@@ -32,8 +32,9 @@ const KNOWN_TOOL_NAMES: ReadonlySet<string> = new Set([
   "create_refactor",
   "create_documentation",
   "create_chore",
-  "create_kody_duty",
-  "create_kody_staff",
+  "read_agent_responsibility_creation_guide",
+  "create_or_update_agent_responsibility",
+  "create_kody_agent",
   "github_search_code",
   "github_get_file",
   "github_blame",
@@ -52,6 +53,7 @@ const KNOWN_TOOL_NAMES: ReadonlySet<string> = new Set([
   "recall",
   "update_memory",
   "preview_act",
+  "read_agentAction_creation_guide",
 ]);
 
 /**
@@ -115,6 +117,150 @@ function collapseBlankLines(text: string): string {
   return text.replace(/\n{3,}/g, "\n\n");
 }
 
+const FINAL_ANSWER_MARKER_RE =
+  /(?:^|\n)\s*(?:final\s+answer|final|answer)\s*:\s*/i;
+const LEADING_ANSWER_MARKER_RE = /^\s*(?:final\s+answer|final|answer)\s*:\s*/i;
+const SCRATCHPAD_LABEL_RE =
+  /^\s*(?:analysis|reasoning|thinking|thoughts?|scratchpad)\s*[:.-]/i;
+// First/second-person reasoning preambles the model commonly emits as raw
+// prose (without `<think>` tags) before the actual answer. The matching
+// happens at the START of the text and is gated by a blank-line separator
+// + non-empty rest in `stripLeakedReasoning` — that double gate keeps
+// legitimate first-person questions like "I need one detail before I
+// can run this safely: which branch should I use?" untouched.
+const THINKING_PREAMBLE_RE = new RegExp(
+  [
+    String.raw`^\s*let\s+me\s+(?:think|consider|analyze|figure\s+out|check|look|see|examine|start|walk\s+through)`,
+    String.raw`^\s*I\s+(?:need|should|will|must|can|have\s+to|want\s+to)\s+(?:to\s+)?(?:think|consider|analyze|figure\s+out|check|look|see|examine|start|decide|review)`,
+    String.raw`^\s*(?:first|next|now|alright|ok(?:ay)?|so),?\s+(?:let'?s|let\s+me|I\s+(?:need|should|will|must|can|have\s+to))`,
+    String.raw`^\s*the\s+user\s+(?:is\s+)?(?:asking|wants?|needs?|requested|mentioned|provided|sent)`,
+    String.raw`^\s*looking\s+at\s+(?:the\s+)?(?:request|question|issue|user|code|file|task|repo|error|stack\s*trace)`,
+    String.raw`^\s*(?:step|plan)\s*\d+\s*[:.-]`,
+  ].join("|"),
+  "i",
+);
+
+function stripLeadingAnswerMarker(text: string): string {
+  return text.replace(LEADING_ANSWER_MARKER_RE, "").trim();
+}
+
+function looksLikeLeakedReasoning(text: string): boolean {
+  const trimmed = text.trim();
+  if (!trimmed) return false;
+  if (SCRATCHPAD_LABEL_RE.test(trimmed)) return true;
+  if (THINKING_PREAMBLE_RE.test(trimmed)) return true;
+
+  return (
+    /^(?:the user|user|they)\b/i.test(trimmed) &&
+    /\bI\s+(?:need|should|will|must|can|have to)\b/i.test(trimmed)
+  );
+}
+
+function stripDuplicatedReasoningPrefix(
+  answer: string,
+  reasoning: string,
+): { text: string; stripped: boolean } {
+  const trimmedReasoning = reasoning.trim();
+  if (!trimmedReasoning) return { text: answer, stripped: false };
+
+  const leadingWhitespace = answer.match(/^\s*/)?.[0] ?? "";
+  const rest = answer.slice(leadingWhitespace.length);
+  if (!rest.startsWith(trimmedReasoning)) {
+    return { text: answer, stripped: false };
+  }
+
+  return {
+    text: rest.slice(trimmedReasoning.length).trim(),
+    stripped: true,
+  };
+}
+
+function appendLeaked(collected: string, next: string): string {
+  const trimmed = next.trim();
+  if (!trimmed) return collected;
+  return collected ? `${collected}\n\n${trimmed}` : trimmed;
+}
+
+function stripLeakedReasoning(
+  answer: string,
+  reasoning: string,
+): { text: string; leaked: string } {
+  const duplicate = stripDuplicatedReasoningPrefix(answer, reasoning);
+  let working = duplicate.text;
+  let leaked = "";
+  if (duplicate.stripped) {
+    // The duplicated prefix is by definition leaked reasoning — it
+    // already lives in `reasoning`, so reuse the trimmed duplicate text
+    // rather than rescanning. Then peel any "Final answer:" marker that
+    // was inlined into the duplicate.
+    working = stripLeadingAnswerMarker(working);
+  }
+
+  const trimmed = working.trim();
+
+  // "Final answer:" / "Answer:" marker — strip everything before it when
+  // the preamble is recognisably thinking.
+  const marker = FINAL_ANSWER_MARKER_RE.exec(trimmed);
+  if (marker && marker.index > 0) {
+    const beforeMarker = trimmed.slice(0, marker.index);
+    if (looksLikeLeakedReasoning(beforeMarker)) {
+      return {
+        text: trimmed.slice(marker.index + marker[0].length).trim(),
+        leaked: appendLeaked(leaked, beforeMarker),
+      };
+    }
+  }
+
+  // Multi-segment thinking. The model often narrates a chain of thought
+  // across several paragraphs ("Let me think about X.\n\nAnswer for X.\n\n
+  // Now let me think about Y.\n\nAnswer for Y.") — the chat only has ONE
+  // ReasoningPanel at the top, so anything after the first thinking
+  // segment would otherwise stay in the reply bubble. Sweep every blank-
+  // line-separated paragraph and move any recognisably-thinking ones into
+  // the reasoning. Guard: only strip if at least one non-thinking
+  // paragraph remains, so an all-thinking reply is never silenced.
+  const swept = stripAllLeakedParagraphs(trimmed);
+  if (swept.leaked) {
+    return {
+      text: swept.text,
+      leaked: appendLeaked(leaked, swept.leaked),
+    };
+  }
+
+  return { text: trimmed, leaked };
+}
+
+function stripAllLeakedParagraphs(text: string): {
+  text: string;
+  leaked: string;
+} {
+  const paragraphs = text.split(/\n\s*\n/);
+  if (paragraphs.length < 2) return { text, leaked: "" };
+
+  const thinkingFlags = paragraphs.map((p) => {
+    const trimmed = p.trim();
+    return trimmed.length > 0 && looksLikeLeakedReasoning(trimmed);
+  });
+  const hasNonThinking = thinkingFlags.some((t) => !t);
+  if (!hasNonThinking) return { text, leaked: "" };
+
+  const kept: string[] = [];
+  const leaked: string[] = [];
+  for (let i = 0; i < paragraphs.length; i++) {
+    if (thinkingFlags[i]) {
+      const trimmed = paragraphs[i].trim();
+      if (trimmed) leaked.push(trimmed);
+    } else {
+      kept.push(paragraphs[i]);
+    }
+  }
+
+  return {
+    text: kept.join("\n\n").trim(),
+    leaked: leaked.join("\n\n").trim(),
+  };
+}
+
 /**
  * Remove the model-emitted tool-call markup from `text` so the visible
  * answer bubble shows prose only. Safe on empty / plain input (returns
@@ -142,8 +288,14 @@ export function parseAssistantContent(raw: string): {
 } {
   if (!raw) return { reasoning: "", answer: "" };
   const { reasoning, answer } = parseReasoning(raw);
-  return {
+  const { text, leaked } = stripLeakedReasoning(
+    stripToolCallMarkup(answer),
     reasoning,
-    answer: stripToolCallMarkup(answer),
-  };
+  );
+  const combinedReasoning = leaked
+    ? reasoning
+      ? `${reasoning}\n\n${leaked}`
+      : leaked
+    : reasoning;
+  return { reasoning: combinedReasoning, answer: text };
 }

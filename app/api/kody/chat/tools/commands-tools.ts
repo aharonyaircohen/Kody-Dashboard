@@ -4,13 +4,14 @@
  * @pattern chat-tools
  * @ai-summary In-process chat tools that let Kody manage slash commands
  *   (`.kody/commands/<slug>.md`) by conversation — list, read, create/update,
- *   delete. Mirrors executable-tools: reads use the module-level GitHub
+ *   delete. Mirrors agentAction-tools: reads use the module-level GitHub
  *   context the chat route sets; writes pass the per-request octokit. Repo
- *   commands win over built-ins on slug collision.
+ *   commands win over activated Store commands and fallback built-ins on slug collision.
  */
 import { tool } from "ai";
 import { z } from "zod";
 import type { Octokit } from "@octokit/rest";
+import { listCommands } from "@dashboard/lib/commands";
 import {
   listRepoCommandFiles,
   readCommandFile,
@@ -18,6 +19,10 @@ import {
   deleteCommandFile,
   isValidSlug,
 } from "@dashboard/lib/commands/files";
+import {
+  getEngineConfig,
+  writeConfigPatch,
+} from "@dashboard/lib/engine/config";
 
 interface Ctx {
   octokit: Octokit;
@@ -30,20 +35,29 @@ export function createCommandTools(ctx: Ctx) {
   const { octokit, owner, repo, actorLogin } = ctx;
   const repoRef = `${owner}/${repo}`;
   const by = actorLogin ? ` (via chat by @${actorLogin})` : "";
+  const activeStoreCommandSlugs = async () => {
+    const { config } = await getEngineConfig(octokit, owner, repo);
+    return new Set(config.company?.activeCommands ?? []);
+  };
 
   return {
     list_commands: tool({
-      description: `List the slash commands stored in ${repoRef} at .kody/commands/. Returns slug, description, and argument hint for each, plus whether built-ins are disabled.`,
+      description: `List slash commands available to ${repoRef}: repo-local commands, activated Store commands, and fallback built-ins. Returns slug, description, argument hint, source, and whether built-ins are disabled.`,
       inputSchema: z.object({}),
       execute: async () => {
         try {
-          const { commands, builtinsDisabled } = await listRepoCommandFiles();
+          const activeStoreSlugs = await activeStoreCommandSlugs();
+          const [{ builtinsDisabled }, commands] = await Promise.all([
+            listRepoCommandFiles(),
+            listCommands({ activeStoreSlugs }),
+          ]);
           return {
             builtinsDisabled,
             commands: commands.map((c) => ({
               slug: c.slug,
               description: c.description,
               argumentHint: c.argumentHint,
+              source: c.source,
             })),
           };
         } catch (err) {
@@ -58,7 +72,10 @@ export function createCommandTools(ctx: Ctx) {
       execute: async ({ slug }) => {
         if (!isValidSlug(slug)) return { error: `invalid slug "${slug}"` };
         try {
-          const command = await readCommandFile(slug, octokit);
+          const activeStoreSlugs = await activeStoreCommandSlugs();
+          const command = (await listCommands({ activeStoreSlugs })).find(
+            (item) => item.slug === slug,
+          );
           if (!command) return { error: `command "${slug}" not found` };
           return { command };
         } catch (err) {
@@ -68,7 +85,7 @@ export function createCommandTools(ctx: Ctx) {
     }),
 
     create_or_update_command: tool({
-      description: `Create or update a slash command in ${repoRef} (commits .kody/commands/<slug>.md). The body is the prompt template; use $ARGUMENTS, $0, $1 placeholders for user-supplied arguments. A repo command overrides a built-in with the same slug.`,
+      description: `Create or update a slash command in ${repoRef} (commits .kody/commands/<slug>.md). The body is the prompt template; use $ARGUMENTS, $0, $1 placeholders for user-supplied arguments. A repo command overrides Store or built-in commands with the same slug.`,
       inputSchema: z.object({
         slug: z.string().min(1).max(64),
         description: z.string().default(""),
@@ -102,13 +119,35 @@ export function createCommandTools(ctx: Ctx) {
     }),
 
     delete_command: tool({
-      description: `Delete a slash command from ${repoRef} (removes .kody/commands/<slug>.md). Built-in commands cannot be deleted this way — they only ship in code.`,
+      description: `Delete a repo-local slash command from ${repoRef}, or remove an imported Store command from this repo's active commands.`,
       inputSchema: z.object({ slug: z.string().min(1).max(64) }),
       execute: async ({ slug }) => {
         if (!isValidSlug(slug)) return { error: `invalid slug "${slug}"` };
         try {
           const existing = await readCommandFile(slug, octokit);
-          if (!existing) return { error: `command "${slug}" not found` };
+          if (!existing) {
+            const { config } = await getEngineConfig(octokit, owner, repo, {
+              force: true,
+            });
+            const activeCommands = config.company?.activeCommands ?? [];
+            if (!activeCommands.includes(slug)) {
+              return { error: `command "${slug}" not found` };
+            }
+            const nextActiveCommands = activeCommands.filter(
+              (value) => value !== slug,
+            );
+            await writeConfigPatch(
+              octokit,
+              owner,
+              repo,
+              {
+                activeCommands:
+                  nextActiveCommands.length > 0 ? nextActiveCommands : null,
+              },
+              `chore(kody): remove store command ${slug}${by}`,
+            );
+            return { ok: true, action: "removed-store-reference", slug };
+          }
           await deleteCommandFile(octokit, slug);
           return { ok: true, action: "deleted", slug };
         } catch (err) {

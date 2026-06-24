@@ -20,6 +20,7 @@
  *   acquire per vibe session start) and latency is fine (~200ms).
  */
 import type { Octokit } from "@octokit/rest";
+import { writeGitHubFileWithRetry } from "@dashboard/lib/github-contents-write";
 import type { Lease, LockPort } from "../domain/lock-port";
 
 interface OctokitCtx {
@@ -61,15 +62,15 @@ export class GitHubFileLock implements LockPort {
     // Step 1: try to CREATE the file (no `sha` → fails with 422 if
     // it already exists).
     try {
-      const { data } =
-        await this.ctx.octokit.rest.repos.createOrUpdateFileContents({
-          owner: this.ctx.owner,
-          repo: this.ctx.repo,
-          path,
-          message,
-          content: contentB64,
-        });
-      return makeLease(this.ctx, path, data.content?.sha ?? null);
+      const data = await writeGitHubFileWithRetry(this.ctx.octokit, {
+        owner: this.ctx.owner,
+        repo: this.ctx.repo,
+        path,
+        message,
+        content: contentB64,
+        maxAttempts: 1,
+      });
+      return makeLease(this.ctx, path, data.sha);
     } catch (err) {
       const e = err as { status?: number };
       if (e.status !== 422) {
@@ -121,16 +122,16 @@ export class GitHubFileLock implements LockPort {
 
     // Expired — take over with a PUT-with-sha (replaces the dead lease).
     try {
-      const { data } =
-        await this.ctx.octokit.rest.repos.createOrUpdateFileContents({
-          owner: this.ctx.owner,
-          repo: this.ctx.repo,
-          path,
-          message: `lock: take over expired ${key}`,
-          content: contentB64,
-          sha,
-        });
-      return makeLease(this.ctx, path, data.content?.sha ?? null);
+      const data = await writeGitHubFileWithRetry(this.ctx.octokit, {
+        owner: this.ctx.owner,
+        repo: this.ctx.repo,
+        path,
+        message: `lock: take over expired ${key}`,
+        content: contentB64,
+        sha,
+        maxAttempts: 1,
+      });
+      return makeLease(this.ctx, path, data.sha);
     } catch (err) {
       const e = err as { status?: number };
       if (e.status === 409 || e.status === 422) {

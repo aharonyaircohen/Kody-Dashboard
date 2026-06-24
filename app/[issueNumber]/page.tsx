@@ -9,7 +9,7 @@
  *   any other non-numeric sibling-route path) into a cached 307 redirect
  *   at the edge, silently shadowing the real static routes for ~5min
  *   stale-time windows. The runtime `notFound()` for non-numeric segments
- *   makes the catch-all decline gracefully so sibling routes (vibe, jobs,
+ *   makes the catch-all decline gracefully so sibling routes (vibe, agentResponsibilities,
  *   settings, …) win at routing.
  */
 import { notFound } from "next/navigation";
@@ -17,14 +17,9 @@ import type { Metadata } from "next";
 import { KodyDashboard } from "@dashboard/lib/components/KodyDashboard";
 import { buildTaskMetadata } from "../metadata";
 
-// Pre-render common issue numbers at build time for OG tags. Any
-// numeric param NOT in this list renders on demand (default behavior).
-// Non-numeric segments are rejected by the runtime guard below.
+// Do not guess issue numbers at build time. Numeric params render on demand.
 export async function generateStaticParams() {
-  const issueNumbers = Array.from({ length: 50 }, (_, i) => ({
-    issueNumber: String(i + 800),
-  }));
-  return issueNumbers;
+  return [];
 }
 
 export async function generateMetadata({
@@ -45,7 +40,7 @@ export default async function KodyTaskPage({
 }) {
   const { issueNumber } = await params;
   // Only numeric segments are real issues. For any non-numeric segment
-  // (e.g. "vibe", "jobs", "settings") we must 404, not redirect — a
+  // (e.g. "vibe", "agent-responsibilities", "settings") we must 404, not redirect — a
   // cached `force-static` redirect here shadows sibling static routes
   // at the edge and silently sends users to /. notFound() lets Next.js
   // prefer the matching sibling page (e.g. app/vibe/page.tsx).

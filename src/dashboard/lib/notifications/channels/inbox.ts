@@ -7,7 +7,7 @@
  *   event and its resolved recipients, it appends one feed entry per recipient
  *   to the shared inbox-feed manifest. The CTO backpressure cap lives here as a
  *   post-resolve admission filter (it gates which recommendation entries are
- *   admitted, per-staff, at this single write point). Best-effort: never throws
+ *   admitted, per-agentResponsibility, at this single write point). Best-effort: never throws
  *   so a feed-write failure can't stop the push fan-out or break the webhook ACK.
  */
 import "server-only";
@@ -18,11 +18,11 @@ import { buildSnippet } from "../../inbox/types";
 import {
   parseCtoAction,
   parseCtoCommand,
-  parseCtoStaff,
-  parseCtoDuty,
+  parseCtoAgent,
+  parseCtoAgentResponsibility,
 } from "../../cto/recommendation";
-import { readCtoDecisions } from "../../cto/decisions-server";
-import { latestCtoDecisions } from "../../cto/decisions";
+import { readTrust } from "../../cto/trust-store";
+import { latestTrustDecisions } from "../../cto/trust-state";
 import { applyCtoBackpressure } from "../../cto/backpressure";
 import { dashboardChannelUrl } from "../../thread-link";
 import { logger } from "../../logger";
@@ -53,8 +53,8 @@ export async function deliverInbox(
   // the snippet collapses them and loses it.
   const ctoAction = parseCtoAction(ev.body ?? "");
   const ctoCommand = parseCtoCommand(ev.body ?? "");
-  const ctoStaff = parseCtoStaff(ev.body ?? "");
-  const ctoDuty = parseCtoDuty(ev.body ?? "");
+  const ctoAgent = parseCtoAgent(ev.body ?? "");
+  const ctoAgentResponsibility = parseCtoAgentResponsibility(ev.body ?? "");
   // Same classifier the mute filter keys on — stamp it on the entry so the
   // inbox row can offer a one-click "Mute this type" for the right category.
   const category = classifyNotificationType(ev);
@@ -71,27 +71,24 @@ export async function deliverInbox(
     sentAt,
     ...(ctoAction ? { ctoAction } : {}),
     ...(ctoCommand ? { ctoCommand } : {}),
-    ...(ctoStaff ? { ctoStaff } : {}),
-    ...(ctoDuty ? { ctoDuty } : {}),
+    ...(ctoAgent ? { ctoAgent } : {}),
+    ...(ctoAgentResponsibility ? { ctoAgentResponsibility } : {}),
     ...(category ? { category } : {}),
   }));
 
   setGitHubContext(ctx.owner, ctx.repo, ctx.token);
   try {
-    // Code-enforced cap on pending CTO recommendations. The cto.md staff
+    // Code-enforced cap on pending CTO recommendations. The cto.md agent
     // member is told to stop at 10 but counts by hand and drifts; this gate
     // makes it deterministic at the single write point. Both reads are cached
     // (ETag/304) — no extra GitHub budget on the webhook path.
     let toAppend = entries;
     try {
-      const [feed, ledger] = await Promise.all([
-        readInboxFeed(),
-        readCtoDecisions(),
-      ]);
+      const [feed, ledger] = await Promise.all([readInboxFeed(), readTrust()]);
       const { admitted, withheld } = applyCtoBackpressure(
         feed.entries,
         entries,
-        latestCtoDecisions(ledger),
+        latestTrustDecisions(ledger),
       );
       toAppend = admitted;
       if (withheld.length > 0) {

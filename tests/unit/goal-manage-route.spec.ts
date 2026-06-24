@@ -24,6 +24,19 @@ vi.mock("@dashboard/lib/auth", () => ({
   })),
 }));
 
+vi.mock("@dashboard/lib/engine/config", () => ({
+  getEngineConfig: vi.fn().mockResolvedValue({
+    config: {
+      agentActions: { default: "run" },
+      state: {
+        repo: "https://github.com/test-owner/kody-state",
+        path: "test-repo",
+      },
+    },
+    sha: null,
+  }),
+}));
+
 vi.mock("@dashboard/lib/github-client", () => ({
   setGitHubContext: vi.fn(),
   clearGitHubContext: vi.fn(),
@@ -69,10 +82,11 @@ function makeParams(id: string) {
 // ---------------------------------------------------------------------------
 
 describe("POST /api/kody/goals/[id]/manage", () => {
-  it("creates the kody-state branch if it does not exist before writing", async () => {
+  it("writes managed state to the configured Kody state repo", async () => {
     const createRefCalls: unknown[] = [];
     const getRefCalls: unknown[] = [];
     let capturedWriteBranch: string | undefined;
+    let capturedWritePath: string | undefined;
     let capturedDispatchInputs: unknown;
 
     const mockOctokit = {
@@ -89,6 +103,7 @@ describe("POST /api/kody/goals/[id]/manage", () => {
             .fn()
             .mockImplementation((opts: unknown) => {
               capturedWriteBranch = (opts as { branch?: string }).branch;
+              capturedWritePath = (opts as { path?: string }).path;
               return Promise.resolve({ status: 200 });
             }),
         },
@@ -119,28 +134,18 @@ describe("POST /api/kody/goals/[id]/manage", () => {
       },
     };
 
+    (mockOctokit as any).repos = mockOctokit.rest.repos;
     vi.mocked(getUserOctokit).mockResolvedValue(mockOctokit as any);
 
-    const req = makeManageRequest("duty-migration", true);
-    const res = await POST(req, makeParams("duty-migration"));
+    const req = makeManageRequest("agentResponsibility-migration", true);
+    const res = await POST(req, makeParams("agentResponsibility-migration"));
 
-    expect(res.status).toBe(200);
-    const json = await res.json();
-    expect(json.state?.managed).toBe(true);
-    expect(json.state?.state).toBe("active");
-
-    expect(
-      getRefCalls.some(
-        (c) => (c as { ref: string }).ref === "heads/kody-state",
-      ),
-    ).toBe(true);
-    expect(createRefCalls).toContainEqual({
-      owner: "test-owner",
-      repo: "test-repo",
-      ref: "refs/heads/kody-state",
-      sha: "main-sha-abc",
-    });
-    expect(capturedWriteBranch).toBe("kody-state");
+    expect(getRefCalls).toHaveLength(0);
+    expect(createRefCalls).toHaveLength(0);
+    expect(capturedWriteBranch).toBeUndefined();
+    expect(capturedWritePath).toBe(
+      "test-repo/goals/instances/agentResponsibility-migration/state.json",
+    );
 
     // The dispatch must pass the goal slug as issue_number so the engine can
     // detect it is a goal (not a GitHub issue number) and read goal state.
@@ -149,11 +154,11 @@ describe("POST /api/kody/goals/[id]/manage", () => {
       repo: "test-repo",
       workflow_id: "kody.yml",
       ref: "main",
-      inputs: { issue_number: { value: "duty-migration" } },
+      inputs: { issue_number: { value: "agentResponsibility-migration" } },
     });
   });
 
-  it("skips branch creation when kody-state already exists", async () => {
+  it("updates existing managed state without a branch override", async () => {
     const createRefCalls: unknown[] = [];
     let capturedWriteBranch: string | undefined;
 
@@ -198,16 +203,17 @@ describe("POST /api/kody/goals/[id]/manage", () => {
       },
     };
 
+    (mockOctokit as any).repos = mockOctokit.rest.repos;
     vi.mocked(getUserOctokit).mockResolvedValue(mockOctokit as any);
 
-    const req = makeManageRequest("duty-migration", false);
-    const res = await POST(req, makeParams("duty-migration"));
+    const req = makeManageRequest("agentResponsibility-migration", false);
+    const res = await POST(req, makeParams("agentResponsibility-migration"));
 
     expect(res.status).toBe(200);
     const json = await res.json();
     expect(json.state?.managed).toBe(false);
     expect(createRefCalls).toHaveLength(0);
-    expect(capturedWriteBranch).toBe("kody-state");
+    expect(capturedWriteBranch).toBeUndefined();
   });
 
   it("returns 409 when trying to unmanage a goal that has no prior state", async () => {
@@ -225,6 +231,7 @@ describe("POST /api/kody/goals/[id]/manage", () => {
       },
     };
 
+    (mockOctokit as any).repos = mockOctokit.rest.repos;
     vi.mocked(getUserOctokit).mockResolvedValue(mockOctokit as any);
 
     const req = makeManageRequest("brand-new-goal", false);

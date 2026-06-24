@@ -99,9 +99,9 @@ export const EXT_TO_LANG: Record<string, string> = {
   // Swift
   swift: "swift",
 
-  // Objective-C
-  m: "objective-c",
-  mm: "objective-c",
+  // AgentGoal-C
+  m: "agentGoal-c",
+  mm: "agentGoal-c",
 
   // SQL
   sql: "sql",

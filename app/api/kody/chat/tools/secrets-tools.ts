@@ -3,7 +3,7 @@
  * @domain vault
  * @pattern chat-tools
  * @ai-summary Chat tools for the encrypted secrets vault
- *   (`.kody/secrets.enc`). Deliberately WRITE-ONLY from chat: list shows
+ *   (`secrets.enc` in the state repo). Deliberately WRITE-ONLY from chat: list shows
  *   names + timestamps only (never values), and set upserts a value — there
  *   is NO read-back tool, so a prompt-injected message can't exfiltrate keys.
  *   Mirrors the /api/kody/secrets route's readVault → mutate → writeVault.
@@ -53,7 +53,7 @@ export function createSecretTools(ctx: Ctx) {
     }),
 
     set_secret: tool({
-      description: `Create or overwrite a secret value in ${repoRef}'s encrypted vault (AES-256-GCM, committed to .kody/secrets.enc). Use for API keys, tokens, etc. Names are UPPER_SNAKE_CASE. The value is write-only — it cannot be read back through chat. Confirm the value with the user before calling.`,
+      description: `Create or overwrite a secret value in ${repoRef}'s encrypted state repo vault (AES-256-GCM, committed to secrets.enc). Use for API keys, tokens, etc. Names are UPPER_SNAKE_CASE. The value is write-only — it cannot be read back through chat. Confirm the value with the user before calling.`,
       inputSchema: z.object({
         name: z
           .string()

@@ -3,7 +3,7 @@
  * @domain kody
  * @pattern commands-files
  * @ai-summary Read/write command files under `.kody/commands/<slug>.md`
- *   via the GitHub contents API. Same shape as `duties-files.ts`:
+ *   via the GitHub contents API. Same shape as `agentResponsibilities-files.ts`:
  *   filename is the slug, frontmatter holds description/argument-hint,
  *   body is the command template that gets substituted with $ARGUMENTS.
  *
@@ -19,11 +19,18 @@ import {
   getRepo,
   invalidateCommandsCache,
 } from "../github-client";
+import { writeGitHubFileWithRetry } from "@dashboard/lib/github-contents-write";
 import {
   joinFrontmatter,
   splitFrontmatter,
   type CommandFrontmatter,
 } from "./frontmatter";
+import {
+  buildCompanyStoreBlobUrl,
+  companyStoreUpdatedAt,
+  listCompanyStoreMarkdownAssetSlugs,
+  readCompanyStoreText,
+} from "../company-store/assets";
 
 export interface CommandFile {
   /** Filename without `.md` — stable identity, becomes `/<slug>` in chat. */
@@ -34,8 +41,8 @@ export interface CommandFile {
   argumentHint: string;
   /** Command body — what gets sent to the model after substitution. */
   body: string;
-  /** Source: repo-defined file vs. dashboard built-in. */
-  source: "repo" | "builtin";
+  /** Source: repo-defined file, company store, or dashboard built-in. */
+  source: "repo" | "store" | "builtin";
   /** Git blob sha. Required for update/delete. Empty for built-ins. */
   sha: string;
   /** Last commit timestamp affecting this file. Empty for built-ins. */
@@ -213,6 +220,57 @@ export async function readCommandFile(
   }
 }
 
+export async function listStoreCommandFiles(
+  localSlugs: Set<string> = new Set(),
+  octokitOverride?: Octokit,
+  activeStoreSlugs?: Set<string>,
+): Promise<CommandFile[]> {
+  const octokit = octokitOverride ?? getOctokit();
+  const slugs = await listCompanyStoreMarkdownAssetSlugs(
+    octokit,
+    "commands",
+    isValidSlug,
+  );
+  const files = await Promise.all(
+    slugs
+      .filter((slug) => !localSlugs.has(slug))
+      .filter((slug) => !activeStoreSlugs || activeStoreSlugs.has(slug))
+      .map((slug) => readStoreCommandFile(slug, octokit)),
+  );
+  return files.filter((file): file is CommandFile => file !== null);
+}
+
+export async function readStoreCommandFile(
+  slug: string,
+  octokitOverride?: Octokit,
+): Promise<CommandFile | null> {
+  if (!isValidSlug(slug)) return null;
+  const octokit = octokitOverride ?? getOctokit();
+  const raw = await readCompanyStoreText(octokit, `${COMMANDS_DIR}/${slug}.md`);
+  if (raw === null) return null;
+  const { frontmatter, body } = parseCommandMarkdown(raw);
+  const updatedAt = await companyStoreUpdatedAt(octokit, "commands", slug);
+  return {
+    slug,
+    description: frontmatter.description ?? "",
+    argumentHint: frontmatter.argumentHint ?? "",
+    body,
+    source: "store",
+    sha: "",
+    updatedAt: updatedAt === "1970-01-01T00:00:00.000Z" ? "" : updatedAt,
+    htmlUrl: buildCompanyStoreBlobUrl(`${COMMANDS_DIR}/${slug}.md`),
+  };
+}
+
+export async function readResolvedCommandFile(
+  slug: string,
+  octokitOverride?: Octokit,
+): Promise<CommandFile | null> {
+  const repo = await readCommandFile(slug, octokitOverride);
+  if (repo) return repo;
+  return readStoreCommandFile(slug, octokitOverride);
+}
+
 interface WriteOptions {
   octokit: Octokit;
   slug: string;
@@ -249,7 +307,7 @@ export async function writeCommandFile(
     opts.message ??
     `${opts.sha ? "chore" : "feat"}(commands): ${opts.sha ? "update" : "add"} ${opts.slug}`;
 
-  await opts.octokit.repos.createOrUpdateFileContents({
+  await writeGitHubFileWithRetry(opts.octokit, {
     owner: getOwner(),
     repo: getRepo(),
     path: filePath,

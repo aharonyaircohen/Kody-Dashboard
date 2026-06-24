@@ -4,7 +4,7 @@
  * @pattern ai-sdk-tool
  * @ai-summary Memory tools for the kody-direct chat agent. Persist
  *   facts/feedback/project-context/references as `.kody/memory/<id>.md`
- *   files in the connected repo. Mirrors the create_kody_duty tool: each
+ *   files in the connected repo. Mirrors the create_or_update_agent_responsibility tool: each
  *   write commits a markdown file via the GitHub contents API and rebuilds
  *   the sibling `INDEX.md` so the next chat turn can see the new entry.
  *
@@ -31,6 +31,7 @@ import {
   writeMemoryFile,
   type MemoryType,
 } from "@dashboard/lib/memory-files";
+import { resolveStateRepo, stateRepoPath } from "@dashboard/lib/state-repo";
 
 interface Ctx {
   octokit: Octokit;
@@ -75,7 +76,7 @@ export function createMemoryTools(ctx: Ctx) {
         '- User points to an external system ("bugs are tracked in Linear INGEST") → type `reference`.\n' +
         "- User reveals their role / expertise / how they want to be addressed → type `user`.\n\n" +
         "DO NOT save: code patterns, file paths, architecture, anything in CLAUDE.md, " +
-        "ephemeral task state, or routine successes. If the next reader could derive it " +
+        "ephemeral task state, or agentLoop successes. If the next reader could derive it " +
         "from `git log` or by reading the code, do not save it.\n\n" +
         "Before calling: check the injected `## Remembered context` block. If a similar " +
         "memory already exists, call `update_memory` instead of creating a duplicate. " +
@@ -373,7 +374,8 @@ export function createMemoryTools(ctx: Ctx) {
       }),
       execute: async ({ query }) => {
         try {
-          const scopedQuery = `${query} repo:${owner}/${repo} path:.kody/memory`;
+          const target = await resolveStateRepo(octokit, owner, repo);
+          const scopedQuery = `${query} repo:${target.owner}/${target.repo} path:${stateRepoPath(target, "memory")}`;
           const res = await octokit.rest.search.code({
             q: scopedQuery,
             per_page: 20,

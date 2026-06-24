@@ -1,44 +1,45 @@
 /**
  * @fileType utility
  * @domain dashboard-config
- * @pattern github-contents
- * @ai-summary Read/write a per-repo plain-JSON dashboard config at
- *   `.kody/dashboard.json` in the connected GitHub repo. Mirrors the vault
- *   store pattern (cache + in-flight dedup + 60s TTL) without crypto — this
- *   file is not secret. Currently holds the Vibe page's default preview URL.
+ * @pattern state-repo
+ * @ai-summary Read/write per-repo plain-JSON dashboard config at
+ * `dashboard.json` in the configured Kody state repo. Mirrors vault
+ * store pattern (cache + in-flight dedup + 60s TTL) without crypto; this
+ * file is not secret. Currently holds preview and dashboard preferences.
  */
 
 import type { Octokit } from "@octokit/rest";
+
 import { logger } from "@dashboard/lib/logger";
 import type { PreviewEnvironment } from "@dashboard/lib/preview-environments";
+import { readStateText, writeStateText } from "@dashboard/lib/state-repo";
 
-export const DASHBOARD_CONFIG_PATH = ".kody/dashboard.json";
+export const DASHBOARD_CONFIG_PATH = "dashboard.json";
 
 export interface DashboardConfig {
   version: 1;
   /**
-   * Legacy single preview URL — shown in the Vibe pane when no issue is
-   * selected. Superseded by `namedPreviews` (migrated on read), kept so
-   * existing repos and the Vibe fallback keep working.
+   * Legacy single preview URL shown in Vibe pane when no issue is selected.
+   * Superseded by `namedPreviews` (migrated on read), kept so existing repos
+   * and Vibe fallback keep working.
    */
   defaultPreviewUrl?: string;
   /**
-   * Named preview environments (Production / Staging / Dev …) surfaced on the
-   * standalone `/preview` page. Each is a base URL; the Web/Admin "views" are
+   * Named preview environments (Production / Staging / Dev ...) surfaced on
+   * the standalone `/preview` page. Each is a base URL; Web/Admin "views" are
    * paths under whichever environment is selected.
    */
   namedPreviews?: PreviewEnvironment[];
   /**
-   * Whether the "Kody Brain (Fly)" row is offered in the chat picker.
-   * Per-repo, default `false` — Fly task *execution* is independent of
-   * this and stays driven solely by the repo's `FLY_API_TOKEN`.
+   * Whether "Kody Brain (Fly)" row is offered in chat picker.
+   * Per-repo, default `false`; Fly task execution stays driven solely by the
+   * repo's `FLY_API_TOKEN`.
    */
   brainFlyChatEnabled?: boolean;
   /**
-   * Branch names with a live, manually-created Fly preview (e.g. `dev`).
-   * Unlike PR previews there's no PR-close webhook to tear these down, so
-   * we record what was created here — that list IS the leak-visibility
-   * surface the `/runner` Branch previews card renders and destroys from.
+   * Branch names with live, manually-created Fly previews (e.g. `dev`).
+   * Unlike PR previews there is no PR-close webhook to tear these down, so
+   * this list is the leak-visibility surface for `/runner`.
    */
   branchPreviews?: string[];
 }
@@ -64,49 +65,34 @@ function emptyDoc(): DashboardConfig {
   return { version: 1 };
 }
 
-interface RawContentsResponse {
-  type?: string;
-  encoding?: string;
-  content?: string;
-  sha?: string;
-}
-
 async function fetchRaw(
   octokit: Octokit,
   owner: string,
   repo: string,
 ): Promise<{ doc: DashboardConfig; sha: string | null }> {
-  try {
-    const res = await octokit.rest.repos.getContent({
-      owner,
-      repo,
-      path: DASHBOARD_CONFIG_PATH,
+  const file = await readStateText(
+    octokit,
+    owner,
+    repo,
+    DASHBOARD_CONFIG_PATH,
+    {
       headers: { "If-None-Match": "" },
-    });
-    const data = res.data as RawContentsResponse | RawContentsResponse[];
-    if (Array.isArray(data) || data.type !== "file" || !data.content) {
-      return { doc: emptyDoc(), sha: null };
-    }
-    const buf = Buffer.from(
-      data.content,
-      (data.encoding ?? "base64") as BufferEncoding,
-    );
-    const parsed = JSON.parse(buf.toString("utf8")) as DashboardConfig;
-    if (parsed.version !== 1) {
-      logger.warn(
-        { owner, repo, version: parsed.version },
-        "dashboard-config: unexpected version",
-      );
-      return { doc: emptyDoc(), sha: data.sha ?? null };
-    }
-    return { doc: parsed, sha: data.sha ?? null };
-  } catch (err) {
-    const status = (err as { status?: number }).status;
-    if (status === 404) {
-      return { doc: emptyDoc(), sha: null };
-    }
-    throw err;
+    },
+  );
+  if (!file) {
+    return { doc: emptyDoc(), sha: null };
   }
+
+  const parsed = JSON.parse(file.content) as DashboardConfig;
+  if (parsed.version !== 1) {
+    logger.warn(
+      { owner, repo, version: parsed.version },
+      "dashboard-config: unexpected version",
+    );
+    return { doc: emptyDoc(), sha: file.sha ?? null };
+  }
+
+  return { doc: parsed, sha: file.sha ?? null };
 }
 
 export async function readDashboardConfig(
@@ -151,18 +137,16 @@ export async function writeDashboardConfig(
   currentSha: string | null,
   commitMessage = "chore(dashboard): update dashboard config",
 ): Promise<{ sha: string }> {
-  const content = Buffer.from(JSON.stringify(doc, null, 2), "utf8").toString(
-    "base64",
-  );
-  const res = await octokit.rest.repos.createOrUpdateFileContents({
+  const res = await writeStateText({
+    octokit,
     owner,
     repo,
     path: DASHBOARD_CONFIG_PATH,
+    content: JSON.stringify(doc, null, 2),
     message: commitMessage,
-    content,
-    ...(currentSha ? { sha: currentSha } : {}),
+    sha: currentSha ?? undefined,
   });
-  const newSha = res.data.content?.sha ?? null;
+  const newSha = res.sha ?? null;
   CACHE.set(cacheKey(owner, repo), {
     doc,
     sha: newSha,
@@ -186,10 +170,9 @@ export function invalidateDashboardConfigCache(
 }
 
 /**
- * Add or remove a branch from `branchPreviews`, reading the freshest doc
- * first so concurrent create/destroy calls don't clobber each other.
- * Idempotent: adding a known branch or removing an unknown one is a no-op
- * write-wise but still safe. Returns the resulting list.
+ * Add or remove a branch from `branchPreviews`, reading the freshest doc first
+ * so concurrent create/destroy calls do not clobber each other. Idempotent:
+ * adding a known branch or removing an unknown one is a no-op write-wise.
  */
 export async function setBranchPreview(
   octokit: Octokit,
@@ -203,7 +186,8 @@ export async function setBranchPreview(
   });
   const current = doc.branchPreviews ?? [];
   const has = current.includes(branch);
-  if (present === has) return current; // nothing to change
+  if (present === has) return current;
+
   const nextList = present
     ? [...current, branch]
     : current.filter((b) => b !== branch);
@@ -212,6 +196,7 @@ export async function setBranchPreview(
     version: 1,
     branchPreviews: nextList.length > 0 ? nextList : undefined,
   };
+
   await writeDashboardConfig(
     octokit,
     owner,

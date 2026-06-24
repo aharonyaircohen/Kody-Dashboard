@@ -36,6 +36,40 @@ export interface DashboardConfigPatch {
   actorLogin?: string;
 }
 
+async function readErrorMessage(
+  res: Response,
+  fallback: string,
+): Promise<string> {
+  const contentType = res.headers.get("content-type") ?? "";
+  if (contentType.includes("application/json")) {
+    const data = (await res.json().catch(() => null)) as {
+      message?: unknown;
+      error?: unknown;
+    } | null;
+    if (typeof data?.message === "string" && data.message.trim()) {
+      return data.message;
+    }
+    if (typeof data?.error === "string" && data.error.trim()) {
+      return data.error;
+    }
+  }
+
+  const text = await res.text().catch(() => "");
+  if (text && !text.trimStart().startsWith("<")) return text;
+  return `${fallback} (${res.status})`;
+}
+
+function dashboardApiNetworkError(
+  action: "load" | "save",
+  err: unknown,
+): Error {
+  const message =
+    err instanceof Error && err.message ? err.message : "request failed";
+  return new Error(
+    `Couldn't reach the dashboard API to ${action} preview environments. ${message}`,
+  );
+}
+
 function authHeaders(): Record<string, string> {
   const auth = getStoredAuth();
   if (!auth) throw new NoTokenError("No auth");
@@ -47,28 +81,38 @@ function authHeaders(): Record<string, string> {
 }
 
 export async function fetchDashboardConfig(): Promise<DashboardConfigResponse> {
-  const res = await fetch("/api/kody/dashboard-config", {
-    headers: authHeaders(),
-  });
+  let res: Response;
+  try {
+    res = await fetch("/api/kody/dashboard-config", {
+      headers: authHeaders(),
+    });
+  } catch (err) {
+    throw dashboardApiNetworkError("load", err);
+  }
   if (res.status === 401) {
     redirectToLogin();
     throw new SessionExpiredError("Session expired");
   }
-  if (!res.ok) throw new Error(`Failed to load config (${res.status})`);
+  if (!res.ok)
+    throw new Error(await readErrorMessage(res, "Failed to load config"));
   return (await res.json()) as DashboardConfigResponse;
 }
 
 export async function saveDashboardConfig(
   patch: DashboardConfigPatch,
 ): Promise<DashboardConfigResponse> {
-  const res = await fetch("/api/kody/dashboard-config", {
-    method: "PUT",
-    headers: { "content-type": "application/json", ...authHeaders() },
-    body: JSON.stringify(patch),
-  });
+  let res: Response;
+  try {
+    res = await fetch("/api/kody/dashboard-config", {
+      method: "PUT",
+      headers: { "content-type": "application/json", ...authHeaders() },
+      body: JSON.stringify(patch),
+    });
+  } catch (err) {
+    throw dashboardApiNetworkError("save", err);
+  }
   if (!res.ok) {
-    const msg = await res.text().catch(() => "Save failed");
-    throw new Error(msg);
+    throw new Error(await readErrorMessage(res, "Save failed"));
   }
   // PUT returns { ok, config }; normalise to the GET { config } shape so
   // callers can drop the result straight into the query cache.

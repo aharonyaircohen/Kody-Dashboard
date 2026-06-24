@@ -3,7 +3,7 @@
  * @domain kody
  * @pattern company-import
  * @ai-summary Apply a portable Company bundle to the connected repo.
- *   Writes staff, duties, and commands via their existing file helpers,
+ *   Writes agent, agentResponsibilities, and commands via their existing file helpers,
  *   plus the single instructions file. On a slug/file that already
  *   exists, `mode` decides: "skip" (default, non-destructive) leaves the
  *   target untouched; "overwrite" replaces it. Returns a structured
@@ -13,18 +13,22 @@
  */
 
 import type { Octokit } from "@octokit/rest";
-import { readDutyFile, writeDutyFile } from "../duties-files";
-import { readStaffFile, writeStaffFile } from "../staff-files";
+import { readAgentResponsibilityFile, writeAgentResponsibilityFile } from "../agent-responsibilities-files";
+import { readAgentFile, writeAgentFile } from "../agent-files";
 import { readCommandFile, writeCommandFile } from "../commands/files";
+import { readContextFile, writeContextFile } from "../context/files";
 import {
   readInstructionsFile,
   writeInstructionsFile,
 } from "../instructions/files";
 import {
-  readExecutableFile,
-  writeExecutableFile,
-  fieldsFromProfile,
-} from "../executables";
+  readAgentActionFolderFiles,
+  writeAgentActionFolderFiles,
+} from "../agent-actions";
+import {
+  readManagedGoalFile,
+  writeManagedGoalFile,
+} from "../managed-goals-files";
 import { getOwner, getRepo } from "../github-client";
 import {
   getEngineConfig,
@@ -40,7 +44,9 @@ import type {
   CompanyImportMode,
   CompanyImportResult,
   CompanyCommandEntry,
-  CompanyExecutableEntry,
+  CompanyContextEntry,
+  CompanyAgentActionEntry,
+  CompanyGoalEntry,
   CompanyTickEntry,
   ParsedCompanyBundle,
 } from "./types";
@@ -55,7 +61,7 @@ interface TickWriter {
 }
 
 /**
- * Import one ticked collection (staff or duties). For each entry: skip or
+ * Import one ticked collection (agent or agentResponsibilities). For each entry: skip or
  * overwrite if it already exists, otherwise create. Failures are caught
  * per-entry so one bad file doesn't abort the whole import.
  */
@@ -83,9 +89,17 @@ async function importTickCollection(
         slug: entry.slug,
         title: entry.title,
         body: entry.body,
-        schedule: entry.schedule,
         disabled: entry.disabled,
-        staff: entry.staff,
+        agent: entry.agent,
+        reviewer: entry.reviewer,
+        action: entry.action,
+        mentions: entry.mentions,
+        agentAction: entry.agentAction,
+        agentActions: entry.agentActions,
+        agentResponsibilityTools: entry.agentResponsibilityTools,
+        tickScript: entry.tickScript,
+        readsFrom: entry.readsFrom,
+        writesTo: entry.writesTo,
         sha: existing?.sha,
       });
       if (existing) counts.updated++;
@@ -132,15 +146,45 @@ async function importCommands(
   return counts;
 }
 
-/**
- * Import executables. Each entry is a folder (a path→content map); we
- * reconstruct the writer inputs from it and commit the whole folder
- * atomically via `writeExecutableFile`, preserving the original
- * profile.json verbatim (`profileJsonOverride`).
- */
-async function importExecutables(
+async function importContexts(
   octokit: Octokit,
-  entries: CompanyExecutableEntry[],
+  entries: CompanyContextEntry[],
+  mode: CompanyImportMode,
+  notes: string[],
+): Promise<CompanyImportCounts> {
+  const counts = emptyCounts();
+  for (const entry of entries) {
+    try {
+      const existing = await readContextFile(entry.slug, octokit);
+      if (existing && mode === "skip") {
+        counts.skipped++;
+        continue;
+      }
+      await writeContextFile({
+        octokit,
+        slug: entry.slug,
+        body: entry.body,
+        agent: entry.agent,
+        sha: existing?.sha,
+      });
+      if (existing) counts.updated++;
+      else counts.created++;
+    } catch (err) {
+      counts.failed++;
+      const msg = err instanceof Error ? err.message : String(err);
+      notes.push(`context "${entry.slug}" failed: ${msg}`);
+    }
+  }
+  return counts;
+}
+
+/**
+ * Import agentActions. Each entry is a folder (a path→content map); write the
+ * whole folder exactly so nested scripts, templates, and helper files survive.
+ */
+async function importAgentActions(
+  octokit: Octokit,
+  entries: CompanyAgentActionEntry[],
   mode: CompanyImportMode,
   notes: string[],
 ): Promise<CompanyImportCounts> {
@@ -150,50 +194,19 @@ async function importExecutables(
       const profileJson = entry.files["profile.json"];
       if (!profileJson) {
         counts.failed++;
-        notes.push(`executable "${entry.slug}" failed: missing profile.json`);
+        notes.push(`agentAction "${entry.slug}" failed: missing profile.json`);
         continue;
       }
-      const existing = await readExecutableFile(entry.slug, octokit);
+      const existing = await readAgentActionFolderFiles(entry.slug, octokit);
       if (existing && mode === "skip") {
         counts.skipped++;
         continue;
       }
 
-      const prompt = entry.files["prompt.md"] ?? "";
-      const shellScripts = Object.entries(entry.files)
-        .filter(([p]) => /^[^/]+\.sh$/.test(p))
-        .map(([name, content]) => ({ name, content }));
-      const skills = Object.entries(entry.files)
-        .map(([p, body]) => {
-          const m = p.match(/^skills\/([^/]+)\/SKILL\.md$/);
-          return m ? { name: m[1], body } : null;
-        })
-        .filter((s): s is { name: string; body: string } => s !== null);
-
-      let parsed: Record<string, unknown> = {};
-      try {
-        parsed = JSON.parse(profileJson) as Record<string, unknown>;
-      } catch {
-        parsed = {};
-      }
-      const fields = fieldsFromProfile(entry.slug, parsed);
-
-      await writeExecutableFile({
+      await writeAgentActionFolderFiles({
         octokit,
-        fields: { ...fields, prompt },
-        skills,
-        shellScripts,
-        profileJsonOverride: profileJson,
-        removedSkills: existing
-          ? existing.skills
-              .map((s) => s.name)
-              .filter((n) => !skills.some((s) => s.name === n))
-          : [],
-        removedShellScripts: existing
-          ? existing.shellScripts
-              .map((s) => s.name)
-              .filter((n) => !shellScripts.some((s) => s.name === n))
-          : [],
+        slug: entry.slug,
+        files: entry.files,
         isUpdate: !!existing,
       });
       if (existing) counts.updated++;
@@ -201,7 +214,7 @@ async function importExecutables(
     } catch (err) {
       counts.failed++;
       const msg = err instanceof Error ? err.message : String(err);
-      notes.push(`executable "${entry.slug}" failed: ${msg}`);
+      notes.push(`agentAction "${entry.slug}" failed: ${msg}`);
     }
   }
   return counts;
@@ -214,6 +227,44 @@ async function importExecutables(
  * clobbers a deliberately-set value). Returns "absent" when the bundle carried
  * no config, "skipped" when skip-mode left every field, else "applied".
  */
+async function importGoals(
+  octokit: Octokit,
+  entries: CompanyGoalEntry[],
+  mode: CompanyImportMode,
+  notes: string[],
+): Promise<CompanyImportCounts> {
+  const counts = emptyCounts();
+  const owner = getOwner();
+  const repo = getRepo();
+
+  for (const entry of entries) {
+    try {
+      const existing = await readManagedGoalFile(entry.id, octokit, owner, repo);
+      if (existing && mode === "skip") {
+        counts.skipped++;
+        continue;
+      }
+      await writeManagedGoalFile({
+        octokit,
+        owner,
+        repo,
+        id: entry.id,
+        state: entry.state,
+        sha: existing?.sha,
+        message: `chore(goals): import managed goal ${entry.id}`,
+      });
+      if (existing) counts.updated++;
+      else counts.created++;
+    } catch (err) {
+      counts.failed++;
+      const msg = err instanceof Error ? err.message : String(err);
+      notes.push(`goal "${entry.id}" failed: ${msg}`);
+    }
+  }
+
+  return counts;
+}
+
 async function importConfig(
   octokit: Octokit,
   config: CompanyConfigBundle | null,
@@ -239,11 +290,11 @@ async function importConfig(
       allowedAssociations:
         Array.isArray(existing?.access?.allowedAssociations) &&
         existing.access.allowedAssociations.length > 0,
-      defaultExecutable: !!existing?.defaultExecutable,
-      defaultPrExecutable: !!existing?.defaultPrExecutable,
-      perExecutable:
-        !!existing?.agent?.perExecutable &&
-        Object.keys(existing.agent.perExecutable).length > 0,
+      defaultAgentAction: !!existing?.defaultAgentAction,
+      defaultPrAgentAction: !!existing?.defaultPrAgentAction,
+      perAgentAction:
+        !!existing?.agent?.perAgentAction &&
+        Object.keys(existing.agent.perAgentAction).length > 0,
     };
 
     const patch: ConfigPatch = {};
@@ -252,14 +303,14 @@ async function importConfig(
     if (config.allowedAssociations && !has.allowedAssociations) {
       patch.allowedAssociations = config.allowedAssociations;
     }
-    if (config.defaultExecutable && !has.defaultExecutable) {
-      patch.defaultExecutable = config.defaultExecutable;
+    if (config.defaultAgentAction && !has.defaultAgentAction) {
+      patch.defaultAgentAction = config.defaultAgentAction;
     }
-    if (config.defaultPrExecutable && !has.defaultPrExecutable) {
-      patch.defaultPrExecutable = config.defaultPrExecutable;
+    if (config.defaultPrAgentAction && !has.defaultPrAgentAction) {
+      patch.defaultPrAgentAction = config.defaultPrAgentAction;
     }
-    if (config.perExecutable && !has.perExecutable) {
-      patch.perExecutable = config.perExecutable;
+    if (config.perAgentAction && !has.perAgentAction) {
+      patch.perAgentAction = config.perAgentAction;
     }
 
     if (Object.keys(patch).length === 0) return "skipped";
@@ -280,8 +331,8 @@ async function importConfig(
 }
 
 /**
- * Apply a validated bundle to the connected repo. Staff first, then
- * duties — so a duty that names a staff member lands after its executor
+ * Apply a validated bundle to the connected repo. Agent first, then
+ * agentResponsibilities — so a agentResponsibility that names an agent lands after its executor
  * exists (cosmetic ordering; the engine resolves at tick time regardless).
  */
 export async function applyCompanyBundle(
@@ -291,29 +342,31 @@ export async function applyCompanyBundle(
 ): Promise<CompanyImportResult> {
   const notes: string[] = [];
 
-  const staff = await importTickCollection(
+  const agent = await importTickCollection(
     octokit,
-    "staff",
-    bundle.staff,
+    "agent",
+    bundle.agent,
     mode,
-    { read: readStaffFile, write: writeStaffFile },
+    { read: readAgentFile, write: writeAgentFile },
     notes,
   );
-  const duties = await importTickCollection(
+  const agentResponsibilities = await importTickCollection(
     octokit,
-    "duty",
-    bundle.duties,
+    "agentResponsibility",
+    bundle.agentResponsibilities,
     mode,
-    { read: readDutyFile, write: writeDutyFile },
+    { read: readAgentResponsibilityFile, write: writeAgentResponsibilityFile },
     notes,
   );
+  const contexts = await importContexts(octokit, bundle.contexts, mode, notes);
   const commands = await importCommands(octokit, bundle.commands, mode, notes);
-  const executables = await importExecutables(
+  const agentActions = await importAgentActions(
     octokit,
-    bundle.executables,
+    bundle.agentActions,
     mode,
     notes,
   );
+  const goals = await importGoals(octokit, bundle.goals, mode, notes);
 
   let instructions: CompanyImportResult["instructions"] = "absent";
   if (bundle.instructions && bundle.instructions.trim().length > 0) {
@@ -335,16 +388,18 @@ export async function applyCompanyBundle(
     }
   }
 
-  // Config last: it may reference executables (default*Executable slugs) that
+  // Config last: it may reference agentActions (default*AgentAction slugs) that
   // the steps above just created.
   const config = await importConfig(octokit, bundle.config, mode, notes);
 
   return {
     mode,
-    staff,
-    duties,
+    agent,
+    agentResponsibilities,
+    contexts,
     commands,
-    executables,
+    agentActions,
+    goals,
     instructions,
     config,
     notes,

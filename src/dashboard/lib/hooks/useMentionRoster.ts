@@ -4,28 +4,28 @@
  * @pattern mention-roster
  * @ai-summary Single source of truth for the `@`-mention autocomplete
  *   list, shared by every composer (channels, goals, and any future
- *   surface). Merges repo collaborators with the staff roster so
- *   personas like `@cto` are offered everywhere — not just in Messages.
- *   Staff are tagged `isStaff` so the UI can badge them; a staff
+ *   surface). Merges repo collaborators with the agent roster so
+ *   agent identities like `@cto` are offered everywhere — not just in Messages.
+ *   Agents are tagged `isStaff` so the UI can badge them; an agent
  *   mention dispatches a one-shot tick server-side (see
- *   staff-mention-dispatch.ts).
+ *   agent-mention-dispatch.ts).
  */
 "use client";
 
 import { useMemo } from "react";
 import { useCollaborators } from "./index";
-import { useStaff } from "./useStaff";
+import { useAgents } from "./useAgents";
 
 export interface MentionEntry {
   login: string;
   avatar_url: string;
-  /** True for staff personas — mentioning one dispatches an ad-hoc tick. */
+  /** True for agentIdentity identities — mentioning one dispatches an ad-hoc tick. */
   isStaff?: boolean;
 }
 
 /**
- * Collaborators + staff + the signed-in user, de-duplicated. People
- * rank first; staff are appended (and win a slug/login collision on
+ * Collaborators + agent + the signed-in user, de-duplicated. People
+ * rank first; agent are appended (and win a slug/login collision on
  * dispatch, resolved server-side). Self is always included so you can
  * self-mention even on a bot-only/private repo.
  */
@@ -34,7 +34,7 @@ export function useMentionRoster(self?: {
   avatar_url?: string;
 }): MentionEntry[] {
   const { data: collaborators } = useCollaborators();
-  const { data: staff } = useStaff();
+  const { data: agent } = useAgents();
 
   return useMemo(() => {
     const merged: MentionEntry[] = (collaborators ?? []).map((c) => ({
@@ -49,11 +49,11 @@ export function useMentionRoster(self?: {
       });
     }
 
-    for (const w of staff ?? []) {
+    for (const w of agent ?? []) {
       if (!merged.some((m) => m.login === w.slug && m.isStaff)) {
         merged.push({ login: w.slug, avatar_url: "", isStaff: true });
       }
     }
     return merged;
-  }, [collaborators, staff, self?.login, self?.avatar_url]);
+  }, [collaborators, agent, self?.login, self?.avatar_url]);
 }

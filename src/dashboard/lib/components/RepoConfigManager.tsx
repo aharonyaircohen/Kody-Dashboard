@@ -6,7 +6,7 @@
  *   kody.config.json fields that affect the whole repo: the operator list,
  *   quality verification commands, the `@kody` access gate, default branch,
  *   and comment aliases. Distinct from the Company page, which is only
- *   import/export of the portable bundle. Per-executable model routing lives
+ *   import/export of the portable bundle. Per-agentAction model routing lives
  *   on /models (it's a model concern).
  */
 "use client";
@@ -30,7 +30,7 @@ function RepoConfigManagerInner() {
   const { auth } = useAuth();
   return (
     <PageShell
-      title="Config"
+      title="Engine config"
       icon={SlidersHorizontal}
       iconClassName="text-emerald-400"
       subtitle={auth ? `${auth.owner}/${auth.repo}` : undefined}

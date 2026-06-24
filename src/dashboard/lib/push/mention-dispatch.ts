@@ -33,7 +33,6 @@ import { readNotificationPrefs } from "../notifications/prefs-store";
 import { deliverInbox } from "../notifications/channels/inbox";
 import { deliverMentionPush } from "../notifications/channels/mention-push";
 import { INBOX_FEED_ISSUE_TITLE } from "../inbox/feed";
-import { CTO_DECISIONS_ISSUE_TITLE } from "../cto/decisions";
 import { CONTROL_TITLE } from "../control-issue";
 
 // `extractMentions` and the recipient policy live in the shared resolver
@@ -43,17 +42,16 @@ export { extractMentions } from "../notifications/recipients";
 
 /**
  * Titles of the dashboard's own bookkeeping issues. These are storage
- * scratchpads (the inbox feed, push-subscription list, CTO decision ledger)
- * or audit trails (the Kody control issue) — every dashboard write edits
+ * scratchpads (the inbox feed, push-subscription list) or audit trails
+ * (the Kody control issue) — every dashboard write edits
  * them, which re-fires an `issues.edited` / `issue_comment.created` webhook
- * whose body is full of `@login` feed entries or `@kody worker-ask`
+ * whose body is full of `@login` feed entries or `@kody agent-ask`
  * directives. Routing those as mention pushes is a self-feedback loop: the
  * user gets pinged with the raw manifest text. Never notify on them.
  */
 const BOOKKEEPING_THREAD_TITLES = new Set<string>([
   INBOX_FEED_ISSUE_TITLE,
   PUSH_MANIFEST_ISSUE_TITLE,
-  CTO_DECISIONS_ISSUE_TITLE,
   CONTROL_TITLE,
 ]);
 

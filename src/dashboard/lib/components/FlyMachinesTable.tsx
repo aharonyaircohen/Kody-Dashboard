@@ -4,7 +4,7 @@
  * @pattern fly-machines-table
  *
  * The operator's primary Fly view on /runner: every kody-managed machine the
- * repo's token can see, grouped by feature (preview / runner / brain / litellm
+ * repo's token can see, grouped by feature (preview / runner / brain
  * / builder), with inline Suspend / Resume / Destroy. Config lives in the
  * settings cards below — this table is "what's running right now, act on it".
  *
@@ -12,7 +12,6 @@
  */
 "use client";
 
-import Link from "next/link";
 import { useCallback, useEffect, useState } from "react";
 import { toast } from "sonner";
 import {
@@ -22,7 +21,6 @@ import {
   Power,
   RefreshCw,
   Server,
-  SquareTerminal,
   Trash2,
 } from "lucide-react";
 
@@ -39,7 +37,6 @@ type FlyFeature =
   | "preview-base"
   | "runner"
   | "brain"
-  | "litellm"
   | "builder"
   | "other";
 
@@ -73,7 +70,6 @@ const FEATURE_ORDER: FlyFeature[] = [
   "preview",
   "runner",
   "brain",
-  "litellm",
   "builder",
   "preview-base",
   "other",
@@ -82,7 +78,6 @@ const FEATURE_TITLE: Record<FlyFeature, string> = {
   preview: "Previews",
   runner: "Runners",
   brain: "Brain",
-  litellm: "LiteLLM",
   builder: "Builders",
   "preview-base": "Preview base images",
   other: "Other",
@@ -97,23 +92,6 @@ function destroysWholeApp(feature: FlyFeature): boolean {
 
 function isRunning(state: string): boolean {
   return state !== "suspended" && state !== "stopped" && state !== "destroyed";
-}
-
-function canOpenTerminal(state: string): boolean {
-  return (
-    state === "started" ||
-    state === "running" ||
-    state === "suspended" ||
-    state === "stopped"
-  );
-}
-
-function canUseTerminal(feature: FlyFeature): boolean {
-  return feature === "runner" || feature === "brain";
-}
-
-function terminalHref(row: FlyMachineRow): string {
-  return `/terminal?app=${encodeURIComponent(row.app)}&machineId=${encodeURIComponent(row.machineId)}&connect=1`;
 }
 
 /** Absolute start time, e.g. "Jun 1, 14:30". Empty when unknown. */
@@ -379,30 +357,6 @@ export function FlyMachinesTable({
                         age {formatDuration(row.createdAt)}
                       </span>
                       <div className="ml-auto flex items-center gap-1">
-                        {canUseTerminal(row.feature) &&
-                          (canOpenTerminal(row.state) ? (
-                            <Button
-                              asChild
-                              size="sm"
-                              variant="ghost"
-                              className="h-6 px-1.5 text-emerald-300 hover:text-emerald-200"
-                              title="Open terminal"
-                            >
-                              <Link href={terminalHref(row)}>
-                                <SquareTerminal className="w-3 h-3" />
-                              </Link>
-                            </Button>
-                          ) : (
-                            <Button
-                              size="sm"
-                              variant="ghost"
-                              disabled
-                              className="h-6 px-1.5 text-white/30"
-                              title="Terminal unavailable for this machine state"
-                            >
-                              <SquareTerminal className="w-3 h-3" />
-                            </Button>
-                          ))}
                         {running ? (
                           <Button
                             size="sm"

@@ -2,14 +2,17 @@
  * @fileType utility
  * @domain kody
  * @pattern reports-files
- * @ai-summary Read-only access to system reports under `.kody/reports/<slug>.md`
- *   in the connected repo. Reports are produced by Kody duties (doc-drift,
- *   coverage-floor, etc.) — the dashboard surfaces them as a health view.
- *   No write operations: the engine owns this directory.
+ * @ai-summary Read-only access to system reports under `reports/<slug>.md` in the configured Kody state repo. Reports are produced by
+ *   Kody agentResponsibilities (doc-drift, coverage-floor, etc.) — the dashboard surfaces
+ *   them as a health view. No write operations: the engine owns this directory.
  */
 
-import type { Octokit } from "@octokit/rest";
 import { getOctokit, getOwner, getRepo } from "./github-client";
+import {
+  parseReportSuggestedActions,
+  type ReportSuggestedAction,
+} from "./report-suggested-actions";
+import { listStateDirectory, readStateText } from "./state-repo";
 
 export interface ReportFile {
   /** Filename without `.md` — stable identity. */
@@ -24,9 +27,56 @@ export interface ReportFile {
   htmlUrl: string;
   /** Size in bytes (helps preview length without fetching body). */
   size: number;
+  /** AgentResponsibility that produced this report, from report frontmatter. */
+  agentResponsibilitySlug: string | null;
+  /** Review routing status, from report frontmatter. */
+  reviewStatus: string | null;
+  /** Review routing area, from report frontmatter. */
+  reviewArea: string | null;
+  /** Count of structured findings declared in report frontmatter. */
+  findingCount: number;
+  /** Action buttons suggested by report frontmatter. */
+  suggestedActions: ReportSuggestedAction[];
 }
 
-const REPORTS_DIR = ".kody/reports";
+const REPORTS_DIR = "reports";
+const FRONTMATTER_RE = /^---\r?\n([\s\S]*?)\r?\n---\r?\n?/;
+
+function splitReportFrontmatter(raw: string): {
+  frontmatter: string | null;
+  body: string;
+} {
+  const match = FRONTMATTER_RE.exec(raw);
+  if (!match) return { frontmatter: null, body: raw };
+  return {
+    frontmatter: match[1] ?? "",
+    body: raw.slice(match[0].length),
+  };
+}
+
+function unquote(value: string): string {
+  const trimmed = value.trim();
+  if (
+    (trimmed.startsWith('"') && trimmed.endsWith('"')) ||
+    (trimmed.startsWith("'") && trimmed.endsWith("'"))
+  ) {
+    return trimmed.slice(1, -1);
+  }
+  return trimmed;
+}
+
+function topLevelValue(frontmatter: string | null, key: string): string | null {
+  if (!frontmatter) return null;
+  const match = frontmatter.match(new RegExp(`^${key}:\\s*(.*)$`, "m"));
+  if (!match) return null;
+  const value = unquote(match[1] ?? "");
+  return value.length > 0 ? value : null;
+}
+
+function countFindings(frontmatter: string | null): number {
+  if (!frontmatter) return 0;
+  return (frontmatter.match(/^\s{2}-\s+id:\s*/gm) ?? []).length;
+}
 
 function slugFromName(name: string): string | null {
   if (!name.endsWith(".md")) return null;
@@ -60,71 +110,29 @@ function stripLeadingH1(body: string): string {
   return trimmed;
 }
 
-function buildHtmlUrl(slug: string, branch: string | null): string {
-  const ref = branch ?? "HEAD";
-  return `https://github.com/${getOwner()}/${getRepo()}/blob/${ref}/${REPORTS_DIR}/${slug}.md`;
-}
-
-async function getDefaultBranch(octokit: Octokit): Promise<string> {
-  const { data } = await octokit.repos.get({
-    owner: getOwner(),
-    repo: getRepo(),
-  });
-  return data.default_branch;
-}
-
-async function fetchLastCommitDate(
-  octokit: Octokit,
-  filePath: string,
-): Promise<string> {
-  try {
-    const { data } = await octokit.repos.listCommits({
-      owner: getOwner(),
-      repo: getRepo(),
-      path: filePath,
-      per_page: 1,
-    });
-    return (
-      data[0]?.commit.committer?.date ??
-      data[0]?.commit.author?.date ??
-      new Date().toISOString()
-    );
-  } catch {
-    return new Date().toISOString();
-  }
+function parseReportMarkdown(raw: string, slug: string) {
+  const { frontmatter, body: afterFrontmatter } = splitReportFrontmatter(raw);
+  return {
+    title: deriveTitle(afterFrontmatter, slug),
+    body: stripLeadingH1(afterFrontmatter),
+    agentResponsibilitySlug: topLevelValue(frontmatter, "agentResponsibilitySlug"),
+    reviewStatus: topLevelValue(frontmatter, "reviewStatus"),
+    reviewArea: topLevelValue(frontmatter, "reviewArea"),
+    findingCount: countFindings(frontmatter),
+    suggestedActions: parseReportSuggestedActions(frontmatter),
+  };
 }
 
 /**
- * List every report under `.kody/reports/`. Returns `[]` if the
- * directory does not exist (fresh repo).
+ * List every report under `reports/` in the configured Kody state repo. Returns `[]`
+ * if the directory does not exist (fresh repo).
  */
 export async function listReportFiles(): Promise<ReportFile[]> {
   const octokit = getOctokit();
-  const branch = await getDefaultBranch(octokit).catch(() => null);
+  const owner = getOwner();
+  const repo = getRepo();
 
-  let entries: Array<{
-    name: string;
-    sha: string;
-    type: string;
-    size: number;
-  }> = [];
-  try {
-    const { data } = await octokit.repos.getContent({
-      owner: getOwner(),
-      repo: getRepo(),
-      path: REPORTS_DIR,
-    });
-    if (!Array.isArray(data)) return [];
-    entries = data as Array<{
-      name: string;
-      sha: string;
-      type: string;
-      size: number;
-    }>;
-  } catch (error: unknown) {
-    if ((error as { status?: number })?.status === 404) return [];
-    throw error;
-  }
+  const { entries } = await listStateDirectory(octokit, owner, repo, REPORTS_DIR);
 
   const slugs = entries
     .filter((e) => e.type === "file")
@@ -137,24 +145,22 @@ export async function listReportFiles(): Promise<ReportFile[]> {
     slugs.map(async ({ slug, name, size }) => {
       try {
         const filePath = `${REPORTS_DIR}/${name}`;
-        const { data } = await octokit.repos.getContent({
-          owner: getOwner(),
-          repo: getRepo(),
-          path: filePath,
-        });
-        if (Array.isArray(data) || !("content" in data) || !data.content)
-          return null;
-        const raw = Buffer.from(data.content, "base64").toString("utf-8");
-        const body = stripLeadingH1(raw);
-        const title = deriveTitle(raw, slug);
-        const updatedAt = await fetchLastCommitDate(octokit, filePath);
+        const file = await readStateText(octokit, owner, repo, filePath);
+        if (!file) return null;
+        const raw = file.content;
+        const parsed = parseReportMarkdown(raw, slug);
         return {
           slug,
-          title,
-          body,
-          updatedAt,
-          htmlUrl: buildHtmlUrl(slug, branch),
-          size,
+          title: parsed.title,
+          body: parsed.body,
+          updatedAt: new Date().toISOString(),
+          htmlUrl: file.htmlUrl ?? "",
+          size: file.size ?? size,
+          agentResponsibilitySlug: parsed.agentResponsibilitySlug,
+          reviewStatus: parsed.reviewStatus,
+          reviewArea: parsed.reviewArea,
+          findingCount: parsed.findingCount,
+          suggestedActions: parsed.suggestedActions,
         } satisfies ReportFile;
       } catch {
         return null;
@@ -174,28 +180,25 @@ export async function listReportFiles(): Promise<ReportFile[]> {
 export async function readReportFile(slug: string): Promise<ReportFile | null> {
   if (!isValidSlug(slug)) return null;
   const octokit = getOctokit();
-  const branch = await getDefaultBranch(octokit).catch(() => null);
   const filePath = `${REPORTS_DIR}/${slug}.md`;
 
   try {
-    const { data } = await octokit.repos.getContent({
-      owner: getOwner(),
-      repo: getRepo(),
-      path: filePath,
-    });
-    if (Array.isArray(data) || !("content" in data) || !data.content)
-      return null;
-    const raw = Buffer.from(data.content, "base64").toString("utf-8");
-    const body = stripLeadingH1(raw);
-    const title = deriveTitle(raw, slug);
-    const updatedAt = await fetchLastCommitDate(octokit, filePath);
+    const file = await readStateText(octokit, getOwner(), getRepo(), filePath);
+    if (!file) return null;
+    const raw = file.content;
+    const parsed = parseReportMarkdown(raw, slug);
     return {
       slug,
-      title,
-      body,
-      updatedAt,
-      htmlUrl: buildHtmlUrl(slug, branch),
-      size: typeof data.size === "number" ? data.size : raw.length,
+      title: parsed.title,
+      body: parsed.body,
+      updatedAt: new Date().toISOString(),
+      htmlUrl: file.htmlUrl ?? "",
+      size: file.size ?? raw.length,
+      agentResponsibilitySlug: parsed.agentResponsibilitySlug,
+      reviewStatus: parsed.reviewStatus,
+      reviewArea: parsed.reviewArea,
+      findingCount: parsed.findingCount,
+      suggestedActions: parsed.suggestedActions,
     };
   } catch (error: unknown) {
     if ((error as { status?: number })?.status === 404) return null;

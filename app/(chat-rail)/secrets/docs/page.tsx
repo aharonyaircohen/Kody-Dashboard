@@ -18,7 +18,7 @@ export const revalidate = false;
 export const metadata = buildKodyMetadata({
   title: "Secrets vault docs — Kody Operations Dashboard",
   description:
-    "How the .kody/secrets.enc vault works, how to set it up, and how to rotate keys.",
+    "How the state repo secrets vault works, how to set it up, and how to rotate keys.",
   path: "/secrets/docs",
 });
 

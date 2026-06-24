@@ -10,6 +10,7 @@ export default [
     name: "ignore-patterns",
     ignores: [
       "**/node_modules/**",
+      "**/.kody/**",
       "**/.next/**",
       "**/dist/**",
       "**/build/**",

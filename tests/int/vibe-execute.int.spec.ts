@@ -71,7 +71,6 @@ function okContext(defaultBranch = "main") {
       allSecrets: {},
       flyToken: "fly_test",
       perfTier: "shared-1x",
-      litellmUrl: "https://kody-litellm.fly.dev",
     },
   };
 }

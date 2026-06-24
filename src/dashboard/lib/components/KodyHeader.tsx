@@ -22,6 +22,7 @@ import { Button } from "@dashboard/ui/button";
 import { NotificationCenter } from "../notifications/NotificationCenter";
 import { useNotifications } from "../notifications/NotificationsProvider";
 import { cn } from "../utils";
+import { useAuth } from "../auth-context";
 import { useChatScope } from "./ChatRailShell";
 import { RepoSwitcher } from "./RepoSwitcher";
 import { SimpleTooltip } from "./SimpleTooltip";
@@ -68,6 +69,7 @@ export function KodyHeader({
   showRefresh = true,
 }: KodyHeaderProps) {
   const pathname = usePathname();
+  const { auth } = useAuth();
   const { openMobileChat } = useChatScope();
   const {
     store: notificationStore,
@@ -126,9 +128,9 @@ export function KodyHeader({
       {/* Mobile cluster — chat opener (the rail is desktop-only) +
           page-specific extras (e.g. issue picker) + hamburger. */}
       <div className="flex md:hidden items-center gap-1">
-        {pathname !== "/chat" && (
-          <Button
-            variant="ghost"
+          {auth && pathname !== "/chat" && (
+            <Button
+              variant="ghost"
             size="sm"
             aria-label="Open chat"
             title="Chat"

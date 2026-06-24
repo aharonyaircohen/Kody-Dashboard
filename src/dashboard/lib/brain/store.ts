@@ -4,7 +4,7 @@
  * @pattern brain-app-file-store
  * @ai-summary Per-user record of the Brain Fly app the dashboard provisioned.
  *   One JSON file per GitHub login at
- *   `.kody/users/<login>/data/brain.json` on the `kody-state` branch.
+ *   `users/<login>/data/brain.json` in the configured Kody state repo.
  *
  *   Mirrors `notifications/prefs-store.ts`: ETag/If-None-Match for free 304s,
  *   CAS writes (fetch SHA → write with SHA → retry once on 409). The folder
@@ -20,8 +20,8 @@
  */
 import "server-only";
 
-import { STATE_BRANCH } from "../state-branch";
 import { getOctokit, getOwner, getRepo } from "../github-client";
+import { deleteStateFile, readStateText, writeStateText } from "../state-repo";
 
 /** TTL for brain app cache. Low-churn data — 5 min matches the prefs store. */
 const BRAIN_CACHE_TTL_MS = 5 * 60 * 1000;
@@ -62,7 +62,7 @@ function cacheKey(owner: string, repo: string, login: string): string {
 }
 
 function filePath(login: string): string {
-  return `.kody/users/${login.toLowerCase()}/data/brain.json`;
+  return `users/${login.toLowerCase()}/data/brain.json`;
 }
 
 /** Persisted Brain app record. Versioned for future migrations. */
@@ -86,7 +86,7 @@ function isBrainAppFile(value: unknown): value is BrainAppFile {
 }
 
 /**
- * Read the Brain app record for a user from the kody-state branch.
+ * Read the Brain app record for a user from the configured Kody state repo.
  * Returns `null` when no record exists (user has never provisioned, or the
  * file was deleted). Throws on non-404 GitHub errors so the caller can
  * surface a real failure.
@@ -104,26 +104,19 @@ export async function readBrainApp(
   const octokit = getOctokit();
 
   try {
-    const res = await octokit.repos.getContent({
-      owner,
-      repo,
-      path,
-      ref: STATE_BRANCH,
+    const file = await readStateText(octokit, owner, repo, path, {
       headers: cached?.etag ? { "If-None-Match": cached.etag } : undefined,
     });
-    const etag = (res.headers as Record<string, string | undefined>)?.etag;
-    if (!Array.isArray(res.data) && "content" in res.data && res.data.content) {
-      const raw = Buffer.from(res.data.content, "base64").toString("utf-8");
-      const parsed: unknown = JSON.parse(raw);
+    if (file) {
+      const parsed: unknown = JSON.parse(file.content);
       if (!isBrainAppFile(parsed)) {
-        // Corrupt file — treat as missing so the caller can recover.
-        setCache(key, null, etag);
+        setCache(key, null, file.etag);
         return null;
       }
-      setCache(key, parsed, etag);
+      setCache(key, parsed, file.etag);
       return parsed;
     }
-    setCache(key, null, etag);
+    setCache(key, null);
     return null;
   } catch (error: unknown) {
     const status = (error as { status?: number })?.status;
@@ -140,7 +133,7 @@ export async function readBrainApp(
 }
 
 /**
- * Write the Brain app record for a user to the kody-state branch. Uses CAS:
+ * Write the Brain app record for a user to the configured Kody state repo. Uses CAS:
  * fetches the current SHA, then writes with it. Retries once on 409.
  */
 export async function writeBrainApp(
@@ -159,15 +152,8 @@ export async function writeBrainApp(
 
   try {
     const octokit = getOctokit();
-    const res = await octokit.repos.getContent({
-      owner,
-      repo,
-      path,
-      ref: STATE_BRANCH,
-    });
-    if (!Array.isArray(res.data) && "sha" in res.data) {
-      sha = res.data.sha;
-    }
+    const current = await readStateText(octokit, owner, repo, path);
+    sha = current?.sha;
   } catch (error: unknown) {
     const status = (error as { status?: number })?.status;
     if (status !== 404) throw error;
@@ -178,38 +164,29 @@ export async function writeBrainApp(
 
   try {
     const octokit = getOctokit();
-    await octokit.repos.createOrUpdateFileContents({
+    await writeStateText({
+      octokit,
       owner,
       repo,
       path,
       message,
-      content: Buffer.from(content, "utf-8").toString("base64"),
+      content,
       sha,
-      branch: STATE_BRANCH,
     });
     return;
   } catch (error: unknown) {
     if ((error as { status?: number })?.status === 409) {
       try {
         const octokit = getOctokit();
-        const res = await octokit.repos.getContent({
-          owner,
-          repo,
-          path,
-          ref: STATE_BRANCH,
-        });
-        const freshSha =
-          !Array.isArray(res.data) && "sha" in res.data
-            ? res.data.sha
-            : undefined;
-        await octokit.repos.createOrUpdateFileContents({
+        const current = await readStateText(octokit, owner, repo, path);
+        await writeStateText({
+          octokit,
           owner,
           repo,
           path,
           message,
-          content: Buffer.from(content, "utf-8").toString("base64"),
-          sha: freshSha,
-          branch: STATE_BRANCH,
+          content,
+          sha: current?.sha,
         });
         return;
       } catch {
@@ -221,7 +198,7 @@ export async function writeBrainApp(
 }
 
 /**
- * Delete the Brain app record for a user from the kody-state branch.
+ * Delete the Brain app record for a user from the configured Kody state repo.
  * Idempotent — returns silently if the file doesn't exist. Best-effort:
  * the Brain record is metadata; if clearing fails the caller can still
  * proceed (the next write will overwrite).
@@ -239,20 +216,15 @@ export async function clearBrainApp(
 
   try {
     const octokit = getOctokit();
-    const res = await octokit.repos.getContent({
-      owner,
-      repo,
-      path,
-      ref: STATE_BRANCH,
-    });
-    if (Array.isArray(res.data) || !("sha" in res.data)) return;
-    await octokit.repos.deleteFile({
+    const current = await readStateText(octokit, owner, repo, path);
+    if (!current?.sha) return;
+    await deleteStateFile({
+      octokit,
       owner,
       repo,
       path,
       message: `feat(brain): clear brain app for ${login}`,
-      sha: res.data.sha,
-      branch: STATE_BRANCH,
+      sha: current.sha,
     });
   } catch (error: unknown) {
     const status = (error as { status?: number })?.status;

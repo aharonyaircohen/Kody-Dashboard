@@ -8,15 +8,28 @@
  */
 "use client";
 
-import { useState, useCallback, useMemo, useEffect, useRef } from "react";
+import {
+  useState,
+  useCallback,
+  useMemo,
+  useEffect,
+  useRef,
+  type DragEvent,
+} from "react";
 import { Octokit } from "@octokit/rest";
 import {
+  Copy,
+  Download,
+  ExternalLink,
+  FilePlus,
+  FolderPlus,
   FolderOpen,
   Search,
   Upload,
   ChevronRight,
-  PanelLeftClose,
   PanelLeft,
+  Pencil,
+  Trash2,
 } from "lucide-react";
 import { toast } from "sonner";
 import { cn } from "@dashboard/lib/utils";
@@ -26,9 +39,13 @@ import {
   readFile,
   writeFile,
   deleteFile,
+  uploadFile,
+  type FileContent,
+  type FileEntry,
+  getHttpStatus,
 } from "@dashboard/lib/repo-files";
 import { getFilePermission } from "@dashboard/lib/repo-files-perms";
-import { FileTree } from "./FileTree";
+import { FileTree, type FileTreeOverlay } from "./FileTree";
 import { FileViewer } from "./FileViewer";
 import { FileEditor } from "./FileEditor";
 import { FileDiffViewer } from "./FileDiffViewer";
@@ -51,6 +68,8 @@ interface SelectedFile {
   path: string;
   sha: string;
 }
+
+type RepoPathType = "file" | "dir" | "symlink";
 
 interface BreadcrumbItem {
   path: string;
@@ -81,6 +100,71 @@ export function normalizeRepoPath(path: string): string {
   return path.replace(/^\/+|\/+$/g, "").replace(/\/{2,}/g, "/");
 }
 
+export function parentRepoPath(path: string | null | undefined): string {
+  const normalized = normalizeRepoPath(path ?? "");
+  if (!normalized.includes("/")) return "";
+  return normalized.slice(0, normalized.lastIndexOf("/"));
+}
+
+export function currentFolderPath(
+  path: string | null | undefined,
+  pathType: "file" | "dir" | null,
+): string {
+  if (pathType === "dir") return normalizeRepoPath(path ?? "");
+  if (pathType === "file") return parentRepoPath(path);
+  return "";
+}
+
+export function joinRepoPath(base: string, child: string): string {
+  return normalizeRepoPath(
+    [normalizeRepoPath(base), normalizeRepoPath(child)]
+      .filter(Boolean)
+      .join("/"),
+  );
+}
+
+export function replacePathPrefix(
+  path: string,
+  oldPrefix: string,
+  newPrefix: string,
+): string {
+  const normalizedPath = normalizeRepoPath(path);
+  const normalizedOld = normalizeRepoPath(oldPrefix);
+  const normalizedNew = normalizeRepoPath(newPrefix);
+  if (normalizedPath === normalizedOld) return normalizedNew;
+  if (!normalizedPath.startsWith(`${normalizedOld}/`)) return normalizedPath;
+  return joinRepoPath(
+    normalizedNew,
+    normalizedPath.slice(normalizedOld.length),
+  );
+}
+
+export function duplicatePath(path: string, pathType: RepoPathType): string {
+  const normalized = normalizeRepoPath(path);
+  const parent = parentRepoPath(normalized);
+  const name = normalized.split("/").pop() ?? normalized;
+  if (pathType === "dir") return joinRepoPath(parent, `${name}-copy`);
+
+  const dot = name.lastIndexOf(".");
+  const copyName =
+    dot > 0 ? `${name.slice(0, dot)} copy${name.slice(dot)}` : `${name} copy`;
+  return joinRepoPath(parent, copyName);
+}
+
+export function githubFileUrl(
+  owner: string,
+  repo: string,
+  path: string,
+  pathType: RepoPathType | null,
+): string {
+  const normalized = normalizeRepoPath(path);
+  const view = pathType === "dir" ? "tree" : "blob";
+  const suffix = normalized
+    ? `/${normalized.split("/").map(encodeURIComponent).join("/")}`
+    : "";
+  return `https://github.com/${owner}/${repo}/${view}/HEAD${suffix}`;
+}
+
 export function buildFileHref(path: string | null | undefined): string {
   const normalized = normalizeRepoPath(path ?? "");
   if (!normalized) return "/files";
@@ -103,6 +187,25 @@ export function filePathFromHref(pathname: string): string {
       })
       .join("/"),
   );
+}
+
+function emptyTreeOverlay(): FileTreeOverlay {
+  return { upserts: {}, deletes: {}, version: 0 };
+}
+
+function treeEntryForPath(
+  path: string,
+  type: RepoPathType,
+  options: { sha?: string; size?: number } = {},
+): FileEntry {
+  const normalized = normalizeRepoPath(path);
+  return {
+    name: normalized.split("/").pop() ?? normalized,
+    path: normalized,
+    type,
+    size: options.size ?? 0,
+    sha: options.sha ?? "",
+  };
 }
 
 interface FilesPageProps {
@@ -129,13 +232,24 @@ export function FilesPage({ initialPath = "" }: FilesPageProps) {
   const [showNewFileDialog, setShowNewFileDialog] = useState(false);
   const [showNewFolderDialog, setShowNewFolderDialog] = useState(false);
   const [newItemPath, setNewItemPath] = useState("");
-  const [showDeleteConfirm, setShowDeleteConfirm] = useState<string | null>(
-    null,
-  );
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState<{
+    path: string;
+    pathType: RepoPathType;
+  } | null>(null);
+  const [pendingMove, setPendingMove] = useState<{
+    path: string;
+    pathType: RepoPathType;
+  } | null>(null);
+  const [moveTarget, setMoveTarget] = useState("");
+  const [busyAction, setBusyAction] = useState<string | null>(null);
   const [refreshKey, setRefreshKey] = useState(0);
+  const [treeOverlay, setTreeOverlay] =
+    useState<FileTreeOverlay>(emptyTreeOverlay);
   const [writeable, setWriteable] = useState(false);
+  const [isDraggingFiles, setIsDraggingFiles] = useState(false);
   const openRequestRef = useRef(0);
   const openedInitialPathRef = useRef<string | null>(null);
+  const dragDepthRef = useRef(0);
 
   // Check write permission on mount / auth change
   useEffect(() => {
@@ -148,10 +262,25 @@ export function FilesPage({ initialPath = "" }: FilesPageProps) {
     );
   }, [octokit, auth]);
 
+  useEffect(() => {
+    setTreeOverlay(emptyTreeOverlay());
+  }, [auth?.owner, auth?.repo]);
+
   // Build breadcrumbs from selected file path
   const breadcrumbs = useMemo<BreadcrumbItem[]>(
     () => (selectedPath ? buildBreadcrumbs(selectedPath) : []),
     [selectedPath],
+  );
+
+  const selectedPathType: RepoPathType | null = selectedFile
+    ? "file"
+    : selectedPath
+      ? "dir"
+      : null;
+
+  const currentFolder = useMemo(
+    () => currentFolderPath(selectedPath, selectedPathType),
+    [selectedPath, selectedPathType],
   );
 
   const updateFileHref = useCallback(
@@ -286,22 +415,191 @@ export function FilesPage({ initialPath = "" }: FilesPageProps) {
     setRefreshKey((k) => k + 1);
   }, []);
 
+  const upsertTreeEntry = useCallback((entry: FileEntry) => {
+    const normalizedPath = normalizeRepoPath(entry.path);
+    const normalizedEntry: FileEntry = {
+      ...entry,
+      path: normalizedPath,
+      name: entry.name || (normalizedPath.split("/").pop() ?? normalizedPath),
+    };
+
+    setTreeOverlay((prev) => {
+      const deletes = { ...prev.deletes };
+      delete deletes[normalizedPath];
+      return {
+        upserts: { ...prev.upserts, [normalizedPath]: normalizedEntry },
+        deletes,
+        version: prev.version + 1,
+      };
+    });
+  }, []);
+
+  const removeTreePath = useCallback((path: string) => {
+    const normalizedPath = normalizeRepoPath(path);
+    setTreeOverlay((prev) => {
+      const upserts = Object.fromEntries(
+        Object.entries(prev.upserts).filter(
+          ([entryPath]) =>
+            entryPath !== normalizedPath &&
+            !entryPath.startsWith(`${normalizedPath}/`),
+        ),
+      );
+
+      return {
+        upserts,
+        deletes: { ...prev.deletes, [normalizedPath]: true },
+        version: prev.version + 1,
+      };
+    });
+  }, []);
+
+  const collectFiles = useCallback(
+    async function collect(
+      path: string,
+      pathType: RepoPathType,
+    ): Promise<FileContent[]> {
+      if (!octokit || !auth) return [];
+
+      if (pathType !== "dir") {
+        const file = await readFile(octokit, auth.owner, auth.repo, path);
+        if (!file) throw new Error(`File not found: ${path}`);
+        return [file];
+      }
+
+      const entries = await listDir(octokit, auth.owner, auth.repo, path);
+      const files: FileContent[] = [];
+      for (const entry of entries) {
+        if (entry.type === "dir") {
+          files.push(...(await collect(entry.path, "dir")));
+        } else if (entry.type === "file") {
+          const file = await readFile(
+            octokit,
+            auth.owner,
+            auth.repo,
+            entry.path,
+          );
+          if (file) files.push(file);
+        }
+      }
+      return files;
+    },
+    [octokit, auth],
+  );
+
+  const handleUploadFiles = useCallback(
+    async (files: FileList | File[]) => {
+      if (!octokit || !auth) {
+        toast.error("Not authenticated");
+        return;
+      }
+
+      const uploadList = Array.from(files).filter((file) => file.name);
+      if (uploadList.length === 0) return;
+
+      let uploaded = 0;
+      for (const file of uploadList) {
+        const destPath = joinRepoPath(currentFolder, file.name);
+        try {
+          const result = await uploadFile(
+            octokit,
+            auth.owner,
+            auth.repo,
+            destPath,
+            file,
+            `chore: upload ${destPath}`,
+          );
+          upsertTreeEntry(
+            treeEntryForPath(destPath, "file", {
+              sha: result.sha,
+              size: file.size,
+            }),
+          );
+          uploaded += 1;
+        } catch (err) {
+          toast.error(
+            err instanceof Error
+              ? `Failed to upload ${file.name}: ${err.message}`
+              : `Failed to upload ${file.name}`,
+          );
+        }
+      }
+
+      if (uploaded > 0) {
+        const folderLabel = currentFolder ? `/${currentFolder}` : "/";
+        toast.success(
+          `Uploaded ${uploaded} ${uploaded === 1 ? "file" : "files"} to ${folderLabel}`,
+        );
+        handleRefresh();
+      }
+    },
+    [octokit, auth, currentFolder, handleRefresh, upsertTreeEntry],
+  );
+
+  const isFileDrag = (e: DragEvent) =>
+    Array.from(e.dataTransfer.types).includes("Files");
+
+  const handleDragEnter = useCallback(
+    (e: DragEvent) => {
+      if (!writeable || !isFileDrag(e)) return;
+      e.preventDefault();
+      e.stopPropagation();
+      dragDepthRef.current += 1;
+      setIsDraggingFiles(true);
+    },
+    [writeable],
+  );
+
+  const handleDragOver = useCallback(
+    (e: DragEvent) => {
+      if (!writeable || !isFileDrag(e)) return;
+      e.preventDefault();
+      e.stopPropagation();
+      e.dataTransfer.dropEffect = "copy";
+      setIsDraggingFiles(true);
+    },
+    [writeable],
+  );
+
+  const handleDragLeave = useCallback(
+    (e: DragEvent) => {
+      if (!writeable || !isFileDrag(e)) return;
+      e.preventDefault();
+      e.stopPropagation();
+      dragDepthRef.current = Math.max(0, dragDepthRef.current - 1);
+      if (dragDepthRef.current === 0) setIsDraggingFiles(false);
+    },
+    [writeable],
+  );
+
+  const handleDrop = useCallback(
+    (e: DragEvent) => {
+      if (!writeable || !isFileDrag(e)) return;
+      e.preventDefault();
+      e.stopPropagation();
+      dragDepthRef.current = 0;
+      setIsDraggingFiles(false);
+      void handleUploadFiles(e.dataTransfer.files);
+    },
+    [handleUploadFiles, writeable],
+  );
+
   const handleNewFile = useCallback((dirPath: string) => {
-    setNewItemPath(dirPath ? `${dirPath}/` : "");
+    setNewItemPath(normalizeRepoPath(dirPath));
     setShowNewFileDialog(true);
   }, []);
 
   const handleNewFolder = useCallback((dirPath: string) => {
-    setNewItemPath(dirPath ? `${dirPath}/` : "");
+    setNewItemPath(normalizeRepoPath(dirPath));
     setShowNewFolderDialog(true);
   }, []);
 
   const handleCreateFile = useCallback(
     async (name: string) => {
       if (!octokit || !auth) return;
-      const path = newItemPath + name;
+      const path = joinRepoPath(newItemPath, name);
+      if (!path) return;
       try {
-        await writeFile(
+        const result = await writeFile(
           octokit,
           auth.owner,
           auth.repo,
@@ -309,18 +607,30 @@ export function FilesPage({ initialPath = "" }: FilesPageProps) {
           "",
           `chore: create ${path}`,
         );
+        upsertTreeEntry(treeEntryForPath(path, "file", { sha: result.sha }));
         toast.success(`Created ${path}`);
         setShowNewFileDialog(false);
         setNewItemPath("");
+        setSelectedPath(path);
+        setSelectedFile({ path, sha: result.sha });
+        setViewMode(writeable ? "editor" : "viewer");
+        updateFileHref(path);
         handleRefresh();
-        await openRepoPath(path);
       } catch (err) {
         toast.error(
           err instanceof Error ? err.message : "Failed to create file",
         );
       }
     },
-    [octokit, auth, newItemPath, handleRefresh, openRepoPath],
+    [
+      octokit,
+      auth,
+      newItemPath,
+      upsertTreeEntry,
+      writeable,
+      updateFileHref,
+      handleRefresh,
+    ],
   );
 
   const handleCreateFolder = useCallback(
@@ -328,10 +638,11 @@ export function FilesPage({ initialPath = "" }: FilesPageProps) {
       if (!octokit || !auth) return;
       // Creating an "empty" directory via Contents API isn't directly supported,
       // but we can create a .gitkeep file inside it as a workaround
-      const folderPath = newItemPath + name;
+      const folderPath = joinRepoPath(newItemPath, name);
+      if (!folderPath) return;
       const gitkeepPath = `${folderPath}/.gitkeep`;
       try {
-        await writeFile(
+        const result = await writeFile(
           octokit,
           auth.owner,
           auth.repo,
@@ -339,52 +650,75 @@ export function FilesPage({ initialPath = "" }: FilesPageProps) {
           "",
           `chore: create ${folderPath}/`,
         );
+        upsertTreeEntry(treeEntryForPath(folderPath, "dir"));
+        upsertTreeEntry(
+          treeEntryForPath(gitkeepPath, "file", { sha: result.sha }),
+        );
         toast.success(`Created ${folderPath}/`);
         setShowNewFolderDialog(false);
         setNewItemPath("");
+        setSelectedPath(folderPath);
+        setSelectedFile(null);
+        setViewMode("viewer");
+        updateFileHref(folderPath);
         handleRefresh();
-        await openRepoPath(folderPath);
       } catch (err) {
         toast.error(
           err instanceof Error ? err.message : "Failed to create folder",
         );
       }
     },
-    [octokit, auth, newItemPath, handleRefresh, openRepoPath],
+    [
+      octokit,
+      auth,
+      newItemPath,
+      upsertTreeEntry,
+      updateFileHref,
+      handleRefresh,
+    ],
   );
 
   const handleDelete = useCallback(
-    async (path: string) => {
+    async (path: string, pathType: RepoPathType) => {
       if (!octokit || !auth) return;
-      setShowDeleteConfirm(path);
+      setShowDeleteConfirm({ path, pathType });
     },
     [octokit, auth],
   );
 
   const handleConfirmDelete = useCallback(async () => {
     if (!octokit || !auth || !showDeleteConfirm) return;
+    const { path, pathType } = showDeleteConfirm;
+    setBusyAction("Deleting...");
     try {
-      // We need the SHA to delete - fetch it first
-      const file = await readFile(
-        octokit,
-        auth.owner,
-        auth.repo,
-        showDeleteConfirm,
-      );
-      if (!file) {
-        toast.error("File not found");
-        return;
+      let files: FileContent[] = [];
+      try {
+        files = await collectFiles(path, pathType);
+      } catch (err) {
+        if (
+          getHttpStatus(err) !== 404 &&
+          !(err instanceof Error && err.message.startsWith("File not found:"))
+        ) {
+          throw err;
+        }
       }
-      await deleteFile(
-        octokit,
-        auth.owner,
-        auth.repo,
-        showDeleteConfirm,
-        file.sha,
-        `chore: delete ${showDeleteConfirm}`,
-      );
-      toast.success(`Deleted ${showDeleteConfirm}`);
-      if (selectedPath === showDeleteConfirm) {
+      for (const file of files.reverse()) {
+        try {
+          await deleteFile(
+            octokit,
+            auth.owner,
+            auth.repo,
+            file.path,
+            file.sha,
+            `chore: delete ${path}`,
+          );
+        } catch (err) {
+          if (getHttpStatus(err) !== 404) throw err;
+        }
+      }
+      toast.success(`Deleted ${path}`);
+      removeTreePath(path);
+      if (selectedPath === path || selectedPath?.startsWith(`${path}/`)) {
         setSelectedFile(null);
         setSelectedPath(null);
         setViewMode("viewer");
@@ -395,6 +729,7 @@ export function FilesPage({ initialPath = "" }: FilesPageProps) {
       toast.error(err instanceof Error ? err.message : "Failed to delete");
     } finally {
       setShowDeleteConfirm(null);
+      setBusyAction(null);
     }
   }, [
     octokit,
@@ -403,6 +738,8 @@ export function FilesPage({ initialPath = "" }: FilesPageProps) {
     selectedPath,
     updateFileHref,
     handleRefresh,
+    collectFiles,
+    removeTreePath,
   ]);
 
   const handleCreateSymlink = useCallback(
@@ -415,11 +752,226 @@ export function FilesPage({ initialPath = "" }: FilesPageProps) {
     [octokit, auth],
   );
 
-  const handleRename = useCallback(async (_oldPath: string) => {
-    // This would show a rename dialog
-    // Simplified for now
-    toast.info("Rename: provide new name");
+  const handleRename = useCallback((path: string, pathType: RepoPathType) => {
+    setPendingMove({ path, pathType });
+    setMoveTarget(path);
   }, []);
+
+  const moveRepoPath = useCallback(
+    async (sourcePath: string, pathType: RepoPathType, targetPath: string) => {
+      if (!octokit || !auth) return false;
+      const target = normalizeRepoPath(targetPath);
+      const source = normalizeRepoPath(sourcePath);
+      if (!target || target === source) return false;
+      if (pathType === "dir" && target.startsWith(`${source}/`)) {
+        toast.error("Choose a folder outside the current folder");
+        return false;
+      }
+
+      const files = await collectFiles(source, pathType);
+      if (files.length === 0) {
+        toast.error("Nothing to move");
+        return false;
+      }
+
+      let targetSha = "";
+      if (pathType === "dir") {
+        upsertTreeEntry(treeEntryForPath(target, "dir"));
+      }
+
+      for (const file of files) {
+        const nextPath =
+          pathType === "dir"
+            ? replacePathPrefix(file.path, source, target)
+            : target;
+        const result = await writeFile(
+          octokit,
+          auth.owner,
+          auth.repo,
+          nextPath,
+          file.content,
+          `chore: move ${source} to ${target}`,
+        );
+        targetSha = result.sha;
+        upsertTreeEntry(
+          treeEntryForPath(nextPath, "file", {
+            sha: result.sha,
+            size: file.size,
+          }),
+        );
+      }
+
+      for (const file of [...files].reverse()) {
+        await deleteFile(
+          octokit,
+          auth.owner,
+          auth.repo,
+          file.path,
+          file.sha,
+          `chore: remove moved ${source}`,
+        );
+      }
+
+      removeTreePath(source);
+      toast.success(`Moved ${source} to ${target}`);
+      setSelectedPath(target);
+      if (pathType === "dir") {
+        setSelectedFile(null);
+        setViewMode("viewer");
+      } else {
+        setSelectedFile({ path: target, sha: targetSha });
+        setViewMode(writeable ? "editor" : "viewer");
+      }
+      updateFileHref(target);
+      handleRefresh();
+      return true;
+    },
+    [
+      octokit,
+      auth,
+      collectFiles,
+      upsertTreeEntry,
+      removeTreePath,
+      writeable,
+      updateFileHref,
+      handleRefresh,
+    ],
+  );
+
+  const handleConfirmMove = useCallback(async () => {
+    if (!pendingMove) return;
+    const target = normalizeRepoPath(moveTarget);
+    const source = normalizeRepoPath(pendingMove.path);
+    if (!target || target === source) return;
+    if (pendingMove.pathType === "dir" && target.startsWith(`${source}/`)) {
+      toast.error("Choose a folder outside the current folder");
+      return;
+    }
+
+    setBusyAction("Moving...");
+    try {
+      const moved = await moveRepoPath(source, pendingMove.pathType, target);
+      if (moved) {
+        setPendingMove(null);
+        setMoveTarget("");
+      }
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Failed to move");
+    } finally {
+      setBusyAction(null);
+    }
+  }, [pendingMove, moveTarget, moveRepoPath]);
+
+  const handleMoveToFolder = useCallback(
+    async (path: string, pathType: RepoPathType, targetDir: string) => {
+      const source = normalizeRepoPath(path);
+      const name = source.split("/").pop();
+      if (!name) return;
+      const target = joinRepoPath(targetDir, name);
+      if (!target || target === source) return;
+
+      setBusyAction("Moving...");
+      try {
+        await moveRepoPath(source, pathType, target);
+      } catch (err) {
+        toast.error(err instanceof Error ? err.message : "Failed to move");
+      } finally {
+        setBusyAction(null);
+      }
+    },
+    [moveRepoPath],
+  );
+
+  const handleDuplicate = useCallback(
+    async (path: string, pathType: RepoPathType) => {
+      if (!octokit || !auth) return;
+      const source = normalizeRepoPath(path);
+      const target = duplicatePath(source, pathType);
+      setBusyAction("Duplicating...");
+      try {
+        const files = await collectFiles(source, pathType);
+        if (files.length === 0) {
+          toast.error("Nothing to duplicate");
+          return;
+        }
+        if (pathType === "dir") {
+          upsertTreeEntry(treeEntryForPath(target, "dir"));
+        }
+        for (const file of files) {
+          const nextPath =
+            pathType === "dir"
+              ? replacePathPrefix(file.path, source, target)
+              : target;
+          const result = await writeFile(
+            octokit,
+            auth.owner,
+            auth.repo,
+            nextPath,
+            file.content,
+            `chore: duplicate ${source}`,
+          );
+          upsertTreeEntry(
+            treeEntryForPath(nextPath, "file", {
+              sha: result.sha,
+              size: file.size,
+            }),
+          );
+        }
+        toast.success(`Duplicated to ${target}`);
+        handleRefresh();
+        await openRepoPath(target, {
+          typeHint: pathType === "dir" ? "dir" : "file",
+        });
+      } catch (err) {
+        toast.error(err instanceof Error ? err.message : "Failed to duplicate");
+      } finally {
+        setBusyAction(null);
+      }
+    },
+    [octokit, auth, collectFiles, upsertTreeEntry, handleRefresh, openRepoPath],
+  );
+
+  const handleDownload = useCallback(
+    async (path: string, pathType: RepoPathType) => {
+      if (!octokit || !auth || pathType !== "file") return;
+      try {
+        const res = await octokit.rest.repos.getContent({
+          owner: auth.owner,
+          repo: auth.repo,
+          path,
+        });
+        const data = res.data;
+        if (Array.isArray(data) || data.type !== "file") {
+          throw new Error("File not found");
+        }
+        const content = (data.content ?? "").replace(/\s/g, "");
+        const bytes = Uint8Array.from(atob(content), (c) => c.charCodeAt(0));
+        const url = URL.createObjectURL(new Blob([bytes]));
+        const a = document.createElement("a");
+        a.href = url;
+        a.download = path.split("/").pop() ?? "download";
+        document.body.appendChild(a);
+        a.click();
+        a.remove();
+        URL.revokeObjectURL(url);
+      } catch (err) {
+        toast.error(err instanceof Error ? err.message : "Failed to download");
+      }
+    },
+    [octokit, auth],
+  );
+
+  const handleOpenOnGitHub = useCallback(
+    (path: string, pathType: RepoPathType) => {
+      if (!auth) return;
+      window.open(
+        githubFileUrl(auth.owner, auth.repo, path, pathType),
+        "_blank",
+        "noopener,noreferrer",
+      );
+    },
+    [auth],
+  );
 
   const handleCopyPath = useCallback((path: string) => {
     navigator.clipboard.writeText(path).then(() => {
@@ -453,7 +1005,16 @@ export function FilesPage({ initialPath = "" }: FilesPageProps) {
           octokit={octokit}
           owner={auth?.owner ?? ""}
           repo={auth?.repo ?? ""}
-          onUploadComplete={handleRefresh}
+          onUploadComplete={(uploaded) => {
+            upsertTreeEntry(
+              treeEntryForPath(uploaded.path, "file", {
+                sha: uploaded.sha,
+                size: uploaded.size,
+              }),
+            );
+            handleRefresh();
+          }}
+          destinationDir={currentFolder}
         />
       );
     }
@@ -514,49 +1075,132 @@ export function FilesPage({ initialPath = "" }: FilesPageProps) {
     );
   };
 
+  const actionButtonClass = "h-9 w-9 p-0";
   const actions = (
     <div className="flex items-center gap-2">
       <Button
         variant="ghost"
-        size="sm"
+        size="icon"
         onClick={() => setViewMode("search")}
-        className={cn("gap-1.5", viewMode === "search" && "bg-white/10")}
+        className={cn(
+          actionButtonClass,
+          viewMode === "search" && "bg-white/10",
+        )}
+        title="Search"
+        aria-label="Search files"
       >
         <Search className="w-4 h-4" />
-        Search
       </Button>
 
       {writeable && (
         <Button
           variant="ghost"
-          size="sm"
-          onClick={() => setShowNewFileDialog(true)}
-          className="gap-1.5"
+          size="icon"
+          onClick={() => handleNewFile(currentFolder)}
+          className={actionButtonClass}
+          title="New file"
+          aria-label="New file"
         >
-          New file
+          <FilePlus className="w-4 h-4" />
+        </Button>
+      )}
+
+      {selectedPath && selectedPathType && (
+        <Button
+          variant="ghost"
+          size="icon"
+          onClick={() => handleOpenOnGitHub(selectedPath, selectedPathType)}
+          className={actionButtonClass}
+          title="Open on GitHub"
+          aria-label="Open on GitHub"
+        >
+          <ExternalLink className="w-4 h-4" />
+        </Button>
+      )}
+
+      {selectedFile && (
+        <Button
+          variant="ghost"
+          size="icon"
+          onClick={() => handleDownload(selectedFile.path, "file")}
+          className={actionButtonClass}
+          title="Download"
+          aria-label="Download file"
+        >
+          <Download className="w-4 h-4" />
+        </Button>
+      )}
+
+      {writeable && selectedPath && selectedPathType && (
+        <Button
+          variant="ghost"
+          size="icon"
+          onClick={() => handleRename(selectedPath, selectedPathType)}
+          className={actionButtonClass}
+          disabled={busyAction !== null}
+          title="Rename or move"
+          aria-label="Rename or move"
+        >
+          <Pencil className="w-4 h-4" />
+        </Button>
+      )}
+
+      {writeable && selectedPath && selectedPathType && (
+        <Button
+          variant="ghost"
+          size="icon"
+          onClick={() => handleDuplicate(selectedPath, selectedPathType)}
+          className={actionButtonClass}
+          disabled={busyAction !== null}
+          title="Duplicate"
+          aria-label="Duplicate"
+        >
+          <Copy className="w-4 h-4" />
+        </Button>
+      )}
+
+      {writeable && selectedPath && selectedPathType && (
+        <Button
+          variant="ghost"
+          size="icon"
+          onClick={() => handleDelete(selectedPath, selectedPathType)}
+          className={cn(actionButtonClass, "text-red-400 hover:text-red-300")}
+          disabled={busyAction !== null}
+          title={selectedPathType === "dir" ? "Delete folder" : "Delete file"}
+          aria-label={
+            selectedPathType === "dir" ? "Delete folder" : "Delete file"
+          }
+        >
+          <Trash2 className="w-4 h-4" />
         </Button>
       )}
 
       {writeable && (
         <Button
           variant="ghost"
-          size="sm"
-          onClick={() => setShowNewFolderDialog(true)}
-          className="gap-1.5"
+          size="icon"
+          onClick={() => handleNewFolder(currentFolder)}
+          className={actionButtonClass}
+          title="New folder"
+          aria-label="New folder"
         >
-          New folder
+          <FolderPlus className="w-4 h-4" />
         </Button>
       )}
 
       {writeable && (
         <Button
           variant="ghost"
-          size="sm"
+          size="icon"
           onClick={() => setViewMode("upload")}
-          className={cn("gap-1.5", viewMode === "upload" && "bg-white/10")}
+          className={cn(
+            actionButtonClass,
+            viewMode === "upload" && "bg-white/10",
+          )}
+          title="Upload"
+          aria-label="Upload files"
         >
           <Upload className="w-4 h-4" />
-          Upload
         </Button>
       )}
     </div>
@@ -572,7 +1216,13 @@ export function FilesPage({ initialPath = "" }: FilesPageProps) {
       width="full"
       contentClassName="p-0"
     >
-      <div className="flex h-full">
+      <div
+        className="relative flex h-full"
+        onDragEnter={handleDragEnter}
+        onDragOver={handleDragOver}
+        onDragLeave={handleDragLeave}
+        onDrop={handleDrop}
+      >
         {/* Left panel - file tree */}
         {panelState !== "hidden" && (
           <div
@@ -590,9 +1240,7 @@ export function FilesPage({ initialPath = "" }: FilesPageProps) {
                   openRepoPath(path, { typeHint: "dir" })
                 }
                 selectedPath={selectedPath}
-                selectedPathType={
-                  selectedFile ? "file" : selectedPath ? "dir" : null
-                }
+                selectedPathType={selectedPathType}
                 octokit={octokit}
                 owner={auth?.owner ?? ""}
                 repo={auth?.repo ?? ""}
@@ -600,10 +1248,16 @@ export function FilesPage({ initialPath = "" }: FilesPageProps) {
                 onRefresh={handleRefresh}
                 onDelete={writeable ? handleDelete : undefined}
                 onRename={writeable ? handleRename : undefined}
+                onDuplicate={writeable ? handleDuplicate : undefined}
+                onDownload={handleDownload}
+                onOpenOnGitHub={handleOpenOnGitHub}
                 onNewFile={writeable ? handleNewFile : undefined}
                 onNewFolder={writeable ? handleNewFolder : undefined}
                 onCopyPath={handleCopyPath}
                 onCreateSymlink={writeable ? handleCreateSymlink : undefined}
+                onMove={writeable ? handleMoveToFolder : undefined}
+                onCollapse={() => setPanelState("hidden")}
+                treeOverlay={treeOverlay}
               />
             )}
           </div>
@@ -612,16 +1266,30 @@ export function FilesPage({ initialPath = "" }: FilesPageProps) {
         {/* Right panel - content */}
         <div className="flex-1 min-w-0 h-full flex flex-col">
           {/* Breadcrumb */}
-          {breadcrumbs.length > 0 && (
+          {(breadcrumbs.length > 0 || panelState === "hidden") && (
             <div className="flex items-center gap-1 px-4 py-2 border-b border-white/5 text-sm shrink-0">
-              <button
-                className="text-white/50 hover:text-white/80"
-                onClick={() => {
-                  void openRepoPath("");
-                }}
-              >
-                <FolderOpen className="w-4 h-4" />
-              </button>
+              {panelState === "hidden" && (
+                <button
+                  className="mr-2 rounded p-1 text-white/50 hover:bg-white/10 hover:text-white/80"
+                  onClick={() => setPanelState("split")}
+                  title="Show file panel"
+                  aria-label="Show file panel"
+                >
+                  <PanelLeft className="w-4 h-4" />
+                </button>
+              )}
+              {breadcrumbs.length > 0 && (
+                <button
+                  className="text-white/50 hover:text-white/80"
+                  onClick={() => {
+                    void openRepoPath("");
+                  }}
+                  title="Open files root"
+                  aria-label="Open files root"
+                >
+                  <FolderOpen className="w-4 h-4" />
+                </button>
+              )}
               {breadcrumbs.map((crumb, i) => (
                 <div key={crumb.path} className="flex items-center gap-1">
                   <ChevronRight className="w-3 h-3 text-white/30" />
@@ -645,25 +1313,19 @@ export function FilesPage({ initialPath = "" }: FilesPageProps) {
           <div className="flex-1 min-h-0">{renderMainContent()}</div>
         </div>
 
-        {/* Toggle panel button */}
-        <button
-          className={cn(
-            "absolute top-4 z-10 p-1 rounded bg-white/5 hover:bg-white/10 text-white/50",
-            panelState === "hidden" ? "left-4" : "-left-3",
-          )}
-          onClick={() =>
-            setPanelState((s) =>
-              s === "hidden" ? "split" : s === "split" ? "hidden" : "split",
-            )
-          }
-          title={panelState === "hidden" ? "Show tree" : "Hide tree"}
-        >
-          {panelState === "hidden" ? (
-            <PanelLeft className="w-4 h-4" />
-          ) : (
-            <PanelLeftClose className="w-4 h-4" />
-          )}
-        </button>
+        {writeable && isDraggingFiles ? (
+          <div className="absolute inset-0 z-40 flex items-center justify-center bg-background/80 backdrop-blur-sm">
+            <div className="rounded-lg border-2 border-dashed border-emerald-400/60 bg-emerald-500/10 px-8 py-6 text-center">
+              <Upload className="mx-auto mb-3 h-8 w-8 text-emerald-300" />
+              <p className="text-sm font-medium text-foreground">
+                Drop files to upload
+              </p>
+              <p className="mt-1 text-xs text-muted-foreground">
+                {currentFolder ? `/${currentFolder}` : "/"}
+              </p>
+            </div>
+          </div>
+        ) : null}
       </div>
 
       {/* New file dialog */}
@@ -689,9 +1351,12 @@ export function FilesPage({ initialPath = "" }: FilesPageProps) {
               }}
               className="space-y-4"
             >
+              <p className="text-xs text-muted-foreground">
+                Creates in {newItemPath ? `/${newItemPath}` : "/"}.
+              </p>
               <Input
                 name="filename"
-                placeholder="filename.txt or path/to/file.txt"
+                placeholder="filename.txt or nested/path.txt"
                 autoFocus
               />
               <div className="flex justify-end gap-2">
@@ -732,9 +1397,12 @@ export function FilesPage({ initialPath = "" }: FilesPageProps) {
               }}
               className="space-y-4"
             >
+              <p className="text-xs text-muted-foreground">
+                Creates in {newItemPath ? `/${newItemPath}` : "/"}.
+              </p>
               <Input
                 name="foldername"
-                placeholder="folder-name or path/to/folder"
+                placeholder="folder-name or nested/path"
                 autoFocus
               />
               <div className="flex justify-end gap-2">
@@ -752,6 +1420,46 @@ export function FilesPage({ initialPath = "" }: FilesPageProps) {
         </Dialog>
       )}
 
+      {/* Rename / move dialog */}
+      {pendingMove && (
+        <Dialog open onOpenChange={(open) => !open && setPendingMove(null)}>
+          <DialogContent className="sm:max-w-md">
+            <DialogHeader>
+              <DialogTitle>Rename or move</DialogTitle>
+            </DialogHeader>
+            <form
+              onSubmit={(e) => {
+                e.preventDefault();
+                void handleConfirmMove();
+              }}
+              className="space-y-4"
+            >
+              <p className="text-xs text-muted-foreground">
+                Enter the full new repository path.
+              </p>
+              <Input
+                value={moveTarget}
+                onChange={(e) => setMoveTarget(e.target.value)}
+                autoFocus
+              />
+              <div className="flex justify-end gap-2">
+                <Button
+                  type="button"
+                  variant="ghost"
+                  onClick={() => setPendingMove(null)}
+                  disabled={busyAction !== null}
+                >
+                  Cancel
+                </Button>
+                <Button type="submit" disabled={busyAction !== null}>
+                  {busyAction ?? "Move"}
+                </Button>
+              </div>
+            </form>
+          </DialogContent>
+        </Dialog>
+      )}
+
       {/* Delete confirmation dialog */}
       {showDeleteConfirm && (
         <Dialog
@@ -760,10 +1468,14 @@ export function FilesPage({ initialPath = "" }: FilesPageProps) {
         >
           <DialogContent className="sm:max-w-md">
             <DialogHeader>
-              <DialogTitle>Delete file</DialogTitle>
+              <DialogTitle>
+                Delete{" "}
+                {showDeleteConfirm.pathType === "dir" ? "folder" : "file"}
+              </DialogTitle>
             </DialogHeader>
             <p className="text-sm text-white/70">
-              Delete <code className="text-white/90">{showDeleteConfirm}</code>?
+              Delete{" "}
+              <code className="text-white/90">{showDeleteConfirm.path}</code>?
               This cannot be undone.
             </p>
             <div className="flex justify-end gap-2 mt-4">
@@ -771,6 +1483,7 @@ export function FilesPage({ initialPath = "" }: FilesPageProps) {
                 type="button"
                 variant="ghost"
                 onClick={() => setShowDeleteConfirm(null)}
+                disabled={busyAction !== null}
               >
                 Cancel
               </Button>
@@ -778,8 +1491,9 @@ export function FilesPage({ initialPath = "" }: FilesPageProps) {
                 type="button"
                 variant="destructive"
                 onClick={handleConfirmDelete}
+                disabled={busyAction !== null}
               >
-                Delete
+                {busyAction ?? "Delete"}
               </Button>
             </div>
           </DialogContent>

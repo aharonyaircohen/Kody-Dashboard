@@ -38,7 +38,7 @@
 
     /* Muted: hover/zebra surfaces and secondary text */
     --muted: 30 16% 94%; /* #f0ece7 */
-    --muted-foreground: 25 8% 40%; /* #6b635d */
+    --muted-foreground: 25 9% 34%; /* #5f5750 */
 
     /* Accent: subtle brand-tinted wash for selected/active (was stray indigo) */
     --accent: 353 44% 95%; /* #f7e9eb */
@@ -304,17 +304,22 @@
   .text-white\/90 {
     color: hsl(24 13% 16%);
   }
+  .text-white\/80,
   .text-white\/70,
+  .text-white\/65,
   .text-white\/60 {
-    color: hsl(25 9% 34%);
+    color: hsl(25 9% 32%);
   }
   .text-white\/50,
+  .text-white\/45,
   .text-white\/40 {
-    color: hsl(25 7% 46%);
+    color: hsl(25 8% 38%);
   }
+  .text-white\/35,
   .text-white\/30,
+  .text-white\/25,
   .text-white\/20 {
-    color: hsl(25 6% 60%);
+    color: hsl(25 7% 46%);
   }
 
   /* white solid fills used for toggle thumbs, progress bars — keep light */
@@ -367,7 +372,7 @@
   }
   .text-red-300,
   .text-red-500 {
-    color: rgb(220 38 38);
+    color: rgb(185 28 28);
   }
   .text-blue-400,
   .text-blue-300,
@@ -392,6 +397,17 @@
   .text-amber-400,
   .text-amber-300 {
     color: rgb(180 83 9);
+  }
+  .text-orange-400,
+  .text-orange-300,
+  .text-orange-200 {
+    color: rgb(194 65 12);
+  }
+  .text-purple-400,
+  .text-purple-300,
+  .text-violet-400,
+  .text-violet-300 {
+    color: rgb(109 40 217);
   }
 
   /* ----- Status background tints -----
@@ -824,6 +840,11 @@ math-field:focus-within {
   text-align: center;
   margin-top: 0.75rem;
   margin-bottom: 0.75rem;
+}
+
+.chat-message-text {
+  unicode-bidi: plaintext;
+  text-align: start;
 }
 
 /* KaTeX math expression styling in chat */

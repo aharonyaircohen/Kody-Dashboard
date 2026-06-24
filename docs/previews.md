@@ -133,7 +133,7 @@ Effect: PRs that don't change `package.json` go from ~13 min cold to
 ## Namespace remote builders (faster GitHub-path builds)
 
 On the **GitHub Actions** build path (`runPreviewBuild` in the engine,
-dispatched as `executable=preview-build`), the per-PR `docker build` can
+dispatched as `agentAction=preview-build`), the per-PR `docker build` can
 run on a **Namespace.so remote builder** instead of the GitHub runner's
 own docker daemon. Namespace gives more build CPU **and a persistent
 cache that survives across runs** — a fresh GitHub runner has neither.

@@ -6,7 +6,7 @@
  *   `chat.ready` event (written to .kody/events/{taskId}.jsonl). This test
  *   drives the exact handoff endpoint the chat uses
  *   (/api/kody/chat/interactive/start-fly) and measures how long until
- *   chat.ready appears. With the warm pool it should be well under ~90s; the
+ *   chat.ready appears. It should complete within the Fly boot budget; the
  *   bug is it takes minutes (or never arrives).
  *
  *   This is a pure REPRODUCTION test — it asserts the bug is fixed; expect it

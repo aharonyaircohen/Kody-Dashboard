@@ -6,7 +6,7 @@
  *   in this group. The persistent KodyChat used to live here, but it
  *   now lives in the root layout (ChatRailShell) so every authenticated
  *   page shares one chat instance — including the dashboard root and
- *   /jobs, which sit outside this group. Kept as an auth boundary so
+ *   legacy redirects that sit outside this group. Kept as an auth boundary so
  *   pages don't each re-wrap themselves.
  */
 import type { ReactNode } from "react";

@@ -69,7 +69,13 @@ export interface UseChannelsUnreadResult {
   markSeen: (channelNumber: number) => Promise<void>;
 }
 
-export function useChannelsUnread(): UseChannelsUnreadResult {
+export interface UseChannelsUnreadOptions {
+  enabled?: boolean;
+}
+
+export function useChannelsUnread(
+  options: UseChannelsUnreadOptions = {},
+): UseChannelsUnreadResult {
   const { auth } = useAuth();
   const headers: Record<string, string> = {
     "Content-Type": "application/json",
@@ -77,7 +83,7 @@ export function useChannelsUnread(): UseChannelsUnreadResult {
   };
   const qc = useQueryClient();
   const key = channelsReadStateKey(auth?.owner, auth?.repo);
-  const enabled = !!auth;
+  const enabled = (options.enabled ?? true) && !!auth;
 
   const rs = useQuery<ChannelsReadState>({
     queryKey: key,
@@ -88,7 +94,7 @@ export function useChannelsUnread(): UseChannelsUnreadResult {
     refetchOnWindowFocus: true,
   });
 
-  const channelsQuery = useMessageChannels();
+  const channelsQuery = useMessageChannels({ enabled });
   const channels = useMemo(
     () => (channelsQuery.data?.enabled ? channelsQuery.data.channels : []),
     [channelsQuery.data],

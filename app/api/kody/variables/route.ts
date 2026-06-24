@@ -22,6 +22,11 @@ import {
 } from "@dashboard/lib/variables/store";
 import { logger } from "@dashboard/lib/logger";
 
+export const dynamic = "force-dynamic";
+export const revalidate = 0;
+
+const NO_STORE_HEADERS = { "Cache-Control": "no-store, max-age=0" };
+
 const NAME_RE = /^[A-Z][A-Z0-9_]{0,127}$/;
 
 const UpsertSchema = z.object({
@@ -42,16 +47,25 @@ export async function GET(req: NextRequest) {
 
   const auth = getRequestAuth(req);
   if (!auth) {
-    return NextResponse.json({ error: "no_repo_context" }, { status: 400 });
+    return NextResponse.json(
+      { error: "no_repo_context" },
+      { status: 400, headers: NO_STORE_HEADERS },
+    );
   }
 
   const octokit = await getUserOctokit(req);
   if (!octokit)
-    return NextResponse.json({ error: "no_octokit" }, { status: 401 });
+    return NextResponse.json(
+      { error: "no_octokit" },
+      { status: 401, headers: NO_STORE_HEADERS },
+    );
 
   try {
     const { doc } = await readVariables(octokit, auth.owner, auth.repo);
-    return NextResponse.json({ variables: listVariables(doc) });
+    return NextResponse.json(
+      { variables: listVariables(doc) },
+      { headers: NO_STORE_HEADERS },
+    );
   } catch (err) {
     logger.error(
       { err, owner: auth.owner, repo: auth.repo },
@@ -59,7 +73,7 @@ export async function GET(req: NextRequest) {
     );
     return NextResponse.json(
       { error: "variables_read_failed", message: (err as Error).message },
-      { status: 500 },
+      { status: 500, headers: NO_STORE_HEADERS },
     );
   }
 }

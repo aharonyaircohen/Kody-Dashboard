@@ -3,7 +3,7 @@
  * @domain runner
  * @pattern fly-activity-store
  * @ai-summary Persists Fly activity snapshots to .kody/state/fly-activity.json
- *   on the kody-state branch (GitHub is the only datastore; no Vercel KV/cron).
+ *   in the configured Kody state repo (GitHub is the only datastore; no Vercel KV/cron).
  *   Writes are throttled (≥5min interval), pruned to 14-day window, and use
  *   CAS to avoid clobbering. snapshotDue() lets callers skip an expensive Fly
  *   inventory call when a write would be throttled anyway.
@@ -20,7 +20,7 @@ import "server-only";
 import type { Octokit } from "@octokit/rest";
 
 import { logger } from "@dashboard/lib/logger";
-import { STATE_BRANCH } from "@dashboard/lib/state-branch";
+import { readStateText, writeStateText } from "@dashboard/lib/state-repo";
 import {
   EMPTY_ACTIVITY_FILE,
   type ActivitySample,
@@ -29,7 +29,7 @@ import {
 } from "./fly-activity";
 import type { FlyInventory } from "./fly-inventory";
 
-export const ACTIVITY_FILE_PATH = ".kody/state/fly-activity.json";
+export const ACTIVITY_FILE_PATH = "state/fly-activity.json";
 
 /** Don't record more often than this — a snapshot per page view would spam. */
 const MIN_INTERVAL_MS = 5 * 60_000;
@@ -62,16 +62,8 @@ async function fetchFile(
   repo: string,
 ): Promise<ReadResult> {
   try {
-    const res = await octokit.repos.getContent({
-      owner,
-      repo,
-      path: ACTIVITY_FILE_PATH,
-      ref: STATE_BRANCH,
-    });
-    if (!Array.isArray(res.data) && "content" in res.data && res.data.content) {
-      const raw = Buffer.from(res.data.content, "base64").toString("utf-8");
-      return { file: parse(raw), sha: res.data.sha };
-    }
+    const file = await readStateText(octokit, owner, repo, ACTIVITY_FILE_PATH);
+    if (file) return { file: parse(file.content), sha: file.sha };
     return { file: structuredClone(EMPTY_ACTIVITY_FILE) };
   } catch (err) {
     const status = (err as { status?: number })?.status;
@@ -144,14 +136,14 @@ export async function recordSnapshot(
       snapshots: prune([...file.snapshots, snapshot], snapshot.ts),
     };
     try {
-      await octokit.repos.createOrUpdateFileContents({
+      await writeStateText({
+        octokit,
         owner,
         repo,
         path: ACTIVITY_FILE_PATH,
         message: "chore(fly): record machine activity snapshot",
-        content: Buffer.from(JSON.stringify(next), "utf-8").toString("base64"),
+        content: JSON.stringify(next),
         sha,
-        branch: STATE_BRANCH,
       });
       return { recorded: true };
     } catch (err) {

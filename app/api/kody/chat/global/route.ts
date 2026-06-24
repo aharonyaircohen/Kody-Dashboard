@@ -43,6 +43,7 @@ import {
   getOwner,
   getRepo,
 } from "@dashboard/lib/github-client";
+import { writeGitHubFileWithRetry } from "@dashboard/lib/github-contents-write";
 import { logger } from "@dashboard/lib/logger";
 
 export const runtime = "nodejs";
@@ -134,7 +135,13 @@ export async function GET(req: NextRequest) {
 
   const headerAuth = getRequestAuth(req);
   if (headerAuth) {
-    setGitHubContext(headerAuth.owner, headerAuth.repo, headerAuth.token);
+    setGitHubContext(
+      headerAuth.owner,
+      headerAuth.repo,
+      headerAuth.token,
+      headerAuth.storeRepoUrl,
+      headerAuth.storeRef,
+    );
   }
 
   try {
@@ -188,7 +195,13 @@ export async function POST(req: NextRequest) {
 
   const headerAuth = getRequestAuth(req);
   if (headerAuth) {
-    setGitHubContext(headerAuth.owner, headerAuth.repo, headerAuth.token);
+    setGitHubContext(
+      headerAuth.owner,
+      headerAuth.repo,
+      headerAuth.token,
+      headerAuth.storeRepoUrl,
+      headerAuth.storeRef,
+    );
   }
 
   try {
@@ -267,7 +280,7 @@ export async function POST(req: NextRequest) {
     };
     const content = encodeBase64Utf8(JSON.stringify(payload, null, 2));
 
-    await writeOctokit.repos.createOrUpdateFileContents({
+    await writeGitHubFileWithRetry(writeOctokit, {
       owner: getOwner(),
       repo: getRepo(),
       path: GLOBAL_FILE,
@@ -280,7 +293,7 @@ export async function POST(req: NextRequest) {
     // Bump the gate.
     gate[sessionId] = new Date(now).toISOString();
     const gateContent = encodeBase64Utf8(JSON.stringify(gate, null, 2));
-    await writeOctokit.repos.createOrUpdateFileContents({
+    await writeGitHubFileWithRetry(writeOctokit, {
       owner: getOwner(),
       repo: getRepo(),
       path: GATE_FILE,

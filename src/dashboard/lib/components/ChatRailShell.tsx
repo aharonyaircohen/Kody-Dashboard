@@ -36,10 +36,12 @@ import { CommandPalette } from "./CommandPalette";
 import { SettingsDrawerProvider } from "./SettingsDrawer";
 import { NotificationsProvider } from "../notifications/NotificationsProvider";
 import { useAuth } from "../auth-context";
+import { shouldPollChatGoalsForRoute } from "../github-background-polling";
 import { useGitHubIdentity } from "../hooks/useGitHubIdentity";
 import { useGoals } from "../hooks/useGoals";
 import type { ChatContext } from "../chat-types";
 import { cn } from "../utils";
+import { routeOwnsAppHeader } from "./header-ownership";
 
 interface ChatRailApi {
   scope: ChatContext | null;
@@ -80,6 +82,13 @@ interface ChatRailApi {
       mimeType: string;
     } | null,
   ) => void;
+  /**
+   * Ambient context for the active preview workspace selection. The chat
+   * appends this invisibly on send; pages clear it on unmount.
+   */
+  setPreviewContext: (context: string | null) => void;
+  /** Page-level escape hatch for views that render their own top header. */
+  setPageOwnsHeader: (ownsHeader: boolean) => void;
 }
 
 const ChatRailContext = createContext<ChatRailApi | null>(null);
@@ -100,6 +109,8 @@ const NOOP_API: ChatRailApi = {
   setOnIssueCreated: () => {},
   setComposerInjection: () => {},
   setAttachmentInjection: () => {},
+  setPreviewContext: () => {},
+  setPageOwnsHeader: () => {},
 };
 
 // Routes that must NOT render the chat rail (none currently — the rail
@@ -140,7 +151,8 @@ export function ChatRailShell({ children }: { children: ReactNode }) {
   // dashboard page) so it works from any route — chat is always mounted
   // here. We pass the live goals straight down; the parser resolves the
   // number/slug to a canonical id.
-  const { data: goalsData } = useGoals();
+  const shouldPollChatGoals = shouldPollChatGoalsForRoute(pathname);
+  const { data: goalsData } = useGoals({ enabled: shouldPollChatGoals });
   const goals = useMemo(() => goalsData ?? [], [goalsData]);
   const directToGoal = useCallback(
     (goalId: string) => {
@@ -185,6 +197,22 @@ export function ChatRailShell({ children }: { children: ReactNode }) {
     }
   }, [pathname, router]);
 
+  // Escape always exits the full /chat view, even if the chat header is
+  // hidden by a layout glitch (e.g. session sidebar overflowing on a narrow
+  // window). Without this the user is stuck and has to reach for the
+  // browser back button.
+  useEffect(() => {
+    if (pathname !== "/chat") return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") {
+        e.preventDefault();
+        router.push(preExpandRouteRef.current || "/tasks");
+      }
+    };
+    document.addEventListener("keydown", onKey);
+    return () => document.removeEventListener("keydown", onKey);
+  }, [pathname, router]);
+
   const [dragging, setDragging] = useState(false);
   const startResize = useCallback((e: React.PointerEvent) => {
     e.preventDefault();
@@ -224,10 +252,17 @@ export function ChatRailShell({ children }: { children: ReactNode }) {
   const [hydrated, setHydrated] = useState(false);
   useEffect(() => setHydrated(true), []);
 
-  const openMobileChat = useCallback(
-    () => setMobileOpenPersist(true),
-    [setMobileOpenPersist],
-  );
+  const openMobileChat = useCallback(() => {
+    if (!auth) {
+      setMobileOpenPersist(false);
+      return;
+    }
+    setMobileOpenPersist(true);
+  }, [auth, setMobileOpenPersist]);
+
+  useEffect(() => {
+    if (!loading && !auth && mobileOpen) setMobileOpenPersist(false);
+  }, [auth, loading, mobileOpen, setMobileOpenPersist]);
 
   // Ref, not state, so registering/unregistering doesn't re-render the
   // entire app tree under the rail. The KodyChat instance reads the
@@ -261,6 +296,8 @@ export function ChatRailShell({ children }: { children: ReactNode }) {
     dataUrl: string;
     mimeType: string;
   } | null>(null);
+  const [previewContext, setPreviewContext] = useState<string | null>(null);
+  const [pageHeaderOwnedByChild, setPageOwnsHeader] = useState(false);
 
   const api = useMemo<ChatRailApi>(
     () => ({
@@ -270,6 +307,8 @@ export function ChatRailShell({ children }: { children: ReactNode }) {
       setOnIssueCreated,
       setComposerInjection,
       setAttachmentInjection,
+      setPreviewContext,
+      setPageOwnsHeader,
     }),
     [scope, openMobileChat, setOnIssueCreated],
   );
@@ -304,7 +343,10 @@ export function ChatRailShell({ children }: { children: ReactNode }) {
   // Kody Live remains the default agent (only it can edit code); the model
   // dropdown still lets the user pick any configured LLM for chat-only turns.
   const isChatRoute = pathname === "/chat";
-  const isVibeRoute = pathname?.startsWith("/vibe") ?? false;
+  const isVibeRoute =
+    pathname === "/vibe" || (pathname?.startsWith("/vibe/") ?? false);
+  const isOrgRoute =
+    pathname === "/org" || (pathname?.startsWith("/org/") ?? false);
   // Routes whose page renders its OWN in-pane header (KodyDashboard on the
   // tasks list, new-task / report-bug modals, and issue detail at /<number>;
   // plus Vibe). The shared AppHeader must NOT render on these or two headers
@@ -313,15 +355,9 @@ export function ChatRailShell({ children }: { children: ReactNode }) {
   // are also reached mid-session via KodyDashboard's history.pushState when a
   // modal opens, so they must be listed even though no route file navigates
   // here directly.
-  const path = pathname ?? "";
   const pageOwnsHeader =
-    isVibeRoute ||
-    path === "/tasks" ||
-    path === "/new" ||
-    path === "/bug" ||
-    path === "/report-kody-bug" ||
-    /^\/\d+(?:\/|$)/.test(path);
-  const lockedAgentId = undefined;
+    !!auth && (routeOwnsAppHeader(pathname) || pageHeaderOwnedByChild);
+  const lockedAgentId = isOrgRoute ? "kody" : undefined;
 
   const chatPane = auth ? (
     <KodyChat
@@ -334,6 +370,7 @@ export function ChatRailShell({ children }: { children: ReactNode }) {
       onDirectToGoal={directToGoal}
       composerInjection={composerInjection}
       attachmentInjection={attachmentInjection}
+      previewContext={previewContext}
       // Expand = navigate to the /chat page; restore = back to the previous
       // page. On /chat the button reads as "restore" (railFullscreen).
       onToggleFullscreen={toggleExpandedChat}
@@ -365,7 +402,7 @@ export function ChatRailShell({ children }: { children: ReactNode }) {
                 survive navigation. */}
               <div
                 className={cn(
-                  "flex-col min-h-0 bg-black/20",
+                  "flex-col min-h-0 min-w-0 bg-black/20",
                   isChatRoute
                     ? "flex flex-1"
                     : "hidden md:flex shrink-0 border-r border-border",
@@ -422,7 +459,7 @@ export function ChatRailShell({ children }: { children: ReactNode }) {
           still reachable while chatting. The rail is desktop-only; on mobile
           chat is opened from the header's chat button. Not shown on /chat
           (chat is the full view) or /messages (its own chat surface). */}
-          {mobileOpen && !isChatRoute && !pathname?.startsWith("/messages") && (
+      {mobileOpen && auth && !isChatRoute && !pathname?.startsWith("/messages") && (
             <div className="md:hidden fixed inset-x-0 bottom-0 top-14 z-30 flex flex-col bg-background border-t border-border">
               {auth ? (
                 <KodyChat
@@ -436,6 +473,7 @@ export function ChatRailShell({ children }: { children: ReactNode }) {
                   onDirectToGoal={directToGoal}
                   composerInjection={composerInjection}
                   attachmentInjection={attachmentInjection}
+                  previewContext={previewContext}
                 />
               ) : (
                 <div className="flex-1 flex items-center justify-center p-6">

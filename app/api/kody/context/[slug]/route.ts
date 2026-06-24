@@ -3,7 +3,7 @@
  * @domain kody
  * @pattern context-api
  * @ai-summary Context entry detail API — GET reads a single entry, PATCH
- *   updates its body/staff, DELETE removes it. Backed by
+ *   updates its body/agents, DELETE removes it. Backed by
  *   `.kody/context/<slug>.md` via the GitHub contents API. No built-ins, so a
  *   missing file is a plain 404.
  */
@@ -61,18 +61,18 @@ export async function GET(
   }
 }
 
-/** A staff slug (entry slug shape) or the `*` all-staff wildcard. */
-const STAFF_TOKEN_RE = /^(\*|[a-z0-9][a-z0-9_-]{0,63})$/;
+/** An agent slug (entry slug shape) or the `*` all-agent wildcard. */
+const AGENT_TOKEN_RE = /^(\*|[a-z0-9][a-z0-9_-]{0,63})$/;
 
 const updateContextSchema = z
   .object({
     body: z.string().min(1).optional(),
-    // May be empty — an unassigned entry owned by no staff member.
-    staff: z.array(z.string().regex(STAFF_TOKEN_RE)).optional(),
+    // May be empty — an unassigned entry owned by no agent.
+    agent: z.array(z.string().regex(AGENT_TOKEN_RE)).optional(),
     actorLogin: z.string().optional(),
   })
-  .refine((v) => v.body !== undefined || v.staff !== undefined, {
-    message: "At least one of `body` or `staff` must be provided.",
+  .refine((v) => v.body !== undefined || v.agent !== undefined, {
+    message: "At least one of `body` or `agent` must be provided.",
   });
 
 export async function PATCH(
@@ -93,7 +93,7 @@ export async function PATCH(
     }
 
     const payload = await req.json();
-    const { body, staff, actorLogin } = updateContextSchema.parse(payload);
+    const { body, agent, actorLogin } = updateContextSchema.parse(payload);
 
     const actorResult = await verifyActorLogin(req, actorLogin);
     if (actorResult instanceof NextResponse) return actorResult;
@@ -115,13 +115,13 @@ export async function PATCH(
     }
 
     // Partial update: keep whichever field the caller omitted. `body` and
-    // `staff` are independent — changing the staff list alone leaves the
+    // `agent` are independent — changing the agent list alone leaves the
     // text intact.
     const entry = await writeContextFile({
       octokit: userOctokit,
       slug,
       body: body ?? existing.body,
-      staff: staff ?? existing.staff,
+      agent: agent ?? existing.agent,
       sha: existing.sha,
     });
     return NextResponse.json({ entry });

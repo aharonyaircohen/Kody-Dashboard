@@ -12,7 +12,7 @@
  * /api/kody/chat/brain-fly — same proxy core (`streamBrainChat`), different
  * credential source.
  *
- * Body: { chatId, message, taskContext?, attachments?, dutyContext? }
+ * Body: { chatId, message, taskContext?, attachments?, agentResponsibilityContext? }
  * Auth: requireKodyAuth.
  */
 
@@ -21,7 +21,7 @@ import { getRequestAuth, requireKodyAuth } from "@dashboard/lib/auth";
 import {
   streamBrainChat,
   type BrainAttachment,
-  type BrainDutyContext,
+  type BrainAgentResponsibilityContext,
   type BrainTaskContext,
 } from "@dashboard/lib/brain-proxy";
 import {
@@ -60,7 +60,7 @@ export async function POST(req: NextRequest) {
     message?: string;
     taskContext?: BrainTaskContext;
     attachments?: BrainAttachment[];
-    dutyContext?: BrainDutyContext;
+    agentResponsibilityContext?: BrainAgentResponsibilityContext;
     voiceMode?: boolean;
     resumeSince?: number;
     resumeText?: string;
@@ -73,6 +73,12 @@ export async function POST(req: NextRequest) {
      * Brain is stateful and keeps it for the chat's life.
      */
     includeContext?: boolean;
+    /**
+     * User-picked thinking level. Forwarded verbatim to the Brain server.
+     * Server-side: older Brain versions ignore this field; newer versions
+     * translate it to the upstream provider's wire shape.
+     */
+    reasoningEffort?: string;
   };
   try {
     body = await req.json();
@@ -121,10 +127,11 @@ export async function POST(req: NextRequest) {
         ),
     taskContext: body.taskContext,
     attachments: body.attachments,
-    dutyContext: body.dutyContext,
+    agentResponsibilityContext: body.agentResponsibilityContext,
     repo,
     repoToken,
     voiceMode: body.voiceMode === true,
+    ...(body.reasoningEffort ? { reasoningEffort: body.reasoningEffort } : {}),
     ...(isResume
       ? { resumeSince: Number(body.resumeSince), resumeText: body.resumeText }
       : {}),

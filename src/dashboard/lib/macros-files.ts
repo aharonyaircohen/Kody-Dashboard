@@ -15,6 +15,7 @@
  */
 
 import type { Octokit } from "@octokit/rest";
+import { writeGitHubFileWithRetry } from "@dashboard/lib/github-contents-write";
 import { getOctokit, getOwner, getRepo } from "./github-client";
 import type { Macro } from "./macros";
 
@@ -93,7 +94,7 @@ export async function writeMacrosFile(
 ): Promise<{ macros: Macro[] }> {
   const doc: MacrosDocument = { version: 1, macros: opts.macros };
   const content = `${JSON.stringify(doc, null, 2)}\n`;
-  await opts.octokit.repos.createOrUpdateFileContents({
+  await writeGitHubFileWithRetry(opts.octokit, {
     owner: getOwner(),
     repo: getRepo(),
     path: MACROS_PATH,

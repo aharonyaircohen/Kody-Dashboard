@@ -7,8 +7,6 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import ReactMarkdown from "react-markdown";
-import remarkGfm from "remark-gfm";
 import { formatRelativeTime } from "../utils";
 import type { GitHubComment } from "../types";
 import { Avatar, AvatarFallback, AvatarImage } from "@dashboard/ui/avatar";
@@ -18,6 +16,8 @@ import { Wrench, Loader2, CheckCircle } from "lucide-react";
 import { toast } from "sonner";
 import { prsApi } from "../api";
 import { useGitHubIdentity } from "../hooks/useGitHubIdentity";
+import { autoDirProps, rtlAwareMarkdownClassName } from "../text-direction";
+import { MarkdownPreview } from "./MarkdownPreview";
 
 interface CommentListProps {
   comments: GitHubComment[];
@@ -374,56 +374,12 @@ function CommentItem({ comment }: { comment: GitHubComment }) {
       </div>
 
       {/* Body - Rendered markdown */}
-      <div
-        dir="auto"
-        className="prose prose-sm dark:prose-invert max-w-none text-sm"
-      >
-        <ReactMarkdown
-          remarkPlugins={[remarkGfm]}
-          components={{
-            // Custom code block rendering
-            code({ className, children, ...props }) {
-              const match = /language-(\w+)/.exec(className || "");
-              const isInline = !match;
-
-              if (isInline) {
-                return (
-                  <code
-                    className="bg-muted px-1 py-0.5 rounded text-xs"
-                    {...props}
-                  >
-                    {children}
-                  </code>
-                );
-              }
-
-              return (
-                <pre className="bg-muted p-2 rounded-md overflow-x-auto">
-                  <code className={className} {...props}>
-                    {children}
-                  </code>
-                </pre>
-              );
-            },
-            // Custom link rendering
-            a({ href, children, ...props }) {
-              return (
-                <a
-                  href={href}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="text-primary hover:underline"
-                  {...props}
-                >
-                  {children}
-                </a>
-              );
-            },
-          }}
-        >
-          {comment.body}
-        </ReactMarkdown>
-      </div>
+      <MarkdownPreview
+        {...autoDirProps}
+        content={comment.body}
+        variant="compact"
+        className={cn("text-sm text-start", rtlAwareMarkdownClassName)}
+      />
     </div>
   );
 }

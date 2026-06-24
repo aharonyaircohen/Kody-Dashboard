@@ -1,13 +1,13 @@
 /**
  * @fileoverview Live verification of the warm-pool path through the DEPLOYED
  *   dashboard. Proves that the production dashboard (on Vercel) can reach the
- *   pool owner (kody pool-serve on kody-litellm.fly.dev) and read live pool
- *   counts — the network path that the Vibe-execute claim depends on.
+ *   configured pool owner and read live pool counts — the network path that
+ *   the Vibe-execute claim depends on.
  * @testFramework playwright
  * @domain e2e
  *
  * Run against the deployed URL:
- *   BASE_URL=https://kody-dashboard-aguy.vercel.app pnpm test:e2e pool-live
+ *   BASE_URL=https://kody-dashboard-sable.vercel.app pnpm test:e2e pool-live
  *
  * Requires E2E_GITHUB_TOKEN + E2E_GITHUB_REPO (loaded from .env by the config).
  */
@@ -91,13 +91,11 @@ test.describe("warm pool — live through deployed dashboard", () => {
     expect(json.status?.min).toBeGreaterThan(0);
   });
 
-  test("Settings renders the LiteLLM card with the warm-pool line", async ({
-    page,
-  }) => {
+  test("Runner page renders the warm-pool control", async ({ page }) => {
     await page.goto(`${BASE_URL}/login`);
     await page.waitForLoadState("domcontentloaded");
     await injectAuth(page);
-    await page.goto(`${BASE_URL}/settings`);
+    await page.goto(`${BASE_URL}/runner`);
     await page.waitForLoadState("networkidle");
 
     // Best-effort visual proof. The card only renders when the connected repo
@@ -106,16 +104,14 @@ test.describe("warm pool — live through deployed dashboard", () => {
       path: "test-results/pool-settings.png",
       fullPage: true,
     });
-    const litellm = page.getByText("LiteLLM proxy", { exact: false });
-    if (await litellm.count()) {
-      await expect(page.getByText(/Warm pool/i)).toBeVisible({
-        timeout: 15_000,
-      });
+    const warmPool = page.getByText(/Warm pool/i);
+    if (await warmPool.count()) {
+      await expect(warmPool.first()).toBeVisible({ timeout: 15_000 });
     } else {
       test.info().annotations.push({
         type: "note",
         description:
-          "LiteLLM card not shown — repo vault has no FLY_API_TOKEN; API check covers reachability.",
+          "Warm pool control not shown — repo vault may have no FLY_API_TOKEN; API check covers reachability.",
       });
     }
   });

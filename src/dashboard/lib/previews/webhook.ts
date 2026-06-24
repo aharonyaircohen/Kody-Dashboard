@@ -16,7 +16,7 @@
  * Two flows:
  *   - opened / synchronize / reopened → handlePrOpenedOrSynced
  *       Builds + boots the preview through the dedicated builder
- *       service. Tries the warm pool first; falls back to create-fresh.
+ *       service.
  *   - closed → handlePrClosed
  *       Destroys the per-PR Fly app + machine.
  *
@@ -34,6 +34,7 @@ import { resolvePreviewConfigForRepo } from "./config";
 import { createPreview, destroyPreview } from "./preview-lifecycle";
 import { sweepExpiredPreviews } from "./sweep";
 import { routePreviewBuild } from "./preview-router";
+import type { FlyPreviewConfig } from "./fly-previews";
 import { listFlyInventory } from "@dashboard/lib/runners/fly-inventory";
 import {
   readActivityFile,
@@ -92,6 +93,43 @@ async function fetchChangedPaths(
   }
 }
 
+function queuePreviewMaintenance(
+  repoFullName: string,
+  cfg: FlyPreviewConfig,
+  bg: { token: string } | null | undefined,
+  owner: string,
+  repo: string,
+): void {
+  // Opportunistic TTL sweep: each preview build is also a chance to reap
+  // expired apps for this repo. Fire-and-forget — never block or fail the
+  // build path on cleanup.
+  void sweepExpiredPreviews(repoFullName).catch((err) => {
+    logger.warn(
+      { err, repo: repoFullName },
+      "previews.webhook: opportunistic sweep failed (non-fatal)",
+    );
+  });
+
+  // Opportunistic activity snapshot — gives the activity timeline cadence
+  // without a cron (GitHub-only). Pre-check the last snapshot so we skip the
+  // full Fly inventory call when a write would be throttled anyway.
+  if (bg?.token) {
+    const oct = new Octokit({ auth: bg.token });
+    void (async () => {
+      const now = Date.now();
+      const file = await readActivityFile(oct, owner, repo);
+      if (!snapshotDue(file, now)) return;
+      const inv = await listFlyInventory(cfg);
+      await recordSnapshot(oct, owner, repo, snapshotFromInventory(inv, now));
+    })().catch((err) =>
+      logger.warn(
+        { err, repo: repoFullName },
+        "previews.webhook: activity snapshot failed (non-fatal)",
+      ),
+    );
+  }
+}
+
 export async function handlePrOpenedOrSynced(
   event: PROpenedOrSyncedEvent,
 ): Promise<void> {
@@ -133,6 +171,8 @@ export async function handlePrOpenedOrSynced(
       return;
     }
   }
+
+  queuePreviewMaintenance(event.repoFullName, cfg, bg, owner, repo);
 
   if (ROUTER_ENABLED) {
     try {
@@ -186,36 +226,6 @@ export async function handlePrOpenedOrSynced(
     logger.warn(
       { err, repo: event.repoFullName, pr: event.prNumber },
       "previews.webhook: create failed (non-fatal)",
-    );
-  }
-
-  // Opportunistic TTL sweep: each preview build is also a chance to reap
-  // expired apps for this repo. No-op unless `fly.previews.ttlDays` is set.
-  // Fire-and-forget — never block or fail the build path on cleanup.
-  void sweepExpiredPreviews(event.repoFullName).catch((err) => {
-    logger.warn(
-      { err, repo: event.repoFullName },
-      "previews.webhook: opportunistic sweep failed (non-fatal)",
-    );
-  });
-
-  // Opportunistic activity snapshot — gives the activity timeline cadence
-  // without a cron (GitHub-only). Pre-check the last snapshot so we skip the
-  // full Fly inventory call when a write would be throttled anyway.
-  // Fire-and-forget, needs a token to read/write kody-state.
-  if (bg?.token) {
-    const oct = new Octokit({ auth: bg.token });
-    void (async () => {
-      const now = Date.now();
-      const file = await readActivityFile(oct, owner, repo);
-      if (!snapshotDue(file, now)) return;
-      const inv = await listFlyInventory(cfg);
-      await recordSnapshot(oct, owner, repo, snapshotFromInventory(inv, now));
-    })().catch((err) =>
-      logger.warn(
-        { err, repo: event.repoFullName },
-        "previews.webhook: activity snapshot failed (non-fatal)",
-      ),
     );
   }
 }

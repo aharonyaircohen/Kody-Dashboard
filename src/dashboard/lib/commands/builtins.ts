@@ -2,14 +2,14 @@
  * @fileType data
  * @domain kody
  * @pattern commands-builtins
- * @ai-summary Default commands shipped with the dashboard. Each entry
- *   becomes a slash command in the chat (`/<slug>`). Repo-defined files
- *   at `.kody/commands/<slug>.md` override built-ins by slug. Drop a file
- *   `.kody/commands/.disable-builtins` in the repo to hide every built-in
- *   without overriding individually.
+ * @ai-summary Fallback commands bundled with the dashboard for cold-start
+ *   and unavailable-Store cases. Shared command catalog lives in Store.
+ *   Repo and Store `.kody/commands/<slug>.md` files shadow these by slug.
+ *   Drop `.kody/commands/.disable-builtins` in the repo to hide every fallback
+ *   built-in without overriding individually.
  *
- *   `/research`, `/plan`, and `/issue` enforce the research-first flow
- *   the kody-live system prompt expects (see
+ *   Matching Store files for `/research`, `/plan`, and `/issue` enforce
+ *   the research-first flow the kody-live system prompt expects (see
  *   app/api/kody/chat/kody/system-prompt.ts "Issue creation: research
  *   before drafting"). `/issue` extends that with the executor handoff —
  *   after the issue is created the model offers to run it with Kody,
@@ -32,6 +32,22 @@ export const BUILTIN_COMMANDS: readonly BuiltinCommand[] = [
     // the slash-command expansion and runs the install action directly.
     // Kept here so the slash menu lists it as a first-class command.
     body: "",
+  },
+  {
+    slug: "briefing",
+    description: "Summarize what needs attention",
+    body:
+      "Run the Work Briefing.\n\n" +
+      "First call `read_agentAction` for slug `work-briefing` and follow its `work-briefing` skill. " +
+      "If it is not available, use the method below directly.\n\n" +
+      "Use available read-only tools to gather current state:\n\n" +
+      "- `list_reports`, then `read_report` for action-needed or recent reports\n" +
+      "- `github_list_issues` for open tasks and waiting items\n" +
+      "- `kody_list_open_prs` for PRs in review\n" +
+      "- `kody_list_workflow_runs` for recent failures or running CI\n" +
+      "- `list_inbox` for waiting decisions\n" +
+      "- `list_goals` for active missions (legacy task groups)\n\n" +
+      "Return the briefing in chat. Do not create, assign, close, edit, or solve anything.",
   },
   {
     slug: "plan",
@@ -94,12 +110,21 @@ export const BUILTIN_COMMANDS: readonly BuiltinCommand[] = [
   },
   {
     slug: "goal",
-    description: "Create a new goal",
+    description: "Create a company goal",
+    argumentHint: "<outcome>",
+    body:
+      'Create a new company-level goal for "$ARGUMENTS".\n\n' +
+      "Use the managed goal model: outcome, proof/evidence, route, facts, and blockers. " +
+      "Prefer managed-goal tools when available. Keep the first route simple.",
+  },
+  {
+    slug: "mission",
+    description: "Create a mission task group",
     argumentHint: "<title>",
     body:
-      'Create a new goal titled "$ARGUMENTS".\n\n' +
-      "Capture the motivation, the success metric, and a rough first milestone. " +
-      "Keep it tight — one paragraph each, no fluff.",
+      'Create a new mission titled "$ARGUMENTS".\n\n' +
+      "A mission is the old task grouping under the task page: it collects concrete tasks toward one focused effort. " +
+      "Capture motivation, success metric, and rough first milestone. Keep it tight — one paragraph each, no fluff.",
   },
   {
     slug: "analyze",
@@ -109,13 +134,15 @@ export const BUILTIN_COMMANDS: readonly BuiltinCommand[] = [
       "Summarize the state, flag anything that looks wrong or stuck, and suggest the next concrete action.",
   },
   {
-    slug: "duty",
-    description: "Draft a scheduled Kody duty",
+    slug: "agentResponsibility",
+    description: "Draft a scheduled Kody agentResponsibility",
     argumentHint: "<what should it do>",
     body:
-      "Draft a Kody duty that does the following: $ARGUMENTS.\n\n" +
-      "Output the markdown for `.kody/duties/<slug>.md` with `every:` frontmatter (pick a reasonable cadence), " +
-      "a clear H1 title, a short context section, and step-by-step instructions. " +
-      "End the body with the `## State` block that emits `nextEligibleISO`.",
+      "Draft a Kody agentResponsibility that does the following: $ARGUMENTS.\n\n" +
+      "Output a folder proposal for `.kody/agent-responsibilities/<slug>/` with `profile.json` metadata " +
+      "(action, agentAction when needed, every, agent, readsFrom/writesTo) and a " +
+      "`agent-responsibility.md` body with a clear H1, `## Job`, `## AgentAction` when relevant, " +
+      "`## Output`, `## Allowed Commands`, and `## Restrictions`. Keep implementation " +
+      "recipes in agentAction skills/scripts, not in the agentResponsibility body.",
   },
 ] as const;

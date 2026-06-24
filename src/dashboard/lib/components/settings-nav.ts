@@ -12,26 +12,28 @@ import {
   Bell,
   Bot,
   Boxes,
+  Brain,
   Building2,
+  CheckCircle2,
+  Compass,
   Cpu,
+  Database,
   FileText,
   FolderOpen,
   History,
   Home,
-  Inbox,
   KeyRound,
   Layers,
   LayoutGrid,
   MessageSquare,
   MonitorPlay,
-  Rocket,
+  Package,
   ScrollText,
   Settings as SettingsIcon,
-  ShieldCheck,
   Settings2,
   SlidersHorizontal,
   Sparkles,
-  SquareTerminal,
+  Target,
   Users,
   type LucideIcon,
 } from "lucide-react";
@@ -97,6 +99,16 @@ export const VIBE_NAV_ITEM: SettingsNavItem = {
   tint: "text-fuchsia-300 bg-fuchsia-500/10",
 };
 
+export const PREVIEW_NAV_ITEM: SettingsNavItem = {
+  href: "/preview",
+  label: "Views",
+  icon: MonitorPlay,
+  exact: true,
+  description:
+    "View any environment — Production, Staging, Dev — with saved paths, device sizes, and element-pick into chat.",
+  tint: "text-sky-300 bg-sky-500/10",
+};
+
 /**
  * Primary view switch (Dashboard / Tasks / Vibe), rendered at the very top of
  * the sidebar rail and mobile menu. Replaces the old header ViewToggle +
@@ -116,69 +128,22 @@ export const PRIMARY_NAV_TITLE = "Workspace" as const;
 
 export const PRIMARY_NAV_ITEMS: readonly SettingsNavItem[] = [
   {
-    href: "/terminal",
-    label: "Terminal",
-    icon: SquareTerminal,
-    exact: true,
-    description: "Interactive shell for live Fly runner and Brain machines.",
+    href: "/org",
+    label: "Org",
+    icon: Building2,
+    description: "Org workspace — manage attached repositories.",
     tint: "text-emerald-300 bg-emerald-500/10",
   },
+
   {
-    href: "/jobs",
-    label: "Jobs",
-    icon: Rocket,
-    exact: true,
-    description: "Compose a run: executable + duty + staff + schedule.",
-    tint: "text-emerald-300 bg-emerald-500/10",
-  },
-  {
-    href: "/duties",
-    label: "Duties",
-    icon: Layers,
-    exact: true,
-    description: "Run and edit recurring duties.",
-    tint: "text-amber-300 bg-amber-500/10",
-  },
-  {
-    href: "/executables",
-    label: "Executables",
-    icon: Boxes,
-    exact: true,
-    description: "Manage custom @kody executables (folder duties).",
-    tint: "text-amber-300 bg-amber-500/10",
-  },
-  {
-    href: "/reports",
-    label: "Reports",
-    icon: FileText,
-    description: "Outputs from duty runs.",
-    tint: "text-sky-300 bg-sky-500/10",
-  },
-  {
-    href: "/staff",
-    label: "Staff",
-    icon: Users,
-    description: "Personas that execute your duties.",
-    tint: "text-violet-300 bg-violet-500/10",
-  },
-  {
-    href: "/trust",
-    label: "Trust",
-    icon: ShieldCheck,
-    exact: true,
+    href: "/todos",
+    label: "Todos",
+    icon: CheckCircle2,
     description:
-      "How close each staff member is to acting on its own — grant or revoke autonomy per action.",
+      "Repo worklist — lightweight action items Kody should keep visible.",
     tint: "text-emerald-300 bg-emerald-500/10",
   },
-  {
-    href: "/preview",
-    label: "Preview",
-    icon: MonitorPlay,
-    exact: true,
-    description:
-      "Live preview of any environment — Production, Staging, Dev — with views, device sizes, and element-pick into chat.",
-    tint: "text-sky-300 bg-sky-500/10",
-  },
+
   {
     href: "/messages",
     label: "Messages",
@@ -187,26 +152,20 @@ export const PRIMARY_NAV_ITEMS: readonly SettingsNavItem[] = [
     tint: "text-cyan-300 bg-cyan-500/10",
   },
   {
-    href: "/activity",
-    label: "Activity",
-    icon: Activity,
-    description: "Engine run health — queue depth, throughput, failures.",
-    tint: "text-rose-300 bg-rose-500/10",
-  },
-  {
-    href: "/changelog",
-    label: "Changelog",
-    icon: History,
-    description: "What shipped, version by version.",
-    tint: "text-fuchsia-300 bg-fuchsia-500/10",
-  },
-  {
-    href: "/docs",
-    label: "Docs",
+    href: "/reports",
+    label: "Reports",
     icon: FileText,
-    description: "README and docs folder from the repo.",
-    tint: "text-amber-300 bg-amber-500/10",
+    description: "Outputs from agentResponsibility runs.",
+    tint: "text-sky-300 bg-sky-500/10",
   },
+  {
+    href: "/cms",
+    label: "CMS",
+    icon: Database,
+    description: "Configured content collections.",
+    tint: "text-emerald-300 bg-emerald-500/10",
+  },
+  PREVIEW_NAV_ITEM,
 ] as const;
 
 export interface SettingsNavSection {
@@ -216,6 +175,110 @@ export interface SettingsNavSection {
 }
 
 export const SETTINGS_NAV_SECTIONS: readonly SettingsNavSection[] = [
+  {
+    title: "Fly",
+    items: [
+      {
+        href: "/fly/config",
+        label: "Config",
+        icon: SlidersHorizontal,
+        exact: true,
+        description: "Fly settings: previews, runners, and Brain.",
+        tint: "text-sky-300 bg-sky-500/10",
+      },
+      {
+        href: "/fly/machines",
+        label: "Live machines",
+        icon: Cpu,
+        exact: true,
+        description: "Current Fly machines and actions.",
+        tint: "text-emerald-300 bg-emerald-500/10",
+      },
+      {
+        href: "/fly/history",
+        label: "History",
+        icon: History,
+        exact: true,
+        description: "Fly machine activity snapshots and estimated cost.",
+        tint: "text-amber-300 bg-amber-500/10",
+      },
+    ],
+  },
+  {
+    title: "Monitoring",
+    items: [
+      {
+        href: "/activity",
+        label: "Activity",
+        icon: Activity,
+        description: "Engine run health — queue depth, throughput, failures.",
+        tint: "text-rose-300 bg-rose-500/10",
+      },
+    ],
+  },
+  {
+    title: "Operations",
+    items: [
+      {
+        href: "/agents",
+        label: "Agents",
+        icon: Users,
+        description:
+          "Agent identities that execute your agentResponsibilities.",
+        tint: "text-violet-300 bg-violet-500/10",
+      },
+
+      {
+        href: "/agent-goals",
+        label: "Goals",
+        icon: Target,
+        exact: true,
+        description: "Finite outcomes driven by missing evidence.",
+        tint: "text-sky-300 bg-sky-500/10",
+      },
+      {
+        href: "/company-intents",
+        label: "Intents",
+        icon: Compass,
+        exact: true,
+        description: "CTO guidance for company goals, loops, and responsibilities.",
+        tint: "text-cyan-300 bg-cyan-500/10",
+      },
+      {
+        href: "/agent-loops",
+        label: "Loops",
+        icon: History,
+        exact: true,
+        description: "Operational loops driven by schedule and health.",
+        tint: "text-emerald-300 bg-emerald-500/10",
+      },
+      {
+        href: "/agent-responsibilities",
+        label: "Responsibilities",
+        icon: Layers,
+        exact: true,
+        description: "Run and edit recurring agentResponsibilities.",
+        tint: "text-amber-300 bg-amber-500/10",
+      },
+      {
+        href: "/agent-actions",
+        label: "Actions",
+        icon: Boxes,
+        exact: true,
+        description: "Manage custom agentAction implementations.",
+        tint: "text-amber-300 bg-amber-500/10",
+      },
+      {
+        href: "/store-catalog",
+        label: "Store Catalog",
+        icon: Package,
+        exact: true,
+        description:
+          "Browse shared store items and activate them in this repo.",
+        tint: "text-emerald-300 bg-emerald-500/10",
+      },
+    ],
+  },
   {
     title: "Agent",
     items: [
@@ -246,8 +309,29 @@ export const SETTINGS_NAV_SECTIONS: readonly SettingsNavSection[] = [
         label: "Context",
         icon: FileText,
         description:
-          "Curated markdown context you feed Kody — attach to staff; Kody's entries frame every chat turn.",
+          "Curated markdown context you feed Kody — attach to agent; Kody's entries frame every chat turn.",
         tint: "text-teal-300 bg-teal-500/10",
+      },
+      {
+        href: "/memory",
+        label: "Memory",
+        icon: Brain,
+        description:
+          "Persistent facts and feedback Kody remembers across chat turns.",
+        tint: "text-fuchsia-300 bg-fuchsia-500/10",
+      },
+    ],
+  },
+  {
+    title: "Engine",
+    items: [
+      {
+        href: "/config",
+        label: "Engine config",
+        icon: SlidersHorizontal,
+        description:
+          "Repo-wide engine settings: reasoning effort, operators, quality commands, the @kody access gate, default branch, and aliases.",
+        tint: "text-emerald-300 bg-emerald-500/10",
       },
     ],
   },
@@ -255,19 +339,11 @@ export const SETTINGS_NAV_SECTIONS: readonly SettingsNavSection[] = [
     title: "Company",
     items: [
       {
-        href: "/config",
-        label: "Config",
-        icon: SlidersHorizontal,
-        description:
-          "Repo-wide engine settings: operators, quality commands, the @kody access gate, default branch, and aliases.",
-        tint: "text-emerald-300 bg-emerald-500/10",
-      },
-      {
         href: "/company",
         label: "Import / Export",
         icon: Building2,
         description:
-          "Move your staff, duties, prompts, and instructions between repos as a portable bundle.",
+          "Move your agent, agentResponsibilities, prompts, and instructions between repos as a portable bundle.",
         tint: "text-emerald-300 bg-emerald-500/10",
       },
     ],
@@ -275,14 +351,6 @@ export const SETTINGS_NAV_SECTIONS: readonly SettingsNavSection[] = [
   {
     title: "Infrastructure",
     items: [
-      {
-        href: "/runner",
-        label: "Fly Runner",
-        icon: Rocket,
-        description:
-          "Per-repo Fly infra: machines, activity, warm-pool, LiteLLM, Brain.",
-        tint: "text-sky-300 bg-sky-500/10",
-      },
       {
         href: "/secrets",
         label: "Secrets",
@@ -303,13 +371,6 @@ export const SETTINGS_NAV_SECTIONS: readonly SettingsNavSection[] = [
     title: "Alerts",
     items: [
       {
-        href: "/inbox",
-        label: "Inbox",
-        icon: Inbox,
-        description: "Durable list of @mentions and review requests.",
-        tint: "text-amber-300 bg-amber-500/10",
-      },
-      {
         href: "/notifications",
         label: "Notifications",
         icon: Bell,
@@ -329,6 +390,20 @@ export const SETTINGS_NAV_SECTIONS: readonly SettingsNavSection[] = [
         tint: "text-amber-300 bg-amber-500/10",
       },
       {
+        href: "/docs",
+        label: "Docs",
+        icon: FileText,
+        description: "README and docs folder from the repo.",
+        tint: "text-amber-300 bg-amber-500/10",
+      },
+      {
+        href: "/changelog",
+        label: "Changelog",
+        icon: History,
+        description: "What shipped, version by version.",
+        tint: "text-fuchsia-300 bg-fuchsia-500/10",
+      },
+      {
         href: "/settings",
         label: "Settings",
         icon: SettingsIcon,
@@ -345,11 +420,91 @@ const ALL_NAV_ITEMS: readonly SettingsNavItem[] = [
   DASHBOARD_NAV_ITEM,
   TASKS_NAV_ITEM,
   VIBE_NAV_ITEM,
+  PREVIEW_NAV_ITEM,
   ...PRIMARY_NAV_ITEMS,
   ...SETTINGS_NAV_SECTIONS.flatMap((section) => section.items),
 ];
 
-/** Strip a query string off an href so "/reports" → "/duties". */
+const NAV_ITEM_BY_HREF = new Map(
+  ALL_NAV_ITEMS.map((item) => [item.href, item] as const),
+);
+
+function navItemForHref(href: string): SettingsNavItem {
+  const item = NAV_ITEM_BY_HREF.get(href);
+  if (!item) throw new Error(`Missing sidebar item for ${href}`);
+  return item;
+}
+
+function settingsSection(title: string): SettingsNavSection {
+  const section = SETTINGS_NAV_SECTIONS.find((item) => item.title === title);
+  if (!section) throw new Error(`Missing sidebar section ${title}`);
+  return section;
+}
+
+export const VIBE_MODE_SECTIONS: readonly SettingsNavSection[] = [
+  {
+    title: PRIMARY_VIEW_TITLE,
+    items: [VIBE_NAV_ITEM, PREVIEW_NAV_ITEM],
+  },
+  {
+    title: PRIMARY_NAV_TITLE,
+    items: [
+      navItemForHref("/org"),
+      navItemForHref("/todos"),
+      navItemForHref("/messages"),
+      navItemForHref("/reports"),
+      navItemForHref("/cms"),
+      navItemForHref("/docs"),
+      navItemForHref("/changelog"),
+    ],
+  },
+];
+
+export const ENGINEER_MODE_SECTIONS: readonly SettingsNavSection[] = [
+  {
+    title: PRIMARY_VIEW_TITLE,
+    items: [TASKS_NAV_ITEM, VIBE_NAV_ITEM, PREVIEW_NAV_ITEM],
+  },
+  settingsSection("Operations"),
+  {
+    title: PRIMARY_NAV_TITLE,
+    items: [
+      navItemForHref("/org"),
+      navItemForHref("/todos"),
+      navItemForHref("/messages"),
+      navItemForHref("/reports"),
+      navItemForHref("/cms"),
+      navItemForHref("/files"),
+      navItemForHref("/docs"),
+      navItemForHref("/changelog"),
+    ],
+  },
+  settingsSection("Monitoring"),
+  settingsSection("Fly"),
+  settingsSection("Agent"),
+  settingsSection("Engine"),
+  settingsSection("Company"),
+  settingsSection("Infrastructure"),
+  settingsSection("Alerts"),
+  { title: "General", items: [navItemForHref("/settings")] },
+];
+
+export const MOBILE_NAV_SECTIONS: readonly SettingsNavSection[] = [
+  {
+    title: PRIMARY_VIEW_TITLE,
+    items: [
+      DASHBOARD_NAV_ITEM,
+      TASKS_NAV_ITEM,
+      VIBE_NAV_ITEM,
+      PREVIEW_NAV_ITEM,
+    ],
+  },
+  ...ENGINEER_MODE_SECTIONS.filter(
+    (section) => section.title !== PRIMARY_VIEW_TITLE,
+  ),
+];
+
+/** Strip a query string off an href so "/reports" → "/agent-responsibilities". */
 function navPath(href: string): string {
   const q = href.indexOf("?");
   return q === -1 ? href : href.slice(0, q);

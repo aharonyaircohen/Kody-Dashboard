@@ -57,7 +57,7 @@ That scaffolds the GitHub Actions workflow, the config, and the scheduled-job wo
 
 ### Flow orchestrators (declarative pipelines)
 
-Each flow is a transition table — postflight hooks dispatch the next executable based on the previous outcome. No engine changes to add a new flow; drop a new directory.
+Each flow is a transition table — postflight hooks dispatch the next agentAction based on the previous outcome. No engine changes to add a new flow; drop a new directory.
 
 | Flow                     | Pipeline                                      |
 | ------------------------ | --------------------------------------------- |
@@ -66,13 +66,13 @@ Each flow is a transition table — postflight hooks dispatch the next executabl
 | `kody spec --issue N`    | research → plan (terminates at plan, no code) |
 | `kody chore --issue N`   | run → review → (fix loop)                     |
 
-### Duties, watches, managers
+### AgentResponsibilities, watches, managers
 
-A **duty** is a stateful, bounded goal expressed as a markdown file under `.kody/duties/`. A **watch** is a stateless repeating loop. A **manager** is a duty whose goal is overseeing other duties.
+An **agent responsibility** is a stateful, bounded goal expressed as a markdown file under `.kody/agent-responsibilities/`. A **watch** is a stateless repeating loop. A **manager** is an agent responsibility whose goal is overseeing other agent responsibilities.
 
-`job-scheduler` runs on cron (default every 5 minutes), finds every duty file under `.kody/duties/`, and calls `job-tick` once per duty. The tick agent reads the duty body (human-owned prose) and a state file (bot-owned JSON), decides the next step, and updates state. Children spawn via `gh workflow run`.
+`agent-responsibility-scheduler` runs on cron (default every 5 minutes), finds every agent responsibility file under `.kody/agent-responsibilities/`, and calls `agent-responsibility-tick` once per agent responsibility. The tick agent reads the agent responsibility body (human-owned prose) and a state file (bot-owned JSON), decides the next step, and updates state. Children spawn via `gh workflow run`.
 
-This is how Kody runs **autonomously without supervision**. You file a goal as a duty under `.kody/duties/`, and the scheduler keeps making progress every five minutes until the goal is done. Manager duties let you set up org-wide policies (e.g. "keep dependencies fresh across all repos") without any external orchestrator.
+This is how Kody runs **autonomously without supervision**. You file a goal as an agent responsibility under `.kody/agent-responsibilities/`, and the scheduler keeps making progress every five minutes until the goal is done. Manager agent responsibilities let you set up org-wide policies (e.g. "keep dependencies fresh across all repos") without any external orchestrator.
 
 ### Built-in deterministic commands
 
@@ -80,8 +80,8 @@ This is how Kody runs **autonomously without supervision**. You file a goal as a
 
 ### What makes the engine architecturally different
 
-- **Zero hardcoded executable names.** The router resolves `@kody <token>` through config aliases, then auto-discovers from `src/executables/<name>/`. Drop a `profile.json` + `prompt.md` (+ optional `.sh` scripts) and `kody <name>` works.
-- **Declarative profiles, not code.** Executable directories contain only three kinds of files: declaration JSON, agent prompt markdown, mechanical side-effect shell scripts. Cross-cutting TypeScript lives separately and can't branch on profile name.
+- **Zero hardcoded agentAction names.** The router resolves `@kody <token>` through config aliases, then auto-discovers from `src/agent-actions/<name>/`. Drop a `profile.json` + `prompt.md` (+ optional `.sh` scripts) and `kody <name>` works.
+- **Declarative profiles, not code.** AgentAction directories contain only three kinds of files: declaration JSON, agent prompt markdown, mechanical side-effect shell scripts. Cross-cutting TypeScript lives separately and can't branch on profile name.
 - **Single-session Claude agent.** Every command is one agent session with a focused prompt and a curated tool set — not a chain of LLM calls glued together. Easier to debug, easier to reason about, easier to extend.
 - **Playwright MCP integration.** UI review and QA work because the agent can drive a real browser against a real preview deployment, with auth via committed Playwright storageState files.
 - **`@kody` ChatOps.** Every command is reachable from issue/PR comments. No new UI to learn — you talk to Kody where the work already lives.
@@ -96,7 +96,7 @@ The engine handles the agent work. The dashboard turns it into a managed platfor
 | ------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | **Task board**                       | Kanban view (inbox → spec → building → review → done) across all engine activity. Drag to change status, click to drill in.                                                                                         |
 | **Parallel run monitoring**          | Watch 10 agents work on 10 tasks at once, live, in one view. CLI can't do this.                                                                                                                                     |
-| **Duty scheduler UI**                | Markdown-defined duties in `.kody/duties/`, ticked off in the dashboard as they complete. Visual cron without leaving the app.                                                                                      |
+| **Agent responsibility scheduler UI**                | Markdown-defined agent responsibilities in `.kody/agent-responsibilities/`, ticked off in the dashboard as they complete. Visual cron without leaving the app.                                                                                      |
 | **Live preview management**          | Per-task Fly.io preview environments, with per-repo Fly tokens managed in Settings (never deployment env vars).                                                                                                     |
 | **PR viewer**                        | File diffs, CI status, gate approvals — all inline, no GitHub roundtrip.                                                                                                                                            |
 | **Provider-agnostic chat**           | Configure any LLM (Claude, GPT, Gemini, Groq, OpenRouter, Mistral, DeepSeek, xAI, custom endpoints) per model entry. Two protocols, your keys.                                                                      |
@@ -114,7 +114,7 @@ The dashboard never bypasses GitHub — every state change is a real issue/PR/wo
 
 ### Scheduled, autonomous, reporting
 
-Agents run on cron, not on prompt. Define a duty once, get output forever — as PRs you review, issues you triage, or markdown reports in the changelog. **Renovate and Dependabot are single-purpose; Kody is a general autonomous-agent runtime.**
+Agents run on cron, not on prompt. Define a agentResponsibility once, get output forever — as PRs you review, issues you triage, or markdown reports in the changelog. **Renovate and Dependabot are single-purpose; Kody is a general autonomous-agent runtime.**
 
 Real use cases:
 
@@ -147,7 +147,7 @@ The whole stack is yours to read, fork, and run. No vendor lock-in, no per-seat 
 ### Bring your own model — at every layer
 
 - **Dashboard chat:** Anthropic Messages API or OpenAI Chat Completions protocol covers Claude, GPT, Gemini, Groq, OpenRouter, Mistral, DeepSeek, xAI, DeepInfra, Together, Fireworks, plus a "custom endpoint" preset for self-hosted LiteLLM proxies, vLLM, Ollama, or in-house services.
-- **Engine:** built on the Claude Agent SDK, routes non-Anthropic models through LiteLLM's Anthropic-compatible proxy. Configure per-executable model choice if you want (e.g. cheap model for classification, smart model for implementation).
+- **Engine:** built on the Claude Agent SDK, routes non-Anthropic models through LiteLLM's Anthropic-compatible proxy. Configure per-agentAction model choice if you want (e.g. cheap model for classification, smart model for implementation).
 
 No hardcoded provider, no vendor lock-in, at any layer.
 
@@ -177,7 +177,7 @@ No hardcoded provider, no vendor lock-in, at any layer.
 | Runs in your CI                       | Yes                           | No      | No      | No         | GitHub-locked     | No      | No        |
 | `@kody`-style ChatOps in issues/PRs   | Yes                           | No      | Partial | Partial    | No                | No      | No        |
 | Free-form QA agent                    | Yes                           | No      | No      | No         | No                | No      | No        |
-| Goal-driven duties (autonomous loops) | Yes                           | No      | No      | No         | No                | No      | No        |
+| Goal-driven agentResponsibilities (autonomous loops) | Yes                           | No      | No      | No         | No                | No      | No        |
 | Multi-model (any provider)            | Yes (LiteLLM + OpenAI-compat) | No      | No      | Limited    | No                | Limited | Yes       |
 | Visual control plane (dashboard)      | Yes                           | Yes     | Yes     | Yes        | Yes               | n/a     | Yes       |
 | Per-seat pricing                      | No                            | Yes     | Yes     | Yes        | Yes               | Yes     | No        |
@@ -196,10 +196,10 @@ Of every product in this table, Kody is the only one that is both open-source an
 │                          │       │                              │
 │   Visual control plane:  │       │   Autonomous agent runtime:  │
 │   - Task board           │       │   - `kody` CLI               │
-│   - Duty scheduler UI    │       │   - Claude Agent SDK         │
+│   - Agent responsibility scheduler UI    │       │   - Claude Agent SDK         │
 │   - Parallel monitoring  │       │   - Multi-model (LiteLLM)    │
 │   - PR viewer            │       │   - Auto-discovered          │
-│   - Provider-agnostic    │       │     executables              │
+│   - Provider-agnostic    │       │     agentActions              │
 │     chat                 │       │   - Flow orchestrators       │
 │   - Reports & changelog  │       │   - Job scheduler + tick     │
 │   - Secrets vault        │       │   - Playwright MCP for UI    │

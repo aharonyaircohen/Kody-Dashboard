@@ -7,6 +7,7 @@
 "use client";
 
 import { cn } from "../utils";
+import { autoDirProps } from "../text-direction";
 import { MiniPipelineProgress } from "./MiniPipelineProgress";
 import type { KodyTask } from "../types";
 import { Button } from "@dashboard/ui/button";
@@ -174,7 +175,10 @@ export function QueueView({
               {/* Task info */}
               <div className="flex-1 min-w-0">
                 <div className="flex items-center gap-2">
-                  <span className="text-sm font-medium text-foreground truncate">
+                  <span
+                    {...autoDirProps}
+                    className="text-sm font-medium text-foreground truncate text-start"
+                  >
                     {task.title}
                   </span>
                   <span className="text-xs text-muted-foreground/50 shrink-0">

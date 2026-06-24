@@ -6,7 +6,7 @@
  * The "Activity" tab body inside the Fly Runner page: per-machine working time,
  * uptime %, suspend count, and estimated cost over the retained window. Reads
  * GET /api/kody/fly/activity, which computes from snapshots recorded on the
- * `kody-state` branch (GitHub-only — no DB, no cron). Opening the tab records a
+ * configured Kody state repo (GitHub-only — no DB, no cron). Opening the tab records a
  * fresh snapshot, so history fills in as it's used.
  *
  * Content-only (no PageShell) so it slots into RunnerManager's Tabs alongside
@@ -139,7 +139,7 @@ export function FlyActivityTab({
       <div className="flex items-center gap-3">
         <p className="text-xs text-white/50">
           Computed from snapshots on the{" "}
-          <span className="font-mono">kody-state</span> branch (last 14 days).
+          <span className="font-mono">state repo</span> (last 14 days).
           Opening this tab records one — history fills in over time.
           {snapshots !== null ? ` ${snapshots} snapshots so far.` : ""}
         </p>

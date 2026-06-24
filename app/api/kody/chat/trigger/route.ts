@@ -32,6 +32,7 @@ import {
 } from "@dashboard/lib/vibe/primer";
 import { applyPageContextToLastUser } from "@dashboard/lib/chat/page-context";
 import { recordDispatchFailure } from "@dashboard/lib/health/dispatch-failures";
+import { writeGitHubFileWithRetry } from "@dashboard/lib/github-contents-write";
 import { Buffer } from "buffer";
 
 export const runtime = "nodejs";
@@ -178,7 +179,7 @@ export async function POST(req: NextRequest) {
       }
     }
 
-    await octokit.rest.repos.createOrUpdateFileContents({
+    await writeGitHubFileWithRetry(octokit, {
       owner,
       repo,
       path: sessionPath,

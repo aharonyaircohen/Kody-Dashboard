@@ -45,7 +45,7 @@ import {
   clearGitHubContext,
   clearCache,
   getCacheStats,
-  invalidateDutiesCache,
+  invalidateAgentResponsibilitiesCache,
   invalidateStaffCache,
   invalidateCommandsCache,
   invalidateMemoryCache,
@@ -197,53 +197,53 @@ describe("invalidateIssueCache", () => {
   });
 });
 
-describe("invalidateDutiesCache", () => {
+describe("invalidateAgentResponsibilitiesCache", () => {
   it("clears only the per-item cache when a slug is given", () => {
     // Seed both the per-item cache and the listing cache.
-    setCache("duty:acme:widgets:my-slug", 60_000, { title: "duty" });
-    setCache("duties:acme:widgets:{}", 60_000, [{ slug: "my-slug" }]);
+    setCache("agentResponsibility:acme:widgets:my-slug", 60_000, { title: "agentResponsibility" });
+    setCache("agentResponsibilities:acme:widgets:{}", 60_000, [{ slug: "my-slug" }]);
 
-    invalidateDutiesCache("my-slug");
+    invalidateAgentResponsibilitiesCache("my-slug");
 
     // Per-item cache should be gone; listing cache should remain.
     const keys = getCacheStats().keys;
-    expect(keys.some((k) => k.startsWith("duty:"))).toBe(false);
-    expect(keys.some((k) => k.startsWith("duties:"))).toBe(true);
+    expect(keys.some((k) => k.startsWith("agentResponsibility:"))).toBe(false);
+    expect(keys.some((k) => k.startsWith("agentResponsibilities:"))).toBe(true);
   });
 
   it("clears only the listing cache when no slug is given", () => {
-    setCache("duty:acme:widgets:my-slug", 60_000, { title: "duty" });
-    setCache("duties:acme:widgets:{}", 60_000, [{ slug: "my-slug" }]);
+    setCache("agentResponsibility:acme:widgets:my-slug", 60_000, { title: "agentResponsibility" });
+    setCache("agentResponsibilities:acme:widgets:{}", 60_000, [{ slug: "my-slug" }]);
 
-    invalidateDutiesCache();
+    invalidateAgentResponsibilitiesCache();
 
     // Listing cache should be gone; per-item cache should remain.
     const keys = getCacheStats().keys;
-    expect(keys.some((k) => k.startsWith("duty:"))).toBe(true);
-    expect(keys.some((k) => k.startsWith("duties:"))).toBe(false);
+    expect(keys.some((k) => k.startsWith("agentResponsibility:"))).toBe(true);
+    expect(keys.some((k) => k.startsWith("agentResponsibilities:"))).toBe(false);
   });
 });
 
 describe("invalidateStaffCache", () => {
   it("clears only the per-item cache when a slug is given", () => {
-    setCache("staff:acme:widgets:jane", 60_000, { name: "Jane" });
+    setCache("agent:acme:widgets:jane", 60_000, { name: "Jane" });
     setCache("staffs:acme:widgets:{}", 60_000, [{ slug: "jane" }]);
 
     invalidateStaffCache("jane");
 
     const keys = getCacheStats().keys;
-    expect(keys.some((k) => k.startsWith("staff:"))).toBe(false);
+    expect(keys.some((k) => k.startsWith("agent:"))).toBe(false);
     expect(keys.some((k) => k.startsWith("staffs:"))).toBe(true);
   });
 
   it("clears only the listing cache when no slug is given", () => {
-    setCache("staff:acme:widgets:jane", 60_000, { name: "Jane" });
+    setCache("agent:acme:widgets:jane", 60_000, { name: "Jane" });
     setCache("staffs:acme:widgets:{}", 60_000, [{ slug: "jane" }]);
 
     invalidateStaffCache();
 
     const keys = getCacheStats().keys;
-    expect(keys.some((k) => k.startsWith("staff:"))).toBe(true);
+    expect(keys.some((k) => k.startsWith("agent:"))).toBe(true);
     expect(keys.some((k) => k.startsWith("staffs:"))).toBe(false);
   });
 });

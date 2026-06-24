@@ -14,7 +14,7 @@
  *     app, url, machineId?, stored? }                   — live machine state.
  *
  * `stored` is the per-user record at
- * `.kody/users/<login>/data/brain.json` (see `brain/store.ts`). It can
+ * `users/<login>/data/brain.json` (see `brain/store.ts`). It can
  * outlive the user's access to the app on Fly (token revoked, app moved
  * orgs, slug taken by another account) — in that case `state` is `off`
  * and `stored` is non-null, which the Runner page surfaces as an orphan

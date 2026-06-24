@@ -71,6 +71,8 @@ const PatchSchema = z
       .object({
         cpus: z.number().int().min(1).max(16).optional(),
         memoryMb: z.number().int().min(256).max(32768).optional(),
+        builderCpus: z.number().int().min(1).max(16).optional(),
+        builderMemoryMb: z.number().int().min(256).max(32768).optional(),
         idleSuspend: z.boolean().optional(),
         healthCheck: z.boolean().optional(),
         ttlDays: z.number().int().min(0).max(365).optional(),

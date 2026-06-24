@@ -29,6 +29,7 @@ import {
   isTerminalMachineLive,
   isTerminalMachineStartable,
   selectTerminalTarget,
+  terminalActivityLimitForTarget,
 } from "@dashboard/lib/terminal/session";
 import { mintTerminalBridgeToken } from "@dashboard/lib/terminal/terminal-token";
 
@@ -38,6 +39,18 @@ export const dynamic = "force-dynamic";
 const Body = z.object({
   app: z.string().min(1).max(120),
   machineId: z.string().min(1).max(120),
+  chatSessionId: z.string().min(1).max(160).optional(),
+  resetSession: z.boolean().optional(),
+  activityLimitMs: z
+    .union([
+      z
+        .number()
+        .int()
+        .min(60_000)
+        .max(24 * 60 * 60_000),
+      z.null(),
+    ])
+    .optional(),
   cols: z.number().int().min(20).max(300).optional(),
   rows: z.number().int().min(8).max(120).optional(),
 });
@@ -152,12 +165,19 @@ export async function POST(req: NextRequest) {
     }
 
     const bridge = await ensureTerminalBridge(cfg);
+    const activityLimitMs = terminalActivityLimitForTarget(
+      selected.machine.feature,
+      parsed.data.activityLimitMs,
+    );
     const now = Math.floor(Date.now() / 1000);
     const token = mintTerminalBridgeToken({
       owner: auth.owner,
       repo: auth.repo,
       app: parsed.data.app,
       machineId: parsed.data.machineId,
+      chatSessionId: parsed.data.chatSessionId,
+      resetSession: parsed.data.resetSession,
+      ...(activityLimitMs !== undefined ? { activityLimitMs } : {}),
       flyToken: cfg.token,
       cols: parsed.data.cols,
       rows: parsed.data.rows,

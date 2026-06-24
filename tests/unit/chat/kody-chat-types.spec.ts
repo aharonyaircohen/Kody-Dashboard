@@ -10,6 +10,7 @@ import {
   chatToMessage,
   messageToChat,
   ISSUE_CREATION_TOOL_NAMES,
+  getCreatedIssueNumberFromToolOutput,
   type Message,
 } from "@dashboard/lib/components/kody-chat-types";
 import type { ChatMessage } from "@dashboard/lib/chat-types";
@@ -84,9 +85,10 @@ describe("round-trip", () => {
 });
 
 describe("ISSUE_CREATION_TOOL_NAMES", () => {
-  it("contains exactly the six issue-creation tools", () => {
+  it("contains exactly the seven issue-creation tools", () => {
     expect([...ISSUE_CREATION_TOOL_NAMES].sort()).toEqual(
       [
+        "create_task",
         "create_chore",
         "create_documentation",
         "create_enhancement",
@@ -100,5 +102,42 @@ describe("ISSUE_CREATION_TOOL_NAMES", () => {
   it("does not flag unrelated tool names", () => {
     expect(ISSUE_CREATION_TOOL_NAMES.has("kody_run_issue")).toBe(false);
     expect(ISSUE_CREATION_TOOL_NAMES.has("fetch_url")).toBe(false);
+  });
+});
+
+describe("getCreatedIssueNumberFromToolOutput", () => {
+  it("accepts only successful issue-creation tool outputs", () => {
+    expect(
+      getCreatedIssueNumberFromToolOutput("create_task", {
+        number: 123,
+        url: "https://github.com/acme/repo/issues/123",
+      }),
+    ).toBe(123);
+    expect(
+      getCreatedIssueNumberFromToolOutput("report_bug", { number: 9 }),
+    ).toBe(9);
+  });
+
+  it("rejects read tools and failed create tools", () => {
+    expect(
+      getCreatedIssueNumberFromToolOutput("github_get_issue", {
+        number: 123,
+        url: "https://github.com/acme/repo/issues/123",
+      }),
+    ).toBeNull();
+    expect(
+      getCreatedIssueNumberFromToolOutput("create_task", {
+        error: "GitHub rejected the request",
+      }),
+    ).toBeNull();
+  });
+
+  it("rejects invalid issue numbers", () => {
+    expect(
+      getCreatedIssueNumberFromToolOutput("create_task", { number: "123" }),
+    ).toBeNull();
+    expect(
+      getCreatedIssueNumberFromToolOutput("create_task", { number: 0 }),
+    ).toBeNull();
   });
 });

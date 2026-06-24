@@ -51,13 +51,16 @@ interface PreviewEnvSwitcherProps {
   onSave: (next: PreviewEnvironment[]) => Promise<void>;
   /** Add an environment with label + url (parent persists + selects). */
   onAdd: (label: string, url: string) => Promise<void>;
-  /** Upload a file → boot a static preview → add it as an environment. */
-  onUpload: (file: File) => Promise<void>;
+  /** Upload file(s) → boot a static preview → add it as an environment. */
+  onUpload: (files: File[]) => Promise<void>;
   /** Destroy the Fly app behind an uploaded environment, if it has one. */
   onRemoveStatic?: (staticId: string) => Promise<void>;
+  /** Delete repo-backed view files behind uploaded view, if any. */
+  onRemoveRepoView?: (repoViewPath: string) => Promise<void>;
   /** Push an uploaded environment's expiry out by another TTL. */
   onExtend?: (id: string) => Promise<void>;
   isSaving: boolean;
+  variant?: "toolbar" | "address";
 }
 
 export function PreviewEnvSwitcher({
@@ -68,8 +71,10 @@ export function PreviewEnvSwitcher({
   onAdd,
   onUpload,
   onRemoveStatic,
+  onRemoveRepoView,
   onExtend,
   isSaving,
+  variant = "toolbar",
 }: PreviewEnvSwitcherProps) {
   const [menuOpen, setMenuOpen] = useState(false);
   const [addOpen, setAddOpen] = useState(false);
@@ -133,12 +138,16 @@ export function PreviewEnvSwitcher({
     if (removed?.staticId && onRemoveStatic) {
       await onRemoveStatic(removed.staticId);
     }
+    if (removed?.repoViewPath && onRemoveRepoView) {
+      await onRemoveRepoView(removed.repoViewPath);
+    }
   };
 
-  const handleUpload = async (file: File): Promise<void> => {
+  const handleUpload = async (files: File[]): Promise<void> => {
+    if (files.length === 0) return;
     setUploading(true);
     try {
-      await onUpload(file);
+      await onUpload(files);
       setMenuOpen(false);
     } finally {
       setUploading(false);
@@ -163,13 +172,29 @@ export function PreviewEnvSwitcher({
         onClick={() => setMenuOpen((v) => !v)}
         aria-haspopup="listbox"
         aria-expanded={menuOpen}
-        title="Switch preview environment"
-        className="inline-flex items-center gap-1 px-2.5 py-1 text-xs font-medium rounded-md bg-sky-500/15 text-sky-300 border border-sky-500/20 hover:bg-sky-500/25 transition-colors"
+        title={
+          active
+            ? `Switch preview environment: ${active.label}`
+            : "Switch preview environment"
+        }
+        className={cn(
+          "inline-flex items-center gap-1 text-xs font-medium transition-colors",
+          variant === "address"
+            ? "h-7 w-7 justify-center rounded-sm text-zinc-500 hover:bg-zinc-800 hover:text-white"
+            : "rounded-md border border-sky-500/20 bg-sky-500/15 px-2.5 py-1 text-sky-300 hover:bg-sky-500/25",
+        )}
       >
-        <span className="truncate max-w-[10rem]">
+        <span
+          className={cn(
+            "truncate",
+            variant === "address" ? "sr-only" : "max-w-[10rem]",
+          )}
+        >
           {active ? active.label : "Environment"}
         </span>
-        <ChevronDown className="w-3 h-3" />
+        <ChevronDown
+          className={cn(variant === "address" ? "h-4 w-4" : "h-3 w-3")}
+        />
       </button>
 
       {menuOpen && (
@@ -296,17 +321,18 @@ export function PreviewEnvSwitcher({
               <input
                 ref={fileInputRef}
                 type="file"
+                multiple
                 className="hidden"
                 onChange={(e) => {
-                  const f = e.target.files?.[0];
-                  if (f) void handleUpload(f);
+                  const files = Array.from(e.target.files ?? []);
+                  if (files.length > 0) void handleUpload(files);
                 }}
               />
               <button
                 type="button"
                 onClick={() => fileInputRef.current?.click()}
                 disabled={uploading}
-                title="Upload a file (HTML, PDF, image…) — served live, no build"
+                title="Upload static files to state views"
                 className="flex items-center gap-2 px-3 py-1.5 text-xs font-medium text-sky-300 hover:bg-zinc-800/70 border-l border-zinc-800 disabled:opacity-60"
               >
                 {uploading ? (
@@ -314,7 +340,7 @@ export function PreviewEnvSwitcher({
                 ) : (
                   <Upload className="w-3.5 h-3.5" />
                 )}
-                {uploading ? "Uploading…" : "Upload file"}
+                {uploading ? "Uploading…" : "Upload view files"}
               </button>
             </div>
           )}

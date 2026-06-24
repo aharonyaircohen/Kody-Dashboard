@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useRef, useEffect, useCallback } from "react";
+import { useState, useRef, useEffect, useCallback, useMemo } from "react";
 import { usePathname } from "next/navigation";
 import { navLabelForPath } from "./settings-nav";
 import {
@@ -11,9 +11,9 @@ import {
   type LiveAction,
   type LiveSessionState,
 } from "./kody-chat-reducer";
-import ReactMarkdown from "react-markdown";
-import remarkGfm from "remark-gfm";
+import { MarkdownPreview } from "./MarkdownPreview";
 import {
+  Brain,
   Globe,
   Paperclip,
   Send,
@@ -21,28 +21,46 @@ import {
   Image as ImageIcon,
   FileText,
   FileCode,
+  Github,
   MessageSquare,
-  History,
+  Eraser,
   Target,
-  Loader2,
   ChevronDown,
+  Loader2,
   PanelLeftClose,
   Maximize2,
   Minimize2,
   MousePointerClick,
   Plus,
+  Power,
+  RefreshCw,
+  Save,
   Square,
+  SquareTerminal,
+  Trash2,
+  Unplug,
 } from "lucide-react";
 import { AGENT_KODY, AGENTS, type AgentId } from "../agents";
-import { buildAgentList, type ChatModelEntry } from "../chat/agent-entries";
 import {
-  readDefaultChatEntry,
-  writeDefaultChatEntry,
-} from "../chat/default-entry";
+  buildAgentList,
+  type ChatDropdownEntry,
+  type ChatModelEntry,
+} from "../chat/agent-entries";
+import { readDefaultChatEntry } from "../chat/default-entry";
+import {
+  readReasoningEffort,
+  writeReasoningEffort,
+  resolveEffort,
+} from "../chat/reasoning-pref";
 import { getStoredAuth, getStoredBrainConfig, getStoredFlyPerf } from "../api";
 import { useAuth } from "../auth-context";
 import { toast } from "sonner";
 import type { KodyTask } from "../types";
+import {
+  terminalFlyMachineKey,
+  terminalMachineIdShort,
+  useChatTerminalRegistry,
+} from "../hooks/useChatTerminalRegistry";
 import {
   useSlashCommands,
   parseSlashTrigger,
@@ -76,7 +94,7 @@ import {
 import {
   chatToMessage,
   messageToChat,
-  ISSUE_CREATION_TOOL_NAMES,
+  getCreatedIssueNumberFromToolOutput,
   type Message,
   type ToolCall,
   type Attachment,
@@ -84,6 +102,12 @@ import {
 } from "./kody-chat-types";
 import { MessageAttachments } from "./MessageAttachments";
 import { TypingIndicator } from "./TypingIndicator";
+import {
+  ChatTerminalSurface,
+  type ChatTerminalSnapshot,
+  type ChatTerminalTransport,
+  type ChatTerminalSurfaceHandle,
+} from "./ChatTerminalSurface";
 
 import { flushSync } from "react-dom";
 import type {
@@ -101,6 +125,7 @@ import {
 import { ConfirmDialog } from "./ConfirmDialog";
 import { SimpleTooltip } from "./SimpleTooltip";
 import { useRemoteStatus } from "../hooks/useRemoteStatus";
+import { useAgents } from "../hooks/useAgents";
 import { useVoiceChat } from "../hooks/useVoiceChat";
 import { extractSentences } from "@dashboard/lib/speech-helpers";
 import {
@@ -117,6 +142,13 @@ import { SessionSidebar } from "./SessionSidebar";
 import { ToolCallList, ThinkingPanel, ReasoningPanel } from "./ToolCallCard";
 import { parseReasoning, stripReasoning } from "../chat/reasoning";
 import { parseAssistantContent } from "../chat/tool-call-strip";
+import {
+  extractFirstStaffMentionCandidate,
+  extractStaffMentions,
+  parseStaffMentionTrigger,
+  replaceStaffMentionTrigger,
+  type StaffMentionTrigger,
+} from "../mentions/agent-mentions";
 import { MessageActions } from "./MessageActions";
 import { VibeRunButton } from "./VibeRunButton";
 import {
@@ -128,6 +160,112 @@ import {
   isSwitchAgentDirective,
   type PreviewActDirective,
 } from "@dashboard/lib/chat-ui-actions";
+import {
+  SAVED_TERMINAL_NAME_LIMIT,
+  terminalTransportLabel,
+  type SavedTerminalSession,
+  type SavedTerminalTransport,
+} from "@dashboard/lib/terminal/saved-session-types";
+
+type MessageDirection = "ltr" | "rtl" | "auto";
+
+interface LocalSandboxSummary {
+  id: string;
+  name: string;
+  runtime: "local" | "github-actions";
+  updatedAt: string;
+  snapshotUpdatedAt?: string | null;
+}
+
+function savedTransportFromChatTransport(
+  transport: ChatTerminalTransport,
+): SavedTerminalTransport {
+  if (transport.type === "fly") {
+    return {
+      type: "fly",
+      app: transport.app,
+      machineId: transport.machineId,
+      label: transport.label,
+    };
+  }
+  if (transport.type === "github-actions") {
+    return {
+      type: "github-actions",
+      sandboxId: transport.sandboxId,
+      label: transport.label,
+    };
+  }
+  return {
+    type: "local",
+    sandboxId: transport.sandboxId,
+    label: transport.label,
+  };
+}
+
+function savedTerminalActorQuery(actorLogin?: string | null): string {
+  return actorLogin ? `?actorLogin=${encodeURIComponent(actorLogin)}` : "";
+}
+
+const AUTO_SAVE_TERMINAL_ON_END_KEY = "kody-chat:auto-save-terminal-on-end";
+
+function savedTerminalAutoSaveStorageKey(): string {
+  if (typeof window === "undefined") return AUTO_SAVE_TERMINAL_ON_END_KEY;
+  try {
+    const raw = window.localStorage.getItem("kody_auth");
+    if (!raw) return AUTO_SAVE_TERMINAL_ON_END_KEY;
+    const auth = JSON.parse(raw) as { owner?: string; repo?: string };
+    if (!auth.owner || !auth.repo) return AUTO_SAVE_TERMINAL_ON_END_KEY;
+    return `${AUTO_SAVE_TERMINAL_ON_END_KEY}:${auth.owner.toLowerCase()}/${auth.repo.toLowerCase()}`;
+  } catch {
+    return AUTO_SAVE_TERMINAL_ON_END_KEY;
+  }
+}
+
+function readAutoSaveTerminalOnEnd(): boolean {
+  if (typeof window === "undefined") return false;
+  try {
+    return (
+      window.localStorage.getItem(savedTerminalAutoSaveStorageKey()) === "1"
+    );
+  } catch {
+    return false;
+  }
+}
+
+function writeAutoSaveTerminalOnEnd(enabled: boolean): void {
+  if (typeof window === "undefined") return;
+  try {
+    window.localStorage.setItem(
+      savedTerminalAutoSaveStorageKey(),
+      enabled ? "1" : "0",
+    );
+  } catch {
+    /* localStorage is best-effort for this UI preference */
+  }
+}
+
+const LETTER_RE = /\p{L}/u;
+
+function isRtlCodePoint(codePoint: number): boolean {
+  return (
+    codePoint === 0x061c ||
+    codePoint === 0x200f ||
+    (codePoint >= 0x0590 && codePoint <= 0x08ff) ||
+    (codePoint >= 0xfb1d && codePoint <= 0xfdff) ||
+    (codePoint >= 0xfe70 && codePoint <= 0xfefc)
+  );
+}
+
+function getMessageDirection(text: string): MessageDirection {
+  for (const char of text) {
+    const codePoint = char.codePointAt(0);
+    if (!codePoint) continue;
+    if (isRtlCodePoint(codePoint)) return "rtl";
+    if (codePoint === 0x200e || LETTER_RE.test(char)) return "ltr";
+  }
+
+  return "auto";
+}
 
 export function KodyChat({
   context,
@@ -143,6 +281,7 @@ export function KodyChat({
   onDirectToGoal,
   composerInjection,
   attachmentInjection,
+  previewContext,
 }: KodyChatProps) {
   // Current route — drives the page-aware composer placeholder AND tells the
   // model which dashboard page the user is looking at ("what am I viewing?").
@@ -160,9 +299,13 @@ export function KodyChat({
   const currentPageRef = useRef<string | null>(currentPage);
   currentPageRef.current = currentPage;
   // Context-kind derivations.
+  const selectedOrg = context?.kind === "org" ? context : null;
   const selectedTask: KodyTask | null =
     context?.kind === "task" ? context.task : null;
-  const selectedDuty = context?.kind === "duty" ? context.duty : null;
+  const selectedAgentResponsibility =
+    context?.kind === "agentResponsibility"
+      ? context.agentResponsibility
+      : null;
   // Goal-planner mode: chat scoped to a Goal, used for the "Plan this goal"
   // workflow (Pass 1 list-in-chat → user approves → Pass 2 create issues).
   const plannerGoal = context?.kind === "goal-planner" ? context.goal : null;
@@ -178,12 +321,16 @@ export function KodyChat({
   // is framed to advise: create issue, attach to a goal, or no action.
   const selectedReport = context?.kind === "report" ? context.report : null;
 
-  // Per-scope (task / duty / planner / global) scope blocks flow through
+  // Per-scope (task / agentResponsibility / planner / global) scope blocks flow through
   // the existing per-turn system-prompt blocks (## Current task / ## Current
-  // duty / ## Goal planning mode / ## Current report). The thread itself is
+  // agentResponsibility / ## Goal planning mode / ## Current report). The thread itself is
   // one global store keyed by sessionId — no per-scope parallel stores.
 
   const [input, setInput] = useState("");
+  const composerTextareaRef = useRef<HTMLTextAreaElement>(null);
+  const [agentMentionTrigger, setAgentMentionTrigger] =
+    useState<StaffMentionTrigger | null>(null);
+  const [agentMentionSelectedIndex, setAgentMentionSelectedIndex] = useState(0);
   // Context chips attached to the composer (e.g. picked preview elements).
   // Shown as removable pills above the input; their `context` is appended to
   // the outgoing message on send so the visible input stays clean.
@@ -245,7 +392,7 @@ export function KodyChat({
   const [attachments, setAttachments] = useState<Attachment[]>([]);
   const [isDraggingFile, setIsDraggingFile] = useState(false);
   const dragCounterRef = useRef(0);
-  const [loading, setLoading] = useState(false);
+  const [, setLoading] = useState(false);
   const [toolCalls, setToolCalls] = useState<ToolCall[]>([]);
   const [selectedAgentId, setSelectedAgentId] = useState<AgentId>(
     lockedAgentId ?? "kody-live",
@@ -255,11 +402,20 @@ export function KodyChat({
   // The chat request forwards it as `body.model`. Null = no override.
   const [selectedModelId, setSelectedModelId] = useState<string | null>(null);
   const [agentMenuOpen, setAgentMenuOpen] = useState(false);
+  // Thinking-level state. The chat header shows a small `🧠` dropdown
+  // next to the agent picker when the current model declares a
+  // `reasoning` block (or one can be auto-detected from `modelName`).
+  // The pick is persisted per (repo, modelId) so switching models
+  // doesn't reset your "High" on Claude when you swap to GPT-5. Sent
+  // on every chat request as `body.reasoningEffort`; the chat route
+  // translates it to the provider's wire shape at request time.
+  const [reasoningMenuOpen, setReasoningMenuOpen] = useState(false);
+  const [reasoningEffort, setReasoningEffort] = useState<string | null>(null);
   // Reactive: re-derives whenever the auth context updates `brain`. Without
   // useAuth this stayed stale because KodyChat lives in the persistent rail
   // and never remounts after Settings saves a Brain config — the dropdown
   // entry wouldn't appear until a full page reload.
-  const { auth, loading: authLoading } = useAuth();
+  const { auth } = useAuth();
   // Slash command list (builtins + repo `.kody/commands/*.md`).
   // Stale-while-revalidate keeps autocomplete instant; the API itself
   // is cached on the server side via the GitHub client.
@@ -292,16 +448,14 @@ export function KodyChat({
   const [defaultChatEntryKey] = useState<string | null>(() =>
     readDefaultChatEntry(),
   );
-  // localStorage is synchronous, so the key is known on first render — the
-  // apply-on-load effect can run immediately. The flag stays only to keep the
-  // Brain auto-default effect's existing gating contract intact.
-  const [defaultChatEntryLoaded, setDefaultChatEntryLoaded] = useState(true);
   const brainAbortRef = useRef<AbortController | null>(null);
+  const brainAbortBySessionRef = useRef(new Map<string, AbortController>());
   // AbortController for the in-process chat path (`/api/kody/chat/kody`).
   // Without this the Stop button can't cancel the in-flight stream — the
   // model keeps generating, tokens keep flowing into the assistant bubble,
   // and the user has no recourse. Mirrors the Brain backend's pattern.
   const kodyAbortRef = useRef<AbortController | null>(null);
+  const kodyAbortBySessionRef = useRef(new Map<string, AbortController>());
   // Preview-DOM auto-attach. The Kody Preview Inspector extension reports
   // the preview frame's URL/title/selection/DOM outline. The user-facing
   // toggle lives on the PreviewInspector toolbar (preview surfaces only);
@@ -311,12 +465,13 @@ export function KodyChat({
   const previewPicker = useElementPicker({ onSelect: () => {} });
   const previewPickerRef = useRef(previewPicker);
   previewPickerRef.current = previewPicker;
+  const previewContextRef = useRef<string | null>(null);
+  previewContextRef.current = previewContext?.trim() || null;
   const AUTO_CONTEXT_KEY = "kody:preview-auto-context";
   const collectPreviewContextRef = useRef<() => Promise<string | null>>(
     async () => null,
   );
   collectPreviewContextRef.current = async () => {
-    if (!previewPickerRef.current.available) return null;
     // Read the persisted flag fresh each send — the toggle lives on the
     // preview toolbar in another component tree, so we can't subscribe to
     // its state directly. Default ON when unset.
@@ -328,14 +483,19 @@ export function KodyChat({
       /* keep default */
     }
     if (!enabled) return null;
+    const parts: string[] = [];
+    if (previewContextRef.current) parts.push(previewContextRef.current);
+    if (!previewPickerRef.current.available) {
+      return parts.length > 0 ? parts.join("\n\n") : null;
+    }
     try {
       const info = await previewPickerRef.current.collectPage(300);
-      if (!info) return null;
+      if (!info) return parts.length > 0 ? parts.join("\n\n") : null;
       // Append the saved-macros catalog so the model can offer to run them
       // when the user mentions one by name ("run my Login macro"). Macros
       // now live in the repo (.kody/macros.json), so fetch per-send — newly
       // saved macros are visible immediately, and it works across devices.
-      const parts = [formatPageInfo(info)];
+      parts.push(formatPageInfo(info));
       try {
         const res = await fetch("/api/kody/macros", { headers: authHeaders() });
         if (res.ok) {
@@ -348,7 +508,7 @@ export function KodyChat({
       }
       return parts.join("\n\n");
     } catch {
-      return null;
+      return parts.length > 0 ? parts.join("\n\n") : null;
     }
   };
   // Depth counter for chained `preview_act` calls. The dashboard auto-feeds
@@ -399,6 +559,19 @@ export function KodyChat({
     brainFlyChatEnabled,
     chatModels,
   );
+  const { data: repoAgents = [] } = useAgents();
+  const repoAgentSlugs = useMemo(
+    () => repoAgents.map((agent) => agent.slug),
+    [repoAgents],
+  );
+  const filteredAgentMentions = useMemo(() => {
+    if (!agentMentionTrigger) return [];
+    return repoAgents
+      .filter((agent) =>
+        agent.slug.toLowerCase().includes(agentMentionTrigger.query),
+      )
+      .slice(0, 6);
+  }, [agentMentionTrigger, repoAgents]);
   // Vibe auto-kickoff. When `vibe_start_execution` returns a
   // SwitchAgentDirective with `autoKickoff`, the dashboard records the
   // message + target issue number here so a useEffect can dispatch it
@@ -419,41 +592,34 @@ export function KodyChat({
         e.agentId === selectedAgentId &&
         (e.modelId ?? null) === selectedModelId,
     ) ?? null;
-
-  // Auto-default to Brain on first load when it's already configured. Runs
-  // once after auth hydrates so we don't preempt the user's later picks.
-  // Skipped when the parent locks a specific agent (Vibe page).
-  const initialBrainDefaultRef = useRef(false);
-  useEffect(() => {
-    if (initialBrainDefaultRef.current) return;
-    if (lockedAgentId) {
-      initialBrainDefaultRef.current = true;
-      return;
+  // Effective thinking config for the active model. `null` when the model
+  // has no `reasoning` block AND the model-name auto-detect couldn't pick
+  // one — the header hides the dropdown in that case (no clutter for
+  // models that don't reason).
+  const currentReasoning = currentEntry?.reasoning ?? null;
+  // Resolved effort. Read directly from localStorage on every render so
+  // the dropdown never flashes the model's `default` before snapping to
+  // the stored pick on mount. The `reasoningEffort` state still wins
+  // during the current session (overrides the storage read with the
+  // user's just-clicked pick before the localStorage write is observed
+  // by React's next render). Per-(repo, modelId) scoping lives in
+  // `reasoning-pref.ts`.
+  const effectiveReasoningEffort = useMemo(() => {
+    if (!currentReasoning) return null;
+    if (
+      reasoningEffort &&
+      currentReasoning.efforts.some((e) => e.value === reasoningEffort)
+    ) {
+      return reasoningEffort;
     }
-    if (authLoading) return;
-    // Yield to an explicit saved default. The dashboard-config fetch and the
-    // auth fetch race; if config resolves first and applies the user's saved
-    // entry, this effect must not then stomp it back to Brain when auth
-    // settles. Wait for the config load, and once it's known, defer entirely
-    // to the explicit-default effect when a key is set (it resolves to
-    // "brain" itself if that's the saved choice).
-    if (!defaultChatEntryLoaded) return;
-    if (defaultChatEntryKey) {
-      initialBrainDefaultRef.current = true;
-      return;
+    if (selectedModelId) {
+      const stored = readReasoningEffort(selectedModelId);
+      if (stored && currentReasoning.efforts.some((e) => e.value === stored)) {
+        return stored;
+      }
     }
-    if (brainConfigured) {
-      setSelectedAgentId("brain");
-      setSelectedModelId(null);
-    }
-    initialBrainDefaultRef.current = true;
-  }, [
-    authLoading,
-    brainConfigured,
-    lockedAgentId,
-    defaultChatEntryLoaded,
-    defaultChatEntryKey,
-  ]);
+    return currentReasoning.default;
+  }, [currentReasoning, selectedModelId, reasoningEffort]);
 
   // Load the user-managed model list once on mount. The dropdown stays in
   // Kody Live-only mode until this resolves; failures are silent — chat
@@ -499,104 +665,79 @@ export function KodyChat({
     };
   }, []);
 
-  // Apply the user-chosen default dropdown entry on first load. Beats
-  // both Kody Live (the unconditional fallback) and the Brain
-  // auto-default — an explicit pick wins over any heuristic. Runs at most
-  // once per chat mount; later dropdown picks aren't overridden.
+  // Resolve the global default agent entry — the value a session with
+  // no per-session pick falls back to. Used as the catch-all when
+  // a session's `agentKey` is missing (legacy sessions created
+  // before this field existed) or points at an entry that has
+  // since been removed from the list.
   //
-  // Resolution order:
-  //   1. The persisted `defaultChatEntryKey` (any entry: Brain, Brain-Fly,
-  //      or a Kody model) — matched against the live agentList by key.
-  //   2. Legacy fallback: a Kody model still flagged `default` in the
-  //      Models page, for users who set a default before this existed.
-  const initialDefaultAppliedRef = useRef(false);
-  useEffect(() => {
-    if (lockedAgentId) return;
-    if (initialDefaultAppliedRef.current) return;
-    if (!defaultChatEntryLoaded) return;
-
+  // Resolution order matches the previous auto-default behavior:
+  //   1. `defaultChatEntryKey` — Settings → "Default chat" pick.
+  //   2. Legacy: a Kody model with `default: true` on the Models page.
+  //   3. Brain if configured.
+  //   4. First valid Live entry (Kody Live, or Live-Fly when on Fly).
+  const defaultAgentEntry = useMemo<ChatDropdownEntry | null>(() => {
     if (defaultChatEntryKey) {
       const entry = agentList.find((e) => e.key === defaultChatEntryKey);
-      if (!entry) {
-        // The entry isn't in the list yet — Brain visibility (auth) and
-        // Brain-Fly status probe hydrate after models. KEEP WAITING; the
-        // effect re-runs as agentList changes. An explicit choice must
-        // never be silently overridden by the legacy model.default
-        // fallback (that bug landed users on a model after picking Brain).
-        // If the entry never appears (Brain unconfigured / model deleted)
-        // we simply never apply here and the visible-entry effect settles
-        // on Kody Live — correct, since the pick is unavailable anyway.
-        return;
-      }
-      setSelectedAgentId(entry.agentId);
-      setSelectedModelId(entry.modelId);
-      initialDefaultAppliedRef.current = true;
-      return;
+      if (entry) return entry;
     }
-
-    // No explicit key — legacy fallback to a Models-page default model.
-    if (chatModels.length === 0) return;
-    const def = chatModels.find(
+    const defModel = chatModels.find(
       (m) => m.default === true && m.enabled !== false,
     );
-    if (def) {
-      setSelectedAgentId("kody");
-      setSelectedModelId(def.id);
+    if (defModel) {
+      const entry = agentList.find((e) => e.key === `kody:${defModel.id}`);
+      if (entry) return entry;
     }
-    initialDefaultAppliedRef.current = true;
-  }, [
-    agentList,
-    defaultChatEntryKey,
-    defaultChatEntryLoaded,
-    chatModels,
-    lockedAgentId,
-  ]);
+    if (brainConfigured) {
+      const entry = agentList.find(
+        (e) => e.key === "brain" || e.key === "brain-fly",
+      );
+      if (entry) return entry;
+    }
+    return (
+      agentList.find(
+        (e) => e.key === "kody-live-fly" || e.key === "kody-live",
+      ) ??
+      agentList[0] ??
+      null
+    );
+  }, [defaultChatEntryKey, chatModels, brainConfigured, agentList]);
 
-  // Keep the selection on a visible dropdown entry. Live and Live (Fly)
-  // share one slot in the dropdown; same for Brain and Brain (Fly). When
-  // a probe flips availability, snap the selection to the visible row of
-  // the same family — Live↔Live (Fly), Brain↔Brain (Fly) — or to the
-  // visible Live row when neither Brain variant is available.
-  useEffect(() => {
-    if (lockedAgentId) return;
-    // Gateway models are policed by a separate effect below.
-    if (selectedAgentId === "kody" && selectedModelId) return;
-    const liveTarget: AgentId = flyConfigured ? "kody-live-fly" : "kody-live";
-    if (
-      selectedAgentId === "kody-live" ||
-      selectedAgentId === "kody-live-fly"
-    ) {
-      if (selectedAgentId !== liveTarget) {
-        setSelectedAgentId(liveTarget);
-        setSelectedModelId(null);
+  // Family snap. When a probe flips availability (Fly token added/removed,
+  // Brain Fly toggle flipped), a session's `agentKey` may point at a
+  // dropdown row that's no longer in the list. The same agent is still
+  // available under a sibling key (Live ↔ Live-Fly, Brain ↔ Brain-Fly);
+  // use that instead of bouncing the user back to a different family.
+  // For removed gateway models, fall back to any other Kody row, then
+  // Live if no Kody rows exist.
+  const familySnap = useCallback(
+    (key: string): ChatDropdownEntry | null => {
+      if (key === "kody-live" || key === "kody-live-fly") {
+        return (
+          agentList.find(
+            (e) => e.key === "kody-live-fly" || e.key === "kody-live",
+          ) ?? null
+        );
       }
-      return;
-    }
-    if (selectedAgentId === "brain" || selectedAgentId === "brain-fly") {
-      const brainTarget: AgentId | null =
-        flyConfigured && brainFlyChatEnabled
-          ? "brain-fly"
-          : brainConfigured
-            ? "brain"
-            : null;
-      if (brainTarget === null) {
-        setSelectedAgentId(liveTarget);
-        setSelectedModelId(null);
-        return;
+      if (key === "brain" || key === "brain-fly") {
+        return (
+          agentList.find((e) => e.key === "brain-fly" || e.key === "brain") ??
+          null
+        );
       }
-      if (selectedAgentId !== brainTarget) {
-        setSelectedAgentId(brainTarget);
-        setSelectedModelId(null);
+      if (key.startsWith("kody:")) {
+        return (
+          agentList.find((e) => e.agentId === "kody") ??
+          agentList.find(
+            (e) => e.key === "kody-live-fly" || e.key === "kody-live",
+          ) ??
+          null
+        );
       }
-    }
-  }, [
-    flyConfigured,
-    brainFlyChatEnabled,
-    brainConfigured,
-    selectedAgentId,
-    selectedModelId,
-    lockedAgentId,
-  ]);
+      return null;
+    },
+    [agentList],
+  );
 
   // Probe the per-repo vault for FLY_API_TOKEN so the dropdown can hide the
   // Fly row when no token is configured. Silent on any error — the row just
@@ -625,20 +766,6 @@ export function KodyChat({
       cancelled = true;
     };
   }, []);
-
-  // If the user had a gateway model selected but it was removed from the
-  // list (or disabled), fall back to Kody Live so the chat keeps working.
-  useEffect(() => {
-    if (lockedAgentId) return;
-    if (selectedAgentId !== "kody" || selectedModelId === null) return;
-    const stillThere = chatModels.some(
-      (m) => m.id === selectedModelId && m.enabled !== false,
-    );
-    if (!stillThere) {
-      setSelectedAgentId("kody-live");
-      setSelectedModelId(null);
-    }
-  }, [chatModels, selectedAgentId, selectedModelId, lockedAgentId]);
 
   // When a parent toggles `lockedAgentId` on/off (route change), keep state in sync.
   useEffect(() => {
@@ -798,6 +925,29 @@ export function KodyChat({
 
   // Session sidebar state (for session management feature)
   const [showSessionSidebar, setShowSessionSidebar] = useState(false);
+  const previousRailFullscreenRef = useRef(railFullscreen);
+  const [sessionSidebarPinned, setSessionSidebarPinned] = useState(() => {
+    if (typeof window === "undefined") return false;
+    return (
+      window.localStorage.getItem("kody-chat:sessions-panel-pinned") === "1"
+    );
+  });
+  useEffect(() => {
+    const wasRailFullscreen = previousRailFullscreenRef.current;
+    previousRailFullscreenRef.current = railFullscreen;
+
+    if (wasRailFullscreen && !railFullscreen) {
+      setShowSessionSidebar(false);
+    }
+  }, [railFullscreen]);
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    window.localStorage.setItem(
+      "kody-chat:sessions-panel-pinned",
+      sessionSidebarPinned ? "1" : "0",
+    );
+    if (sessionSidebarPinned) setShowSessionSidebar(true);
+  }, [sessionSidebarPinned]);
 
   // Use session hook for global (non-task) chat. On the Vibe page, the
   // no-task ("default preview") chat lives in its own bucket so it
@@ -815,55 +965,584 @@ export function KodyChat({
     useState<import("../hooks/useChatSessions").ChatSessionScope>(
       desiredSessionScope,
     );
+  const sessionHook = useChatSessions(sessionStoreScope);
+  const createChatSession = sessionHook.createSession;
+
+  // Per-session agent sync. The active session's `agentKey` is the
+  // source of truth for the visible agent — switching sessions
+  // restores the agent that was active for that thread, and the
+  // user's picker write is captured on the session.
+  //
+  // Three flows collapse into one effect:
+  //   1. Session has a valid `agentKey` → adopt it. (Covers session
+  //      switches, where the active session changes underneath us.)
+  //   2. Session's `agentKey` points at an entry that's no longer
+  //      in the list (e.g. FLY_API_TOKEN probe flipped, or the user
+  //      removed the model on the Models page) → family snap to
+  //      a sibling entry, then default chain.
+  //   3. Session has no `agentKey` (legacy session) → use the
+  //      default chain and write it back so the next switch
+  //      restores it directly. Also covers the "no active session"
+  //      case, where the local state is just seeded with the default
+  //      (the first send then auto-creates a session and the sync
+  //      effect will re-run to capture the pick).
+  useEffect(() => {
+    if (lockedAgentId) return; // Vibe page owns the agent
+    if (agentList.length === 0) return; // Wait for the list to load.
+
+    const session = sessionHook.activeSession;
+    let targetEntry: ChatDropdownEntry | null = null;
+    if (session?.agentKey) {
+      targetEntry = agentList.find((e) => e.key === session.agentKey) ?? null;
+      if (!targetEntry) {
+        targetEntry = familySnap(session.agentKey);
+      }
+    }
+    if (!targetEntry) {
+      targetEntry = defaultAgentEntry;
+    }
+    if (!targetEntry) return;
+
+    if (
+      targetEntry.agentId !== selectedAgentId ||
+      (targetEntry.modelId ?? null) !== selectedModelId
+    ) {
+      setSelectedAgentId(targetEntry.agentId);
+      setSelectedModelId(targetEntry.modelId);
+    }
+
+    // Persist the resolved pick on the active session so future
+    // switches restore it directly without re-running the fallback
+    // chain. Skipped when there's no session (local-state-only
+    // adjustment) or when the session already has this key.
+    if (session && session.agentKey !== targetEntry.key) {
+      sessionHook.setSessionAgent(session.id, targetEntry.key);
+    }
+  }, [
+    sessionHook.activeSession?.id,
+    sessionHook.activeSession?.agentKey,
+    agentList,
+    defaultAgentEntry,
+    familySnap,
+    lockedAgentId,
+    selectedAgentId,
+    selectedModelId,
+    sessionHook.setSessionAgent,
+  ]);
+
+  // Reset the visible stream state on agent switch. Session switches are
+  // intentionally allowed while a reply is running; each send now writes
+  // back to the session id it started from.
+  const activeSessionIdForReset = sessionHook.activeSession?.id ?? null;
+  const terminalRegistry = useChatTerminalRegistry({
+    activeSessionId: activeSessionIdForReset,
+    createSession: createChatSession,
+    sessions: sessionHook.sessions,
+    sessionsHydrated: sessionHook.hydrated,
+    storageScope: sessionStoreScope,
+  });
+  const chatMode = vibeMode ? "ai" : terminalRegistry.mode;
+  const terminalMachines = terminalRegistry.terminalMachines;
+  const activeTerminalTransport = terminalRegistry.activeTransport;
+  const activeTerminalInstanceId = terminalRegistry.activeInstanceId;
+  const activeTerminalValue = terminalRegistry.activeTargetValue;
+  const activeTerminalConnectionState = terminalRegistry.activeConnectionState;
+  const mountedChatTerminals = terminalRegistry.mountedTerminals;
+  const terminalConnectNonceByInstanceId =
+    terminalRegistry.connectNonceByInstanceId;
+  const flyInventoryLoading = terminalRegistry.flyInventoryLoading;
+  const flyInventoryError = terminalRegistry.flyInventoryError;
+  const setActiveChatMode = terminalRegistry.setActiveMode;
+  const refreshChatTerminalFlyMachines = terminalRegistry.refreshFlyMachines;
+  const handleTerminalTargetChange = terminalRegistry.selectTarget;
+  const handleTerminalSandboxTargetChange =
+    terminalRegistry.selectSandboxTarget;
+  const handleTerminalGitHubActionsSandboxTargetChange =
+    terminalRegistry.selectGitHubActionsSandboxTarget;
+  const handleTerminalFlyConnectToggle = terminalRegistry.toggleFlyConnection;
+  const recordTerminalConnectionState = terminalRegistry.recordConnectionState;
+  const restoreTerminalTransport = terminalRegistry.restoreTerminalTransport;
+  const activeSessionHasLiveTerminal = terminalRegistry.hasLiveTerminal(
+    activeSessionIdForReset,
+  );
+  const terminalStatusLabel =
+    activeTerminalConnectionState === "connected"
+      ? "On"
+      : activeTerminalConnectionState === "connecting"
+        ? "Starting"
+        : "Off";
+  const [localSandboxes, setLocalSandboxes] = useState<LocalSandboxSummary[]>(
+    [],
+  );
+  const [sandboxBusy, setSandboxBusy] = useState(false);
+  const [sandboxBusyLabel, setSandboxBusyLabel] = useState<string | null>(null);
+  const [sandboxCreateMenuOpen, setSandboxCreateMenuOpen] = useState(false);
+  const [savedTerminalSnapshots, setSavedTerminalSnapshots] = useState<
+    SavedTerminalSession[]
+  >([]);
+  const [savedTerminalMenuOpen, setSavedTerminalMenuOpen] = useState(false);
+  const [savedTerminalBusy, setSavedTerminalBusy] = useState(false);
+  const [savedTerminalLoaded, setSavedTerminalLoaded] = useState(false);
+  const [autoSaveTerminalOnEnd, setAutoSaveTerminalOnEnd] = useState(() =>
+    readAutoSaveTerminalOnEnd(),
+  );
+  const [pendingTerminalRestore, setPendingTerminalRestore] =
+    useState<SavedTerminalSession | null>(null);
+  useEffect(() => {
+    writeAutoSaveTerminalOnEnd(autoSaveTerminalOnEnd);
+  }, [autoSaveTerminalOnEnd]);
+
+  const refreshLocalSandboxes = useCallback(async () => {
+    const headers = authHeaders();
+    if (Object.keys(headers).length === 0) {
+      setLocalSandboxes([]);
+      return;
+    }
+    try {
+      const res = await fetch("/api/kody/sandboxes", { headers });
+      if (!res.ok) return;
+      const body = (await res.json().catch(() => ({}))) as {
+        sandboxes?: LocalSandboxSummary[];
+      };
+      setLocalSandboxes(body.sandboxes ?? []);
+    } catch {
+      /* local sandbox list is optional in terminal mode */
+    }
+  }, []);
+  useEffect(() => {
+    if (chatMode !== "terminal") return;
+    void refreshLocalSandboxes();
+  }, [chatMode, refreshLocalSandboxes]);
+  const refreshSavedTerminalSnapshots = useCallback(async () => {
+    const headers = authHeaders();
+    if (Object.keys(headers).length === 0) return;
+    setSavedTerminalBusy(true);
+    try {
+      const res = await fetch(
+        `/api/kody/chat/terminal/saved${savedTerminalActorQuery(actorLogin)}`,
+        { headers },
+      );
+      const body = (await res.json().catch(() => ({}))) as {
+        sessions?: SavedTerminalSession[];
+        message?: string;
+        error?: string;
+      };
+      if (!res.ok) {
+        throw new Error(body.message ?? body.error ?? `HTTP ${res.status}`);
+      }
+      setSavedTerminalSnapshots(body.sessions ?? []);
+      setSavedTerminalLoaded(true);
+    } catch (err) {
+      toast.error(
+        err instanceof Error
+          ? err.message
+          : "Failed to load saved terminal snapshots",
+      );
+    } finally {
+      setSavedTerminalBusy(false);
+    }
+  }, [actorLogin]);
+  useEffect(() => {
+    if (chatMode !== "terminal" || savedTerminalLoaded) return;
+    void refreshSavedTerminalSnapshots();
+  }, [chatMode, refreshSavedTerminalSnapshots, savedTerminalLoaded]);
+  useEffect(() => {
+    setSavedTerminalSnapshots([]);
+    setSavedTerminalLoaded(false);
+  }, [actorLogin]);
+  const handleCreateSandbox = useCallback(
+    async (runtime: "local" | "github-actions") => {
+      setSandboxCreateMenuOpen(false);
+      const name = window.prompt(
+        "Sandbox name",
+        runtime === "github-actions"
+          ? "My GitHub Actions sandbox"
+          : "My sandbox",
+      );
+      if (name === null) return;
+      setSandboxBusy(true);
+      setSandboxBusyLabel(
+        runtime === "github-actions"
+          ? "Creating GitHub Actions sandbox..."
+          : "Creating local sandbox...",
+      );
+      try {
+        const res = await fetch("/api/kody/sandboxes", {
+          method: "POST",
+          headers: { "Content-Type": "application/json", ...authHeaders() },
+          body: JSON.stringify({
+            name,
+            runtime,
+            ...(activeTerminalTransport.type === "local" &&
+            activeTerminalTransport.sandboxId
+              ? { sourceSandboxId: activeTerminalTransport.sandboxId }
+              : {}),
+          }),
+        });
+        const body = (await res.json().catch(() => ({}))) as {
+          sandbox?: LocalSandboxSummary;
+          message?: string;
+          error?: string;
+        };
+        if (!res.ok || !body.sandbox) {
+          throw new Error(body.message ?? body.error ?? `HTTP ${res.status}`);
+        }
+        setLocalSandboxes((prev) => [
+          body.sandbox!,
+          ...prev.filter((sandbox) => sandbox.id !== body.sandbox!.id),
+        ]);
+        if (body.sandbox.runtime === "local") {
+          handleTerminalSandboxTargetChange(body.sandbox);
+        } else {
+          handleTerminalGitHubActionsSandboxTargetChange(body.sandbox);
+        }
+        toast.success(
+          body.sandbox.runtime === "github-actions"
+            ? "GitHub Actions sandbox selected"
+            : "Sandbox created",
+        );
+      } catch (err) {
+        toast.error(
+          err instanceof Error ? err.message : "Failed to create sandbox",
+        );
+      } finally {
+        setSandboxBusy(false);
+        setSandboxBusyLabel(null);
+      }
+    },
+    [
+      activeTerminalTransport,
+      handleTerminalGitHubActionsSandboxTargetChange,
+      handleTerminalSandboxTargetChange,
+    ],
+  );
+  const handleSaveSandbox = useCallback(async () => {
+    if (
+      (activeTerminalTransport.type !== "local" &&
+        activeTerminalTransport.type !== "github-actions") ||
+      !activeTerminalTransport.sandboxId
+    ) {
+      return;
+    }
+    if (activeTerminalTransport.type === "github-actions") {
+      const terminal =
+        activeTerminalInstanceId !== null
+          ? terminalSurfaceRefs.current[activeTerminalInstanceId]
+          : null;
+      if (!terminal) {
+        toast.error("GitHub Actions terminal is not connected");
+        return;
+      }
+      setSandboxBusy(true);
+      setSandboxBusyLabel("Saving GitHub Actions sandbox...");
+      try {
+        await terminal.stop();
+        toast.success("Save requested. GitHub Actions will save after stop.");
+      } catch (err) {
+        toast.error(
+          err instanceof Error ? err.message : "Failed to save sandbox",
+        );
+      } finally {
+        setSandboxBusy(false);
+        setSandboxBusyLabel(null);
+      }
+      return;
+    }
+    setSandboxBusy(true);
+    setSandboxBusyLabel("Saving sandbox...");
+    try {
+      const res = await fetch(
+        `/api/kody/sandboxes/${encodeURIComponent(
+          activeTerminalTransport.sandboxId,
+        )}/save`,
+        { method: "POST", headers: authHeaders() },
+      );
+      const body = (await res.json().catch(() => ({}))) as {
+        sandbox?: LocalSandboxSummary;
+        message?: string;
+        error?: string;
+      };
+      if (!res.ok || !body.sandbox) {
+        throw new Error(body.message ?? body.error ?? `HTTP ${res.status}`);
+      }
+      setLocalSandboxes((prev) =>
+        prev.map((sandbox) =>
+          sandbox.id === body.sandbox!.id ? body.sandbox! : sandbox,
+        ),
+      );
+      toast.success("Sandbox saved");
+    } catch (err) {
+      toast.error(
+        err instanceof Error ? err.message : "Failed to save sandbox",
+      );
+    } finally {
+      setSandboxBusy(false);
+      setSandboxBusyLabel(null);
+    }
+  }, [activeTerminalInstanceId, activeTerminalTransport]);
+  const handleDeleteSandbox = useCallback(async () => {
+    if (
+      (activeTerminalTransport.type !== "local" &&
+        activeTerminalTransport.type !== "github-actions") ||
+      !activeTerminalTransport.sandboxId
+    ) {
+      return;
+    }
+    const sandboxName = activeTerminalTransport.label ?? "this sandbox";
+    if (
+      !window.confirm(
+        `Delete ${sandboxName}? This removes its saved files and settings.`,
+      )
+    ) {
+      return;
+    }
+    setSandboxBusy(true);
+    setSandboxBusyLabel("Deleting sandbox...");
+    try {
+      const sandboxId = activeTerminalTransport.sandboxId;
+      if (activeTerminalTransport.type === "github-actions") {
+        const terminal =
+          activeTerminalInstanceId !== null
+            ? terminalSurfaceRefs.current[activeTerminalInstanceId]
+            : null;
+        await terminal?.stop();
+      }
+      const res = await fetch(
+        `/api/kody/sandboxes/${encodeURIComponent(sandboxId)}`,
+        { method: "DELETE", headers: authHeaders() },
+      );
+      const body = (await res.json().catch(() => ({}))) as {
+        message?: string;
+        error?: string;
+      };
+      if (!res.ok) {
+        throw new Error(body.message ?? body.error ?? `HTTP ${res.status}`);
+      }
+      setLocalSandboxes((prev) =>
+        prev.filter((sandbox) => sandbox.id !== sandboxId),
+      );
+      handleTerminalTargetChange("local");
+      toast.success("Sandbox deleted");
+    } catch (err) {
+      toast.error(
+        err instanceof Error ? err.message : "Failed to delete sandbox",
+      );
+    } finally {
+      setSandboxBusy(false);
+      setSandboxBusyLabel(null);
+    }
+  }, [
+    activeTerminalInstanceId,
+    activeTerminalTransport,
+    handleTerminalTargetChange,
+  ]);
+
+  const saveTerminalSnapshot = useCallback(
+    async (input: {
+      name: string;
+      transport: ChatTerminalTransport;
+      chatSessionId: string;
+      snapshot: ChatTerminalSnapshot;
+      successMessage?: string;
+    }) => {
+      const trimmed = input.name.trim().slice(0, SAVED_TERMINAL_NAME_LIMIT);
+      if (!trimmed) {
+        toast.error("Snapshot name is required");
+        return false;
+      }
+
+      const savedTransport = savedTransportFromChatTransport(input.transport);
+      setSavedTerminalBusy(true);
+      try {
+        const res = await fetch("/api/kody/chat/terminal/saved", {
+          method: "POST",
+          headers: { "Content-Type": "application/json", ...authHeaders() },
+          body: JSON.stringify({
+            actorLogin,
+            name: trimmed,
+            transport: savedTransport,
+            chatSessionId: input.chatSessionId,
+            cwd: input.snapshot.cwd,
+            shell: input.snapshot.shell,
+            output: input.snapshot.output,
+          }),
+        });
+        const body = (await res.json().catch(() => ({}))) as {
+          sessions?: SavedTerminalSession[];
+          session?: SavedTerminalSession;
+          message?: string;
+          error?: string;
+        };
+        if (!res.ok || !body.session) {
+          throw new Error(body.message ?? body.error ?? `HTTP ${res.status}`);
+        }
+        setSavedTerminalSnapshots(body.sessions ?? [body.session]);
+        setSavedTerminalLoaded(true);
+        if (input.successMessage) toast.success(input.successMessage);
+        return true;
+      } catch (err) {
+        toast.error(
+          err instanceof Error
+            ? err.message
+            : "Failed to save terminal snapshot",
+        );
+        return false;
+      } finally {
+        setSavedTerminalBusy(false);
+      }
+    },
+    [actorLogin],
+  );
+
+  const handleSaveTerminalSnapshot = useCallback(async () => {
+    if (!activeSessionIdForReset || !activeTerminalInstanceId) {
+      toast.error("Open a terminal before saving it");
+      return;
+    }
+    const terminal = terminalSurfaceRefs.current[activeTerminalInstanceId];
+    if (!terminal) {
+      toast.error("Terminal is not ready yet");
+      return;
+    }
+    const captured = terminal.getSnapshot();
+    const defaultName = terminalTransportLabel(
+      savedTransportFromChatTransport(activeTerminalTransport),
+    );
+    const name = window.prompt("Save terminal snapshot as", defaultName);
+    if (name === null) return;
+
+    await saveTerminalSnapshot({
+      name,
+      transport: activeTerminalTransport,
+      chatSessionId: activeSessionIdForReset,
+      snapshot: captured,
+      successMessage: "Terminal snapshot saved",
+    });
+  }, [
+    activeSessionIdForReset,
+    activeTerminalInstanceId,
+    activeTerminalTransport,
+    saveTerminalSnapshot,
+  ]);
+
+  const handleAutoSaveTerminalSnapshot = useCallback(
+    async (
+      terminal: { sessionId: string; transport: ChatTerminalTransport },
+      snapshot: ChatTerminalSnapshot,
+    ) => {
+      if (!autoSaveTerminalOnEnd || !snapshot.output.trim()) return;
+      const savedTransport = savedTransportFromChatTransport(
+        terminal.transport,
+      );
+      const label = terminalTransportLabel(savedTransport);
+      await saveTerminalSnapshot({
+        name: `Auto-save: ${label}`,
+        transport: terminal.transport,
+        chatSessionId: terminal.sessionId,
+        snapshot,
+        successMessage: "Terminal auto-saved",
+      });
+    },
+    [autoSaveTerminalOnEnd, saveTerminalSnapshot],
+  );
+  const handleRestoreTerminalSnapshot = useCallback(
+    (snapshot: SavedTerminalSession) => {
+      setSavedTerminalMenuOpen(false);
+      terminalRegistry.openTerminalMode();
+      restoreTerminalTransport(snapshot.transport);
+      setPendingTerminalRestore(snapshot);
+    },
+    [restoreTerminalTransport, terminalRegistry],
+  );
+  const handleDeleteTerminalSnapshot = useCallback(
+    async (snapshot: SavedTerminalSession) => {
+      if (!window.confirm(`Delete "${snapshot.name}"?`)) return;
+      setSavedTerminalBusy(true);
+      try {
+        const res = await fetch(
+          `/api/kody/chat/terminal/saved/${encodeURIComponent(
+            snapshot.id,
+          )}${savedTerminalActorQuery(actorLogin)}`,
+          { method: "DELETE", headers: authHeaders() },
+        );
+        const body = (await res.json().catch(() => ({}))) as {
+          message?: string;
+          error?: string;
+        };
+        if (!res.ok) {
+          throw new Error(body.message ?? body.error ?? `HTTP ${res.status}`);
+        }
+        setSavedTerminalSnapshots((prev) =>
+          prev.filter((item) => item.id !== snapshot.id),
+        );
+        toast.success("Terminal snapshot deleted");
+      } catch (err) {
+        toast.error(
+          err instanceof Error
+            ? err.message
+            : "Failed to delete terminal snapshot",
+        );
+      } finally {
+        setSavedTerminalBusy(false);
+      }
+    },
+    [actorLogin],
+  );
+  const handleTerminalTargetSelect = useCallback(
+    (value: string) => {
+      if (value.startsWith("sandbox:")) {
+        const id = value.slice("sandbox:".length);
+        const sandbox = localSandboxes.find(
+          (candidate) => candidate.id === id && candidate.runtime === "local",
+        );
+        if (sandbox) handleTerminalSandboxTargetChange(sandbox);
+        return;
+      }
+      if (value.startsWith("gha:")) {
+        const id = value.slice("gha:".length);
+        const sandbox = localSandboxes.find(
+          (candidate) =>
+            candidate.id === id && candidate.runtime === "github-actions",
+        );
+        if (sandbox) handleTerminalGitHubActionsSandboxTargetChange(sandbox);
+        return;
+      }
+      handleTerminalTargetChange(value);
+    },
+    [
+      handleTerminalGitHubActionsSandboxTargetChange,
+      handleTerminalSandboxTargetChange,
+      handleTerminalTargetChange,
+      localSandboxes,
+    ],
+  );
   useEffect(() => {
     if (desiredSessionScope === sessionStoreScope) return;
     const t = setTimeout(() => setSessionStoreScope(desiredSessionScope), 150);
     return () => clearTimeout(t);
   }, [desiredSessionScope, sessionStoreScope]);
-  const sessionHook = useChatSessions(sessionStoreScope);
+  const terminalSurfaceRefs = useRef<
+    Record<string, ChatTerminalSurfaceHandle | null>
+  >({});
 
-  // Abort any in-flight stream + reset loading when the active session
-  // changes. Without this, switching to (or creating) a new session
-  // mid-stream leaks the previous turn's events into the new session's
-  // message list — the deltas keep firing after the switch, hit
-  // setMessages (which now writes to the new session), and leave the
-  // loading flag stuck so the input is disabled. Fires on agent switch
-  // too, which is also the correct behaviour (kody-direct, brain,
-  // brain-fly, and kody-live all stop on agent flip).
-  const activeSessionIdForReset = sessionHook.activeSession?.id ?? null;
-  // Track previous values so the reset effect can tell a real switch from the
-  // chat's FIRST session being created by the in-flight turn itself.
-  const prevSessionIdRef = useRef<string | null>(activeSessionIdForReset);
   const prevAgentIdRef = useRef<string>(selectedAgentId);
   useEffect(() => {
-    const prevSession = prevSessionIdRef.current;
     const agentChanged = selectedAgentId !== prevAgentIdRef.current;
-    prevSessionIdRef.current = activeSessionIdForReset;
     prevAgentIdRef.current = selectedAgentId;
 
-    // BUG GUARD: sending the first message in a fresh chat (no active session)
-    // CREATES a session, flipping this id from null → new. That fired this
-    // effect and aborted the very request that triggered it, leaving a silent
-    // blank bubble. Only skip the abort for exactly that case — first session
-    // created (null → id), same agent, a kody turn already in flight. A real
-    // task switch (id → other id) or agent flip still aborts as before.
-    const firstSessionCreated =
-      prevSession === null &&
-      activeSessionIdForReset !== null &&
-      !agentChanged &&
-      !!kodyAbortRef.current;
-
-    brainAbortRef.current?.abort();
-    eventSourceRef.current?.close();
-    if (!firstSessionCreated) {
-      kodyAbortRef.current?.abort();
+    if (agentChanged) {
+      const sessionId = activeSessionIdForReset;
+      if (sessionId) {
+        brainAbortBySessionRef.current.get(sessionId)?.abort();
+        kodyAbortBySessionRef.current.get(sessionId)?.abort();
+      } else {
+        brainAbortRef.current?.abort();
+        kodyAbortRef.current?.abort();
+      }
+      eventSourceRef.current?.close();
       setLoading(false);
       setToolCalls([]);
     }
-    // Intentionally omit the abort/setter refs from deps — they are
-    // stable refs / setters, and including them would re-fire this
-    // effect every render.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeSessionIdForReset, selectedAgentId]);
 
   // Poll action state — detects when Kody is waiting for instructions
@@ -872,20 +1551,28 @@ export function KodyChat({
   );
 
   // Mode discriminator. Used to drive per-turn system-prompt scope blocks
-  // (## Current task / ## Current duty / ## Goal planning mode / ## Current
+  // (## Current task / ## Current agentResponsibility / ## Goal planning mode / ## Current
   // report) and the context bar in the chat header. The thread itself is
   // the unified global store — these flags do NOT change which messages
   // render or which store receives writes.
   const isTaskMode = !!selectedTask;
-  const isDutyMode = !!selectedDuty;
+  const isAgentResponsibilityMode = !!selectedAgentResponsibility;
   const isPlannerMode = !!plannerGoal && !!plannerSessionId;
-  const isGlobalMode = !isTaskMode && !isDutyMode && !isPlannerMode;
+  const isGlobalMode =
+    !isTaskMode && !isAgentResponsibilityMode && !isPlannerMode;
+
+  useEffect(() => {
+    if (railFullscreen && isGlobalMode) {
+      setShowSessionSidebar(true);
+    }
+  }, [railFullscreen, isGlobalMode]);
 
   // All chat messages live in the global session store. The sessionHook
   // owns a single `messages` list per active session; the page/scope
-  // (task, duty, planner, report) flows through the per-turn system
+  // (task, agentResponsibility, planner, report) flows through the per-turn system
   // prompt, not a separate message store.
-  const dutySlug: string | null = selectedDuty?.slug ?? null;
+  const agentResponsibilitySlug: string | null =
+    selectedAgentResponsibility?.slug ?? null;
   const messages: Message[] = sessionHook.messages.map(chatToMessage);
 
   const setMessages = useCallback(
@@ -900,6 +1587,80 @@ export function KodyChat({
     },
     [sessionHook],
   );
+  const setMessagesForSession = useCallback(
+    (
+      sessionId: string,
+      updater: Message[] | ((prev: Message[]) => Message[]),
+    ) => {
+      sessionHook.setSessionMessages(sessionId, (prevChat: ChatMessage[]) => {
+        const newMessages =
+          typeof updater === "function"
+            ? updater(prevChat.map(chatToMessage))
+            : updater;
+        return newMessages.map(messageToChat);
+      });
+    },
+    [sessionHook],
+  );
+  const activeLoading = messages.some((m) => m.isLoading);
+
+  // 800ms grace period for the typing indicator (issue #330). The agentIdentity
+  // tells the model to emit a short status line (≤8 words) as the very first
+  // word of every reply so the bubble is never blank. The grace timer is the
+  // UI backstop for that prompt — if the model is still silent after 800ms
+  // (engine first-byte lag, slow cold start, no status line), we surface the
+  // existing TypingIndicator. The moment the first visible token lands, the
+  // per-bubble `!hasAnswer` check hides it again. Resets on every new turn
+  // (any change in `activeLoading`).
+  const [showTypingAfterGrace, setShowTypingAfterGrace] = useState(false);
+  useEffect(() => {
+    if (!activeLoading) {
+      setShowTypingAfterGrace(false);
+      return;
+    }
+    setShowTypingAfterGrace(false);
+    const t = setTimeout(() => setShowTypingAfterGrace(true), 800);
+    return () => clearTimeout(t);
+  }, [activeLoading]);
+
+  const addTerminalContextToChat = useCallback(
+    (context: string) => {
+      setContextChips((prev) => [
+        ...prev,
+        {
+          id: `terminal-output-${Date.now()}`,
+          label: "Terminal output",
+          context,
+        },
+      ]);
+      setActiveChatMode("ai");
+      toast.success("Terminal output added to next chat message");
+    },
+    [setActiveChatMode],
+  );
+
+  const openTerminalMode = useCallback(() => {
+    terminalRegistry.openTerminalMode();
+    setSlashMenuOpen(false);
+  }, [terminalRegistry]);
+
+  useEffect(() => {
+    if (
+      !pendingTerminalRestore ||
+      chatMode !== "terminal" ||
+      !activeTerminalInstanceId
+    ) {
+      return;
+    }
+    const terminal = terminalSurfaceRefs.current[activeTerminalInstanceId];
+    if (!terminal) return;
+    terminal.restoreSnapshot({
+      name: pendingTerminalRestore.name,
+      output: pendingTerminalRestore.output,
+    });
+    setPendingTerminalRestore(null);
+    toast.success("Terminal snapshot restored");
+  }, [activeTerminalInstanceId, chatMode, pendingTerminalRestore]);
 
   // ─── Polling for Kody Live ─────────────────────────────────────────────────
   // Plain fixed-interval poll of /api/kody/events/poll. We tried real-time
@@ -919,9 +1680,15 @@ export function KodyChat({
   }, []);
 
   const startInteractivePoll = useCallback(
-    (sessionId: string) => {
+    (sessionId: string, uiSessionId?: string | null) => {
       stopInteractivePoll();
       pollWatermarkRef.current = 0;
+      const writeMessages = (
+        updater: Message[] | ((prev: Message[]) => Message[]),
+      ) => {
+        if (uiSessionId) setMessagesForSession(uiSessionId, updater);
+        else setMessages(updater);
+      };
 
       const handleLines = (lines: string[]) => {
         for (const line of lines) {
@@ -965,7 +1732,7 @@ export function KodyChat({
                 typeof payload.timestamp === "string"
                   ? payload.timestamp
                   : new Date().toISOString();
-              setMessages((prev) => {
+              writeMessages((prev) => {
                 // Inherit mid-turn progress from the in-flight bubble: any
                 // <think> blocks already accumulated from chat.thinking, and
                 // all tool-call cards from chat.tool. Without this, when all
@@ -1005,7 +1772,7 @@ export function KodyChat({
                   : "Unknown error";
               dispatchLive({ type: "RUNNER_ERROR", errorMessage: error });
               setLoading(false);
-              setMessages((prev) => {
+              writeMessages((prev) => {
                 const filtered = prev.filter(
                   (m) => !(m.role === "assistant" && m.isLoading),
                 );
@@ -1030,7 +1797,7 @@ export function KodyChat({
                 typeof payload.text === "string" ? payload.text : "";
               if (!chunk) break;
               const block = `<think>${chunk}</think>`;
-              setMessages((prev) => {
+              writeMessages((prev) => {
                 const copy = [...prev];
                 const idx = copy.findIndex(
                   (m) => m.role === "assistant" && m.isLoading,
@@ -1060,7 +1827,7 @@ export function KodyChat({
                     ? payload.toolUseId
                     : undefined;
                 const isError = payload.isError === true;
-                setMessages((prev) => {
+                writeMessages((prev) => {
                   const copy = [...prev];
                   const idx = copy.findIndex(
                     (m) => m.role === "assistant" && m.isLoading,
@@ -1097,7 +1864,7 @@ export function KodyChat({
                 >;
                 const toolId =
                   typeof payload.id === "string" ? payload.id : undefined;
-                setMessages((prev) => {
+                writeMessages((prev) => {
                   const copy = [...prev];
                   let idx = copy.findIndex(
                     (m) => m.role === "assistant" && m.isLoading,
@@ -1173,15 +1940,24 @@ export function KodyChat({
       void tick();
       pollIntervalRef.current = setInterval(tick, 3_000);
     },
-    [setMessages],
+    [dispatchLive, setMessages, setMessagesForSession, stopInteractivePoll],
   );
 
   // ─── SSE for chat streaming ────────────────────────────────────────────────
 
   const connectSSE = useCallback(
-    (sessionId: string, opts: { interactive?: boolean } = {}) => {
+    (
+      sessionId: string,
+      opts: { interactive?: boolean; uiSessionId?: string | null } = {},
+    ) => {
       // Close any existing connection
       eventSourceRef.current?.close();
+      const writeMessages = (
+        updater: Message[] | ((prev: Message[]) => Message[]),
+      ) => {
+        if (opts.uiSessionId) setMessagesForSession(opts.uiSessionId, updater);
+        else setMessages(updater);
+      };
 
       // EventSource cannot attach custom headers — we pass the same auth
       // triplet as query params so the stream route can resolve the target
@@ -1231,7 +2007,7 @@ export function KodyChat({
               // Inherit mid-turn progress (reasoning + tool calls) from the
               // in-flight bubble before replacing it with the final reply —
               // see the matching comment in the polling path's handler.
-              setMessages((prev) => {
+              writeMessages((prev) => {
                 const inflight = prev.find(
                   (m) => m.role === "assistant" && m.isLoading,
                 );
@@ -1270,7 +2046,7 @@ export function KodyChat({
                     : "Unknown error",
               });
               setLoading(false);
-              setMessages((prev) => {
+              writeMessages((prev) => {
                 const filtered = prev.filter(
                   (m) => !(m.role === "assistant" && m.isLoading),
                 );
@@ -1300,7 +2076,7 @@ export function KodyChat({
               const chunk = typeof parsed.text === "string" ? parsed.text : "";
               if (!chunk) break;
               const block = `<think>${chunk}</think>`;
-              setMessages((prev) => {
+              writeMessages((prev) => {
                 const copy = [...prev];
                 const idx = copy.findIndex(
                   (m) => m.role === "assistant" && m.isLoading,
@@ -1328,7 +2104,7 @@ export function KodyChat({
               const toolInput = (parsed.input ?? {}) as Record<string, unknown>;
               const toolId =
                 typeof parsed.id === "string" ? parsed.id : undefined;
-              setMessages((prev) => {
+              writeMessages((prev) => {
                 const copy = [...prev];
                 let idx = copy.findIndex(
                   (m) => m.role === "assistant" && m.isLoading,
@@ -1366,7 +2142,7 @@ export function KodyChat({
                   ? parsed.toolUseId
                   : undefined;
               const isError = parsed.isError === true;
-              setMessages((prev) => {
+              writeMessages((prev) => {
                 const copy = [...prev];
                 const idx = copy.findIndex(
                   (m) => m.role === "assistant" && m.isLoading,
@@ -1431,11 +2207,11 @@ export function KodyChat({
         };
       }
     },
-    [setMessages],
+    [dispatchLive, setMessages, setMessagesForSession],
   );
 
   // Open SSE whenever we have a scoped session id — task id for task mode,
-  // `duty-{slug}` for duty mode.
+  // `agentResponsibility-{slug}` for agentResponsibility mode.
   // Global-mode streams are opened on demand inside the send path.
   //
   // Tab-visibility gate: the server-side SSE handler polls GitHub every 3s as
@@ -1448,7 +2224,9 @@ export function KodyChat({
   useEffect(() => {
     const sid =
       selectedTask?.id ??
-      (dutySlug != null ? `duty-${dutySlug}` : null) ??
+      (agentResponsibilitySlug != null
+        ? `agentResponsibility-${agentResponsibilitySlug}`
+        : null) ??
       null;
     if (!sid) {
       return () => {
@@ -1462,7 +2240,7 @@ export function KodyChat({
         eventSourceRef.current.readyState !== EventSource.CLOSED
       )
         return;
-      connectSSE(sid);
+      connectSSE(sid, { uiSessionId: activeSessionIdForReset });
     };
     const close = () => {
       eventSourceRef.current?.close();
@@ -1481,10 +2259,15 @@ export function KodyChat({
       document.removeEventListener("visibilitychange", handleVisibility);
       close();
     };
-  }, [selectedTask?.id, dutySlug, connectSSE]);
+  }, [
+    selectedTask?.id,
+    agentResponsibilitySlug,
+    connectSSE,
+    activeSessionIdForReset,
+  ]);
 
   // Unified thread: the global session store (useChatSessions) owns the
-  // message list. Per-page scope (task / duty / planner / report) flows
+  // message list. Per-page scope (task / agentResponsibility / planner / report) flows
   // through the per-turn system-prompt blocks, not separate stores. The
   // "New conversation" button is the only way to reset the thread.
 
@@ -1506,7 +2289,7 @@ export function KodyChat({
 
   useEffect(() => {
     if (isAtBottom) scrollToBottom();
-  }, [messages, loading, isAtBottom, scrollToBottom]);
+  }, [messages, activeLoading, isAtBottom, scrollToBottom]);
 
   // Cleanup SSE on unmount
   useEffect(() => {
@@ -1535,7 +2318,7 @@ export function KodyChat({
 
   const executeClearHistory = () => {
     // Unified thread: the global session store owns the messages. Clearing
-    // is just `clearActiveSession()` regardless of scope (task / duty /
+    // is just `clearActiveSession()` regardless of scope (task / agentResponsibility /
     // planner / report); the per-scope system-prompt blocks keep their
     // context on the next turn.
     sessionHook.clearActiveSession();
@@ -1750,6 +2533,17 @@ export function KodyChat({
       const wireContent = previewContext
         ? `${messageContent}\n\n${previewContext}`
         : messageContent;
+      const uiSessionId =
+        sessionHook.activeSession?.id ?? sessionHook.createSession();
+      const turnMessages =
+        sessionHook.activeSession?.id === uiSessionId
+          ? messages
+          : sessionHook.getSessionMessages(uiSessionId).map(chatToMessage);
+      const setMessages = (
+        updater: Message[] | ((prev: Message[]) => Message[]),
+      ) => {
+        setMessagesForSession(uiSessionId, updater);
+      };
 
       // Build the prior-conversation transcript for the Kody backend. It
       // gets the cleaned-up text only; older attachments are referenced by
@@ -1770,7 +2564,7 @@ export function KodyChat({
       //    They come from aborted turns or turns where the model only
       //    produced reasoning. Sending them back makes the model "continue
       //    from nothing" and often regress into apologies.
-      const priorMessages = messages
+      const priorMessages = turnMessages
         .map((m) => {
           if (m.role !== "assistant") return m;
           if (m.isError) return null;
@@ -1800,6 +2594,11 @@ export function KodyChat({
         },
       ]);
 
+      const directAgentSlug =
+        !options.hidden && !voiceMode
+          ? extractFirstStaffMentionCandidate(displayContent, repoAgentSlugs)
+          : null;
+
       // Resolve the session id only for backends that actually need one
       // (engine + brain). The kody-direct route is stateless and doesn't
       // use it. We defer createSession() to those branches because calling
@@ -1809,8 +2608,9 @@ export function KodyChat({
       // splitting user/assistant across two sessions.
       const resolveSessionId = (): string => {
         if (selectedTask) return selectedTask.id;
-        if (dutySlug != null) return `duty-${dutySlug}`;
-        return sessionHook.activeSession?.id ?? sessionHook.createSession();
+        if (agentResponsibilitySlug != null)
+          return `agentResponsibility-${agentResponsibilitySlug}`;
+        return uiSessionId;
       };
 
       setLoading(true);
@@ -1841,7 +2641,8 @@ export function KodyChat({
       // overlay server-side, per the shared contract in
       // src/dashboard/lib/voice/overlay.ts).
       const isBrainAgent =
-        selectedAgentId === "brain" || selectedAgentId === "brain-fly";
+        !directAgentSlug &&
+        (selectedAgentId === "brain" || selectedAgentId === "brain-fly");
       if (isBrainAgent) {
         const brainEndpoint =
           selectedAgentId === "brain-fly"
@@ -1849,8 +2650,9 @@ export function KodyChat({
             : "/api/kody/chat/brain";
         const brainExtraHeaders: Record<string, string> =
           selectedAgentId === "brain-fly" ? {} : brainHeaders();
-        brainAbortRef.current?.abort();
+        brainAbortBySessionRef.current.get(uiSessionId)?.abort();
         const abort = new AbortController();
+        brainAbortBySessionRef.current.set(uiSessionId, abort);
         brainAbortRef.current = abort;
 
         // Scope chat memory per user + per task so every issue gets its own
@@ -1876,8 +2678,8 @@ export function KodyChat({
         })();
         const brainLogicalKey = selectedTask
           ? `${repoScope}::task-${selectedTask.id}`
-          : selectedDuty
-            ? `${repoScope}::duty-${selectedDuty.slug}`
+          : selectedAgentResponsibility
+            ? `${repoScope}::agentResponsibility-${selectedAgentResponsibility.slug}`
             : `${repoScope}::global-${brainSessionId}`;
         // First turn = no chatId pinned yet for this conversation. Must be
         // read *before* stickyBrainChatId (which pins). Used to send the
@@ -1989,12 +2791,12 @@ export function KodyChat({
                       // the chat's life, so later turns skip the token cost.
                       ...(brainFirstTurn ? { includeContext: true } : {}),
                       ...(taskContext ? { taskContext } : {}),
-                      ...(selectedDuty
+                      ...(selectedAgentResponsibility
                         ? {
-                            dutyContext: {
-                              slug: selectedDuty.slug,
-                              title: selectedDuty.title,
-                              body: selectedDuty.body,
+                            agentResponsibilityContext: {
+                              slug: selectedAgentResponsibility.slug,
+                              title: selectedAgentResponsibility.title,
+                              body: selectedAgentResponsibility.body,
                             },
                           }
                         : {}),
@@ -2005,6 +2807,14 @@ export function KodyChat({
                       // chat server, which is responsible for appending the
                       // voice overlay to its system prompt for this turn.
                       ...(voiceMode ? { voiceMode: true } : {}),
+                      // Thinking level. Brain chat rows don't surface a
+                      // `reasoning` dropdown in the picker (Brain owns its
+                      // own reasoning config), but we forward the field when
+                      // it's set so a future Brain server version can pick
+                      // it up without a route change.
+                      ...(effectiveReasoningEffort
+                        ? { reasoningEffort: effectiveReasoningEffort }
+                        : {}),
                     },
               ),
               signal: abort.signal,
@@ -2254,6 +3064,13 @@ export function KodyChat({
             ];
           });
           return null;
+        } finally {
+          if (brainAbortBySessionRef.current.get(uiSessionId) === abort) {
+            brainAbortBySessionRef.current.delete(uiSessionId);
+          }
+          if (brainAbortRef.current === abort) {
+            brainAbortRef.current = null;
+          }
         }
       }
 
@@ -2263,7 +3080,7 @@ export function KodyChat({
       // the body so the route appends the voice overlay to the agent's
       // system prompt. Voice on a brain agent rides the Brain branch
       // above and is overlay'd server-side by the brain server.
-      if (currentAgent.backend === "kody-direct") {
+      if (currentAgent.backend === "kody-direct" || directAgentSlug) {
         // Forward task context when the user is chatting about a specific
         // task — same shape Brain receives, so the server can anchor the
         // reply in the right issue/PR.
@@ -2337,8 +3154,9 @@ export function KodyChat({
         // Fresh AbortController per turn — Stop button calls .abort() on
         // whichever request is in-flight. Cancel any prior controller in
         // the unlikely case a previous turn never settled.
-        kodyAbortRef.current?.abort();
+        kodyAbortBySessionRef.current.get(uiSessionId)?.abort();
         const kodyAbort = new AbortController();
+        kodyAbortBySessionRef.current.set(uiSessionId, kodyAbort);
         kodyAbortRef.current = kodyAbort;
         try {
           const res = await fetch("/api/kody/chat/kody", {
@@ -2348,7 +3166,8 @@ export function KodyChat({
             body: JSON.stringify({
               messages: kodyMessages,
               task: kodyTaskContext,
-              agentId: effectiveAgentId,
+              agentId: directAgentSlug ? "kody" : effectiveAgentId,
+              ...(directAgentSlug ? { agentSlug: directAgentSlug } : {}),
               // Voice modality flag. When true the server appends the
               // voice overlay (no markdown, short sentences, etc.) to
               // the selected agent's system prompt and prefers the
@@ -2362,18 +3181,33 @@ export function KodyChat({
               // active. The server validates against the LLM_MODELS list,
               // so a stale value falls back to the configured default.
               ...(selectedModelId ? { model: selectedModelId } : {}),
+              // Forward the user's picked thinking level. Server translates
+              // to the provider's wire shape (anthropic_budget, openai_effort,
+              // gemini_budget, etc.) at request time. Omitted when the
+              // active model has no reasoning config.
+              ...(effectiveReasoningEffort
+                ? { reasoningEffort: effectiveReasoningEffort }
+                : {}),
               ...(actorLogin ? { actorLogin } : {}),
               // The dashboard page the user is on, so "what am I viewing?"
               // resolves. Surfaced as a `## Current page` system section.
               ...(currentPageRef.current
                 ? { currentPage: currentPageRef.current }
                 : {}),
-              ...(selectedDuty
+              ...(selectedOrg
                 ? {
-                    duty: {
-                      slug: selectedDuty.slug,
-                      title: selectedDuty.title,
-                      body: selectedDuty.body,
+                    org: {
+                      owner: selectedOrg.org,
+                      repositories: selectedOrg.repositories ?? [],
+                    },
+                  }
+                : {}),
+              ...(selectedAgentResponsibility
+                ? {
+                    agentResponsibility: {
+                      slug: selectedAgentResponsibility.slug,
+                      title: selectedAgentResponsibility.title,
+                      body: selectedAgentResponsibility.body,
                     },
                   }
                 : {}),
@@ -2422,6 +3256,13 @@ export function KodyChat({
           // chunks so we can identify the source tool when its
           // `tool-output-available` arrives (the output chunk omits the name).
           const toolNameById = new Map<string, string>();
+          // Map of toolName → human-readable description, hydrated from the
+          // `data-tools-index` event the route emits at the start of the
+          // stream (issue #321). One event per turn — not one per call —
+          // so this map is small and stable for the lifetime of the turn.
+          // Each new `tool-input-available` chip looks its name up here to
+          // attach the description the model saw when picking the tool.
+          const toolDescriptionByName = new Map<string, string>();
           // Pending UI directives surfaced by tools. Applied AFTER the stream
           // closes so the assistant bubble settles before the agent flips —
           // otherwise the in-flight message would be re-routed mid-render.
@@ -2462,6 +3303,10 @@ export function KodyChat({
                   | { type: "reasoning-delta"; delta: string }
                   | { type: "error"; errorText: string }
                   | {
+                      type: "data-tools-index";
+                      data: Record<string, string>;
+                    }
+                  | {
                       type: "tool-input-start";
                       toolCallId: string;
                       toolName: string;
@@ -2500,6 +3345,24 @@ export function KodyChat({
                 } else if (chunk.type === "error" && "errorText" in chunk) {
                   textBuf += `\n\n[Error] ${chunk.errorText}`;
                 } else if (
+                  chunk.type === "data-tools-index" &&
+                  "data" in chunk &&
+                  chunk.data &&
+                  typeof chunk.data === "object"
+                ) {
+                  // The route ships one `data-tools-index` event at the
+                  // start of the stream with a name→description map for
+                  // every tool in the merged tool set (issue #321). The
+                  // thinking panel reads this back as a muted one-liner
+                  // under each tool name. Brain/Engine chats never emit
+                  // it — the map stays empty and the card omits the line.
+                  toolDescriptionByName.clear();
+                  for (const [name, desc] of Object.entries(chunk.data)) {
+                    if (typeof desc === "string" && desc.length > 0) {
+                      toolDescriptionByName.set(name, desc);
+                    }
+                  }
+                } else if (
                   // The AI SDK emits `tool-input-start` *before* it
                   // streams the input deltas, and `tool-input-available`
                   // once the full input has been parsed. Both carry the
@@ -2531,6 +3394,10 @@ export function KodyChat({
                     typeof chunk.input === "object"
                       ? (chunk.input as Record<string, unknown>)
                       : {};
+                  // Look up the tool's description from the index event
+                  // emitted at the start of the stream. Absent for
+                  // Brain/Engine chats; the card omits the line gracefully.
+                  const description = toolDescriptionByName.get(chunk.toolName);
                   setMessages((prev) => {
                     const copy = [...prev];
                     let idx = copy.findIndex(
@@ -2556,6 +3423,7 @@ export function KodyChat({
                           name: chunk.toolName,
                           arguments: toolInput,
                           status: "running",
+                          ...(description ? { description } : {}),
                         },
                       ],
                     };
@@ -2593,21 +3461,10 @@ export function KodyChat({
                   // they'd falsely flag a creation and the post-stream
                   // handler would wipe the whole session. Creation is only
                   // ever one of our whitelisted tools, so require the name.
-                  if (
-                    name &&
-                    ISSUE_CREATION_TOOL_NAMES.has(name) &&
-                    chunk.output &&
-                    typeof chunk.output === "object" &&
-                    "number" in chunk.output
-                  ) {
-                    const out = chunk.output as { number?: unknown };
-                    const isIssueNumber =
-                      typeof out.number === "number" &&
-                      Number.isInteger(out.number) &&
-                      out.number > 0;
-                    if (isIssueNumber) {
-                      pendingCreatedIssue = out.number as number;
-                    }
+                  const createdIssueNumber =
+                    getCreatedIssueNumberFromToolOutput(name, chunk.output);
+                  if (createdIssueNumber !== null) {
+                    pendingCreatedIssue = createdIssueNumber;
                   }
                   void name;
                   // Flip the matching running chip to "success".
@@ -2708,6 +3565,21 @@ export function KodyChat({
           ) {
             const target = pendingSwitchAgent;
             setSelectedAgentId(target.agentId);
+            // Mirror the model-emitted switch onto the active session so
+            // a refresh / session re-open keeps the same agent. The
+            // directive carries only `agentId` (no modelId) so we match
+            // the dropdown row by agentId and forward its entry key —
+            // for `kody` rows we keep the previously-selected modelId
+            // (the directive didn't ask to change it).
+            const targetEntry = agentList.find(
+              (e) =>
+                e.agentId === target.agentId &&
+                (e.agentId !== "kody" || e.modelId === selectedModelId),
+            );
+            const activeId = sessionHook.activeSession?.id;
+            if (activeId && targetEntry) {
+              sessionHook.setSessionAgent(activeId, targetEntry.key);
+            }
             // If voice is active and the new agent isn't backed by the
             // in-process chat path, close the overlay. The overlay is
             // appended server-side on /api/kody/chat/kody only — engine
@@ -2827,6 +3699,9 @@ export function KodyChat({
           if (kodyAbortRef.current === kodyAbort) {
             kodyAbortRef.current = null;
           }
+          if (kodyAbortBySessionRef.current.get(uiSessionId) === kodyAbort) {
+            kodyAbortBySessionRef.current.delete(uiSessionId);
+          }
         }
       }
 
@@ -2880,6 +3755,7 @@ export function KodyChat({
             initialContent: liveUserContent,
             initialTimestamp: timestamp,
             taskContext: liveTaskContext,
+            uiSessionId,
           });
           firstTurnPersistedByStart = true;
         }
@@ -2894,7 +3770,7 @@ export function KodyChat({
             {
               role: "assistant",
               content:
-                "Live runner failed to start. Try again, or check Settings → Fly Runner.",
+                "Live runner failed to start. Try again, or check Fly Config.",
               isLoading: false,
               isError: true,
             },
@@ -3039,7 +3915,7 @@ export function KodyChat({
         // selectedTask.id; global chats (no task) would otherwise never
         // see the engine's reply because nothing watches the session id.
         // Open the stream here so both modes are covered.
-        connectSSE(sessionId);
+        connectSSE(sessionId, { uiSessionId });
         return null;
       } catch (error) {
         if (error instanceof Error && error.name === "AbortError") {
@@ -3068,14 +3944,15 @@ export function KodyChat({
     },
     [
       selectedTask,
-      selectedDuty,
-      dutySlug,
+      selectedAgentResponsibility,
+      agentResponsibilitySlug,
       isPlannerMode,
       plannerGoal,
       plannerExistingTasks,
       onPlannerTasksCreated,
-      setMessages,
+      setMessagesForSession,
       messages,
+      repoAgentSlugs,
       selectedAgentId,
       actorLogin,
       sessionHook,
@@ -3131,6 +4008,7 @@ export function KodyChat({
         prNumber?: number;
         branch?: string;
       };
+      uiSessionId?: string | null;
     }) => {
       const cur = liveStateRef.current.phase;
       if (cur === "booting" || cur === "ready" || cur === "awaiting") return;
@@ -3177,6 +4055,13 @@ export function KodyChat({
             dashboardUrl,
             idleExitMs: 5 * 60_000,
             hardCapMs: 30 * 60_000,
+            // Forward the chat-level thinking pick so the engine's
+            // extended-thinking budget matches the chat's reasoning
+            // dropdown. Empty when the user is on Live (no chat-level
+            // pick) — engine falls back to its own default.
+            ...(effectiveReasoningEffort
+              ? { reasoningEffort: effectiveReasoningEffort }
+              : {}),
             // First turn folded into the session-create commit (atomic) so the
             // runner sees it on first read — no racy follow-up append.
             ...(opts?.initialContent
@@ -3205,7 +4090,10 @@ export function KodyChat({
           // resolved target so a refresh during boot still shows the link.
           dispatchLive({ type: "TARGET_RESOLVED", target: startBody.target });
         }
-        startInteractivePoll(sessionId);
+        startInteractivePoll(
+          sessionId,
+          opts?.uiSessionId ?? activeSessionIdForReset,
+        );
       } catch (error) {
         const errorMessage =
           error instanceof Error ? error.message : "Unknown error";
@@ -3226,6 +4114,7 @@ export function KodyChat({
       startInteractivePoll,
       dispatchLive,
       vibeMode,
+      activeSessionIdForReset,
     ],
   );
 
@@ -3282,6 +4171,17 @@ export function KodyChat({
         runUrl: saved.runUrl ?? null,
       });
       setSelectedAgentId("kody-live");
+      // Mirror the rehydrated runner agent onto the active session so
+      // a refresh / re-open lands back on Kody Live. The Fly variant
+      // is also valid here — the entry list is the source of truth
+      // for which one is available.
+      const rehydrateEntry = agentList.find(
+        (e) => e.key === "kody-live-fly" || e.key === "kody-live",
+      );
+      const rehydrateId = sessionHook.activeSession?.id;
+      if (rehydrateId && rehydrateEntry) {
+        sessionHook.setSessionAgent(rehydrateId, rehydrateEntry.key);
+      }
       startInteractivePoll(saved.sessionId);
     },
     [startInteractivePoll, stopInteractivePoll, dispatchLive],
@@ -3440,7 +4340,43 @@ export function KodyChat({
     dispatchLive,
   ]);
 
+  const sendInputToTerminal = useCallback(() => {
+    const command = input;
+    if (!command.trim()) return;
+    if (!activeTerminalInstanceId) {
+      toast.error("Terminal is not ready yet");
+      return;
+    }
+
+    const terminal = terminalSurfaceRefs.current[activeTerminalInstanceId];
+    if (!terminal) {
+      toast.error("Terminal is still opening");
+      return;
+    }
+
+    if (!terminal.sendLine(command)) {
+      toast.error("Terminal is not connected yet");
+      terminal.focus();
+      return;
+    }
+
+    setInput("");
+    setSlashMenuOpen(false);
+    setSlashSelectedIndex(0);
+    requestAnimationFrame(() => {
+      const textarea = composerTextareaRef.current;
+      if (!textarea) return;
+      textarea.style.height = "auto";
+      textarea.focus();
+    });
+  }, [activeTerminalInstanceId, input]);
+
   const sendMessage = async () => {
+    if (chatMode === "terminal") {
+      sendInputToTerminal();
+      return;
+    }
+
     if (!input.trim() && attachments.length === 0 && contextChips.length === 0)
       return;
     // A real user prompt restarts the budget for chained preview actions.
@@ -3546,6 +4482,7 @@ export function KodyChat({
     setInput("");
     setContextChips([]);
     setSlashMenuOpen(false);
+    setAgentMentionTrigger(null);
     setSlashSelectedIndex(0);
     const currentAttachments = [...attachments];
     setAttachments([]);
@@ -3633,7 +4570,11 @@ export function KodyChat({
     [sendText],
   );
 
-  const voiceChat = useVoiceChat({ onSendMessage: handleVoiceSend, voiceId });
+  const voiceChat = useVoiceChat({
+    enabled: voiceOverlayOpen,
+    onSendMessage: handleVoiceSend,
+    voiceId,
+  });
   const voiceChatRef = useRef(voiceChat);
   useEffect(() => {
     voiceChatRef.current = voiceChat;
@@ -3662,6 +4603,40 @@ export function KodyChat({
   // Apply a slash command to the input: replaces the entire input with
   // "/slug " so the user can immediately type arguments, OR sends right
   // away when the prompt takes no arguments and the user pressed Enter.
+  const refreshAgentMentionTrigger = useCallback(
+    (value: string, caretIndex: number | null | undefined) => {
+      if (chatMode !== "ai") {
+        setAgentMentionTrigger(null);
+        return;
+      }
+      const trigger = parseStaffMentionTrigger(
+        value,
+        caretIndex ?? value.length,
+      );
+      setAgentMentionTrigger(trigger);
+      setAgentMentionSelectedIndex(0);
+    },
+    [chatMode],
+  );
+
+  const applyAgentMentionSelection = useCallback(
+    (slug: string) => {
+      if (!agentMentionTrigger) return;
+      const next = replaceStaffMentionTrigger(input, agentMentionTrigger, slug);
+      const nextCaret = agentMentionTrigger.start + slug.length + 2;
+      setInput(next);
+      setAgentMentionTrigger(null);
+      setAgentMentionSelectedIndex(0);
+      requestAnimationFrame(() => {
+        const textarea = composerTextareaRef.current;
+        if (!textarea) return;
+        textarea.focus();
+        textarea.setSelectionRange(nextCaret, nextCaret);
+      });
+    },
+    [agentMentionTrigger, input],
+  );
+
   const applySlashSelection = (slug: string) => {
     const command = slashCommands.find((p) => p.slug === slug);
     if (!prompt) return;
@@ -3674,10 +4649,46 @@ export function KodyChat({
   };
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
+    if (
+      chatMode === "ai" &&
+      agentMentionTrigger &&
+      filteredAgentMentions.length > 0
+    ) {
+      if (e.key === "ArrowDown") {
+        e.preventDefault();
+        setAgentMentionSelectedIndex((i) =>
+          Math.min(i + 1, filteredAgentMentions.length - 1),
+        );
+        return;
+      }
+      if (e.key === "ArrowUp") {
+        e.preventDefault();
+        setAgentMentionSelectedIndex((i) => Math.max(i - 1, 0));
+        return;
+      }
+      if (e.key === "Enter" || e.key === "Tab") {
+        e.preventDefault();
+        const picked =
+          filteredAgentMentions[
+            Math.min(
+              agentMentionSelectedIndex,
+              filteredAgentMentions.length - 1,
+            )
+          ];
+        if (picked) applyAgentMentionSelection(picked.slug);
+        return;
+      }
+      if (e.key === "Escape") {
+        e.preventDefault();
+        setAgentMentionTrigger(null);
+        return;
+      }
+    }
+
     // Slash menu keyboard navigation. Only intercept when the menu is
     // open AND the input still looks like a slug-in-progress (so once
     // the user types a space the menu's gone and normal handling resumes).
-    if (slashMenuOpen) {
+    if (chatMode === "ai" && slashMenuOpen) {
       const { filter } = parseSlashTrigger(input);
       const matches = filterCommands(slashCommands, filter);
       if (e.key === "ArrowDown") {
@@ -3714,14 +4725,19 @@ export function KodyChat({
       return;
     }
     // Esc aborts a streaming reply.
-    if (e.key === "Escape" && loading) {
+    if (e.key === "Escape" && activeLoading) {
       e.preventDefault();
       handleStop();
       return;
     }
     // ↑ on an empty composer recalls the last user message for editing —
     // matches the shell history convention.
-    if (e.key === "ArrowUp" && !input && attachments.length === 0) {
+    if (
+      chatMode === "ai" &&
+      e.key === "ArrowUp" &&
+      !input &&
+      attachments.length === 0
+    ) {
       const lastUser = [...messages].reverse().find((m) => m.role === "user");
       if (lastUser) {
         e.preventDefault();
@@ -3754,7 +4770,7 @@ export function KodyChat({
   // the offline fallback — titling must never block or break the chat.
   const titledSessionRef = useRef<string | null>(null);
   useEffect(() => {
-    if (!isGlobalMode || loading) return;
+    if (!isGlobalMode || activeLoading) return;
     const session = sessionHook.activeSession;
     if (!session || session.title !== "New conversation") return;
     const firstUser = messages.find((m) => m.role === "user");
@@ -3805,16 +4821,22 @@ export function KodyChat({
       }
       sessionHook.renameSession(session.id, sliceTitle);
     })();
-  }, [isGlobalMode, loading, messages, sessionHook, selectedModelId]);
+  }, [isGlobalMode, activeLoading, messages, sessionHook, selectedModelId]);
 
   const handleStop = () => {
     // Cancel every backend the chat can be talking to. Each abort/close
     // is a no-op if that backend wasn't active — calling them all
     // unconditionally keeps the handler simple and the Stop button
     // honest regardless of which agent is selected.
+    const activeSessionId = sessionHook.activeSession?.id ?? null;
     eventSourceRef.current?.close();
-    kodyAbortRef.current?.abort();
-    brainAbortRef.current?.abort();
+    if (activeSessionId) {
+      kodyAbortBySessionRef.current.get(activeSessionId)?.abort();
+      brainAbortBySessionRef.current.get(activeSessionId)?.abort();
+    } else {
+      kodyAbortRef.current?.abort();
+      brainAbortRef.current?.abort();
+    }
     setLoading(false);
     setMessages((prev) => {
       const newMessages = [...prev];
@@ -3842,7 +4864,8 @@ export function KodyChat({
   //   empty + booting   → 'cancel' (abandon the boot attempt)
   //   empty + ready     → 'stop'  (end the live session)
   // For non-Kody-Live agents the button is always 'send' (disabled if empty).
-  const hasComposerContent = input.trim().length > 0 || attachments.length > 0;
+  const hasComposerContent =
+    input.trim().length > 0 || (chatMode === "ai" && attachments.length > 0);
   type ComposerAction = "send" | "start" | "stop" | "cancel";
   const composerAction: ComposerAction = !isKodyLive
     ? "send"
@@ -3854,38 +4877,37 @@ export function KodyChat({
           ? "cancel"
           : "start";
 
-  // Generate placeholder based on mode. The generic (non-task/duty/draft)
+  // Generate placeholder based on mode. The generic (non-task/agentResponsibility/draft)
   // case is page-aware: on any sidebar page, hint that Kody can answer about
-  // that page — Kody knows every dashboard concept, not just duties/tasks.
+  // that page — Kody knows every dashboard concept, not just agentResponsibilities/tasks.
   // `pageLabel` is derived once at the top of the component.
   const genericPlaceholder = pageLabel
     ? `Ask Kody about ${pageLabel}...`
-    : `Ask Kody about any page, duty, or feature...`;
-  const placeholder = isKodyLive
-    ? interactiveState === "idle" || interactiveState === "ended"
-      ? "Click Start to warm up the runner."
-      : interactiveState === "booting"
-        ? selectedAgentId === "kody-live-fly"
-          ? "Booting runner — ~45-60s on Fly..."
-          : "Booting runner — ~90s on GitHub Actions..."
-        : pageLabel
-          ? `Ask Kody (live runner) about ${pageLabel}...`
-          : "Ask Kody (live runner)..."
-    : isKodyWaiting
-      ? `Give Kody instructions...`
-      : isTaskMode
-        ? `Ask about task #${selectedTask?.issueNumber}...`
-        : isDutyMode
-          ? `Ask about duty \`${selectedDuty?.slug ?? ""}\`...`
-          : genericPlaceholder;
-
-  // Send is always enabled for Kody Live (button morphs into start/stop on
-  // empty input). For other agents, only enabled when there's content.
-  const canSend = hasComposerContent || isKodyLive;
+    : `Ask Kody about any page, agentResponsibility, or feature...`;
+  const placeholder =
+    chatMode === "terminal"
+      ? "Send command to terminal..."
+      : isKodyLive
+        ? interactiveState === "idle" || interactiveState === "ended"
+          ? "Click Start to warm up the runner."
+          : interactiveState === "booting"
+            ? selectedAgentId === "kody-live-fly"
+              ? "Booting runner — ~45-60s on Fly..."
+              : "Booting runner — ~90s on GitHub Actions..."
+            : pageLabel
+              ? `Ask Kody (live runner) about ${pageLabel}...`
+              : "Ask Kody (live runner)..."
+        : isKodyWaiting
+          ? `Give Kody instructions...`
+          : isTaskMode
+            ? `Ask about task #${selectedTask?.issueNumber}...`
+            : isAgentResponsibilityMode
+              ? `Ask about agentResponsibility \`${selectedAgentResponsibility?.slug ?? ""}\`...`
+              : genericPlaceholder;
 
   return (
     <div
-      className="relative flex flex-col h-full md:border-l bg-background"
+      className="relative flex h-full overflow-hidden md:border-l bg-background"
       onDragEnter={handleDragEnter}
       onDragOver={handleDragOver}
       onDragLeave={handleDragLeave}
@@ -3900,997 +4922,1648 @@ export function KodyChat({
         </div>
       )}
       {/* Session Sidebar */}
-      {showSessionSidebar && isGlobalMode && (
-        <button
-          type="button"
-          aria-label="Close conversations"
-          onClick={() => setShowSessionSidebar(false)}
-          className="absolute inset-0 z-40 cursor-default bg-black/20"
-        />
-      )}
+      {showSessionSidebar &&
+        isGlobalMode &&
+        !sessionSidebarPinned &&
+        !railFullscreen && (
+          <button
+            type="button"
+            aria-label="Close conversations"
+            onClick={() => setShowSessionSidebar(false)}
+            className="absolute inset-0 z-40 cursor-default bg-black/20"
+          />
+        )}
       {showSessionSidebar && isGlobalMode && (
         <SessionSidebar
           sessions={sessionHook.sessions}
           activeSessionId={sessionHook.activeSession?.id || null}
           onSwitchSession={(id) => {
             sessionHook.switchSession(id);
-            setShowSessionSidebar(false);
           }}
           onCreateSession={() => {
             sessionHook.createSession();
-            setShowSessionSidebar(false);
           }}
           onDeleteSession={sessionHook.deleteSession}
           onRenameSession={sessionHook.renameSession}
           onPinSession={sessionHook.pinSession}
+          modeBySessionId={
+            vibeMode ? undefined : terminalRegistry.modeBySessionId
+          }
+          pinnedOpen={sessionSidebarPinned}
+          onTogglePinnedOpen={() => setSessionSidebarPinned((prev) => !prev)}
           onClose={() => setShowSessionSidebar(false)}
-          className="absolute left-0 top-0 bottom-0 w-full sm:w-72 z-50 shadow-lg"
+          fullscreen={railFullscreen}
+          className={
+            railFullscreen
+              ? "relative z-10 w-80 min-w-0 max-w-full basis-80 shrink shadow-none"
+              : "absolute left-0 top-0 bottom-0 w-full sm:w-72 z-50 shadow-lg"
+          }
         />
       )}
-      {/* Voice Chat Overlay */}
-      {voiceOverlayOpen && (
-        <VoiceChatOverlay
-          state={voiceChat.state}
-          currentTranscript={voiceChat.currentTranscript}
-          turnCount={voiceChat.turnCount}
-          error={voiceChat.error}
-          ttsEngine={voiceChat.ttsEngine}
-          ttsError={voiceChat.ttsError}
-          voiceId={voiceId}
-          voices={PIPER_VOICES}
-          onSelectVoice={handleSelectVoice}
-          messages={messages}
-          agentName={currentAgent.name}
-          onStop={() => {
-            voiceChat.stopConversation();
-            setVoiceOverlayOpen(false);
-            setVoiceMuted(false);
-          }}
-          onInterrupt={() => {
-            voiceChat.interruptConversation();
-          }}
-          onToggleMute={handleVoiceToggleMute}
-          isMuted={voiceMuted}
-        />
-      )}
-      {/* Header with context */}
-      <div className="px-2 py-1.5 sm:px-4 sm:py-3 border-b bg-gradient-to-r from-muted/80 to-muted/40">
-        <div className="flex items-center justify-between">
-          {/* Left: agent picker (locked label when parent forces an agent) */}
-          <div className="relative flex items-center gap-2">
-            {(() => {
-              // Header label/icon prefers the matched dropdown entry — that
-              // way a user-managed model surfaces its own label (e.g.
-              // "Claude Sonnet 4.6") rather than the generic "Kody" agent
-              // name. Falls back to the static agent for locked views or
-              // when the selection points at a model that was just removed.
-              const headerIcon = currentEntry?.icon ?? currentAgent.icon;
-              const headerName = currentEntry?.name ?? currentAgent.name;
-              return lockedAgentId ? (
-                <div
-                  className="flex items-center gap-2 px-2 py-1"
-                  title={`${headerName} (locked for this view)`}
-                  aria-label={`${headerName} (locked)`}
-                >
-                  {(() => {
-                    const Icon = headerIcon;
-                    return <Icon className="w-5 h-5" aria-label={headerName} />;
-                  })()}
-                  <span className="font-semibold text-base">{headerName}</span>
-                </div>
-              ) : (
-                <button
-                  type="button"
-                  onClick={() => setAgentMenuOpen((v) => !v)}
-                  className="flex items-center gap-2 rounded-md px-2 py-1 hover:bg-accent focus:outline-none focus:ring-2 focus:ring-ring"
-                  aria-haspopup="listbox"
-                  aria-expanded={agentMenuOpen}
-                  title={`Switch assistant (current: ${headerName})`}
-                >
-                  {(() => {
-                    const Icon = headerIcon;
-                    return <Icon className="w-5 h-5" aria-label={headerName} />;
-                  })()}
-                  <span className="font-semibold text-base">{headerName}</span>
-                  <svg
-                    xmlns="http://www.w3.org/2000/svg"
-                    width="14"
-                    height="14"
-                    viewBox="0 0 24 24"
-                    fill="none"
-                    stroke="currentColor"
-                    strokeWidth="2"
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    aria-hidden="true"
+
+      <div className="relative flex min-w-0 flex-1 flex-col">
+        {/* Voice Chat Overlay */}
+        {voiceOverlayOpen && (
+          <VoiceChatOverlay
+            state={voiceChat.state}
+            currentTranscript={voiceChat.currentTranscript}
+            turnCount={voiceChat.turnCount}
+            error={voiceChat.error}
+            ttsEngine={voiceChat.ttsEngine}
+            ttsError={voiceChat.ttsError}
+            voiceId={voiceId}
+            voices={PIPER_VOICES}
+            onSelectVoice={handleSelectVoice}
+            messages={messages}
+            agentName={currentAgent.name}
+            onStop={() => {
+              voiceChat.stopConversation();
+              setVoiceOverlayOpen(false);
+              setVoiceMuted(false);
+            }}
+            onInterrupt={() => {
+              voiceChat.interruptConversation();
+            }}
+            onToggleMute={handleVoiceToggleMute}
+            isMuted={voiceMuted}
+          />
+        )}
+        {/* Header with context */}
+        <div className="px-2 py-1.5 sm:px-4 sm:py-3 border-b bg-gradient-to-r from-muted/80 to-muted/40">
+          <div className="flex items-center justify-between">
+            {/* Left: agent picker (locked label when parent forces an agent) */}
+            <div className="relative flex items-center gap-2">
+              {(() => {
+                // Header label/icon prefers the matched dropdown entry — that
+                // way a user-managed model surfaces its own label (e.g.
+                // "Claude Sonnet 4.6") rather than the generic "Kody" agent
+                // name. Falls back to the static agent for locked views or
+                // when the selection points at a model that was just removed.
+                const headerIcon = currentEntry?.icon ?? currentAgent.icon;
+                const headerName = currentEntry?.name ?? currentAgent.name;
+                return lockedAgentId ? (
+                  <div
+                    className="flex items-center gap-2 px-2 py-1"
+                    title={`${headerName} (locked for this view)`}
+                    aria-label={`${headerName} (locked)`}
                   >
-                    <path d="m6 9 6 6 6-6" />
-                  </svg>
-                </button>
-              );
-            })()}
-            {messages.length > 0 && (
-              <span className="ml-1 px-1.5 py-0.5 bg-primary/10 text-primary text-xs rounded-full">
-                {messages.length}
-              </span>
-            )}
-            {!lockedAgentId && agentMenuOpen && (
-              <ul
-                role="listbox"
-                className="absolute top-full left-0 mt-1 z-30 min-w-[260px] rounded-md border bg-popover shadow-md"
-              >
-                {agentList.map((a) => {
-                  const isSelected =
-                    a.agentId === selectedAgentId &&
-                    (a.modelId ?? null) === selectedModelId;
-                  return (
-                    <li key={a.key}>
+                    {(() => {
+                      const Icon = headerIcon;
+                      return (
+                        <Icon className="w-5 h-5" aria-label={headerName} />
+                      );
+                    })()}
+                    <span className="font-semibold text-base">
+                      {headerName}
+                    </span>
+                  </div>
+                ) : (
+                  <button
+                    type="button"
+                    onClick={() => setAgentMenuOpen((v) => !v)}
+                    className="flex items-center gap-2 rounded-md px-2 py-1 hover:bg-accent focus:outline-none focus:ring-2 focus:ring-ring"
+                    aria-haspopup="listbox"
+                    aria-expanded={agentMenuOpen}
+                    title={`Switch assistant (current: ${headerName})`}
+                  >
+                    {(() => {
+                      const Icon = headerIcon;
+                      return (
+                        <Icon className="w-5 h-5" aria-label={headerName} />
+                      );
+                    })()}
+                    <span className="font-semibold text-base">
+                      {headerName}
+                    </span>
+                    <svg
+                      xmlns="http://www.w3.org/2000/svg"
+                      width="14"
+                      height="14"
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      stroke="currentColor"
+                      strokeWidth="2"
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      aria-hidden="true"
+                    >
+                      <path d="m6 9 6 6 6-6" />
+                    </svg>
+                  </button>
+                );
+              })()}
+              {messages.length > 0 && (
+                <span className="ml-1 px-1.5 py-0.5 bg-primary/10 text-primary text-xs rounded-full">
+                  {messages.length}
+                </span>
+              )}
+              {/* Thinking-level control. Rendered only when the active model
+                declares a `reasoning` block (or one is auto-detected from
+                the model name). Three cases:
+                  • 1 effort  → static pill (e.g. o1 / R1 → "On")
+                  • 2+ efforts → dropdown, current value highlighted
+                  • no reasoning → nothing rendered (most models) */}
+              {currentReasoning && (
+                <div className="relative">
+                  {currentReasoning.efforts.length === 1 ? (
+                    <span
+                      className="inline-flex items-center gap-1.5 rounded-md px-2 py-1 text-xs font-medium bg-muted/60 text-muted-foreground border border-border/60"
+                      title={`This model always reasons at ${currentReasoning.efforts[0].label.toLowerCase()}.`}
+                      aria-label={`Thinking: ${currentReasoning.efforts[0].label}`}
+                    >
+                      <Brain className="w-3.5 h-3.5" aria-hidden="true" />
+                      {currentReasoning.efforts[0].label}
+                    </span>
+                  ) : (
+                    <>
                       <button
                         type="button"
                         onClick={() => {
-                          setSelectedAgentId(a.agentId);
-                          setSelectedModelId(a.modelId);
-                          // Persist the pick so it loads again on refresh —
-                          // same per-user, repo-scoped store as Settings →
-                          // "Default chat". The picker is now the default.
-                          writeDefaultChatEntry(a.key);
+                          setReasoningMenuOpen((v) => !v);
                           setAgentMenuOpen(false);
                         }}
-                        className={`w-full text-left px-3 py-2 hover:bg-accent text-sm flex items-start gap-2 ${
-                          isSelected ? "bg-accent/50" : ""
-                        }`}
-                        role="option"
-                        aria-selected={isSelected}
+                        className="flex items-center gap-1.5 rounded-md px-2 py-1 text-xs font-medium bg-muted/60 hover:bg-accent border border-border/60 focus:outline-none focus:ring-2 focus:ring-ring"
+                        aria-haspopup="listbox"
+                        aria-expanded={reasoningMenuOpen}
+                        title={`Thinking level (current: ${currentReasoning.efforts.find((e) => e.value === effectiveReasoningEffort)?.label ?? "default"})`}
                       >
-                        {(() => {
-                          const Icon = a.icon;
-                          return (
-                            <Icon
-                              className="w-4 h-4 mt-0.5"
-                              aria-hidden="true"
-                            />
-                          );
-                        })()}
-                        <span className="flex flex-col flex-1 min-w-0">
-                          <span className="font-medium">{a.name}</span>
-                          <span className="text-xs text-muted-foreground">
-                            {a.description}
-                          </span>
+                        <Brain className="w-3.5 h-3.5" aria-hidden="true" />
+                        <span>
+                          {currentReasoning.efforts.find(
+                            (e) => e.value === effectiveReasoningEffort,
+                          )?.label ?? "—"}
                         </span>
+                        <svg
+                          xmlns="http://www.w3.org/2000/svg"
+                          width="12"
+                          height="12"
+                          viewBox="0 0 24 24"
+                          fill="none"
+                          stroke="currentColor"
+                          strokeWidth="2"
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                          aria-hidden="true"
+                        >
+                          <path d="m6 9 6 6 6-6" />
+                        </svg>
                       </button>
-                    </li>
-                  );
-                })}
-              </ul>
-            )}
-          </div>
-
-          {/* Remote dev status indicator — only visible when configured */}
-          {remoteStatus?.configured && (
-            <div
-              className="flex items-center gap-1 text-xs text-muted-foreground"
-              title={
-                remoteStatus.online
-                  ? "Remote dev: online"
-                  : "Remote dev: offline"
-              }
-            >
-              <span
-                className={`w-2 h-2 rounded-full ${remoteStatus.online ? "bg-green-500" : "bg-red-400"}`}
-                aria-label={
-                  remoteStatus.online
-                    ? "Remote dev online"
-                    : "Remote dev offline"
-                }
-              />
-              <span className="hidden sm:inline">
-                {remoteStatus.online ? "Remote" : "Offline"}
-              </span>
+                      {reasoningMenuOpen && (
+                        <ul
+                          role="listbox"
+                          className="absolute top-full left-0 mt-1 z-30 min-w-[140px] rounded-md border bg-popover shadow-md"
+                        >
+                          {currentReasoning.efforts.map((effort) => (
+                            <li key={effort.value}>
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  setReasoningEffort(effort.value);
+                                  if (selectedModelId) {
+                                    writeReasoningEffort(
+                                      selectedModelId,
+                                      effort.value,
+                                    );
+                                  }
+                                  setReasoningMenuOpen(false);
+                                }}
+                                className={`w-full text-left px-3 py-2 text-sm hover:bg-accent ${
+                                  effectiveReasoningEffort === effort.value
+                                    ? "bg-accent/50 font-medium"
+                                    : ""
+                                }`}
+                                role="option"
+                                aria-selected={
+                                  effectiveReasoningEffort === effort.value
+                                }
+                              >
+                                {effort.label}
+                              </button>
+                            </li>
+                          ))}
+                        </ul>
+                      )}
+                    </>
+                  )}
+                </div>
+              )}
+              {!lockedAgentId && agentMenuOpen && (
+                <ul
+                  role="listbox"
+                  className="absolute top-full left-0 mt-1 z-30 min-w-[260px] rounded-md border bg-popover shadow-md"
+                >
+                  {agentList.map((a) => {
+                    const isSelected =
+                      a.agentId === selectedAgentId &&
+                      (a.modelId ?? null) === selectedModelId;
+                    return (
+                      <li key={a.key}>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setSelectedAgentId(a.agentId);
+                            setSelectedModelId(a.modelId);
+                            // Per-session pick: the same agent stays
+                            // active when the user comes back to THIS
+                            // conversation. Each session remembers its
+                            // own choice — switching to another chat and
+                            // back restores the agent that was active
+                            // for that thread, not whichever one the
+                            // user just clicked.
+                            //
+                            // The global `defaultChatEntryKey` is
+                            // intentionally NOT touched here. Settings →
+                            // "Default chat" is the single owner of the
+                            // default for new sessions; the chat picker
+                            // only mutates the active session.
+                            const activeId = sessionHook.activeSession?.id;
+                            if (activeId) {
+                              sessionHook.setSessionAgent(activeId, a.key);
+                            }
+                            setAgentMenuOpen(false);
+                          }}
+                          className={`w-full text-left px-3 py-2 hover:bg-accent text-sm flex items-start gap-2 ${
+                            isSelected ? "bg-accent/50" : ""
+                          }`}
+                          role="option"
+                          aria-selected={isSelected}
+                        >
+                          {(() => {
+                            const Icon = a.icon;
+                            return (
+                              <Icon
+                                className="w-4 h-4 mt-0.5"
+                                aria-hidden="true"
+                              />
+                            );
+                          })()}
+                          <span className="flex flex-col flex-1 min-w-0">
+                            <span className="font-medium">{a.name}</span>
+                            <span className="text-xs text-muted-foreground">
+                              {a.description}
+                            </span>
+                          </span>
+                        </button>
+                      </li>
+                    );
+                  })}
+                </ul>
+              )}
             </div>
-          )}
 
-          {/* Right: Action buttons (session sidebar, task history) */}
-          <div className="flex items-center gap-1">
-            {/* New conversation — wires to useChatSessions.createSession().
+            {/* Remote dev status indicator — only visible when configured */}
+            {remoteStatus?.configured && (
+              <div
+                className="flex items-center gap-1 text-xs text-muted-foreground"
+                title={
+                  remoteStatus.online
+                    ? "Remote dev: online"
+                    : "Remote dev: offline"
+                }
+              >
+                <span
+                  className={`w-2 h-2 rounded-full ${remoteStatus.online ? "bg-green-500" : "bg-red-400"}`}
+                  aria-label={
+                    remoteStatus.online
+                      ? "Remote dev online"
+                      : "Remote dev offline"
+                  }
+                />
+                <span className="hidden sm:inline">
+                  {remoteStatus.online ? "Remote" : "Offline"}
+                </span>
+              </div>
+            )}
+
+            {/* Right: Action buttons (session sidebar, task history) */}
+            <div className="flex items-center gap-1">
+              {/* New conversation — wires to useChatSessions.createSession().
                 The unified thread means there's only ONE store across all
                 pages, so a new conversation is the only way to reset. The
                 button is visible everywhere except on locked views (Vibe),
                 where the parent owns the chat lifecycle. Icon-only to
                 match the other header controls (collapse, fullscreen). */}
-            {!lockedAgentId && (
-              <button
-                type="button"
-                onClick={() => {
-                  sessionHook.createSession();
-                  setToolCalls([]);
-                }}
-                disabled={loading}
-                className="p-2 rounded-md border border-transparent text-muted-foreground hover:text-foreground hover:bg-background hover:border-border transition-all disabled:opacity-50 disabled:cursor-not-allowed"
-                title="Start a new conversation"
-                aria-label="New conversation"
-              >
-                <Plus className="w-4 h-4" aria-hidden="true" />
-              </button>
-            )}
+              {!lockedAgentId && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    // Seed the new session with the current effective
+                    // agent so a fresh conversation inherits the agent
+                    // the user is currently on. Without this, the new
+                    // session would have no agentKey and fall back to
+                    // the global default on first render — which is
+                    // fine for the very first session but surprises
+                    // users who expect a "new chat" to start where the
+                    // last one left off.
+                    const seed = currentEntry?.key;
+                    sessionHook.createSession(
+                      seed ? { agentKey: seed } : undefined,
+                    );
+                    setToolCalls([]);
+                  }}
+                  disabled={activeLoading}
+                  className="p-2 rounded-md border border-transparent text-muted-foreground hover:text-foreground hover:bg-background hover:border-border transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+                  title="Start a new conversation"
+                  aria-label="New conversation"
+                >
+                  <Plus className="w-4 h-4" aria-hidden="true" />
+                </button>
+              )}
 
-            {/* Session sidebar toggle — available in any mode now that all
+              {/* Session sidebar toggle — available in any mode now that all
                 threads are unified; the sidebar just lists sessions from
                 the global store. Icon-only to match the other header
                 controls (collapse, fullscreen). */}
-            <button
-              type="button"
-              onClick={() => setShowSessionSidebar(!showSessionSidebar)}
-              className={`p-2 rounded-md border transition-all ${
-                showSessionSidebar
-                  ? "bg-primary text-primary-foreground border-primary"
-                  : "text-muted-foreground hover:text-foreground hover:bg-background border-transparent hover:border-border"
-              }`}
-              title="Conversations"
-              aria-label="Toggle conversations"
-            >
-              <MessageSquare className="w-4 h-4" aria-hidden="true" />
-            </button>
-
-            {/* Fullscreen / restore (desktop rail only) */}
-            {onToggleFullscreen && (
               <button
                 type="button"
-                onClick={onToggleFullscreen}
-                aria-label={
-                  railFullscreen
-                    ? "Restore chat width"
-                    : "Expand chat fullscreen"
-                }
-                title={railFullscreen ? "Restore" : "Fullscreen"}
-                className="ml-1 p-2 rounded-md text-muted-foreground hover:text-foreground hover:bg-background border border-transparent hover:border-border transition-all"
+                onClick={() => setShowSessionSidebar(!showSessionSidebar)}
+                className={`p-2 rounded-md border transition-all ${
+                  showSessionSidebar
+                    ? "bg-primary text-primary-foreground border-primary"
+                    : "text-muted-foreground hover:text-foreground hover:bg-background border-transparent hover:border-border"
+                }`}
+                title="Conversations"
+                aria-label="Toggle conversations"
               >
-                {railFullscreen ? (
-                  <Minimize2 className="w-4 h-4" />
-                ) : (
-                  <Maximize2 className="w-4 h-4" />
-                )}
+                <MessageSquare className="w-4 h-4" aria-hidden="true" />
               </button>
-            )}
 
-            {/* Collapse to a strip (desktop rail only) */}
-            {onCollapseRail && (
-              <button
-                type="button"
-                onClick={onCollapseRail}
-                aria-label="Collapse chat"
-                title="Collapse"
-                className="p-2 rounded-md text-muted-foreground hover:text-foreground hover:bg-background border border-transparent hover:border-border transition-all"
-              >
-                <PanelLeftClose className="w-4 h-4" />
-              </button>
-            )}
-
-            {/* Close (mobile sheet) — only when an onClose handler is provided */}
-            {onClose && (
-              <button
-                type="button"
-                onClick={onClose}
-                aria-label="Close chat"
-                title="Close"
-                className="ml-1 p-2 rounded-md text-muted-foreground hover:text-foreground hover:bg-background border border-transparent hover:border-border transition-all"
-              >
-                <X className="w-4 h-4" />
-              </button>
-            )}
-          </div>
-        </div>
-
-        {/* Context bar: task, duty, duty draft, or global */}
-        <div className="mt-1 sm:mt-2">
-          {isTaskMode && selectedTask ? (
-            <div className="flex items-center gap-2 text-sm">
-              <span className="px-1.5 py-0.5 bg-primary text-primary-foreground rounded font-medium">
-                #{selectedTask.issueNumber}
-              </span>
-              <span className="truncate text-muted-foreground">
-                {selectedTask.title}
-              </span>
-            </div>
-          ) : isDutyMode && selectedDuty ? (
-            <div className="flex items-center gap-2 text-sm">
-              <span className="px-1.5 py-0.5 bg-emerald-500/15 text-emerald-400 rounded font-medium inline-flex items-center gap-1">
-                <Target className="w-3 h-3" />
-                {selectedDuty.slug}
-              </span>
-              <span className="truncate text-muted-foreground">
-                {selectedDuty.title}
-              </span>
-            </div>
-          ) : isPlannerMode && plannerGoal ? (
-            <div className="flex items-center gap-2 text-sm">
-              <span className="px-1.5 py-0.5 bg-sky-500/15 text-sky-400 rounded font-medium inline-flex items-center gap-1">
-                Planning
-              </span>
-              <span className="truncate text-muted-foreground flex-1 min-w-0">
-                {plannerGoal.name}
-              </span>
-              {onPlannerExit ? (
+              {/* Fullscreen / restore (desktop rail only) */}
+              {onToggleFullscreen && (
                 <button
                   type="button"
-                  onClick={onPlannerExit}
-                  className="shrink-0 text-muted-foreground hover:text-foreground p-0.5 rounded hover:bg-accent"
-                  aria-label="Stop planning this goal"
-                  title="Stop planning"
+                  onClick={onToggleFullscreen}
+                  aria-label={
+                    railFullscreen
+                      ? "Restore chat width"
+                      : "Expand chat fullscreen"
+                  }
+                  title={railFullscreen ? "Restore" : "Fullscreen"}
+                  className="ml-1 p-2 rounded-md text-muted-foreground hover:text-foreground hover:bg-background border border-transparent hover:border-border transition-all"
                 >
-                  <X className="w-3.5 h-3.5" />
+                  {railFullscreen ? (
+                    <Minimize2 className="w-4 h-4" />
+                  ) : (
+                    <Maximize2 className="w-4 h-4" />
+                  )}
                 </button>
-              ) : null}
+              )}
+
+              {/* Collapse to a strip (desktop rail only) */}
+              {onCollapseRail && (
+                <button
+                  type="button"
+                  onClick={onCollapseRail}
+                  aria-label="Collapse chat"
+                  title="Collapse"
+                  className="p-2 rounded-md text-muted-foreground hover:text-foreground hover:bg-background border border-transparent hover:border-border transition-all"
+                >
+                  <PanelLeftClose className="w-4 h-4" />
+                </button>
+              )}
+
+              {/* Close (mobile sheet) — only when an onClose handler is provided */}
+              {onClose && (
+                <button
+                  type="button"
+                  onClick={onClose}
+                  aria-label="Close chat"
+                  title="Close"
+                  className="ml-1 p-2 rounded-md text-muted-foreground hover:text-foreground hover:bg-background border border-transparent hover:border-border transition-all"
+                >
+                  <X className="w-4 h-4" />
+                </button>
+              )}
             </div>
-          ) : (
-            (() => {
-              const sessionTitle = sessionHook.activeSession?.title;
-              const hasRealTitle =
-                !!sessionTitle && sessionTitle !== "New conversation";
+          </div>
+
+          {/* Context bar: task, agentResponsibility, planner, or global */}
+          <div className="mt-1 sm:mt-2">
+            {isTaskMode && selectedTask ? (
+              <div className="flex items-center gap-2 text-sm">
+                <span className="px-1.5 py-0.5 bg-primary text-primary-foreground rounded font-medium">
+                  #{selectedTask.issueNumber}
+                </span>
+                <span className="truncate text-muted-foreground">
+                  {selectedTask.title}
+                </span>
+              </div>
+            ) : isAgentResponsibilityMode && selectedAgentResponsibility ? (
+              <div className="flex items-center gap-2 text-sm">
+                <span className="px-1.5 py-0.5 bg-emerald-500/15 text-emerald-400 rounded font-medium inline-flex items-center gap-1">
+                  <Target className="w-3 h-3" />
+                  {selectedAgentResponsibility.slug}
+                </span>
+                <span className="truncate text-muted-foreground">
+                  {selectedAgentResponsibility.title}
+                </span>
+              </div>
+            ) : isPlannerMode && plannerGoal ? (
+              <div className="flex items-center gap-2 text-sm">
+                <span className="px-1.5 py-0.5 bg-sky-500/15 text-sky-400 rounded font-medium inline-flex items-center gap-1">
+                  Planning
+                </span>
+                <span className="truncate text-muted-foreground flex-1 min-w-0">
+                  {plannerGoal.name}
+                </span>
+                {onPlannerExit ? (
+                  <button
+                    type="button"
+                    onClick={onPlannerExit}
+                    className="shrink-0 text-muted-foreground hover:text-foreground p-0.5 rounded hover:bg-accent"
+                    aria-label="Stop planning this goal"
+                    title="Stop planning"
+                  >
+                    <X className="w-3.5 h-3.5" />
+                  </button>
+                ) : null}
+              </div>
+            ) : (
+              (() => {
+                const sessionTitle = sessionHook.activeSession?.title;
+                const hasRealTitle =
+                  !!sessionTitle && sessionTitle !== "New conversation";
+                return (
+                  <div className="text-sm text-muted-foreground flex items-center gap-1.5">
+                    <Globe className="w-3 h-3 shrink-0" />
+                    <span className="truncate">
+                      {hasRealTitle
+                        ? sessionTitle
+                        : "Global chat — not tied to any task"}
+                    </span>
+                  </div>
+                );
+              })()
+            )}
+          </div>
+        </div>
+
+        {/* Kody waiting for instructions banner */}
+        {isKodyWaiting && actionState && (
+          <div className="px-4 py-2 bg-amber-50 border-b border-amber-200 flex items-center gap-2 text-sm text-amber-800">
+            <span className="relative flex h-3 w-3">
+              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-amber-400 opacity-75" />
+              <span className="relative inline-flex rounded-full h-3 w-3 bg-amber-500" />
+            </span>
+            <span className="font-medium">
+              Kody is waiting for your instructions
+            </span>
+            {actionState.step && (
+              <span className="text-amber-600">
+                — paused at{" "}
+                <code className="bg-amber-100 px-1 rounded">
+                  {actionState.step}
+                </code>
+              </span>
+            )}
+          </div>
+        )}
+
+        {/* Messages area */}
+        <div
+          ref={messagesContainerRef}
+          onScroll={handleMessagesScroll}
+          className={`flex-1 min-h-0 relative ${
+            chatMode === "terminal"
+              ? "overflow-hidden bg-[#050608]"
+              : "overflow-auto px-1.5 py-2 sm:p-4 space-y-4"
+          }`}
+        >
+          {chatMode === "ai" && messages.length === 0 && !activeLoading && (
+            <div className="text-center text-muted-foreground text-base py-8">
+              {isTaskMode ? (
+                <>
+                  <p className="font-medium">Chat about this task</p>
+                  <p className="text-sm mt-1">
+                    Messages will be saved to the task
+                  </p>
+                  <p className="text-sm mt-3 font-medium text-foreground">
+                    I can help you:
+                  </p>
+                  <ul className="mt-2 text-left text-sm space-y-2 max-w-sm mx-auto">
+                    <li className="flex items-start gap-2">
+                      <span className="text-primary">•</span>
+                      <span>
+                        Diagnose the linked PR if it didn&apos;t fully fix the
+                        issue — try{" "}
+                        <span className="font-mono">
+                          &quot;diagnose{" "}
+                          {selectedTask?.associatedPR
+                            ? `PR #${selectedTask.associatedPR.number}`
+                            : "this PR"}
+                          &quot;
+                        </span>
+                        . I&apos;ll read the diff, find the gap, and draft a
+                        sharper <span className="font-mono">@kody fix</span> for
+                        your approval.
+                      </span>
+                    </li>
+                    <li className="flex items-start gap-2">
+                      <span className="text-primary">•</span>
+                      <span>
+                        Explain the issue, the PR diff, or pipeline status
+                      </span>
+                    </li>
+                    <li className="flex items-start gap-2">
+                      <span className="text-primary">•</span>
+                      <span>
+                        Browse and search the repository for related code
+                      </span>
+                    </li>
+                    <li className="flex items-start gap-2">
+                      <span className="text-primary">•</span>
+                      <span>
+                        Draft a follow-up{" "}
+                        <span className="font-mono">@kody</span> instruction
+                      </span>
+                    </li>
+                  </ul>
+                </>
+              ) : isAgentResponsibilityMode && selectedAgentResponsibility ? (
+                <>
+                  <p className="font-medium text-foreground">
+                    Chat about `{selectedAgentResponsibility.slug}`
+                  </p>
+                  <p className="text-sm mt-1 max-w-sm mx-auto">
+                    Ask anything about this agentResponsibility&apos;s intent,
+                    scope, or rules. Each agentResponsibility has its own
+                    thread.
+                  </p>
+                </>
+              ) : isPlannerMode && plannerGoal ? (
+                <>
+                  <p className="font-medium text-foreground">
+                    Plan tasks for &ldquo;{plannerGoal.name}&rdquo;
+                  </p>
+                  <p className="text-sm mt-1 max-w-md mx-auto">
+                    Say <span className="font-mono">&quot;plan it&quot;</span>{" "}
+                    (or paste extra context first). I&apos;ll propose a task
+                    list, you approve, then I&apos;ll deepen each spec and
+                    create the issues attached to this goal.
+                  </p>
+                </>
+              ) : (
+                <>
+                  <p className="font-medium">Hi! I can help you with:</p>
+                  <ul className="mt-3 text-left text-sm space-y-2">
+                    <li className="flex items-start gap-2">
+                      <span className="text-primary">•</span>
+                      <span>Browse repository files and code</span>
+                    </li>
+                    <li className="flex items-start gap-2">
+                      <span className="text-primary">•</span>
+                      <span>Search code across the codebase</span>
+                    </li>
+                    <li className="flex items-start gap-2">
+                      <span className="text-primary">•</span>
+                      <span>List and explain tasks</span>
+                    </li>
+                    <li className="flex items-start gap-2">
+                      <span className="text-primary">•</span>
+                      <span>Show pipeline status and progress</span>
+                    </li>
+                    <li className="flex items-start gap-2">
+                      <span className="text-primary">•</span>
+                      <span>
+                        Diagnose a Kody PR that didn&apos;t fully solve its
+                        issue — try{" "}
+                        <span className="font-mono">
+                          &quot;diagnose PR #1404&quot;
+                        </span>
+                      </span>
+                    </li>
+                  </ul>
+                </>
+              )}
+            </div>
+          )}
+
+          {mountedChatTerminals.map((terminal) => {
+            const isActiveTerminal =
+              chatMode === "terminal" &&
+              activeSessionIdForReset === terminal.sessionId &&
+              activeTerminalInstanceId === terminal.id;
+            return (
+              <div
+                key={terminal.id}
+                className={isActiveTerminal ? "h-full min-h-0" : "hidden"}
+              >
+                <ChatTerminalSurface
+                  ref={(node) => {
+                    terminalSurfaceRefs.current[terminal.id] = node;
+                    if (!node) delete terminalSurfaceRefs.current[terminal.id];
+                  }}
+                  active={isActiveTerminal}
+                  chatSessionId={terminal.sessionId}
+                  connectNonce={
+                    terminalConnectNonceByInstanceId[terminal.id] ?? 0
+                  }
+                  transport={terminal.transport}
+                  onAddToChat={addTerminalContextToChat}
+                  onConnectionStateChange={(state) =>
+                    recordTerminalConnectionState(terminal.id, state)
+                  }
+                  onSessionEnded={(snapshot) =>
+                    void handleAutoSaveTerminalSnapshot(terminal, snapshot)
+                  }
+                />
+              </div>
+            );
+          })}
+
+          {chatMode === "ai" &&
+            messages.map((msg, i) => {
+              if (msg.hidden) return null;
+
+              const parsedAssistant =
+                msg.role === "assistant"
+                  ? parseAssistantContent(msg.content)
+                  : null;
+              const visibleText = parsedAssistant?.answer || msg.content;
+              const messageDirection = getMessageDirection(visibleText);
+
               return (
-                <div className="text-sm text-muted-foreground flex items-center gap-1.5">
-                  <Globe className="w-3 h-3 shrink-0" />
-                  <span className="truncate">
-                    {hasRealTitle
-                      ? sessionTitle
-                      : "Global chat — not tied to any task"}
-                  </span>
+                <div
+                  key={i}
+                  data-role={msg.role}
+                  className={`group flex ${msg.role === "user" ? "justify-end" : "justify-start"} relative`}
+                >
+                  <div
+                    dir={messageDirection}
+                    className={`max-w-[92%] sm:max-w-[85%] min-w-0 break-words rounded-lg px-3 py-2 text-[17px] leading-relaxed ${
+                      msg.role === "user"
+                        ? "bg-primary text-primary-foreground"
+                        : "bg-muted"
+                    }`}
+                  >
+                    {/* Message Actions */}
+                    <MessageActions
+                      role={msg.role}
+                      content={msg.content}
+                      isLast={i === messages.length - 1}
+                      isLoading={!!msg.isLoading}
+                      hasToolCalls={!!msg.toolCalls && msg.toolCalls.length > 0}
+                      onCopy={() => msg.content}
+                      onRetry={
+                        msg.role === "assistant" && i === messages.length - 1
+                          ? () => {
+                              // Walk back to the last user message. Drop both that
+                              // user turn AND the failed assistant reply — sendText
+                              // pushes a fresh user bubble, so trimming both keeps
+                              // the transcript intact (no duplicate user msg).
+                              let userIdx = -1;
+                              for (let j = i - 1; j >= 0; j--) {
+                                if (messages[j].role === "user") {
+                                  userIdx = j;
+                                  break;
+                                }
+                              }
+                              if (userIdx < 0) return;
+                              const lastUserContent = messages[userIdx].content;
+                              setMessages((prev) => prev.slice(0, userIdx));
+                              void sendText(lastUserContent, []);
+                            }
+                          : undefined
+                      }
+                      onEdit={
+                        msg.role === "user"
+                          ? (content) => {
+                              // Drop the edited user msg + everything after it,
+                              // then resubmit. sendText repushes the user bubble
+                              // with the new content, so we don't keep the old one.
+                              setMessages((prev) => prev.slice(0, i));
+                              void sendText(content, []);
+                            }
+                          : undefined
+                      }
+                      onDelete={() => {
+                        setMessages((prev) =>
+                          prev.filter((_, idx) => idx !== i),
+                        );
+                      }}
+                    />
+
+                    {msg.role === "assistant" ? (
+                      <>
+                        {msg.toolCalls && msg.toolCalls.length > 0 && (
+                          <ThinkingPanel
+                            toolCalls={msg.toolCalls}
+                            isStreaming={!!msg.isLoading}
+                            persistKey={
+                              sessionHook.activeSession?.id && !msg.isLoading
+                                ? `${sessionHook.activeSession.id}:${msg.timestamp ?? i}`
+                                : undefined
+                            }
+                          />
+                        )}
+                        {(() => {
+                          // Strip model-emitted tool-call markup (`<kody_run_issue />`
+                          // and `<tool_call>…</tool_call>` blocks) from the visible
+                          // answer — the structured call is already surfaced via
+                          // the ThinkingPanel above, and the raw XML in the
+                          // text stream is just noise. Bare URLs get auto-linked
+                          // by `remark-gfm` below.
+                          const { reasoning, answer } = parsedAssistant ?? {
+                            reasoning: "",
+                            answer: "",
+                          };
+                          const isActive =
+                            activeLoading && i === messages.length - 1;
+                          const hasAnswer = answer.trim().length > 0;
+                          return (
+                            <>
+                              {reasoning && (
+                                <ReasoningPanel
+                                  content={reasoning}
+                                  isStreaming={!!msg.isLoading}
+                                  persistKey={
+                                    sessionHook.activeSession?.id &&
+                                    !msg.isLoading
+                                      ? `${sessionHook.activeSession.id}:${msg.timestamp ?? i}`
+                                      : undefined
+                                  }
+                                />
+                              )}
+                              {hasAnswer && (
+                                <MarkdownPreview
+                                  content={answer}
+                                  dir={messageDirection}
+                                  className="chat-message-text prose-base break-words [&_pre]:max-w-full [&_pre]:overflow-x-auto [&_code]:break-words"
+                                />
+                              )}
+                              {/* Never a blank bubble: while the turn is in flight and
+                            no visible answer text has arrived yet, show the
+                            thinking indicator — but only after the 800ms grace
+                            timer (issue #330). The agentIdentity's status-line rule
+                            should already have given the model a chance to
+                            emit a first-line within that window; the indicator
+                            is the backstop for when it didn't. Covers the
+                            reasoning-only / tool-call phase where content is
+                            just <think> blocks. */}
+                              {isActive &&
+                                showTypingAfterGrace &&
+                                !hasAnswer && (
+                                  <TypingIndicator label={currentAgent.name} />
+                                )}
+                            </>
+                          );
+                        })()}
+                      </>
+                    ) : (
+                      <>
+                        {msg.attachments && msg.attachments.length > 0 && (
+                          <MessageAttachments attachments={msg.attachments} />
+                        )}
+                        {msg.content && (
+                          <div
+                            dir={messageDirection}
+                            className="chat-message-text"
+                          >
+                            {msg.content}
+                          </div>
+                        )}
+                      </>
+                    )}
+                    {activeLoading &&
+                      i === messages.length - 1 &&
+                      msg.role === "assistant" &&
+                      parsedAssistant?.answer.trim() && (
+                        <span className="inline-block ml-2 animate-pulse text-primary">
+                          ●
+                        </span>
+                      )}
+                  </div>
                 </div>
               );
-            })()
-          )}
-        </div>
-      </div>
+            })}
 
-      {/* Kody waiting for instructions banner */}
-      {isKodyWaiting && actionState && (
-        <div className="px-4 py-2 bg-amber-50 border-b border-amber-200 flex items-center gap-2 text-sm text-amber-800">
-          <span className="relative flex h-3 w-3">
-            <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-amber-400 opacity-75" />
-            <span className="relative inline-flex rounded-full h-3 w-3 bg-amber-500" />
-          </span>
-          <span className="font-medium">
-            Kody is waiting for your instructions
-          </span>
-          {actionState.step && (
-            <span className="text-amber-600">
-              — paused at{" "}
-              <code className="bg-amber-100 px-1 rounded">
-                {actionState.step}
-              </code>
-            </span>
-          )}
-        </div>
-      )}
-
-      {/* Messages area */}
-      <div
-        ref={messagesContainerRef}
-        onScroll={handleMessagesScroll}
-        className="flex-1 overflow-auto px-1.5 py-2 sm:p-4 space-y-4 relative"
-      >
-        {messages.length === 0 && !loading && (
-          <div className="text-center text-muted-foreground text-base py-8">
-            {isTaskMode ? (
-              <>
-                <p className="font-medium">Chat about this task</p>
-                <p className="text-sm mt-1">
-                  Messages will be saved to the task
-                </p>
-                <p className="text-sm mt-3 font-medium text-foreground">
-                  I can help you:
-                </p>
-                <ul className="mt-2 text-left text-sm space-y-2 max-w-sm mx-auto">
-                  <li className="flex items-start gap-2">
-                    <span className="text-primary">•</span>
-                    <span>
-                      Diagnose the linked PR if it didn&apos;t fully fix the
-                      issue — try{" "}
-                      <span className="font-mono">
-                        &quot;diagnose{" "}
-                        {selectedTask?.associatedPR
-                          ? `PR #${selectedTask.associatedPR.number}`
-                          : "this PR"}
-                        &quot;
-                      </span>
-                      . I&apos;ll read the diff, find the gap, and draft a
-                      sharper <span className="font-mono">@kody fix</span> for
-                      your approval.
-                    </span>
-                  </li>
-                  <li className="flex items-start gap-2">
-                    <span className="text-primary">•</span>
-                    <span>
-                      Explain the issue, the PR diff, or pipeline status
-                    </span>
-                  </li>
-                  <li className="flex items-start gap-2">
-                    <span className="text-primary">•</span>
-                    <span>
-                      Browse and search the repository for related code
-                    </span>
-                  </li>
-                  <li className="flex items-start gap-2">
-                    <span className="text-primary">•</span>
-                    <span>
-                      Draft a follow-up <span className="font-mono">@kody</span>{" "}
-                      instruction
-                    </span>
-                  </li>
-                </ul>
-              </>
-            ) : isDutyMode && selectedDuty ? (
-              <>
-                <p className="font-medium text-foreground">
-                  Chat about `{selectedDuty.slug}`
-                </p>
-                <p className="text-sm mt-1 max-w-sm mx-auto">
-                  Ask anything about this duty&apos;s intent, scope, or rules.
-                  Each duty has its own thread.
-                </p>
-              </>
-            ) : isPlannerMode && plannerGoal ? (
-              <>
-                <p className="font-medium text-foreground">
-                  Plan tasks for &ldquo;{plannerGoal.name}&rdquo;
-                </p>
-                <p className="text-sm mt-1 max-w-md mx-auto">
-                  Say <span className="font-mono">&quot;plan it&quot;</span> (or
-                  paste extra context first). I&apos;ll propose a task list, you
-                  approve, then I&apos;ll deepen each spec and create the issues
-                  attached to this goal.
-                </p>
-              </>
-            ) : (
-              <>
-                <p className="font-medium">Hi! I can help you with:</p>
-                <ul className="mt-3 text-left text-sm space-y-2">
-                  <li className="flex items-start gap-2">
-                    <span className="text-primary">•</span>
-                    <span>Browse repository files and code</span>
-                  </li>
-                  <li className="flex items-start gap-2">
-                    <span className="text-primary">•</span>
-                    <span>Search code across the codebase</span>
-                  </li>
-                  <li className="flex items-start gap-2">
-                    <span className="text-primary">•</span>
-                    <span>List and explain tasks</span>
-                  </li>
-                  <li className="flex items-start gap-2">
-                    <span className="text-primary">•</span>
-                    <span>Show pipeline status and progress</span>
-                  </li>
-                  <li className="flex items-start gap-2">
-                    <span className="text-primary">•</span>
-                    <span>
-                      Diagnose a Kody PR that didn&apos;t fully solve its issue
-                      — try{" "}
-                      <span className="font-mono">
-                        &quot;diagnose PR #1404&quot;
-                      </span>
-                    </span>
-                  </li>
-                </ul>
-              </>
-            )}
-          </div>
-        )}
-
-        {messages.map((msg, i) =>
-          msg.hidden ? null : (
-            <div
-              key={i}
-              data-role={msg.role}
-              className={`group flex ${msg.role === "user" ? "justify-end" : "justify-start"} relative`}
-            >
-              <div
-                dir="auto"
-                className={`max-w-[92%] sm:max-w-[85%] min-w-0 break-words rounded-lg px-3 py-2 text-[17px] leading-relaxed ${
-                  msg.role === "user"
-                    ? "bg-primary text-primary-foreground"
-                    : "bg-muted"
-                }`}
-              >
-                {/* Message Actions */}
-                <MessageActions
-                  role={msg.role}
-                  content={msg.content}
-                  isLast={i === messages.length - 1}
-                  isLoading={!!msg.isLoading}
-                  hasToolCalls={!!msg.toolCalls && msg.toolCalls.length > 0}
-                  onCopy={() => msg.content}
-                  onRetry={
-                    msg.role === "assistant" && i === messages.length - 1
-                      ? () => {
-                          // Walk back to the last user message. Drop both that
-                          // user turn AND the failed assistant reply — sendText
-                          // pushes a fresh user bubble, so trimming both keeps
-                          // the transcript intact (no duplicate user msg).
-                          let userIdx = -1;
-                          for (let j = i - 1; j >= 0; j--) {
-                            if (messages[j].role === "user") {
-                              userIdx = j;
-                              break;
-                            }
-                          }
-                          if (userIdx < 0) return;
-                          const lastUserContent = messages[userIdx].content;
-                          setMessages((prev) => prev.slice(0, userIdx));
-                          void sendText(lastUserContent, []);
-                        }
-                      : undefined
-                  }
-                  onEdit={
-                    msg.role === "user"
-                      ? (content) => {
-                          // Drop the edited user msg + everything after it,
-                          // then resubmit. sendText repushes the user bubble
-                          // with the new content, so we don't keep the old one.
-                          setMessages((prev) => prev.slice(0, i));
-                          void sendText(content, []);
-                        }
-                      : undefined
-                  }
-                  onDelete={() => {
-                    setMessages((prev) => prev.filter((_, idx) => idx !== i));
-                  }}
-                />
-
-                {msg.role === "assistant" ? (
-                  <>
-                    {msg.toolCalls && msg.toolCalls.length > 0 && (
-                      <ThinkingPanel
-                        toolCalls={msg.toolCalls}
-                        isStreaming={!!msg.isLoading}
-                        persistKey={
-                          sessionHook.activeSession?.id && !msg.isLoading
-                            ? `${sessionHook.activeSession.id}:${msg.timestamp ?? i}`
-                            : undefined
-                        }
-                      />
-                    )}
-                    {(() => {
-                      // Strip model-emitted tool-call markup (`<kody_run_issue />`
-                      // and `<tool_call>…</tool_call>` blocks) from the visible
-                      // answer — the structured call is already surfaced via
-                      // the ThinkingPanel above, and the raw XML in the
-                      // text stream is just noise. Bare URLs get auto-linked
-                      // by `remark-gfm` below.
-                      const { reasoning, answer } = parseAssistantContent(
-                        msg.content,
-                      );
-                      const isActive = loading && i === messages.length - 1;
-                      const hasAnswer = answer.trim().length > 0;
-                      return (
-                        <>
-                          {reasoning && (
-                            <ReasoningPanel
-                              content={reasoning}
-                              isStreaming={!!msg.isLoading}
-                              persistKey={
-                                sessionHook.activeSession?.id && !msg.isLoading
-                                  ? `${sessionHook.activeSession.id}:${msg.timestamp ?? i}`
-                                  : undefined
-                              }
-                            />
-                          )}
-                          {hasAnswer && (
-                            <div className="prose prose-base dark:prose-invert max-w-none break-words [&_pre]:max-w-full [&_pre]:overflow-x-auto [&_code]:break-words">
-                              <ReactMarkdown
-                                remarkPlugins={[remarkGfm]}
-                                components={{
-                                  a: ({ href, children, ...props }) => (
-                                    <a
-                                      href={href}
-                                      target="_blank"
-                                      rel="noopener noreferrer"
-                                      className="text-primary hover:underline break-all"
-                                      {...props}
-                                    >
-                                      {children}
-                                    </a>
-                                  ),
-                                }}
-                              >
-                                {answer}
-                              </ReactMarkdown>
-                            </div>
-                          )}
-                          {/* Never a blank bubble: while the turn is in flight and
-                            no visible answer text has arrived yet, show the
-                            thinking indicator. Covers the reasoning-only /
-                            tool-call phase where content is just <think> blocks. */}
-                          {isActive && !hasAnswer && (
-                            <TypingIndicator label={currentAgent.name} />
-                          )}
-                        </>
-                      );
-                    })()}
-                  </>
-                ) : (
-                  <>
-                    {msg.attachments && msg.attachments.length > 0 && (
-                      <MessageAttachments attachments={msg.attachments} />
-                    )}
-                    {msg.content}
-                  </>
-                )}
-                {loading &&
-                  i === messages.length - 1 &&
-                  msg.role === "assistant" &&
-                  parseAssistantContent(msg.content).answer.trim() && (
-                    <span className="inline-block ml-2 animate-pulse text-primary">
-                      ●
-                    </span>
-                  )}
-              </div>
-            </div>
-          ),
-        )}
-
-        {/* Typing indicator shown before an assistant placeholder exists.
+          {/* Typing indicator shown before an assistant placeholder exists.
             Covers the Kody-engine first-byte window where the placeholder is
-            only pushed once the first SSE event arrives. */}
-        {loading &&
-          messages.length > 0 &&
-          messages[messages.length - 1]?.role === "user" && (
-            <div className="flex justify-start">
-              <div className="max-w-[92%] sm:max-w-[85%] rounded-lg px-3 py-2 bg-muted">
-                <TypingIndicator label={currentAgent.name} />
+            only pushed once the first SSE event arrives. Gated on the same
+            800ms grace timer as the in-bubble indicator (#330) so a fast
+            model that emits the agentIdentity's status line quickly never flashes
+            the typing bubble. */}
+          {chatMode === "ai" &&
+            activeLoading &&
+            showTypingAfterGrace &&
+            messages.length > 0 &&
+            messages[messages.length - 1]?.role === "user" && (
+              <div className="flex justify-start">
+                <div className="max-w-[92%] sm:max-w-[85%] rounded-lg px-3 py-2 bg-muted">
+                  <TypingIndicator label={currentAgent.name} />
+                </div>
               </div>
+            )}
+
+          {/* Tool calls display - using ToolCallList component */}
+          {chatMode === "ai" && toolCalls.length > 0 && (
+            <div className="flex justify-start">
+              <ToolCallList
+                toolCalls={toolCalls.map((tc) => ({
+                  name: tc.name,
+                  arguments: tc.arguments,
+                  result: tc.result,
+                  status: tc.status,
+                  startedAt: tc.startedAt,
+                  durationMs: tc.durationMs,
+                  description: tc.description,
+                }))}
+              />
             </div>
           )}
 
-        {/* Tool calls display - using ToolCallList component */}
-        {toolCalls.length > 0 && (
-          <div className="flex justify-start">
-            <ToolCallList
-              toolCalls={toolCalls.map((tc) => ({
-                name: tc.name,
-                arguments: tc.arguments,
-                result: tc.result,
-                status: tc.status,
-                startedAt: tc.startedAt,
-                durationMs: tc.durationMs,
-              }))}
-            />
-          </div>
-        )}
+          <div ref={messagesEndRef} />
+        </div>
 
-        <div ref={messagesEndRef} />
-      </div>
-
-      {/* "Jump to latest" pill — visible only when the user has scrolled up
+        {/* "Jump to latest" pill — visible only when the user has scrolled up
           and is therefore not pinned to the bottom. Clicking re-engages
           sticky scrolling. */}
-      {!isAtBottom && (
-        <div className="relative">
-          <button
-            type="button"
-            onClick={() => scrollToBottom("smooth")}
-            className="absolute -top-12 left-1/2 -translate-x-1/2 z-10 flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-primary text-primary-foreground text-xs font-medium shadow-lg hover:opacity-90 transition-opacity"
-            aria-label="Jump to latest messages"
-          >
-            <ChevronDown className="w-3.5 h-3.5" />
-            {loading ? "New messages" : "Jump to latest"}
-          </button>
-        </div>
-      )}
-
-      {/* Attachments preview */}
-      {attachments.length > 0 && (
-        <div className="px-2 sm:px-3 pb-2 flex flex-wrap gap-2">
-          {attachments.map((attachment) => (
-            <div
-              key={attachment.id}
-              className="flex items-center gap-1.5 px-2 py-1 bg-muted rounded-md text-xs"
+        {!isAtBottom && (
+          <div className="relative">
+            <button
+              type="button"
+              onClick={() => scrollToBottom("smooth")}
+              className="absolute -top-12 left-1/2 -translate-x-1/2 z-10 flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-primary text-primary-foreground text-xs font-medium shadow-lg hover:opacity-90 transition-opacity"
+              aria-label="Jump to latest messages"
             >
-              {getFileIcon(attachment.mimeType)}
-              <span className="max-w-[100px] truncate">{attachment.name}</span>
-              <span className="text-muted-foreground">
-                {formatFileSize(attachment.size)}
-              </span>
-              <button
-                onClick={() => removeAttachment(attachment.id)}
-                className="ml-1 hover:text-destructive"
-                disabled={loading}
-              >
-                <X className="w-3 h-3" />
-              </button>
-            </div>
-          ))}
-        </div>
-      )}
-
-      {/* Context chips (e.g. picked preview elements) — compact removable
-          pills; the full element details ride along on send, not in the box. */}
-      {contextChips.length > 0 && (
-        <div className="px-2 sm:px-3 pb-2 flex flex-wrap gap-2">
-          {contextChips.map((chip) => (
-            <div
-              key={chip.id}
-              className="flex items-center gap-1.5 px-2 py-1 bg-blue-500/15 text-blue-300 border border-blue-500/30 rounded-md text-xs font-mono"
-              title={chip.context}
-            >
-              <MousePointerClick className="w-3 h-3 shrink-0" />
-              <span className="max-w-[180px] truncate">{chip.label}</span>
-              <button
-                type="button"
-                onClick={() => removeContextChip(chip.id)}
-                className="ml-0.5 hover:text-destructive"
-                aria-label="Remove element context"
-              >
-                <X className="w-3 h-3" />
-              </button>
-            </div>
-          ))}
-        </div>
-      )}
-
-      {/* Input area */}
-      <div className="px-1.5 py-2 sm:p-3 border-t">
-        {/* Vibe mode: explicit one-shot execution action. Sits with the
-            composer so the executor handoff feels like a chat affordance
-            rather than a UI button parked elsewhere. Hides itself once
-            any work has started. */}
-        {vibeMode && context?.kind === "task" && !isKodyLive ? (
-          <VibeRunButton task={context.task} />
-        ) : null}
-        {/* Kody Live status dot — compact indicator above the composer.
-            Color encodes state; hover for full detail + links. Restart
-            affordance only surfaces on stuck/error. */}
-        {isKodyLive ? (
-          <div className="mb-1 flex items-center gap-2">
-            <SimpleTooltip
-              content={(() => {
-                if (interactiveState === "booting") {
-                  const phase = bootPhaseLabel(
-                    bootElapsed,
-                    selectedAgentId === "kody-live-fly" ? "fly" : "gh",
-                  );
-                  const elapsed = formatElapsed(bootElapsed);
-                  const watch =
-                    interactiveTarget && selectedAgentId !== "kody-live-fly"
-                      ? ` · watching ${interactiveTarget.owner}/${interactiveTarget.repo}`
-                      : "";
-                  return `${phase} · ${elapsed} elapsed${watch}`;
-                }
-                if (interactiveState === "ready") {
-                  return "Live runner ready. Chat normally — clear the box and hit Stop to end.";
-                }
-                if (interactiveState === "awaiting") {
-                  return "Live runner is processing — waiting for reply...";
-                }
-                if (
-                  interactiveState === "stuck" ||
-                  interactiveState === "error"
-                ) {
-                  return liveState.errorMessage
-                    ? `Runner stuck — ${liveState.errorMessage}`
-                    : "Runner stuck — click Restart.";
-                }
-                if (interactiveState === "ended") {
-                  return "Live runner ended. Start a new session to chat.";
-                }
-                return "Live runner is offline. Start it to enable chat.";
-              })()}
-            >
-              <span
-                className={`inline-block h-2.5 w-2.5 rounded-full ${
-                  interactiveState === "ready"
-                    ? "bg-green-500"
-                    : interactiveState === "booting" ||
-                        interactiveState === "awaiting"
-                      ? "animate-pulse bg-yellow-500"
-                      : interactiveState === "stuck" ||
-                          interactiveState === "error"
-                        ? "bg-red-500"
-                        : "bg-muted-foreground/50"
-                }`}
-                aria-label={`Live runner: ${interactiveState}`}
-              />
-            </SimpleTooltip>
-            {interactiveState === "stuck" || interactiveState === "error" ? (
-              <button
-                type="button"
-                onClick={() => void restartInteractiveSession()}
-                className="rounded-md bg-red-600/90 px-2 py-0.5 text-[11px] font-medium text-white hover:bg-red-700"
-              >
-                Restart
-              </button>
-            ) : null}
+              <ChevronDown className="w-3.5 h-3.5" />
+              {activeLoading ? "New messages" : "Jump to latest"}
+            </button>
           </div>
-        ) : null}
-        {/* Composer input row (issue #131): the textarea and a single
-            trailing send/stop icon button share this row, with the
-            button swapped by state. The action row below (Paperclip,
-            VoiceButton) no longer hosts the send affordance — the
-            hairline separates input from action rows. */}
-        <div className="flex gap-2 items-center">
-          <div className="flex-1 relative">
-            {slashMenuOpen && (
-              <SlashCommandMenu
-                commands={slashCommands}
-                filter={parseSlashTrigger(input).filter}
-                selectedIndex={slashSelectedIndex}
-                onSelect={applySlashSelection}
-                onHover={setSlashSelectedIndex}
-              />
-            )}
-            <textarea
-              value={input}
-              onChange={(e) => {
-                const next = e.target.value;
-                setInput(next);
-                // Slash menu opens on `/` at line start, stays open while
-                // the user types the slug, closes when they add a space
-                // or clear the slash.
-                const trigger = parseSlashTrigger(next);
-                setSlashMenuOpen(trigger.active && slashCommands.length > 0);
-                if (trigger.active) setSlashSelectedIndex(0);
-                // Auto-expand height
-                e.target.style.height = "auto";
-                e.target.style.height = `${Math.min(e.target.scrollHeight, 150)}px`;
-              }}
-              onKeyDown={handleKeyDown}
-              onPaste={handlePaste}
-              onBlur={() => {
-                // Small delay so the menu's onMouseDown can fire before
-                // close — onMouseDown uses preventDefault to avoid blur,
-                // but defensive close keeps stale menus from hanging.
-                setTimeout(() => setSlashMenuOpen(false), 120);
-              }}
-              placeholder={placeholder}
-              rows={1}
-              dir="auto"
-              className="w-full px-3 py-2 text-base rounded-md border bg-background focus:outline-none focus:ring-1 focus:ring-primary resize-none overflow-hidden disabled:opacity-50 disabled:cursor-not-allowed"
-              disabled={loading || (isKodyLive && interactiveState !== "ready")}
-              style={{ height: "auto" }}
-            />
-          </div>
-          {/* Trailing send/stop icon button — single role that swaps by
-              state (issue #131 refinement):
-                * Idle / no in-flight run → paper-plane Send icon
-                * In-flight run (loading or stop/cancel) → Square stop icon
-              Replaces both the old red `bg-destructive` Stop text button
-              in the input row and the inline Send button that used to
-              live in the action row below. The button is hidden when
-              there's no content and the agent isn't Kody-Live, matching
-              the previous "no send affordance when empty" behavior. */}
-          {(() => {
-            const isInFlight =
-              loading ||
-              composerAction === "stop" ||
-              composerAction === "cancel";
-            const showTrailingButton = isInFlight
-              ? true
-              : hasComposerContent || isKodyLive;
-            if (!showTrailingButton) return null;
-            const title = isInFlight
-              ? composerAction === "cancel"
-                ? "Cancel boot"
-                : "Stop run"
-              : composerAction === "start"
-                ? "Boot runner"
-                : "Send message";
-            return (
-              <button
-                type="button"
-                onClick={() => {
-                  if (loading) {
-                    handleStop();
-                  } else if (
-                    composerAction === "stop" ||
-                    composerAction === "cancel"
-                  ) {
-                    endInteractiveSession();
-                  } else if (composerAction === "start") {
-                    void startInteractiveSession();
-                  } else {
-                    void sendMessage();
-                  }
-                }}
-                className="p-2 text-muted-foreground hover:text-foreground hover:bg-muted rounded-md transition-colors"
-                title={title}
-                aria-label={title}
-              >
-                {isInFlight ? (
-                  <Square className="w-5 h-5" fill="currentColor" />
-                ) : (
-                  <Send className="w-5 h-5" />
-                )}
-              </button>
-            );
-          })()}
-        </div>
-        <div className="border-t border-border/40" />
-        <div className="flex gap-2 items-center">
-          {/* Attachment button — hidden file input lives alongside the
-              Paperclip so the picker click handler still targets the
-              same ref. */}
-          <input
-            ref={fileInputRef}
-            type="file"
-            multiple
-            accept="image/*,.txt,.md,.json,.js,.ts,.jsx,.tsx,.html,.css,.scss,.yaml,.yml,.sh"
-            onChange={handleFileSelect}
-            className="hidden"
-            disabled={loading}
-          />
-          <button
-            onClick={() => fileInputRef.current?.click()}
-            disabled={loading}
-            className="p-2 text-muted-foreground hover:text-foreground hover:bg-muted rounded-md transition-colors"
-            title="Attach files"
-          >
-            <Paperclip className="w-5 h-5" />
-          </button>
-
-          {/* Voice button — gated on `agent.supportsVoice`. Each agent
-              declares whether its backend can honor the voice overlay
-              (see AgentConfig.supportsVoice). Brain agents support it
-              once the brain server applies the overlay server-side;
-              kody-live/engine agents don't (latency). The mic stays
-              hidden for unsupported agents so the dropdown never lies. */}
-          <VoiceButton
-            isActive={voiceOverlayOpen}
-            isSupported={voiceChat.isSupported && currentAgent.supportsVoice}
-            onTap={() => {
-              // Handle tap based on current voice state:
-              // - If AI is speaking: interrupt and start listening (voice interrupt)
-              // - If listening/processing: stop conversation
-              // - If idle: start conversation
-              if (voiceChat.state === "speaking") {
-                // Voice interrupt: cancel AI speech and start listening
-                voiceChat.interruptConversation();
-                setVoiceOverlayOpen(true);
-                setVoiceMuted(false);
-              } else if (voiceOverlayOpen) {
-                // Already in voice mode - stop it
-                voiceChat.stopConversation();
-                setVoiceOverlayOpen(false);
-                setVoiceMuted(false);
-              } else {
-                // Not in voice mode - start it
-                voiceChat.startConversation();
-                setVoiceOverlayOpen(true);
-              }
-            }}
-            onLongPressStart={() => {
-              voiceChat.startConversation();
-              setVoiceOverlayOpen(true);
-            }}
-            onLongPressEnd={() => {
-              /* let conversation handle it */
-            }}
-            disabled={loading}
-          />
-          {/* Reserved slot for future widget actions (slash-command
-              trigger, attachment previews inline, mode toggles, etc.).
-              flex-1 keeps the row visually left-anchored with breathing
-              room on the right. */}
-          <div className="flex-1" />
-        </div>
-        {/* Clear history link */}
-        {messages.length > 0 && !loading && (
-          <button
-            onClick={() => setShowClearConfirm(true)}
-            className="mt-1 text-xs text-muted-foreground hover:text-foreground transition-colors"
-          >
-            Clear history
-          </button>
         )}
-      </div>
 
-      <ConfirmDialog
-        open={showClearConfirm}
-        title="Clear history"
-        description="Clear conversation history? This cannot be undone."
-        confirmLabel="Clear"
-        variant="destructive"
-        onConfirm={executeClearHistory}
-        onClose={() => setShowClearConfirm(false)}
-      />
+        {/* Attachments preview */}
+        {chatMode === "ai" && attachments.length > 0 && (
+          <div className="px-2 sm:px-3 pb-2 flex flex-wrap gap-2">
+            {attachments.map((attachment) => (
+              <div
+                key={attachment.id}
+                className="flex items-center gap-1.5 px-2 py-1 bg-muted rounded-md text-xs"
+              >
+                {getFileIcon(attachment.mimeType)}
+                <span className="max-w-[100px] truncate">
+                  {attachment.name}
+                </span>
+                <span className="text-muted-foreground">
+                  {formatFileSize(attachment.size)}
+                </span>
+                <button
+                  onClick={() => removeAttachment(attachment.id)}
+                  className="ml-1 hover:text-destructive"
+                  disabled={activeLoading}
+                >
+                  <X className="w-3 h-3" />
+                </button>
+              </div>
+            ))}
+          </div>
+        )}
+
+        {/* Context chips (e.g. picked preview elements) — compact removable
+          pills; the full element details ride along on send, not in the box. */}
+        {chatMode === "ai" && contextChips.length > 0 && (
+          <div className="px-2 sm:px-3 pb-2 flex flex-wrap gap-2">
+            {contextChips.map((chip) => (
+              <div
+                key={chip.id}
+                className="flex items-center gap-1.5 px-2 py-1 bg-blue-500/15 text-blue-300 border border-blue-500/30 rounded-md text-xs font-mono"
+                title={chip.context}
+              >
+                <MousePointerClick className="w-3 h-3 shrink-0" />
+                <span className="max-w-[180px] truncate">{chip.label}</span>
+                <button
+                  type="button"
+                  onClick={() => removeContextChip(chip.id)}
+                  className="ml-0.5 hover:text-destructive"
+                  aria-label="Remove element context"
+                >
+                  <X className="w-3 h-3" />
+                </button>
+              </div>
+            ))}
+          </div>
+        )}
+
+        {/* Input area */}
+        <div
+          className={`relative z-10 shrink-0 border-t px-1.5 py-2 sm:p-3 ${
+            chatMode === "terminal"
+              ? "border-white/10 bg-[#050608]"
+              : "bg-background"
+          }`}
+        >
+          <div>
+            {/* Vibe mode: explicit one-shot execution action. Sits with the
+              composer so the executor handoff feels like a chat affordance
+              rather than a UI button parked elsewhere. Hides itself once
+              any work has started. */}
+            {chatMode === "ai" &&
+            vibeMode &&
+            context?.kind === "task" &&
+            !isKodyLive ? (
+              <VibeRunButton task={context.task} />
+            ) : null}
+            {/* Kody Live status dot — compact indicator above the composer.
+              Color encodes state; hover for full detail + links. Restart
+              affordance only surfaces on stuck/error. */}
+            {chatMode === "ai" && isKodyLive ? (
+              <div className="mb-1 flex items-center gap-2">
+                <SimpleTooltip
+                  content={(() => {
+                    if (interactiveState === "booting") {
+                      const phase = bootPhaseLabel(
+                        bootElapsed,
+                        selectedAgentId === "kody-live-fly" ? "fly" : "gh",
+                      );
+                      const elapsed = formatElapsed(bootElapsed);
+                      const watch =
+                        interactiveTarget && selectedAgentId !== "kody-live-fly"
+                          ? ` · watching ${interactiveTarget.owner}/${interactiveTarget.repo}`
+                          : "";
+                      return `${phase} · ${elapsed} elapsed${watch}`;
+                    }
+                    if (interactiveState === "ready") {
+                      return "Live runner ready. Chat normally — clear the box and hit Stop to end.";
+                    }
+                    if (interactiveState === "awaiting") {
+                      return "Live runner is processing — waiting for reply...";
+                    }
+                    if (
+                      interactiveState === "stuck" ||
+                      interactiveState === "error"
+                    ) {
+                      return liveState.errorMessage
+                        ? `Runner stuck — ${liveState.errorMessage}`
+                        : "Runner stuck — click Restart.";
+                    }
+                    if (interactiveState === "ended") {
+                      return "Live runner ended. Start a new session to chat.";
+                    }
+                    return "Live runner is offline. Start it to enable chat.";
+                  })()}
+                >
+                  <span
+                    className={`inline-block h-2.5 w-2.5 rounded-full ${
+                      interactiveState === "ready"
+                        ? "bg-green-500"
+                        : interactiveState === "booting" ||
+                            interactiveState === "awaiting"
+                          ? "animate-pulse bg-yellow-500"
+                          : interactiveState === "stuck" ||
+                              interactiveState === "error"
+                            ? "bg-red-500"
+                            : "bg-muted-foreground/50"
+                    }`}
+                    aria-label={`Live runner: ${interactiveState}`}
+                  />
+                </SimpleTooltip>
+                {interactiveState === "stuck" ||
+                interactiveState === "error" ? (
+                  <button
+                    type="button"
+                    onClick={() => void restartInteractiveSession()}
+                    className="rounded-md bg-red-600/90 px-2 py-0.5 text-[11px] font-medium text-white hover:bg-red-700"
+                  >
+                    Restart
+                  </button>
+                ) : null}
+              </div>
+            ) : null}
+            {/* Composer input row (issue #131): the textarea and a single
+              trailing send/stop icon button share this row, with the
+              button swapped by state. The action row below (Paperclip,
+              VoiceButton) no longer hosts the send affordance — the
+              hairline separates input from action rows. */}
+            <div className="flex gap-2 items-center">
+              <div className="flex-1 relative">
+                {slashMenuOpen && (
+                  <SlashCommandMenu
+                    commands={slashCommands}
+                    filter={parseSlashTrigger(input).filter}
+                    selectedIndex={slashSelectedIndex}
+                    onSelect={applySlashSelection}
+                    onHover={setSlashSelectedIndex}
+                  />
+                )}
+                {agentMentionTrigger && filteredAgentMentions.length > 0 && (
+                  <div className="absolute bottom-full left-0 right-0 mb-2 rounded-md border border-white/10 bg-zinc-900/95 backdrop-blur-sm shadow-xl overflow-hidden max-h-64 overflow-y-auto">
+                    <ul role="listbox" className="py-1">
+                      {filteredAgentMentions.map((agent, idx) => {
+                        const isSelected = idx === agentMentionSelectedIndex;
+                        return (
+                          <li
+                            key={agent.slug}
+                            role="option"
+                            aria-selected={isSelected}
+                            onMouseEnter={() =>
+                              setAgentMentionSelectedIndex(idx)
+                            }
+                            onMouseDown={(e) => {
+                              e.preventDefault();
+                              applyAgentMentionSelection(agent.slug);
+                            }}
+                            className={`flex items-center gap-2 px-3 py-1.5 cursor-pointer ${
+                              isSelected
+                                ? "bg-white/[0.08]"
+                                : "hover:bg-white/[0.04]"
+                            }`}
+                          >
+                            <span className="font-mono text-sm text-white/90">
+                              @{agent.slug}
+                            </span>
+                            <span className="text-xs text-white/55 truncate">
+                              {agent.title}
+                            </span>
+                            <span className="ml-auto text-[10px] uppercase tracking-wide px-1.5 py-0.5 rounded shrink-0 bg-emerald-500/15 text-emerald-300/80">
+                              Agent
+                            </span>
+                          </li>
+                        );
+                      })}
+                    </ul>
+                    <div className="border-t border-white/[0.06] px-3 py-1.5 text-[10px] text-white/35">
+                      ↑↓ navigate · Enter/Tab select · Esc close
+                    </div>
+                  </div>
+                )}
+                <textarea
+                  ref={composerTextareaRef}
+                  value={input}
+                  onChange={(e) => {
+                    const next = e.target.value;
+                    setInput(next);
+                    refreshAgentMentionTrigger(next, e.target.selectionStart);
+                    // Slash menu opens on `/` at line start, stays open while
+                    // the user types the slug, closes when they add a space
+                    // or clear the slash.
+                    if (chatMode === "ai") {
+                      const trigger = parseSlashTrigger(next);
+                      setSlashMenuOpen(
+                        trigger.active && slashCommands.length > 0,
+                      );
+                      if (trigger.active) setSlashSelectedIndex(0);
+                    } else {
+                      setSlashMenuOpen(false);
+                    }
+                    // Auto-expand height
+                    e.target.style.height = "auto";
+                    e.target.style.height = `${Math.min(e.target.scrollHeight, 150)}px`;
+                  }}
+                  onKeyDown={handleKeyDown}
+                  onSelect={(e) => {
+                    refreshAgentMentionTrigger(
+                      e.currentTarget.value,
+                      e.currentTarget.selectionStart,
+                    );
+                  }}
+                  onClick={(e) => {
+                    refreshAgentMentionTrigger(
+                      e.currentTarget.value,
+                      e.currentTarget.selectionStart,
+                    );
+                  }}
+                  onPaste={handlePaste}
+                  onBlur={() => {
+                    // Small delay so the menu's onMouseDown can fire before
+                    // close — onMouseDown uses preventDefault to avoid blur,
+                    // but defensive close keeps stale menus from hanging.
+                    setTimeout(() => {
+                      setSlashMenuOpen(false);
+                      setAgentMentionTrigger(null);
+                    }, 120);
+                  }}
+                  placeholder={placeholder}
+                  rows={1}
+                  dir="auto"
+                  className={`w-full px-3 py-2 text-base rounded-md border focus:outline-none focus:ring-1 resize-none overflow-hidden disabled:opacity-50 disabled:cursor-not-allowed ${
+                    chatMode === "terminal"
+                      ? "border-white/10 bg-black/40 text-zinc-100 placeholder:text-zinc-500 focus:ring-white/20"
+                      : "bg-background focus:ring-primary"
+                  }`}
+                  disabled={
+                    chatMode === "ai" &&
+                    (activeLoading ||
+                      (isKodyLive && interactiveState !== "ready"))
+                  }
+                  style={{ height: "auto" }}
+                />
+              </div>
+              {/* Trailing send/stop icon button — single role that swaps by
+                state (issue #131 refinement):
+                  * Idle / no in-flight run → paper-plane Send icon
+                  * In-flight run (loading or stop/cancel) → Square stop icon
+                Replaces both the old red `bg-destructive` Stop text button
+                in the input row and the inline Send button that used to
+                live in the action row below. The button is hidden when
+                there's no content and the agent isn't Kody-Live, matching
+                the previous "no send affordance when empty" behavior. */}
+              {(() => {
+                const isInFlight =
+                  chatMode === "ai" &&
+                  (activeLoading ||
+                    composerAction === "stop" ||
+                    composerAction === "cancel");
+                const showTrailingButton =
+                  chatMode === "terminal"
+                    ? hasComposerContent
+                    : isInFlight
+                      ? true
+                      : hasComposerContent || isKodyLive;
+                if (!showTrailingButton) return null;
+                const title =
+                  chatMode === "terminal"
+                    ? "Send command"
+                    : isInFlight
+                      ? composerAction === "cancel"
+                        ? "Cancel boot"
+                        : "Stop run"
+                      : composerAction === "start"
+                        ? "Boot runner"
+                        : "Send message";
+                return (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      if (chatMode === "terminal") {
+                        void sendMessage();
+                      } else if (activeLoading) {
+                        handleStop();
+                      } else if (
+                        composerAction === "stop" ||
+                        composerAction === "cancel"
+                      ) {
+                        endInteractiveSession();
+                      } else if (composerAction === "start") {
+                        void startInteractiveSession();
+                      } else {
+                        void sendMessage();
+                      }
+                    }}
+                    className="p-2 text-muted-foreground hover:text-foreground hover:bg-muted rounded-md transition-colors"
+                    title={title}
+                    aria-label={title}
+                  >
+                    {isInFlight ? (
+                      <Square className="w-5 h-5" fill="currentColor" />
+                    ) : (
+                      <Send className="w-5 h-5" />
+                    )}
+                  </button>
+                );
+              })()}
+            </div>
+            <div className="border-t border-border/40" />
+          </div>
+          <div className="flex min-h-10 gap-2 items-center">
+            {chatMode === "ai" && (
+              <>
+                {/* Attachment button — hidden file input lives alongside the
+                  Paperclip so the picker click handler still targets the
+                  same ref. */}
+                <input
+                  ref={fileInputRef}
+                  type="file"
+                  multiple
+                  accept="image/*,.txt,.md,.json,.js,.ts,.jsx,.tsx,.html,.css,.scss,.yaml,.yml,.sh"
+                  onChange={handleFileSelect}
+                  className="hidden"
+                  disabled={activeLoading}
+                />
+                <button
+                  onClick={() => fileInputRef.current?.click()}
+                  disabled={activeLoading}
+                  className="p-2 text-muted-foreground hover:text-foreground hover:bg-muted rounded-md transition-colors"
+                  title="Attach files"
+                >
+                  <Paperclip className="w-5 h-5" />
+                </button>
+
+                {/* Voice button — gated on `agent.supportsVoice`. Each agent
+                  declares whether its backend can honor the voice overlay
+                  (see AgentConfig.supportsVoice). Brain agents support it
+                  once the brain server applies the overlay server-side;
+                  kody-live/engine agents don't (latency). The mic stays
+                  hidden for unsupported agents so the dropdown never lies. */}
+                <VoiceButton
+                  isActive={voiceOverlayOpen}
+                  isSupported={
+                    voiceChat.isSupported && currentAgent.supportsVoice
+                  }
+                  onTap={() => {
+                    // Handle tap based on current voice state:
+                    // - If AI is speaking: interrupt and start listening (voice interrupt)
+                    // - If listening/processing: stop conversation
+                    // - If idle: start conversation
+                    if (voiceChat.state === "speaking") {
+                      // Voice interrupt: cancel AI speech and start listening
+                      voiceChat.interruptConversation();
+                      setVoiceOverlayOpen(true);
+                      setVoiceMuted(false);
+                    } else if (voiceOverlayOpen) {
+                      // Already in voice mode - stop it
+                      voiceChat.stopConversation();
+                      setVoiceOverlayOpen(false);
+                      setVoiceMuted(false);
+                    } else {
+                      // Not in voice mode - start it
+                      voiceChat.startConversation();
+                      setVoiceOverlayOpen(true);
+                    }
+                  }}
+                  onLongPressStart={() => {
+                    voiceChat.startConversation();
+                    setVoiceOverlayOpen(true);
+                  }}
+                  onLongPressEnd={() => {
+                    /* let conversation handle it */
+                  }}
+                  disabled={activeLoading}
+                />
+                {messages.length > 0 && !activeLoading && (
+                  <button
+                    type="button"
+                    onClick={() => setShowClearConfirm(true)}
+                    className="p-2 text-muted-foreground hover:text-foreground hover:bg-muted rounded-md transition-colors"
+                    title="Clear history"
+                    aria-label="Clear history"
+                  >
+                    <Eraser className="w-5 h-5" aria-hidden="true" />
+                  </button>
+                )}
+                <div className="flex-1" />
+              </>
+            )}
+            {chatMode === "terminal" && (
+              <div className="flex min-w-0 flex-1 items-center gap-1.5">
+                <select
+                  value={activeTerminalValue}
+                  onChange={(event) =>
+                    handleTerminalTargetSelect(event.target.value)
+                  }
+                  className="h-8 min-w-0 max-w-[260px] flex-1 rounded-md border bg-background px-2 text-xs text-foreground outline-none focus:ring-1 focus:ring-primary"
+                  title="Terminal target"
+                  aria-label="Terminal target"
+                >
+                  <option value="local">Local terminal</option>
+                  {activeTerminalTransport.type === "local" &&
+                    activeTerminalTransport.sandboxId &&
+                    !localSandboxes.some(
+                      (sandbox) =>
+                        `sandbox:${sandbox.id}` === activeTerminalValue,
+                    ) && (
+                      <option value={activeTerminalValue}>
+                        {activeTerminalTransport.label ?? "Sandbox"} · selected
+                      </option>
+                    )}
+                  {localSandboxes
+                    .filter((sandbox) => sandbox.runtime === "local")
+                    .map((sandbox) => (
+                      <option key={sandbox.id} value={`sandbox:${sandbox.id}`}>
+                        Local: {sandbox.name}
+                      </option>
+                    ))}
+                  {localSandboxes
+                    .filter((sandbox) => sandbox.runtime === "github-actions")
+                    .map((sandbox) => (
+                      <option key={sandbox.id} value={`gha:${sandbox.id}`}>
+                        GitHub Actions profile: {sandbox.name}
+                      </option>
+                    ))}
+                  {activeTerminalTransport.type === "fly" &&
+                    !terminalMachines.some(
+                      (machine) =>
+                        terminalFlyMachineKey(machine) === activeTerminalValue,
+                    ) && (
+                      <option value={activeTerminalValue}>
+                        {activeTerminalTransport.label ??
+                          activeTerminalTransport.app}{" "}
+                        · selected
+                      </option>
+                    )}
+                  {terminalMachines.map((machine) => (
+                    <option
+                      key={terminalFlyMachineKey(machine)}
+                      value={terminalFlyMachineKey(machine)}
+                    >
+                      {machine.label} · {machine.state} · {machine.region} ·{" "}
+                      {terminalMachineIdShort(machine.machineId)}
+                    </option>
+                  ))}
+                </select>
+                <div className="relative">
+                  <button
+                    type="button"
+                    onClick={() =>
+                      setSandboxCreateMenuOpen((current) => !current)
+                    }
+                    disabled={sandboxBusy}
+                    className="inline-flex h-8 w-8 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-muted hover:text-foreground disabled:cursor-not-allowed disabled:opacity-50"
+                    title="Create sandbox"
+                    aria-label="Create sandbox"
+                    aria-haspopup="menu"
+                    aria-expanded={sandboxCreateMenuOpen}
+                  >
+                    {sandboxBusy ? (
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                    ) : (
+                      <Plus className="h-4 w-4" />
+                    )}
+                  </button>
+                  {sandboxCreateMenuOpen && (
+                    <div className="absolute bottom-9 left-0 z-30 min-w-52 overflow-hidden rounded-md border bg-popover py-1 text-xs text-popover-foreground shadow-md">
+                      <button
+                        type="button"
+                        onClick={() => void handleCreateSandbox("local")}
+                        className="flex w-full items-center gap-2 px-3 py-2 text-left hover:bg-muted"
+                      >
+                        <Plus className="h-3.5 w-3.5" />
+                        Local sandbox
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() =>
+                          void handleCreateSandbox("github-actions")
+                        }
+                        className="flex w-full items-center gap-2 px-3 py-2 text-left hover:bg-muted"
+                      >
+                        <Github className="h-3.5 w-3.5" />
+                        {activeTerminalTransport.type === "local" &&
+                        activeTerminalTransport.sandboxId
+                          ? "Copy to GitHub Actions"
+                          : "GitHub Actions sandbox"}
+                      </button>
+                    </div>
+                  )}
+                </div>
+                {sandboxBusyLabel && (
+                  <span className="inline-flex min-w-0 items-center gap-1.5 truncate text-[11px] text-muted-foreground">
+                    <Loader2 className="h-3 w-3 shrink-0 animate-spin" />
+                    <span className="truncate">{sandboxBusyLabel}</span>
+                  </span>
+                )}
+                <button
+                  type="button"
+                  onClick={() => void handleSaveTerminalSnapshot()}
+                  disabled={savedTerminalBusy}
+                  className="inline-flex h-8 w-8 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-muted hover:text-foreground disabled:cursor-not-allowed disabled:opacity-50"
+                  title="Save terminal snapshot"
+                  aria-label="Save terminal snapshot"
+                >
+                  {savedTerminalBusy ? (
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                  ) : (
+                    <Save className="h-4 w-4" />
+                  )}
+                </button>
+                <div className="relative">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const next = !savedTerminalMenuOpen;
+                      setSavedTerminalMenuOpen(next);
+                      if (next && !savedTerminalLoaded) {
+                        void refreshSavedTerminalSnapshots();
+                      }
+                    }}
+                    disabled={savedTerminalBusy && !savedTerminalMenuOpen}
+                    className="inline-flex h-8 w-8 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-muted hover:text-foreground disabled:cursor-not-allowed disabled:opacity-50"
+                    title="Saved terminal snapshots"
+                    aria-label="Saved terminal snapshots"
+                    aria-haspopup="menu"
+                    aria-expanded={savedTerminalMenuOpen}
+                  >
+                    <ChevronDown className="h-4 w-4" />
+                  </button>
+                  {savedTerminalMenuOpen && (
+                    <div className="absolute bottom-9 right-0 z-30 flex max-h-80 w-80 max-w-[calc(100vw-2rem)] flex-col overflow-hidden rounded-md border bg-popover text-xs text-popover-foreground shadow-md">
+                      <div className="flex items-center justify-between border-b px-3 py-2">
+                        <span className="font-medium">
+                          Saved terminal snapshots
+                        </span>
+                        <button
+                          type="button"
+                          onClick={() => void refreshSavedTerminalSnapshots()}
+                          disabled={savedTerminalBusy}
+                          className="inline-flex h-6 w-6 items-center justify-center rounded text-muted-foreground hover:bg-muted hover:text-foreground disabled:opacity-50"
+                          title="Refresh saved terminal snapshots"
+                          aria-label="Refresh saved terminal snapshots"
+                        >
+                          {savedTerminalBusy ? (
+                            <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                          ) : (
+                            <RefreshCw className="h-3.5 w-3.5" />
+                          )}
+                        </button>
+                      </div>
+                      <label className="flex cursor-pointer items-center gap-2 border-b px-3 py-2 text-[11px] text-muted-foreground hover:bg-muted">
+                        <input
+                          type="checkbox"
+                          checked={autoSaveTerminalOnEnd}
+                          onChange={(event) =>
+                            setAutoSaveTerminalOnEnd(event.target.checked)
+                          }
+                          className="h-3.5 w-3.5 accent-primary"
+                        />
+                        <span className="truncate text-foreground">
+                          Auto-save on stop
+                        </span>
+                      </label>
+                      <div className="max-h-64 overflow-y-auto py-1">
+                        {savedTerminalSnapshots.length === 0 ? (
+                          <div className="px-3 py-3 text-muted-foreground">
+                            No saved snapshots
+                          </div>
+                        ) : (
+                          savedTerminalSnapshots.map((snapshot) => (
+                            <div
+                              key={snapshot.id}
+                              className="flex items-center gap-2 px-2 py-1.5 hover:bg-muted"
+                            >
+                              <button
+                                type="button"
+                                onClick={() =>
+                                  handleRestoreTerminalSnapshot(snapshot)
+                                }
+                                className="min-w-0 flex-1 text-left"
+                                title={`Restore ${snapshot.name}`}
+                              >
+                                <span className="block truncate font-medium">
+                                  {snapshot.name}
+                                </span>
+                                <span className="block truncate text-[11px] text-muted-foreground">
+                                  {terminalTransportLabel(snapshot.transport)}
+                                </span>
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() =>
+                                  void handleDeleteTerminalSnapshot(snapshot)
+                                }
+                                disabled={savedTerminalBusy}
+                                className="inline-flex h-7 w-7 shrink-0 items-center justify-center rounded text-muted-foreground hover:bg-destructive/10 hover:text-destructive disabled:opacity-50"
+                                title={`Delete ${snapshot.name}`}
+                                aria-label={`Delete ${snapshot.name}`}
+                              >
+                                <Trash2 className="h-3.5 w-3.5" />
+                              </button>
+                            </div>
+                          ))
+                        )}
+                      </div>
+                    </div>
+                  )}
+                </div>
+                {(activeTerminalTransport.type === "local" ||
+                  activeTerminalTransport.type === "github-actions") &&
+                  activeTerminalTransport.sandboxId && (
+                    <>
+                      <button
+                        type="button"
+                        onClick={() => void handleSaveSandbox()}
+                        disabled={sandboxBusy}
+                        className="inline-flex h-8 w-8 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-muted hover:text-foreground disabled:cursor-not-allowed disabled:opacity-50"
+                        title="Save sandbox"
+                        aria-label="Save sandbox"
+                      >
+                        <Save className="h-4 w-4" />
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => void handleDeleteSandbox()}
+                        disabled={sandboxBusy}
+                        className="inline-flex h-8 w-8 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-destructive/10 hover:text-destructive disabled:cursor-not-allowed disabled:opacity-50"
+                        title="Delete sandbox"
+                        aria-label="Delete sandbox"
+                      >
+                        <Trash2 className="h-4 w-4" />
+                      </button>
+                    </>
+                  )}
+                <button
+                  type="button"
+                  onClick={() => void refreshChatTerminalFlyMachines()}
+                  disabled={flyInventoryLoading}
+                  className="inline-flex h-8 w-8 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-muted hover:text-foreground disabled:cursor-not-allowed disabled:opacity-50"
+                  title="Refresh Fly machines"
+                  aria-label="Refresh Fly machines"
+                >
+                  {flyInventoryLoading ? (
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                  ) : (
+                    <RefreshCw className="h-4 w-4" />
+                  )}
+                </button>
+                {activeTerminalTransport.type === "fly" && (
+                  <button
+                    type="button"
+                    onClick={handleTerminalFlyConnectToggle}
+                    className="inline-flex h-8 w-8 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+                    title={
+                      activeTerminalConnectionState === "connected" ||
+                      activeTerminalConnectionState === "connecting"
+                        ? "Disconnect Fly terminal"
+                        : "Connect Fly terminal"
+                    }
+                    aria-label={
+                      activeTerminalConnectionState === "connected" ||
+                      activeTerminalConnectionState === "connecting"
+                        ? "Disconnect Fly terminal"
+                        : "Connect Fly terminal"
+                    }
+                  >
+                    {activeTerminalConnectionState === "connecting" ? (
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                    ) : activeTerminalConnectionState === "connected" ? (
+                      <Unplug className="h-4 w-4" />
+                    ) : (
+                      <Power className="h-4 w-4" />
+                    )}
+                  </button>
+                )}
+                {flyInventoryError && (
+                  <span className="min-w-0 truncate text-[11px] text-destructive">
+                    {flyInventoryError}
+                  </span>
+                )}
+              </div>
+            )}
+            {chatMode === "ai" && <div className="flex-1" />}
+            {!lockedAgentId && !vibeMode && (
+              <div
+                className={`inline-flex items-center rounded-md border p-0.5 ${
+                  chatMode === "terminal"
+                    ? "border-white/10 bg-white/5"
+                    : "bg-background/70"
+                }`}
+              >
+                <button
+                  type="button"
+                  onClick={() => setActiveChatMode("ai")}
+                  className={`inline-flex items-center gap-1.5 rounded px-2 py-1 text-xs font-medium transition-colors ${
+                    chatMode === "ai"
+                      ? "bg-primary text-primary-foreground"
+                      : "text-muted-foreground hover:text-foreground hover:bg-muted"
+                  }`}
+                  aria-pressed={chatMode === "ai"}
+                  title="AI chat"
+                  aria-label="AI chat"
+                >
+                  <MessageSquare className="w-3.5 h-3.5" aria-hidden="true" />
+                </button>
+                <button
+                  type="button"
+                  onClick={openTerminalMode}
+                  className={`relative inline-flex items-center gap-1.5 rounded px-2 py-1 text-xs font-medium transition-colors ${
+                    chatMode === "terminal"
+                      ? "bg-primary text-primary-foreground"
+                      : "text-muted-foreground hover:text-foreground hover:bg-muted"
+                  }`}
+                  aria-pressed={chatMode === "terminal"}
+                  title="Terminal"
+                  aria-label={`Terminal ${terminalStatusLabel}`}
+                >
+                  <SquareTerminal className="w-3.5 h-3.5" aria-hidden="true" />
+                  <span
+                    className={`text-[10px] font-semibold uppercase leading-none ${
+                      activeTerminalConnectionState === "connected"
+                        ? chatMode === "terminal"
+                          ? "text-primary-foreground"
+                          : "text-emerald-600"
+                        : activeTerminalConnectionState === "connecting"
+                          ? chatMode === "terminal"
+                            ? "text-primary-foreground"
+                            : "text-amber-600"
+                          : chatMode === "terminal"
+                            ? "text-primary-foreground/80"
+                            : "text-muted-foreground"
+                    }`}
+                  >
+                    {terminalStatusLabel}
+                  </span>
+                  {activeSessionHasLiveTerminal &&
+                    chatMode === "ai" &&
+                    activeTerminalConnectionState === "connected" && (
+                      <span
+                        className="absolute right-0.5 top-0.5 h-1.5 w-1.5 rounded-full bg-emerald-500"
+                        aria-hidden="true"
+                      />
+                    )}
+                </button>
+              </div>
+            )}
+          </div>
+        </div>
+
+        <ConfirmDialog
+          open={showClearConfirm}
+          title="Clear history"
+          description="Clear conversation history? This cannot be undone."
+          confirmLabel="Clear"
+          variant="destructive"
+          onConfirm={executeClearHistory}
+          onClose={() => setShowClearConfirm(false)}
+        />
+      </div>
     </div>
   );
 }

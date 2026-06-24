@@ -18,6 +18,7 @@ import { resolvePreviewConfigForOctokit } from "@dashboard/lib/previews/config";
 import {
   destroyPreview,
   getPreview,
+  wakePreview,
 } from "@dashboard/lib/previews/preview-lifecycle";
 
 export const runtime = "nodejs";
@@ -55,6 +56,39 @@ export async function GET(req: NextRequest, ctx: Params) {
     logger.error({ err, owner, name, pr }, "previews: status failed");
     return NextResponse.json(
       { error: "status_failed", message: (err as Error).message },
+      { status: 500 },
+    );
+  }
+}
+
+export async function POST(req: NextRequest, ctx: Params) {
+  const authError = await requireKodyAuth(req);
+  if (authError) return authError;
+
+  const { owner, name, pr } = await ctx.params;
+  const prNum = Number(pr);
+  if (!Number.isFinite(prNum) || prNum <= 0) {
+    return NextResponse.json({ error: "bad_pr" }, { status: 400 });
+  }
+
+  const cfg = await resolveCfg(req, owner, name);
+  if (!cfg) {
+    return NextResponse.json({ error: "fly_token_missing" }, { status: 503 });
+  }
+
+  try {
+    const info = await wakePreview(
+      { repo: `${owner}/${name}`, pr: prNum },
+      cfg,
+    );
+    if (!info) {
+      return NextResponse.json({ error: "not_found" }, { status: 404 });
+    }
+    return NextResponse.json({ ok: true, preview: info });
+  } catch (err) {
+    logger.error({ err, owner, name, pr }, "previews: wake failed");
+    return NextResponse.json(
+      { error: "wake_failed", message: (err as Error).message },
       { status: 500 },
     );
   }

@@ -87,8 +87,6 @@ export interface ProvisionBrainInput {
   model?: string;
   /** Performance tier — maps to a fixed Fly guest shape. */
   perfTier?: PerfTier;
-  /** Optional always-on LiteLLM proxy URL. */
-  litellmUrl?: string;
   /** Default branch to clone. */
   ref?: string;
   /** Override the generated app name (tests). */
@@ -156,7 +154,8 @@ export interface BrainStatusResult {
  *
  * On a fresh provision the machine returns from the Fly API in ~12s but
  * the Node server inside doesn't bind :8080 until the entrypoint finishes
- * the repo clone (~25-40s) and brain-serve initialises LiteLLM (~10-20s).
+ * the repo clone (~25-40s) and brain-serve initialises the model proxy
+ * (~10-20s).
  * Forwarding the chat request before then yields a Fly-edge 503 ("instance
  * refused connection"). On reuse the server is already running and the
  * first poll returns immediately.
@@ -244,7 +243,6 @@ function buildMachineEnv(
   if (input.repo) env.REPO = input.repo;
   if (input.model) env.MODEL = input.model;
   if (input.ref) env.REF = input.ref;
-  if (input.litellmUrl) env.KODY_LITELLM_URL = input.litellmUrl;
   if (input.allSecrets) env.ALL_SECRETS = JSON.stringify(input.allSecrets);
   return env;
 }

@@ -8,17 +8,16 @@
  */
 "use client";
 
-import ReactMarkdown from "react-markdown";
-import remarkGfm from "remark-gfm";
 import { ExternalLink, FileText, RefreshCw } from "lucide-react";
 
 import { Button } from "@dashboard/ui/button";
 import { AuthGuard } from "../auth-guard";
 import { useChangelog } from "../hooks/useChangelog";
 import { PageHeader } from "./PageShell";
+import { MarkdownPreview } from "./MarkdownPreview";
 
 interface ChangelogViewProps {
-  /** Render without the built-in PageHeader (e.g. when hosted in DutiesPageTabs). */
+  /** Render without the built-in PageHeader (e.g. when hosted in AgentResponsibilitiesPageTabs). */
   embedded?: boolean;
 }
 
@@ -85,11 +84,10 @@ function ChangelogViewInner({ embedded = false }: ChangelogViewProps) {
               </p>
             </div>
           ) : hasContent ? (
-            <div className="prose prose-sm md:prose-base dark:prose-invert max-w-none break-words">
-              <ReactMarkdown remarkPlugins={[remarkGfm]}>
-                {content}
-              </ReactMarkdown>
-            </div>
+            <MarkdownPreview
+              content={content}
+              className="md:prose-base break-words"
+            />
           ) : (
             <div className="rounded-xl border border-dashed border-white/[0.1] bg-white/[0.02] py-12 text-center space-y-2">
               <p className="text-sm font-medium text-foreground">

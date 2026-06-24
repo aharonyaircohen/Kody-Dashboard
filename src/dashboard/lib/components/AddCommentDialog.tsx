@@ -16,11 +16,11 @@ import {
   DialogDescription,
 } from "@dashboard/ui/dialog";
 import { MessageSquare, Loader2, Eye, Edit } from "lucide-react";
-import ReactMarkdown from "react-markdown";
-import remarkGfm from "remark-gfm";
 import { cn } from "@dashboard/lib/utils/ui";
 import { useCommentAttachments } from "../hooks/useCommentAttachments";
 import { AttachmentBar } from "./AttachmentBar";
+import { rtlAwareMarkdownClassName } from "../text-direction";
+import { MarkdownPreview } from "./MarkdownPreview";
 
 interface AddCommentDialogProps {
   isOpen: boolean;
@@ -118,17 +118,19 @@ export function AddCommentDialog({
               value={body}
               onChange={(e) => setBody(e.target.value)}
               placeholder="Write your comment here...&#10;&#10;Supports **markdown**."
-              className="w-full h-40 px-3 py-2 text-sm bg-zinc-900 border border-zinc-800 rounded-lg resize-none focus:outline-none focus:ring-2 focus:ring-blue-500/50 placeholder:text-zinc-600 font-mono"
+              dir="auto"
+              className="w-full h-40 px-3 py-2 text-sm bg-zinc-900 border border-zinc-800 rounded-lg resize-none focus:outline-none focus:ring-2 focus:ring-blue-500/50 placeholder:text-zinc-600 font-mono text-start"
               autoFocus
             />
           ) : (
             <div className="min-h-[160px] px-3 py-2 bg-zinc-900 border border-zinc-800 rounded-lg overflow-y-auto">
               {body.trim() ? (
-                <div className="prose prose-invert prose-sm max-w-none">
-                  <ReactMarkdown remarkPlugins={[remarkGfm]}>
-                    {body}
-                  </ReactMarkdown>
-                </div>
+                <MarkdownPreview
+                  content={body}
+                  dir="auto"
+                  variant="compact"
+                  className={cn("text-start", rtlAwareMarkdownClassName)}
+                />
               ) : (
                 <p className="text-zinc-600 text-sm italic">
                   Nothing to preview

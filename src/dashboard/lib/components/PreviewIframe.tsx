@@ -22,24 +22,33 @@ export const DEVICE_WIDTHS: Record<PreviewDevice, number | undefined> = {
   desktop: undefined,
 };
 
+const DEFAULT_IFRAME_SANDBOX =
+  "allow-scripts allow-same-origin allow-forms allow-popups";
+
 interface PreviewIframeProps {
   src: string | undefined;
   title: string;
   /** Bump/change to force a reload and re-show the spinner (refresh button). */
   reloadKey: string | number;
+  onLoad?: () => void;
+  onBeforeLoad?: () => void | Promise<void>;
   /**
    * Optional viewport width (px) to simulate a device. When set, the iframe is
    * clamped to this width and centered so you can preview the responsive
    * layout; unset = fill the pane (desktop).
    */
   maxWidthPx?: number;
+  sandbox?: string | null;
 }
 
 export function PreviewIframe({
   src,
   title,
   reloadKey,
+  onLoad,
+  onBeforeLoad,
   maxWidthPx,
+  sandbox = DEFAULT_IFRAME_SANDBOX,
 }: PreviewIframeProps) {
   const [loaded, setLoaded] = useState(false);
 
@@ -49,16 +58,29 @@ export function PreviewIframe({
     setLoaded(false);
   }, [src, reloadKey]);
 
+  useEffect(() => {
+    if (!src || !onBeforeLoad) return;
+    void Promise.resolve(onBeforeLoad()).catch(() => {
+      // The iframe still attempts to load; keep the visible state there.
+    });
+  }, [src, reloadKey, onBeforeLoad]);
+
+  const sandboxProps =
+    sandbox === null ? {} : ({ sandbox } satisfies { sandbox: string });
+
   return (
     <div className="relative w-full h-full flex justify-center bg-zinc-900">
       <iframe
         key={reloadKey}
         src={src}
         title={title}
-        onLoad={() => setLoaded(true)}
+        onLoad={() => {
+          setLoaded(true);
+          onLoad?.();
+        }}
         style={maxWidthPx ? { maxWidth: `${maxWidthPx}px` } : undefined}
         className="w-full h-full border-0 bg-white"
-        sandbox="allow-scripts allow-same-origin allow-forms allow-popups"
+        {...sandboxProps}
       />
       {!loaded && (
         <div className="absolute inset-0 flex items-center justify-center bg-zinc-950">

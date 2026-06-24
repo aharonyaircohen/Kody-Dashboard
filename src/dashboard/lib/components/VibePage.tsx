@@ -376,12 +376,15 @@ export function VibePage() {
   // Resolve the selected PR's preview directly by its head commit so it
   // appears immediately on open, instead of waiting for the background tasks
   // poll (which only finds links among the 100 most-recent deployments).
-  const { url: activePreviewUrl, isResolving: previewResolving } =
-    usePreviewUrl(
-      selectedTask?.associatedPR?.head?.sha,
-      selectedTask?.associatedPR?.number,
-      selectedTask?.previewUrl ?? null,
-    );
+  const {
+    url: activePreviewUrl,
+    isResolving: previewResolving,
+    wakePreview,
+  } = usePreviewUrl(
+    selectedTask?.associatedPR?.head?.sha,
+    selectedTask?.associatedPR?.number,
+    selectedTask?.previewUrl ?? null,
+  );
   const fallbackPreviewUrl = !selectedTask ? defaultPreviewUrl : null;
   const baseUrl = activePreviewUrl ?? fallbackPreviewUrl;
 
@@ -476,6 +479,7 @@ export function VibePage() {
             repo={repoForViews}
             onComposerInjection={setComposerInjection}
             onAttachmentInjection={setAttachmentInjection}
+            onBeforePreviewLoad={wakePreview}
             emptyState={
               showDefaultPreviewEditor ? (
                 <div className="h-full flex items-center justify-center p-6">

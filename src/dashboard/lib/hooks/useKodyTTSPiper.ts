@@ -39,6 +39,7 @@ export interface UseKodyTTSPiperOptions {
   onEnd?: () => void;
   onError?: () => void;
   voiceId?: string; // Piper voice id; defaults to en_US-hfc_female-medium
+  enabled?: boolean;
 }
 
 // A few samples of 8-bit silence as a WAV data URI. Played once from the
@@ -107,7 +108,12 @@ const WASM_PATHS = {
 export function useKodyTTSPiper(
   options: UseKodyTTSPiperOptions = {},
 ): UseKodyTTSPiperReturn {
-  const { onEnd, onError, voiceId = DEFAULT_VOICE_ID } = options;
+  const {
+    onEnd,
+    onError,
+    voiceId = DEFAULT_VOICE_ID,
+    enabled = true,
+  } = options;
   const [isSpeaking, setIsSpeaking] = useState(false);
   const [piperReady, setPiperReady] = useState(false);
   const [failed, setFailed] = useState(false); // Piper bailed → browser voice
@@ -156,6 +162,14 @@ export function useKodyTTSPiper(
   // ~model-load gap, then the new Piper voice takes over).
   useEffect(() => {
     if (typeof window === "undefined") return;
+    if (!enabled) {
+      sessionRef.current = null;
+      fallbackRef.current = false;
+      setPiperReady(false);
+      setFailed(false);
+      setEngineError(null);
+      return;
+    }
     let cancelled = false;
     setPiperReady(false);
     setFailed(false);
@@ -192,7 +206,7 @@ export function useKodyTTSPiper(
     return () => {
       cancelled = true;
     };
-  }, [voiceId]);
+  }, [enabled, voiceId]);
 
   // Lazily create the single reused <audio> element (browser only).
   const getAudioEl = useCallback((): HTMLAudioElement | null => {

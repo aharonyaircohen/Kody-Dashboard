@@ -18,7 +18,7 @@
  * App name resolution (in order):
  *   1. `appName` in the request body — explicit user override from the
  *      Runner card's "Fly app name" field.
- *   2. The `appName` in the storage record (`.kody/users/<login>/data/
+ *   2. The `appName` in the storage record (`users/<login>/data/
  *      brain.json`) — what we used last time, so the chat route and
  *      the Runner stay in sync.
  *   3. The derived `kody-brain-<github-login>` name.
@@ -113,7 +113,6 @@ export async function POST(req: NextRequest) {
       githubToken: ctx.context.githubToken,
       allSecrets: ctx.context.allSecrets,
       perfTier: brainPerfFrom(req, ctx.context.perfTier),
-      litellmUrl: ctx.context.litellmUrl,
       appNameOverride: appName,
     });
     try {

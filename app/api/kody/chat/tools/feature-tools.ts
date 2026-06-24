@@ -34,7 +34,7 @@ const HAND_WRITTEN_FEATURES: FeatureEntry[] = [
       "Per-repo encrypted secrets store. Dashboard-managed alternative to Vercel env vars.",
     details: `The secrets vault is a dashboard-managed alternative to Vercel env vars.
 
-- Each connected repo has its own encrypted blob at \`.kody/secrets.enc\`.
+- Each connected repo has its own encrypted state repo blob at \`secrets.enc\`.
 - Values written via the \`/secrets\` page are AES-256-GCM-encrypted with the shared
   \`KODY_MASTER_KEY\` env var and committed back to the repo.
 - Runtime code reads values via \`getSecret\` (src/dashboard/lib/vault/get-secret.ts),
@@ -113,48 +113,59 @@ session ID and an inline HMAC token. The engine streams events back to
 Each stage's status is committed to a per-task \`status.json\` on the work branch.`,
   },
   {
-    id: "kody-duties",
-    name: "Kody Duties (scheduled markdown duties)",
+    id: "kody-agentResponsibilities",
+    name: "Kody AgentResponsibilities",
     summary:
-      "Markdown files at .kody/duties/<slug>.md that the engine job-scheduler ticks every 5 minutes.",
-    details: `A Kody Duty is a markdown file at \`.kody/duties/<slug>.md\` that the engine's
-job-scheduler ticks every 5 minutes. Each duty's own \`Cadence guard\` decides
-whether to take action on a given tick.
+      "Folders at .kody/agent-responsibilities/<slug>/ that define responsibility purpose and execution binding.",
+    details: `A Kody AgentResponsibility is a folder at \`.kody/agent-responsibilities/<slug>/\`:
 
-Format (must match existing duties in \`.kody/duties/\`):
-- H1 title
-- \`## Job\` — purpose (the engine's job-tick executor parses this heading, so its text stays literal)
+- \`profile.json\` stores action, agentAction, agent, mentions, and data-contract metadata.
+- \`agent-responsibility.md\` stores the human-readable purpose, output, allowed commands, and restrictions.
+
+Responsibilities do not own cadence. Goals and loops decide when to run a responsibility.
+
+Format (must match existing agentResponsibilities in \`.kody/agent-responsibilities/\`):
+- \`profile.json\` metadata
+- \`agent-responsibility.md\` with an H1 title
+- \`## Job\` — purpose and outcome
+- \`## AgentAction\` when relevant
+- \`## Output\`
 - \`## Allowed Commands\`
 - \`## Restrictions\`
-- \`## State\`
 
-Default template is REPORT-PRODUCER: each active tick gathers inputs, composes
-a YAML \`findings:\` report, and commits it to \`.kody/reports/<slug>.md\` via
-\`gh api PUT\` (the job-tick executable only has Bash + Read tools — reports
-are committed via the contents API, not the working tree).
+Default chat template is REPORT-PRODUCER: each active tick gathers inputs,
+composes a YAML \`findings:\` report, and refreshes
+\`reports/<slug>.md in the configured Kody state repo\`.
 
-The chat exposes the \`create_kody_duty\` tool to scaffold a new duty after a
-gap-analysis conversation.`,
+Do not put metadata or raw state keys in \`agent-responsibility.md\`. Runtime state stays
+engine-owned.
+
+The chat exposes \`read_agent_responsibility_creation_guide\` and \`create_or_update_agent_responsibility\` to
+scaffold a new agentResponsibility after a gap-analysis conversation. The same
+\`create_or_update_agent_responsibility\` tool patches an existing agentResponsibility in place —
+read-merge: omit a field to preserve it, pass \`body\` to replace the
+markdown, never first turn and always call \`read_agent_responsibility\` first to surface
+the current profile.`,
   },
   {
-    id: "kody-staff",
-    name: "Kody Staff (reusable persona files)",
+    id: "kody-agent",
+    name: "Kody Agent (reusable agent files)",
     summary:
-      "Markdown files at .kody/staff/<slug>.md — pure reusable personas.",
-    details: `A Kody Staff member is a markdown file at \`.kody/staff/<slug>.md\`. A
-staff member is a pure reusable PERSONA — a markdown body describing intent,
-allowed commands, and restrictions. Staff have NO schedule, NO state,
-and NO run/tick; they're personas referenced by other flows. The Staff
-page is a pure persona editor (list / view / create / edit / delete).
+      "Markdown files at .kody/agents/<slug>.md — pure reusable agent identities.",
+    details: `A Kody Agent member is a markdown file at \`.kody/agents/<slug>.md\`. A
+agent is a pure reusable identity — a markdown body describing intent,
+allowed commands, and restrictions. Agents have NO schedule, NO state,
+and NO run/tick; they're agent identities referenced by other flows. The Agent
+page is a pure agentIdentity editor (list / view / create / edit / delete).
 
-Format (must match existing staff in \`.kody/staff/\`):
+Format (must match existing agent in \`.kody/agents/\`):
 - H1 title
-- \`## Staff\` — purpose / persona
+- \`## Agent\` — purpose / agentIdentity
 - \`## Allowed Commands\`
 - \`## Restrictions\`
 
-The chat exposes the \`create_kody_staff\` tool to scaffold a new staff
-persona after a gap-analysis conversation.`,
+The chat exposes the \`create_kody_agent\` tool to scaffold a new agent
+agentIdentity after a gap-analysis conversation.`,
   },
   {
     id: "memory",
@@ -256,8 +267,8 @@ function featureFromAgent(agent: AgentConfig): FeatureEntry {
 const NAV_HREF_TO_HANDWRITTEN: Readonly<Record<string, string>> = {
   "/": "task-dashboard",
   "/secrets": "secrets-vault",
-  "/duties": "kody-duties",
-  "/staff": "kody-staff",
+  "/agent-responsibilities": "kody-agentResponsibilities",
+  "/agents": "kody-agent",
 };
 
 function kebab(label: string): string {

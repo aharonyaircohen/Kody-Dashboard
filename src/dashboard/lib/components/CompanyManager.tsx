@@ -3,10 +3,10 @@
  * @domain kody
  * @pattern company-manager
  * @ai-summary Import/export a "Company" — the portable operating manual of
- *   an org (staff, duties, commands, instructions). Export downloads a JSON
+ *   an org (agent, agentResponsibilities, commands, instructions). Export downloads a JSON
  *   bundle from the connected repo; Import uploads one and writes it back,
  *   with skip/overwrite collision handling. A separate card runs the
- *   one-time legacy `.kody/jobs|workers` → `duties|staff` folder migration.
+ *   one-time legacy `.kody/jobs|agents` → `agentResponsibilities|agent` folder migration.
  */
 "use client";
 
@@ -23,6 +23,8 @@ import {
   Boxes,
   ScrollText,
   SlidersHorizontal,
+  BookOpenText,
+  Target,
 } from "lucide-react";
 import { PageShell } from "./PageShell";
 import { Button } from "@dashboard/ui/button";
@@ -45,7 +47,7 @@ export function CompanyManager() {
   );
 }
 
-function countLine(label: string, c: CompanyImportResult["staff"]): string {
+function countLine(label: string, c: CompanyImportResult["agent"]): string {
   return `${label}: ${c.created} added, ${c.updated} updated, ${c.skipped} skipped${
     c.failed ? `, ${c.failed} failed` : ""
   }`;
@@ -74,14 +76,16 @@ function CompanyManagerInner() {
       );
       downloadJson(`kody-company-${safeRepo}-${stamp}.json`, bundle);
       const total =
-        bundle.staff.length +
-        bundle.duties.length +
+        bundle.agent.length +
+        bundle.agentResponsibilities.length +
+        bundle.contexts.length +
         bundle.commands.length +
-        bundle.executables.length +
+        bundle.agentActions.length +
+        bundle.goals.length +
         (bundle.instructions ? 1 : 0) +
         (bundle.config ? 1 : 0);
       toast.success(
-        `Exported ${bundle.staff.length} staff, ${bundle.duties.length} duties, ${bundle.commands.length} commands, ${bundle.executables.length} executables${
+        `Exported ${bundle.agent.length} agent, ${bundle.agentResponsibilities.length} agentResponsibilities, ${bundle.goals.length} agentGoals/agent-loops, ${bundle.contexts.length} contexts, ${bundle.commands.length} commands, ${bundle.agentActions.length} agentActions${
           bundle.instructions ? ", instructions" : ""
         }${bundle.config ? ", config" : ""} (${total} items)`,
       );
@@ -106,7 +110,12 @@ function CompanyManagerInner() {
       const result = await kodyApi.company.import(bundle, mode, actorLogin);
       setLastImport(result);
       const failed =
-        result.staff.failed + result.duties.failed + result.commands.failed;
+        result.agent.failed +
+        result.agentResponsibilities.failed +
+        result.contexts.failed +
+        result.commands.failed +
+        result.agentActions.failed +
+        result.goals.failed;
       if (failed > 0) {
         toast.warning(`Imported with ${failed} failure(s) — see details below`);
       } else {
@@ -131,15 +140,17 @@ function CompanyManagerInner() {
         <p className="text-sm text-white/60 max-w-2xl">
           A <span className="text-white/80">Company</span> is your org&apos;s
           portable operating manual — its{" "}
-          <span className="text-white/80">staff</span>,{" "}
-          <span className="text-white/80">duties</span>,{" "}
+          <span className="text-white/80">agent</span>,{" "}
+          <span className="text-white/80">agentResponsibilities</span>,{" "}
+          <span className="text-white/80">agentGoals/agent-loops</span>,{" "}
+          <span className="text-white/80">context</span>,{" "}
           <span className="text-white/80">commands</span>,{" "}
           <span className="text-white/80">instructions</span>, and portable{" "}
           <span className="text-white/80">config</span> (quality commands,
           aliases, access gate, model routing). Export it from one repo and
           import it into another to stand up the same team instantly.
-          Repo-specific state (memory, secrets, variables, goals, default
-          branch) stays behind by design.
+          Repo-specific state (memory, secrets, variables, default branch) stays
+          behind by design.
         </p>
 
         {/* Export */}
@@ -151,8 +162,9 @@ function CompanyManagerInner() {
                 Export company
               </p>
               <p className="text-xs text-white/50 mt-1">
-                Download a JSON bundle of this repo&apos;s staff, duties,
-                repo-defined commands, and instructions.
+                Download a JSON bundle of this repo&apos;s agent, agentResponsibilities,
+                agentGoals/agent-loops, context, repo-defined commands,
+                agentActions, and instructions.
               </p>
             </div>
             <Button size="sm" onClick={handleExport} disabled={exporting}>
@@ -229,10 +241,12 @@ function CompanyManagerInner() {
 
             {lastImport && (
               <div className="text-xs text-white/60 border-t border-white/[0.06] pt-3 space-y-1">
-                <p>{countLine("Staff", lastImport.staff)}</p>
-                <p>{countLine("Duties", lastImport.duties)}</p>
+                <p>{countLine("Agent", lastImport.agent)}</p>
+                <p>{countLine("AgentResponsibilities", lastImport.agentResponsibilities)}</p>
+                <p>{countLine("Contexts", lastImport.contexts)}</p>
                 <p>{countLine("Commands", lastImport.commands)}</p>
-                <p>{countLine("Executables", lastImport.executables)}</p>
+                <p>{countLine("AgentActions", lastImport.agentActions)}</p>
+                <p>{countLine("AgentGoals/AgentLoops", lastImport.goals)}</p>
                 <p>Instructions: {lastImport.instructions}</p>
                 <p>Config: {lastImport.config}</p>
                 {lastImport.notes.length > 0 && (
@@ -249,10 +263,12 @@ function CompanyManagerInner() {
 
         {/* What's included */}
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-[11px] text-white/45">
-          <Included icon={Users} label="Staff" />
-          <Included icon={ListChecks} label="Duties" />
+          <Included icon={Users} label="Agent" />
+          <Included icon={ListChecks} label="AgentResponsibilities" />
+          <Included icon={Target} label="AgentGoals/AgentLoops" />
+          <Included icon={BookOpenText} label="Context" />
           <Included icon={Bot} label="Commands" />
-          <Included icon={Boxes} label="Executables" />
+          <Included icon={Boxes} label="AgentActions" />
           <Included icon={ScrollText} label="Instructions" />
           <Included icon={SlidersHorizontal} label="Config" />
         </div>

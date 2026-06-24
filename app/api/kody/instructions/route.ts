@@ -27,6 +27,11 @@ import {
   deleteInstructionsFile,
 } from "@dashboard/lib/instructions/files";
 
+export const dynamic = "force-dynamic";
+export const revalidate = 0;
+
+const NO_STORE_HEADERS = { "Cache-Control": "no-store, max-age=0" };
+
 function withRepoContext(req: NextRequest): boolean {
   const headerAuth = getRequestAuth(req);
   if (!headerAuth) return false;
@@ -38,22 +43,28 @@ export async function GET(req: NextRequest) {
   const authResult = await requireKodyAuth(req);
   if (authResult instanceof NextResponse) return authResult;
   if (!withRepoContext(req)) {
-    return NextResponse.json({ error: "no_repo" }, { status: 400 });
+    return NextResponse.json(
+      { error: "no_repo" },
+      { status: 400, headers: NO_STORE_HEADERS },
+    );
   }
   try {
     const file = await readInstructionsFile();
-    return NextResponse.json({ instructions: file });
+    return NextResponse.json(
+      { instructions: file },
+      { headers: NO_STORE_HEADERS },
+    );
   } catch (error: any) {
     console.error("[Instructions] read failed:", error);
     if (error?.status === 401) {
       return NextResponse.json(
         { error: "github_token_expired" },
-        { status: 401 },
+        { status: 401, headers: NO_STORE_HEADERS },
       );
     }
     return NextResponse.json(
       { error: error?.message || "Failed to read instructions" },
-      { status: 500 },
+      { status: 500, headers: NO_STORE_HEADERS },
     );
   } finally {
     clearGitHubContext();

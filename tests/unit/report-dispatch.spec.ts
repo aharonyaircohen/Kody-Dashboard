@@ -1,16 +1,16 @@
 import { describe, it, expect } from "vitest";
 import {
   extractTouchedReportSlugs,
-  isPushToDefaultBranch,
+  isPushToStateBranch,
   stripVolatileLines,
 } from "../../src/dashboard/lib/push/report-dispatch";
 
 describe("stripVolatileLines", () => {
   it("treats a timestamp-only re-save as unchanged", () => {
     const before = [
-      "# Job Gap Scan",
+      "# AgentResponsibility Call",
       "",
-      "_Cadence: daily — one proposed duty per cycle, advisory only._",
+      "_Cadence: daily — one proposed agentResponsibility per cycle, advisory only._",
       "",
       "_Last updated: 2026-05-31T09:21:35Z_",
       "",
@@ -60,14 +60,14 @@ describe("extractTouchedReportSlugs", () => {
     const payload = {
       commits: [
         {
-          added: [".kody/reports/security-audit.md"],
-          modified: [".kody/reports/job-gap-scan.md", "README.md"],
+          added: ["widgets/reports/security-audit.md"],
+          modified: ["widgets/reports/agent-responsibility-call.md", "README.md"],
         },
-        { modified: [".kody/reports/job-gap-scan.md"] },
+        { modified: ["widgets/reports/agent-responsibility-call.md"] },
       ],
     };
     expect(extractTouchedReportSlugs(payload).sort()).toEqual([
-      "job-gap-scan",
+      "agent-responsibility-call",
       "security-audit",
     ]);
   });
@@ -77,9 +77,9 @@ describe("extractTouchedReportSlugs", () => {
       commits: [
         {
           modified: [
-            ".kody/reports/sub/nested.md",
-            ".kody/reports/data.json",
-            ".kody/reports/.disable",
+            "widgets/reports/sub/nested.md",
+            "widgets/reports/data.json",
+            "widgets/reports/.disable",
           ],
         },
       ],
@@ -88,15 +88,18 @@ describe("extractTouchedReportSlugs", () => {
   });
 });
 
-describe("isPushToDefaultBranch", () => {
-  it("is true only for a push to the repo default branch", () => {
-    const base = { repository: { default_branch: "main" } };
-    expect(isPushToDefaultBranch({ ...base, ref: "refs/heads/main" })).toBe(
-      true,
-    );
-    expect(isPushToDefaultBranch({ ...base, ref: "refs/heads/feature" })).toBe(
-      false,
-    );
-    expect(isPushToDefaultBranch({ ref: "refs/heads/main" })).toBe(false);
+describe("isPushToStateBranch", () => {
+  it("is true only when a push touches state-repo report paths", () => {
+    expect(
+      isPushToStateBranch({
+        commits: [{ added: ["widgets/reports/security-audit.md"] }],
+      }),
+    ).toBe(true);
+    expect(isPushToStateBranch({ ref: "refs/heads/main" })).toBe(false);
+    expect(
+      isPushToStateBranch({
+        commits: [{ added: ["widgets/docs/security-audit.md"] }],
+      }),
+    ).toBe(false);
   });
 });

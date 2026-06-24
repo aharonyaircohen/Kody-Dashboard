@@ -3,32 +3,29 @@
  * @domain kody
  * @pattern cto-backpressure-gate
  * @ai-summary Code-enforced cap on **pending** CTO recommendations in the
- *   inbox. The `cto.md` staff member is told to stop at 10, but that is prose an
+ *   inbox. The `cto.md` agent is told to stop at 10, but that is prose an
  *   LLM re-counts every tick from a ledger — it drifts and over-posts. This
  *   module makes the cap deterministic at the one server-side write point
  *   (the webhook → inbox-feed append): a CTO recommendation entry is only
  *   admitted while fewer than `MAX_PENDING_CTO_RECS` are still undecided.
  *
  *   "Pending" = a feed entry that is a CTO recommendation (`ctoAction` set,
- *   resolvable to an issue number) whose `(taskNumber, action)` has no
- *   verdict in the `kody:cto-decisions` ledger. Once the operator
+ *   resolvable to an issue number) whose `(agentResponsibility, taskNumber, action)` has no
+ *   verdict in the trust ledger. Once the operator
  *   approves/rejects, that slot frees and later recommendations flow again.
  *
  *   Non-CTO mentions are never gated — only CTO recommendation entries count
  *   against, and are limited by, the cap.
  */
 import type { InboxFeedEntry } from "../inbox/feed";
-import {
-  staffDecisionKey,
-  DEFAULT_STAFF_SLUG,
-  type CtoLatestDecision,
-} from "./decisions";
+import { trustDecisionKey, type TrustLatestDecision } from "./trust-state";
+import { DEFAULT_AGENT_SLUG } from "./recommendation";
 
 /**
  * Hard ceiling on undecided recommendations visible in the inbox at once,
- * applied **per staff member** — a chatty CTO can't crowd QA's recs out of
+ * applied **per agentResponsibility** — a chatty agentResponsibility can't crowd other agentResponsibilities out of
  * the operator's queue. Mirrors the "at most 10 pending" rule in
- * `.kody/staff/*.md`, but enforced here so it actually holds.
+ * `.kody/agents/*.md`, but enforced here so it actually holds.
  */
 export const MAX_PENDING_CTO_RECS = 10;
 
@@ -41,19 +38,19 @@ function issueNumberFromUrl(url: string): number | null {
 }
 
 /**
- * The `(staff, taskNumber, action)` a recommendation feed entry decides on,
+ * The `(agentResponsibility, taskNumber, action)` a recommendation feed entry decides on,
  * or `null` when the entry is not a resolvable recommendation (a plain
  * mention, or a marker comment whose verb/issue we can't recover). Legacy
- * entries with no `ctoStaff` default to the CTO slug.
+ * entries with no `ctoAgentResponsibility` default to `ctoAgent`, then the CTO slug.
  */
 export function ctoFeedKey(
   entry: InboxFeedEntry,
-): { staff: string; taskNumber: number; action: string } | null {
+): { agentResponsibility: string; taskNumber: number; action: string } | null {
   if (!entry.ctoAction) return null;
   const taskNumber = issueNumberFromUrl(entry.url);
   if (taskNumber === null) return null;
   return {
-    staff: entry.ctoStaff ?? DEFAULT_STAFF_SLUG,
+    agentResponsibility: entry.ctoAgentResponsibility ?? entry.ctoAgent ?? DEFAULT_AGENT_SLUG,
     taskNumber,
     action: entry.ctoAction,
   };
@@ -70,11 +67,11 @@ export function ctoFeedKey(
  */
 function isPending(
   entry: InboxFeedEntry,
-  decided: Record<string, CtoLatestDecision>,
+  decided: Record<string, TrustLatestDecision>,
 ): boolean {
   const key = ctoFeedKey(entry);
   if (!key) return false;
-  const v = decided[staffDecisionKey(key.staff, key.taskNumber, key.action)];
+  const v = decided[trustDecisionKey(key.agentResponsibility, key.taskNumber, key.action)];
   if (!v) return true;
   const sent = Date.parse(entry.sentAt);
   const at = Date.parse(v.at);
@@ -85,52 +82,51 @@ function isPending(
 }
 
 /**
- * Undecided recommendations already in the feed, counted **per staff slug**.
- * `decided` is `latestCtoDecisions(ledger)` — the latest verdict per
- * staff+task+action, with the timestamp it was recorded so we can scope to
+ * Undecided recommendations already in the feed, counted **per agentResponsibility slug**.
+ * `decided` is `latestTrustDecisions(ledger)` — the latest verdict per
+ * agentResponsibility+task+action, with the timestamp it was recorded so we can scope to
  * the *current* rec.
  */
-export function countPendingByStaff(
+export function countPendingByAgentResponsibility(
   entries: InboxFeedEntry[],
-  decided: Record<string, CtoLatestDecision>,
+  decided: Record<string, TrustLatestDecision>,
 ): Map<string, number> {
   const counts = new Map<string, number>();
   for (const e of entries) {
     if (!isPending(e, decided)) continue;
     const key = ctoFeedKey(e);
     if (!key) continue;
-    counts.set(key.staff, (counts.get(key.staff) ?? 0) + 1);
+    counts.set(key.agentResponsibility, (counts.get(key.agentResponsibility) ?? 0) + 1);
   }
   return counts;
 }
 
 /**
- * Total undecided recommendations across all staff. Retained for logging /
- * back-compat; the cap itself is enforced per-staff via `countPendingByStaff`.
+ * Total undecided recommendations across all agentResponsibilities. Retained for logging.
  */
 export function countPendingCtoRecs(
   entries: InboxFeedEntry[],
-  decided: Record<string, CtoLatestDecision>,
+  decided: Record<string, TrustLatestDecision>,
 ): number {
   return entries.reduce((n, e) => (isPending(e, decided) ? n + 1 : n), 0);
 }
 
 /**
  * Split `incoming` into the entries that may be appended now and the
- * recommendations withheld because that staff member's queue is already full.
+ * recommendations withheld because that agentResponsibility's queue is already full.
  * Non-recommendation entries always pass. Recommendations are admitted
- * oldest-first up to each staff member's own remaining headroom
- * (`MAX_PENDING_CTO_RECS - that staff's pending count`), so one noisy staff
- * member can't starve another's queue.
+ * oldest-first up to each agentResponsibility's own remaining headroom
+ * (`MAX_PENDING_CTO_RECS - that agentResponsibility's pending count`), so one noisy agentResponsibility
+ * can't starve another's queue.
  *
  * Pure — never mutates its inputs (immutability rule).
  */
 export function applyCtoBackpressure(
   current: InboxFeedEntry[],
   incoming: InboxFeedEntry[],
-  decided: Record<string, CtoLatestDecision>,
+  decided: Record<string, TrustLatestDecision>,
 ): { admitted: InboxFeedEntry[]; withheld: InboxFeedEntry[] } {
-  const pending = countPendingByStaff(current, decided);
+  const pending = countPendingByAgentResponsibility(current, decided);
   const admitted: InboxFeedEntry[] = [];
   const withheld: InboxFeedEntry[] = [];
 
@@ -140,10 +136,10 @@ export function applyCtoBackpressure(
       admitted.push(entry); // not a recommendation — never gated
       continue;
     }
-    const used = pending.get(key.staff) ?? 0;
+    const used = pending.get(key.agentResponsibility) ?? 0;
     if (used < MAX_PENDING_CTO_RECS) {
       admitted.push(entry);
-      pending.set(key.staff, used + 1);
+      pending.set(key.agentResponsibility, used + 1);
     } else {
       withheld.push(entry);
     }

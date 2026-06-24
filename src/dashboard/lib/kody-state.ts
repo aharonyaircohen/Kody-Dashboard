@@ -41,16 +41,16 @@ export interface KodyAction {
  */
 export interface KodyHistoryEntry {
   timestamp: string;
-  executable: string;
+  agentAction: string;
   action: string;
   note?: string;
-  /** Staff member this run executed as, when the duty declares one. */
-  staff?: string;
+  /** Agent member this run executed as, when the agentResponsibility declares one. */
+  agent?: string;
   /** Stable id for this job run (CI run id in Actions, else a stamp). */
   jobId?: string;
   /** Whether this run was an instant (`@kody`) or scheduled (cron) job. */
   flavor?: KodyJobFlavor;
-  /** Cadence this scheduled job fired on (the duty's `every`/cron). */
+  /** Cadence this scheduled job fired on (the agentResponsibility's `every`/cron). */
   schedule?: string;
   /** This job's outcome at the time the entry was written. */
   status?: KodyStatus;
@@ -63,12 +63,12 @@ export interface KodyTaskState {
   core: {
     phase: KodyPhase;
     status: KodyStatus;
-    currentExecutable: string | null;
+    currentAgentAction: string | null;
     lastOutcome: KodyAction | null;
     attempts: Record<string, number>;
     prUrl?: string;
     runUrl?: string;
-    /** Staff persona the most recent run executed as, when declared. */
+    /** AgentIdentity the most recent run executed as, when declared. */
     ranAsStaff?: string | null;
   };
   /** Ordered run-history: one job entry per engine run on this issue/PR. */
@@ -104,7 +104,7 @@ export function parseKodyStateComment(body: string): KodyTaskState | null {
       core: {
         phase: parsed.core.phase ?? "idle",
         status: parsed.core.status ?? "pending",
-        currentExecutable: parsed.core.currentExecutable ?? null,
+        currentAgentAction: parsed.core.currentAgentAction ?? null,
         lastOutcome: parsed.core.lastOutcome ?? null,
         attempts: parsed.core.attempts ?? {},
         prUrl: parsed.core.prUrl,

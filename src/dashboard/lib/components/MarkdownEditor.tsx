@@ -2,28 +2,40 @@
  * @fileType component
  * @domain kody
  * @pattern markdown-editor
- * @ai-summary Controlled markdown editor with toolbar (bold/italic/code/link/list/heading/quote),
- *   emoji picker, and preview toggle. Extracted so Duty Control and future
- *   issue-body edits share one implementation.
+ * @ai-summary Controlled markdown editor with shared rich preview, split mode,
+ * and formatting helpers for common Markdown blocks.
  */
+
 "use client";
 
 import { useRef, useState } from "react";
-import ReactMarkdown from "react-markdown";
 import {
+  AlertTriangle,
   Bold,
-  Italic,
+  Braces,
   Code,
+  Columns2,
+  Edit3,
+  Eye,
+  Heading,
+  Italic,
   Link2,
   List,
-  Heading,
+  ListChecks,
   Quote,
-  Eye,
+  Redo2,
+  Table2,
+  Undo2,
+  Workflow,
 } from "lucide-react";
 import { Button } from "@dashboard/ui/button";
 import { Textarea } from "@dashboard/ui/textarea";
 import { cn } from "@dashboard/lib/utils/ui";
 import { EMOJI_LIST } from "../constants";
+import { autoDirProps, rtlAwareMarkdownClassName } from "../text-direction";
+import { MarkdownPreview } from "./MarkdownPreview";
+
+type EditorMode = "write" | "preview" | "split";
 
 interface MarkdownEditorProps {
   value: string;
@@ -32,7 +44,7 @@ interface MarkdownEditorProps {
   rows?: number;
   disabled?: boolean;
   className?: string;
-  /** Optional override for the preview empty-state message */
+  /** Optional override for preview empty-state message */
   emptyPreview?: string;
 }
 
@@ -45,70 +57,235 @@ export function MarkdownEditor({
   className,
   emptyPreview = "*Nothing to preview*",
 }: MarkdownEditorProps) {
-  const [showPreview, setShowPreview] = useState(false);
+  const [mode, setMode] = useState<EditorMode>("write");
   const [showEmojiPicker, setShowEmojiPicker] = useState(false);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
-  const insertMarkdown = (before: string, after: string = "") => {
+  const updateValue = (
+    next: string,
+    selectionStart: number,
+    selectionEnd = selectionStart,
+  ) => {
+    onChange(next);
+    window.setTimeout(() => {
+      const textarea = textareaRef.current;
+      if (!textarea) return;
+      textarea.focus();
+      textarea.setSelectionRange(selectionStart, selectionEnd);
+    }, 0);
+  };
+
+  const withSelection = (
+    build: (selection: { start: number; end: number; selected: string }) => {
+      next: string;
+      selectionStart: number;
+      selectionEnd?: number;
+    },
+  ) => {
+    if (disabled) return;
     const textarea = textareaRef.current;
     if (!textarea) return;
-
     const start = textarea.selectionStart;
     const end = textarea.selectionEnd;
     const selected = value.slice(start, end);
-    const next =
-      value.slice(0, start) + before + selected + after + value.slice(end);
-    onChange(next);
+    const result = build({ start, end, selected });
+    updateValue(result.next, result.selectionStart, result.selectionEnd);
+  };
 
-    setTimeout(() => {
-      textarea.focus();
-      textarea.setSelectionRange(
-        start + before.length,
-        start + before.length + selected.length,
-      );
-    }, 0);
+  const insertInline = (before: string, after = before, fallback = "") => {
+    withSelection(({ start, end, selected }) => {
+      const content = selected || fallback;
+      const next =
+        value.slice(0, start) + before + content + after + value.slice(end);
+      const selectionStart = start + before.length;
+      const selectionEnd = selectionStart + content.length;
+      return { next, selectionStart, selectionEnd };
+    });
+  };
+
+  const insertAtLineStart = (prefix: string) => {
+    withSelection(({ start, end, selected }) => {
+      const lineStart = value.lastIndexOf("\n", start - 1) + 1;
+      const content = selected || "";
+      const lines = content.length > 0 ? content.split("\n") : [""];
+      const replacement = lines.map((line) => `${prefix}${line}`).join("\n");
+      const next = value.slice(0, lineStart) + replacement + value.slice(end);
+      const selectionStart = lineStart + prefix.length;
+      const selectionEnd = lineStart + replacement.length;
+      return { next, selectionStart, selectionEnd };
+    });
+  };
+
+  const insertBlock = (block: string, selectionOffset = block.length) => {
+    withSelection(({ start, end }) => {
+      const needsLeadingBreak = start > 0 && value[start - 1] !== "\n";
+      const needsTrailingBreak = end < value.length && value[end] !== "\n";
+      const leading = needsLeadingBreak ? "\n" : "";
+      const trailing = needsTrailingBreak ? "\n" : "";
+      const next =
+        value.slice(0, start) + leading + block + trailing + value.slice(end);
+      const cursor = start + leading.length + selectionOffset;
+      return { next, selectionStart: cursor };
+    });
   };
 
   const insertEmoji = (emoji: string) => {
+    insertInline(emoji, "", "");
+    setShowEmojiPicker(false);
+  };
+
+  const runTextareaCommand = (command: "undo" | "redo") => {
+    if (disabled) return;
     const textarea = textareaRef.current;
     if (!textarea) return;
-    const start = textarea.selectionStart;
-    const next = value.slice(0, start) + emoji + value.slice(start);
-    onChange(next);
-    setShowEmojiPicker(false);
-    setTimeout(() => {
-      textarea.focus();
-      textarea.setSelectionRange(start + emoji.length, start + emoji.length);
-    }, 0);
+    textarea.focus();
+    document.execCommand(command);
   };
+
+  const preview = (
+    <div
+      {...autoDirProps}
+      className={cn(
+        "min-h-[120px] max-h-[50vh] min-w-0 w-full overflow-auto p-3 border border-border rounded-md bg-background text-start",
+        rtlAwareMarkdownClassName,
+      )}
+    >
+      <MarkdownPreview content={value || emptyPreview} variant="compact" />
+    </div>
+  );
+
+  const editor = (
+    <Textarea
+      ref={textareaRef}
+      value={value}
+      onChange={(e) => onChange(e.target.value)}
+      placeholder={placeholder}
+      rows={rows}
+      disabled={disabled}
+      dir="auto"
+      className="font-mono text-sm resize-y max-h-[50vh] text-start"
+    />
+  );
 
   return (
     <div className={cn("space-y-2", className)}>
-      {/* Toolbar */}
       <div className="flex items-center flex-wrap gap-0.5 border border-border rounded-md p-1 bg-muted/30">
-        <ToolbarButton title="Bold" onClick={() => insertMarkdown("**", "**")}>
+        <ToolbarButton
+          title="Undo"
+          onClick={() => runTextareaCommand("undo")}
+          disabled={disabled}
+        >
+          <Undo2 className="w-3.5 h-3.5" />
+        </ToolbarButton>
+        <ToolbarButton
+          title="Redo"
+          onClick={() => runTextareaCommand("redo")}
+          disabled={disabled}
+        >
+          <Redo2 className="w-3.5 h-3.5" />
+        </ToolbarButton>
+
+        <ToolbarDivider />
+
+        <ToolbarButton
+          title="Bold"
+          onClick={() => insertInline("**", "**", "bold")}
+          disabled={disabled}
+        >
           <Bold className="w-3.5 h-3.5" />
         </ToolbarButton>
-        <ToolbarButton title="Italic" onClick={() => insertMarkdown("*", "*")}>
+        <ToolbarButton
+          title="Italic"
+          onClick={() => insertInline("*", "*", "italic")}
+          disabled={disabled}
+        >
           <Italic className="w-3.5 h-3.5" />
         </ToolbarButton>
-        <ToolbarButton title="Code" onClick={() => insertMarkdown("`", "`")}>
+        <ToolbarButton
+          title="Inline code"
+          onClick={() => insertInline("`", "`", "code")}
+          disabled={disabled}
+        >
           <Code className="w-3.5 h-3.5" />
         </ToolbarButton>
         <ToolbarButton
           title="Link"
-          onClick={() => insertMarkdown("[", "](url)")}
+          onClick={() => insertInline("[", "](url)", "link")}
+          disabled={disabled}
         >
           <Link2 className="w-3.5 h-3.5" />
         </ToolbarButton>
-        <ToolbarButton title="Heading" onClick={() => insertMarkdown("## ")}>
+
+        <ToolbarDivider />
+
+        <ToolbarButton
+          title="Heading"
+          onClick={() => insertAtLineStart("## ")}
+          disabled={disabled}
+        >
           <Heading className="w-3.5 h-3.5" />
         </ToolbarButton>
-        <ToolbarButton title="Quote" onClick={() => insertMarkdown("> ")}>
+        <ToolbarButton
+          title="Quote"
+          onClick={() => insertAtLineStart("> ")}
+          disabled={disabled}
+        >
           <Quote className="w-3.5 h-3.5" />
         </ToolbarButton>
-        <ToolbarButton title="List" onClick={() => insertMarkdown("- ")}>
+        <ToolbarButton
+          title="List"
+          onClick={() => insertAtLineStart("- ")}
+          disabled={disabled}
+        >
           <List className="w-3.5 h-3.5" />
+        </ToolbarButton>
+        <ToolbarButton
+          title="Checklist"
+          onClick={() => insertAtLineStart("- [ ] ")}
+          disabled={disabled}
+        >
+          <ListChecks className="w-3.5 h-3.5" />
+        </ToolbarButton>
+
+        <ToolbarDivider />
+
+        <ToolbarButton
+          title="Code block"
+          onClick={() => insertBlock("```ts\n\n```", "```ts\n".length)}
+          disabled={disabled}
+        >
+          <Braces className="w-3.5 h-3.5" />
+        </ToolbarButton>
+        <ToolbarButton
+          title="Mermaid diagram"
+          onClick={() =>
+            insertBlock(
+              "```mermaid\ngraph TD\n  A[Start] --> B[Done]\n```",
+              "```mermaid\n".length,
+            )
+          }
+          disabled={disabled}
+        >
+          <Workflow className="w-3.5 h-3.5" />
+        </ToolbarButton>
+        <ToolbarButton
+          title="Callout"
+          onClick={() => insertBlock("> [!NOTE]\n> ", "> [!NOTE]\n> ".length)}
+          disabled={disabled}
+        >
+          <AlertTriangle className="w-3.5 h-3.5" />
+        </ToolbarButton>
+        <ToolbarButton
+          title="Table"
+          onClick={() =>
+            insertBlock(
+              "| Name | Value |\n| --- | --- |\n| Item | Detail |",
+              "| Name | Value |\n| --- | --- |\n| ".length,
+            )
+          }
+          disabled={disabled}
+        >
+          <Table2 className="w-3.5 h-3.5" />
         </ToolbarButton>
 
         <div className="relative">
@@ -119,9 +296,11 @@ export function MarkdownEditor({
             onClick={() => setShowEmojiPicker((prev) => !prev)}
             className="h-7 w-7 p-0 text-sm"
             title="Emoji"
+            disabled={disabled}
           >
             😊
           </Button>
+
           {showEmojiPicker ? (
             <div className="absolute z-20 top-full left-0 mt-1 w-56 max-h-48 overflow-y-auto border border-border rounded-md shadow-lg bg-popover p-2 grid grid-cols-6 gap-1">
               {EMOJI_LIST.slice(0, 60).map((emoji, index) => (
@@ -138,49 +317,53 @@ export function MarkdownEditor({
           ) : null}
         </div>
 
-        <div className="w-px h-4 bg-border mx-1" />
+        <ToolbarDivider />
 
-        <Button
-          type="button"
-          variant={showPreview ? "secondary" : "ghost"}
-          size="sm"
-          onClick={() => setShowPreview((prev) => !prev)}
-          className="h-7 px-2 text-xs"
-          title={showPreview ? "Edit" : "Preview"}
+        <ModeButton mode={mode} target="write" onClick={setMode} title="Write">
+          <Edit3 className="w-3.5 h-3.5" />
+        </ModeButton>
+        <ModeButton
+          mode={mode}
+          target="preview"
+          onClick={setMode}
+          title="Preview"
         >
-          <Eye className="w-3.5 h-3.5 mr-1" />
-          {showPreview ? "Edit" : "Preview"}
-        </Button>
+          <Eye className="w-3.5 h-3.5" />
+        </ModeButton>
+        <ModeButton mode={mode} target="split" onClick={setMode} title="Split">
+          <Columns2 className="w-3.5 h-3.5" />
+        </ModeButton>
+        <span className="ml-auto px-2 text-[11px] tabular-nums text-muted-foreground">
+          {value.length}
+        </span>
       </div>
 
-      {/* Editor / preview */}
-      {showPreview ? (
-        <div className="min-h-[120px] max-h-[50vh] min-w-0 w-full overflow-auto p-3 border border-border rounded-md bg-background prose prose-sm dark:prose-invert max-w-none prose-pre:whitespace-pre-wrap prose-pre:break-words prose-code:break-words">
-          <ReactMarkdown>{value || emptyPreview}</ReactMarkdown>
+      {mode === "preview" ? preview : null}
+      {mode === "write" ? editor : null}
+      {mode === "split" ? (
+        <div className="grid gap-2 md:grid-cols-2">
+          {editor}
+          {preview}
         </div>
-      ) : (
-        <Textarea
-          ref={textareaRef}
-          value={value}
-          onChange={(e) => onChange(e.target.value)}
-          placeholder={placeholder}
-          rows={rows}
-          disabled={disabled}
-          className="font-mono text-sm resize-y max-h-[50vh]"
-        />
-      )}
+      ) : null}
     </div>
   );
+}
+
+function ToolbarDivider() {
+  return <div className="w-px h-4 bg-border mx-1" />;
 }
 
 function ToolbarButton({
   title,
   onClick,
   children,
+  disabled,
 }: {
   title: string;
   onClick: () => void;
   children: React.ReactNode;
+  disabled?: boolean;
 }) {
   return (
     <Button
@@ -188,6 +371,34 @@ function ToolbarButton({
       variant="ghost"
       size="sm"
       onClick={onClick}
+      className="h-7 w-7 p-0"
+      title={title}
+      disabled={disabled}
+    >
+      {children}
+    </Button>
+  );
+}
+
+function ModeButton({
+  mode,
+  target,
+  onClick,
+  title,
+  children,
+}: {
+  mode: EditorMode;
+  target: EditorMode;
+  onClick: (mode: EditorMode) => void;
+  title: string;
+  children: React.ReactNode;
+}) {
+  return (
+    <Button
+      type="button"
+      variant={mode === target ? "secondary" : "ghost"}
+      size="sm"
+      onClick={() => onClick(target)}
       className="h-7 w-7 p-0"
       title={title}
     >

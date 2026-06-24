@@ -5,12 +5,11 @@
  *
  * GET /api/kody/pool/status
  *
- * Read-only counts from the warm-pool owner (kody pool-serve on kody-litellm).
- * Drives the pool line on the Settings → LiteLLM card.
+ * Read-only counts from the configured warm-pool owner.
  *
  * Returns { status: PoolStatus } when reachable, or { status: null } when the
- * pool is unconfigured/unreachable (no KODY_MASTER_KEY, owner down). Never
- * errors — the pool is an accelerator, GitHub Actions is the fallback.
+ * pool is unconfigured/unreachable (no KODY_MASTER_KEY, no FLY_POOL_URL,
+ * owner down). Never errors — the pool is an accelerator.
  */
 import { NextRequest, NextResponse } from "next/server";
 

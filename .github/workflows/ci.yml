@@ -32,5 +32,9 @@ jobs:
       - name: Lint
         run: pnpm lint
 
+      - name: Validate Kody reports
+        continue-on-error: true
+        run: bash .kody/scripts/validate-reports.sh
+
       - name: Test
         run: pnpm test --coverage

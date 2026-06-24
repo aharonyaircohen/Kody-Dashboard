@@ -69,6 +69,13 @@ export function selectTerminalTarget(
   return { ok: true, machine };
 }
 
+export function terminalActivityLimitForTarget(
+  feature: FlyFeature,
+  requested: number | null | undefined,
+): number | null | undefined {
+  return feature === "brain" ? requested : undefined;
+}
+
 export function buildTerminalWebSocketUrl(
   bridgeBase: string,
   token: string,

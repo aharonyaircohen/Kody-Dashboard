@@ -22,7 +22,7 @@
   const PAGE_SOURCE = "kody-picker:page";
   const EXT_SOURCE = "kody-picker:ext";
   const COLLECTOR_SOURCE = "kody-picker:collector";
-  const VERSION = "0.4.0";
+  const VERSION = "0.4.1";
   const BUFFER_CAP = 50;
 
   if (window.top === window.self) {
@@ -210,11 +210,17 @@
       }
     })();
 
-    // Receive buffered entries from the page main-world collector.
+    // Receive page main-world collector events.
     window.addEventListener("message", (event) => {
       if (event.source !== window) return;
       const d = event.data;
       if (!d || d.source !== COLLECTOR_SOURCE) return;
+      if (d.kind === "page-url") {
+        chrome.runtime
+          .sendMessage({ kind: "page", info: collectPageInfo() })
+          .catch(() => {});
+        return;
+      }
       const buf =
         d.kind === "log" ? logBuffer : d.kind === "net" ? netBuffer : null;
       if (!buf) return;
@@ -1191,7 +1197,7 @@
   }
 
   // Stringified and injected into the page main world. Must be self-contained
-  // (no closure refs). Posts { source, kind: "log"|"net", entry } to window.
+  // (no closure refs). Posts { source, kind: "log"|"net"|"page-url", entry } to window.
   function collectorSource(source, cap) {
     var post = function (kind, entry) {
       try {
@@ -1200,6 +1206,49 @@
         /* ignore */
       }
     };
+    var isDirectPreviewFrame = function () {
+      try {
+        return window.parent === window.top;
+      } catch (e) {
+        return true;
+      }
+    };
+    var postUrlTimer = null;
+    var postUrl = function () {
+      if (!isDirectPreviewFrame()) return;
+      if (postUrlTimer) clearTimeout(postUrlTimer);
+      postUrlTimer = setTimeout(function () {
+        postUrlTimer = null;
+        post("page-url", {
+          url: window.location.href,
+          title: document.title || "",
+          ts: Date.now(),
+        });
+      }, 80);
+    };
+    if (isDirectPreviewFrame()) {
+      ["pushState", "replaceState"].forEach(function (name) {
+        try {
+          var orig = history[name];
+          if (typeof orig !== "function") return;
+          history[name] = function () {
+            var ret = orig.apply(this, arguments);
+            postUrl();
+            return ret;
+          };
+        } catch (e) {
+          /* ignore */
+        }
+      });
+      window.addEventListener("popstate", postUrl);
+      window.addEventListener("hashchange", postUrl);
+      window.addEventListener("pageshow", postUrl);
+      if (document.readyState === "complete") {
+        postUrl();
+      } else {
+        window.addEventListener("load", postUrl, { once: true });
+      }
+    }
     ["error", "warn"].forEach(function (level) {
       var orig = console[level];
       console[level] = function () {

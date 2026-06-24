@@ -81,7 +81,6 @@ function capturingContext() {
       allSecrets: {},
       flyToken: "fly_test",
       perfTier: "medium",
-      litellmUrl: "https://kody-litellm.fly.dev",
     },
   };
   return { ctx, getWritten: () => written };

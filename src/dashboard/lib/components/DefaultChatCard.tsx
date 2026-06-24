@@ -3,10 +3,10 @@
  * @domain settings
  * @pattern settings-card
  * @ai-summary Settings → "Default chat" picker. Chooses which chat entry (a
- *   user-managed model OR Brain) loads when chat opens, writing the per-user,
- *   repo-scoped `kody-default-chat-entry` localStorage key that KodyChat reads
- *   on mount. This replaces the old "Set default" star in the chat dropdown —
- *   the default now lives in exactly one place.
+ *   user-managed model OR Fly Brain) loads when chat opens, writing the
+ *   per-user, repo-scoped `kody-default-chat-entry` localStorage key that
+ *   KodyChat reads on mount. This replaces the old "Set default" star in the
+ *   chat dropdown — the default now lives in exactly one place.
  */
 "use client";
 
@@ -50,7 +50,6 @@ export function DefaultChatCard() {
   const { auth } = useAuth();
   const owner = auth?.owner ?? "";
   const repo = auth?.repo ?? "";
-  const brainConfigured = Boolean(auth?.brain?.url && auth?.brain?.apiKey);
 
   const [models, setModels] = useState<ChatModelEntry[]>([]);
   const [flyConfigured, setFlyConfigured] = useState(false);
@@ -110,7 +109,7 @@ export function DefaultChatCard() {
   }, [owner, repo]);
 
   const entries = buildAgentList(
-    brainConfigured,
+    false,
     flyConfigured,
     brainFlyChatEnabled,
     models,
@@ -142,9 +141,9 @@ export function DefaultChatCard() {
           <h2 className="text-sm font-semibold">Default chat</h2>
         </div>
         <p className="text-xs text-white/50 -mt-2">
-          Which assistant loads when you open chat. Pick a chat model or Brain;
-          &quot;Automatic&quot; falls back to Brain when configured, else Kody
-          Live. Saved per repo, just for you.
+          Which assistant loads when you open chat. Pick a chat model or Fly
+          Brain; &quot;Automatic&quot; falls back to Kody Live. Saved per repo,
+          just for you.
         </p>
 
         <div className="space-y-2">
@@ -181,7 +180,11 @@ export function DefaultChatCard() {
             <Link href="/models" className="underline hover:text-white/70">
               Chat models
             </Link>{" "}
-            or set a Brain server above.
+            or enable Fly Brain on{" "}
+            <Link href="/runner" className="underline hover:text-white/70">
+              Fly Runner
+            </Link>
+            .
           </p>
         )}
       </CardContent>

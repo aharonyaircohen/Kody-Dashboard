@@ -19,6 +19,7 @@
  */
 
 import type { Octokit } from "@octokit/rest";
+import { writeGitHubFileWithRetry } from "@dashboard/lib/github-contents-write";
 import { Buffer } from "buffer";
 
 const SESSION_DIR = ".kody/sessions";
@@ -107,7 +108,7 @@ export async function writeSessionMeta(
     // moved, so a stale sha would just collide again.
     const sha = await getFileSha(octokit, owner, repo, path, branch);
     try {
-      await octokit.repos.createOrUpdateFileContents({
+      await writeGitHubFileWithRetry(octokit, {
         owner,
         repo,
         path,
@@ -115,6 +116,7 @@ export async function writeSessionMeta(
         content: Buffer.from(content).toString("base64"),
         ...(sha ? { sha } : {}),
         branch,
+        maxAttempts: 1,
       });
       return;
     } catch (err: unknown) {
@@ -161,7 +163,7 @@ export async function appendUserTurn(
       })}\n`;
 
     try {
-      await octokit.repos.createOrUpdateFileContents({
+      await writeGitHubFileWithRetry(octokit, {
         owner,
         repo,
         path,
@@ -169,6 +171,7 @@ export async function appendUserTurn(
         content: Buffer.from(newContent).toString("base64"),
         sha: existing.sha,
         branch,
+        maxAttempts: 1,
       });
       return { turnCount: countTurnLines(newContent) };
     } catch (err: unknown) {

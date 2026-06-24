@@ -74,6 +74,13 @@ export async function POST(req: NextRequest) {
     timestamp?: string;
     vibeMode?: boolean;
     taskContext?: VibeTaskContext;
+    /**
+     * Thinking level for the engine (off|low|medium|high). Forwarded as
+     * a workflow input to kody.yml which sets the REASONING_EFFORT env
+     * var the engine reads. When unset, the engine uses its own
+     * default (off = no thinking = cheapest path).
+     */
+    reasoningEffort?: string;
   };
   try {
     body = await req.json();
@@ -81,8 +88,15 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "Invalid JSON" }, { status: 400 });
   }
 
-  const { taskId, idleExitMs, hardCapMs, content, vibeMode, taskContext } =
-    body;
+  const {
+    taskId,
+    idleExitMs,
+    hardCapMs,
+    content,
+    vibeMode,
+    taskContext,
+    reasoningEffort,
+  } = body;
   if (!taskId) {
     return NextResponse.json({ error: "taskId required" }, { status: 400 });
   }
@@ -133,7 +147,16 @@ export async function POST(req: NextRequest) {
     // real time, but Vercel's per-instance in-memory bus means the push
     // often misses the client's poll handler. Falling back to plain client
     // polling (every 3s with ETag caching) is simpler and reliable.
-    const workflowInputs: Record<string, string> = { sessionId: taskId };
+    // Forward the user's thinking level (if any) so the engine's chat
+    // turn respects the chat-level pick. Empty string lets the engine
+    // fall back to its own default (off).
+    const workflowInputs: Record<string, string> = {
+      sessionId: taskId,
+      ...(typeof reasoningEffort === "string" &&
+      reasoningEffort.trim().length > 0
+        ? { reasoningEffort: reasoningEffort.trim() }
+        : {}),
+    };
 
     // GitHub is the base runner; Fly is the fallback when GitHub Actions is
     // degraded or its queue is backed up (proactive), or when the dispatch
@@ -179,6 +202,10 @@ export async function POST(req: NextRequest) {
           taskId,
           idleExitMs,
           hardCapMs,
+          ...(typeof reasoningEffort === "string" &&
+          reasoningEffort.trim().length > 0
+            ? { reasoningEffort: reasoningEffort.trim() }
+            : {}),
         }),
     });
 

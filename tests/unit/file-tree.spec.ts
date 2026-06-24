@@ -17,6 +17,7 @@
 import { describe, it, expect } from "vitest";
 import {
   ancestorPaths,
+  applyTreeOverlay,
   buildTree,
   pathAndAncestorPaths,
 } from "@dashboard/components/files/FileTree";
@@ -151,6 +152,37 @@ describe("buildTree", () => {
       "alpha.tsx",
       "zeta.tsx",
     ]);
+  });
+});
+
+describe("applyTreeOverlay", () => {
+  it("shows newly-created entries before GitHub's directory listing catches up", () => {
+    const entries = [file("old.ts", "src/old.ts")];
+
+    expect(
+      applyTreeOverlay(entries, "src", {
+        upserts: {
+          "src/new.ts": file("new.ts", "src/new.ts"),
+        },
+        deletes: {},
+        version: 1,
+      }).map((entry) => entry.path),
+    ).toEqual(["src/old.ts", "src/new.ts"]);
+  });
+
+  it("hides deleted entries even if a stale listing still includes them", () => {
+    const entries = [
+      file("old.ts", "src/old.ts"),
+      file("gone.ts", "src/gone.ts"),
+    ];
+
+    expect(
+      applyTreeOverlay(entries, "src", {
+        upserts: {},
+        deletes: { "src/gone.ts": true },
+        version: 1,
+      }).map((entry) => entry.path),
+    ).toEqual(["src/old.ts"]);
   });
 });
 

@@ -45,15 +45,15 @@ out to push / Slack / inbox for free. `DELETE` removes the whole channel
 The composer ([`MessagesView.tsx`](../src/dashboard/lib/components/MessagesView.tsx))
 is a markdown textarea with `@mention` autocomplete drawn from the shared
 [`useMentionRoster`](../src/dashboard/lib/hooks/useMentionRoster.ts)
-(collaborators + staff + self). Two mention kinds, distinguished by the
-`staff` badge in the dropdown:
+(collaborators + agent + self). Two mention kinds, distinguished by the
+`agent` badge in the dropdown:
 
 - **`@login`** (a person) → notifies that GitHub user (see [Mentions](#mentions)).
-- **`@slug`** (a staff persona, e.g. `@cto`) → dispatches a one-shot
-  `worker-ask` tick whose reply lands back in this thread. The composer
-  does nothing special for staff; the message is posted as a normal
-  discussion comment and the **webhook** detects the staff slug
-  server-side. See [Staff mentions](#staff-mentions).
+- **`@slug`** (a agent agent, e.g. `@cto`) → dispatches a one-shot
+  `agent-ask` tick whose reply lands back in this thread. The composer
+  does nothing special for agent; the message is posted as a normal
+  discussion comment and the **webhook** detects the agent slug
+  server-side. See [Agents mentions](#agent-mentions).
 
 Typing the full username always notifies even if it isn't in the roster
 dropdown — the dropdown is a convenience, not a gate.
@@ -146,7 +146,7 @@ Each stage is its own module:
 
 - **Normalize** — `extractEvent` calls the shared
   [`buildSourceEvent`](../src/dashboard/lib/notifications/source-event.ts)
-  (the single webhook parser, also used by the Slack-rules and staff
+  (the single webhook parser, also used by the Slack-rules and agent
   spines), then applies the mention spine's own action gate (a comment
   must be `created`, a review `submitted`, an issue/PR/discussion
   `opened`/`edited`) and a "must have a body" rule.
@@ -178,11 +178,11 @@ additionally **broadcast** to every channel subscriber.
 
 `dispatchMentionPushes` does **not** drop events by author. A comment
 authored by the Kody App / bot still notifies whoever it `@mentions` —
-which is what makes the manual **"Send task to staff"** / `worker-ask`
+which is what makes the manual **"Send task to agent"** / `agent-ask`
 path land in the operator's inbox: that dispatch posts a bot-authored
 comment that `@operator`, and because there's no author filter, the
-mention is delivered. (See the memory note "Manual send task to staff =
-existing worker-ask path".)
+mention is delivered. (See the memory note "Manual send task to agent =
+existing agent-ask path".)
 
 Two filters exist, and they are **not** an author filter — don't confuse
 them:
@@ -198,25 +198,25 @@ them:
    and re-fires a webhook whose body is full of `@login` feed entries.
    Routing those would ping users with raw manifest text.
 
-The staff `worker-ask` reply path _does_ guard against loops, but
+The agent `agent-ask` reply path _does_ guard against loops, but
 separately and in a different module — see below.
 
-### Staff mentions
+### Agents mentions
 
-`@slug` where `slug` is a known staff persona is handled by
-[`staff-mention-dispatch.ts`](../src/dashboard/lib/push/staff-mention-dispatch.ts),
+`@slug` where `slug` is a known agent agent is handled by
+[`agent-mention-dispatch.ts`](../src/dashboard/lib/push/agent-mention-dispatch.ts),
 a sibling the webhook calls right after `dispatchMentionPushes`. It:
 
 1. Normalizes via the same `buildSourceEvent` + an action gate.
-2. Resolves the repo's staff roster (`.kody/staff/`) and matches slugs
-   with [`extractStaffMentions`](../src/dashboard/lib/mentions/staff-mentions.ts)
-   (staff slug wins over a colliding GitHub login).
-3. Dispatches a one-shot `worker-ask` tick per matched slug, with the
+2. Resolves the repo's agent roster (`.kody/agents/`) and matches slugs
+   with [`extractStaffMentions`](../src/dashboard/lib/mentions/agent-mentions.ts)
+   (agent slug wins over a colliding GitHub login).
+3. Dispatches a one-shot `agent-ask` tick per matched slug, with the
    reply targeted back at the originating thread.
 
 It has its **own** loop guard (distinct from the mention spine): it skips
 bot/app authors (`authorIsBot`) and any body still carrying the
-`@kody worker-ask` directive, so a staff reply can't re-trigger a run.
+`@kody agent-ask` directive, so a agent reply can't re-trigger a run.
 
 ## Extending mentions to a new feature
 
@@ -253,8 +253,8 @@ why it needed no new dispatch code at all.
 | [`mention-dispatch.ts`](../src/dashboard/lib/push/mention-dispatch.ts)             | `dispatchMentionPushes` orchestrator                     |
 | [`source-event.ts`](../src/dashboard/lib/notifications/source-event.ts)            | Shared webhook → `SourceEvent` normalizer                |
 | [`recipients.ts`](../src/dashboard/lib/notifications/recipients.ts)                | `extractMentions` + `resolveRecipients`                  |
-| [`staff-mention-dispatch.ts`](../src/dashboard/lib/push/staff-mention-dispatch.ts) | `@slug` → one-shot `worker-ask` tick                     |
-| [`staff-mentions.ts`](../src/dashboard/lib/mentions/staff-mentions.ts)             | Extract known staff slugs from a body                    |
+| [`agent-mention-dispatch.ts`](../src/dashboard/lib/push/agent-mention-dispatch.ts) | `@slug` → one-shot `agent-ask` tick                     |
+| [`agent-mentions.ts`](../src/dashboard/lib/mentions/agent-mentions.ts)             | Extract known agent slugs from a body                    |
 
 ## Related docs
 

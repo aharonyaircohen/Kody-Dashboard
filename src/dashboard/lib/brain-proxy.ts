@@ -10,7 +10,7 @@
  *
  * Both endpoints share the same wire protocol with the upstream Brain server
  * — `POST {brainUrl}/chats/{chatId}/messages` with `X-Api-Key`, SSE response —
- * so the body decoration (task/duty preambles, attachment merging) and the
+ * so the body decoration (task/agentResponsibility preambles, attachment merging) and the
  * SSE translation into the dashboard's `chat.message | chat.tool_use |
  * chat.done | chat.error` shape live here in one place.
  *
@@ -41,7 +41,7 @@ export interface BrainAttachment {
   data?: string;
 }
 
-export interface BrainDutyContext {
+export interface BrainAgentResponsibilityContext {
   number?: number;
   title?: string;
   body?: string;
@@ -56,7 +56,7 @@ export interface BrainChatRequest {
   message: string;
   taskContext?: BrainTaskContext;
   attachments?: BrainAttachment[];
-  dutyContext?: BrainDutyContext;
+  agentResponsibilityContext?: BrainAgentResponsibilityContext;
   /** owner/name of the user's repo (forwarded so Brain can clone a worktree). */
   repo?: string;
   /**
@@ -96,6 +96,16 @@ export interface BrainChatRequest {
    */
   resumeText?: string;
   /**
+   * User-picked thinking level for the upstream Brain model (e.g. "low",
+   * "medium", "high"). Forwarded verbatim — Brain server ≥ the version
+   * that knows this field translates it to its provider's wire shape.
+   * Older servers ignore it. Brain chat rows don't surface a `reasoning`
+   * block in the picker (Brain owns its own reasoning config) so this
+   * only flows when the user is on a gateway model that the Brain proxy
+   * is *not* serving — kept here for forward compatibility.
+   */
+  reasoningEffort?: string;
+  /**
    * When true, append the plain-language style preamble so Brain answers in
    * simpler terms (short sentences, no jargon, lead with the answer). Set by
    * the brain-fly route only; the external `/brain` endpoint leaves Brain's
@@ -107,8 +117,8 @@ export interface BrainChatRequest {
 /**
  * Output-only style overlay: makes Brain answer in plain, simple terms.
  * Appended LAST in the decorated message so its formatting rules win by
- * recency over the repo/task/duty preambles (same reasoning as the voice
- * overlay). It reshapes OUTPUT only — no mention of tools or persona.
+ * recency over the repo/task/agentResponsibility preambles (same reasoning as the voice
+ * overlay). It reshapes OUTPUT only — no mention of tools or agentIdentity.
  */
 export const PLAIN_LANGUAGE_PREAMBLE = `[Answer style]
 Answer in plain, simple terms — explain it like you would to a smart teammate who is new to this codebase.
@@ -168,22 +178,22 @@ export function formatTaskContext(
   return parts.join("\n");
 }
 
-export function formatDutyContext(
-  mc: BrainDutyContext | undefined,
+export function formatAgentResponsibilityContext(
+  mc: BrainAgentResponsibilityContext | undefined,
 ): string | null {
   if (!mc || mc.number == null) return null;
   const parts: string[] = [];
-  parts.push(`[Current duty]`);
-  parts.push(`- Duty: #${mc.number}${mc.title ? ` — ${mc.title}` : ""}`);
+  parts.push(`[Current agentResponsibility]`);
+  parts.push(`- AgentResponsibility: #${mc.number}${mc.title ? ` — ${mc.title}` : ""}`);
   if (mc.state) parts.push(`- State: ${mc.state}`);
   if (mc.labels?.length) parts.push(`- Labels: ${mc.labels.join(", ")}`);
   if (mc.body) {
     const truncated =
       mc.body.length > 1500 ? `${mc.body.slice(0, 1500)}…` : mc.body;
-    parts.push(`\n[Duty body]\n${truncated}`);
+    parts.push(`\n[AgentResponsibility body]\n${truncated}`);
   }
   parts.push(
-    "\nThe user is chatting about this specific duty. A Kody duty is a markdown file at `.kody/duties/<slug>.md` whose body describes intent, system prompt, allowed commands, and restrictions. Answer grounded in the body above — do NOT claim the duty does not exist.",
+    "\nThe user is chatting about this specific agentResponsibility. A Kody agentResponsibility is a folder at `.kody/agent-responsibilities/<slug>/`: `profile.json` holds action/cadence/agents metadata, and `agent-responsibility.md` describes purpose, output, allowed commands, and restrictions. Answer grounded in the body above — do NOT claim the agentResponsibility does not exist.",
   );
   return parts.join("\n");
 }
@@ -192,7 +202,7 @@ export function buildDecoratedMessage(
   message: string,
   opts: {
     taskContext?: BrainTaskContext;
-    dutyContext?: BrainDutyContext;
+    agentResponsibilityContext?: BrainAgentResponsibilityContext;
     repo?: string;
     plainLanguage?: boolean;
   },
@@ -205,12 +215,12 @@ export function buildDecoratedMessage(
     ? `[Repository]\nThe user has ${opts.repo} selected in the dashboard. All questions are about this repository unless they say otherwise — inspect its code/issues/PRs for context and refer to it by name.\n\nBefore making any code change or fix, first explain what you intend to change and why, then STOP and wait for the user to explicitly approve. Do NOT edit, commit, or push in the same turn as the explanation — the approval ask must be the last thing you do that turn. Only after the user says go: make the change, commit with a clear conventional-commit message, and push to the working branch as the final step — don't leave approved changes uncommitted.`
     : null;
   const taskPreamble = formatTaskContext(opts.taskContext);
-  const dutyPreamble = formatDutyContext(opts.dutyContext);
+  const agentResponsibilityPreamble = formatAgentResponsibilityContext(opts.agentResponsibilityContext);
   // Style overlay goes LAST so its output rules win by recency over the
-  // repo/task/duty context blocks above it.
+  // repo/task/agentResponsibility context blocks above it.
   const stylePreamble = opts.plainLanguage ? PLAIN_LANGUAGE_PREAMBLE : null;
   const preamble =
-    [repoPreamble, dutyPreamble, taskPreamble, stylePreamble]
+    [repoPreamble, agentResponsibilityPreamble, taskPreamble, stylePreamble]
       .filter(Boolean)
       .join("\n\n") || null;
   return preamble ? `${preamble}\n\n[User]\n${message}` : message;
@@ -233,7 +243,7 @@ export async function streamBrainChat(
 ): Promise<Response> {
   const decoratedMessage = buildDecoratedMessage(input.message, {
     taskContext: input.taskContext,
-    dutyContext: input.dutyContext,
+    agentResponsibilityContext: input.agentResponsibilityContext,
     repo: input.repo,
     plainLanguage: input.plainLanguage,
   });
@@ -300,6 +310,9 @@ export async function streamBrainChat(
               ...(input.repo ? { repo: input.repo } : {}),
               ...(input.repoToken ? { repoToken: input.repoToken } : {}),
               ...(input.voiceMode === true ? { voiceMode: true } : {}),
+              ...(input.reasoningEffort
+                ? { reasoningEffort: input.reasoningEffort }
+                : {}),
             }),
           }),
       signal: connectController.signal,
@@ -430,6 +443,7 @@ export async function streamBrainChat(
 
             case "text":
               if (typeof ev.text === "string" && ev.text.length > 0) {
+                inFlightTool = false;
                 assistantBuffer += ev.text;
                 emit({
                   type: "chat.message",
@@ -444,7 +458,10 @@ export async function streamBrainChat(
               // Structured tool event so the client can render a consolidated
               // "thinking" panel rather than polluting prose with inline tool
               // markers. Brain doesn't stream tool results separately — the
-              // narrated output arrives in the next `text` chunk.
+              // narrated output arrives in the next `text` chunk. Mark the
+              // stream as alive so the idle-timeout window widens to
+              // IDLE_TIMEOUT_DURING_TOOL_MS for the duration of the call.
+              inFlightTool = true;
               emit({
                 type: "chat.tool_use",
                 id: crypto.randomUUID(),
@@ -455,10 +472,12 @@ export async function streamBrainChat(
               break;
 
             case "done":
+              inFlightTool = false;
               emit({ type: "chat.done" });
               break;
 
             case "error":
+              inFlightTool = false;
               emit({ type: "chat.error", error: ev.error ?? "Brain error" });
               break;
           }
@@ -470,17 +489,27 @@ export async function streamBrainChat(
       // surface an error instead of holding the spinner open indefinitely.
       // Reset every time a chunk lands, so a long healthy response is fine —
       // only true silence trips it.
-      const IDLE_TIMEOUT_MS = 120_000;
-      const readWithIdleTimeout = () =>
-        Promise.race([
+      //
+      // Brain is allowed to be silent for longer while a tool call is in
+      // flight — `tool_use` is proof of life even though no text/done chunk
+      // arrives until the tool returns (which can be many minutes for a big
+      // build, test run, or git operation). We bump the idle budget for the
+      // duration of an in-flight tool and revert to the default once text or a
+      // terminal event resumes the stream.
+      const IDLE_TIMEOUT_DEFAULT_MS = 120_000;
+      const IDLE_TIMEOUT_DURING_TOOL_MS = 600_000;
+      let inFlightTool = false;
+      const readWithIdleTimeout = () => {
+        const idleMs = inFlightTool
+          ? IDLE_TIMEOUT_DURING_TOOL_MS
+          : IDLE_TIMEOUT_DEFAULT_MS;
+        return Promise.race([
           reader.read(),
           new Promise<never>((_, reject) =>
-            setTimeout(
-              () => reject(new Error("brain-idle-timeout")),
-              IDLE_TIMEOUT_MS,
-            ),
+            setTimeout(() => reject(new Error("brain-idle-timeout")), idleMs),
           ),
         ]);
+      };
 
       try {
         while (true) {

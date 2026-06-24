@@ -37,10 +37,13 @@ function authHeaders(): Record<string, string> {
 }
 
 export async function uploadStaticPreview(
-  file: File,
+  fileOrFiles: File | readonly File[],
 ): Promise<UploadedStaticPreview> {
   const form = new FormData();
-  form.append("file", file);
+  const files = Array.isArray(fileOrFiles) ? fileOrFiles : [fileOrFiles];
+  for (const file of files) {
+    form.append("file", file);
+  }
   // Don't set content-type — the browser adds the multipart boundary.
   const res = await fetch("/api/kody/previews/static", {
     method: "POST",

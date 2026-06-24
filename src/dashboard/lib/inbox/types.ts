@@ -70,18 +70,18 @@ export interface InboxEntry {
    */
   ctoCommand?: string;
   /**
-   * Slug of the staff member that emitted the recommendation, parsed from
-   * the raw body's `kody-staff` line at write time. Scopes the trust ledger
-   * + backpressure per staff. Absent on legacy entries (default to "cto").
+   * Slug of the agent that emitted the recommendation, parsed from
+   * the raw body's `kody-agent` line at write time. Scopes the trust ledger
+   * + backpressure per agent. Absent on legacy entries (default to "cto").
    */
-  ctoStaff?: string;
+  ctoAgent?: string;
   /**
-   * Slug of the DUTY that emitted the recommendation, parsed from the raw
-   * body's `kody-duty` line at write time. The trust key — scopes autonomy
-   * per duty, not just per persona. Absent on legacy entries (the client
-   * falls back to the persona slug).
+   * Slug of the AGENT_RESPONSIBILITY that emitted the recommendation, parsed from the raw
+   * body's `kody-agentResponsibility` line at write time. The trust key — scopes autonomy
+   * per agentResponsibility, not just per agentIdentity. Absent on legacy entries (the client
+   * falls back to the agentIdentity slug).
    */
-  ctoDuty?: string;
+  ctoAgentResponsibility?: string;
   /**
    * Server-classified notification category (`chat-response`, `task-assigned`,
    * …), carried through from the feed. Lets the inbox row offer "Mute this

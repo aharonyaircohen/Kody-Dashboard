@@ -41,6 +41,7 @@ import {
   clearGitHubContext,
 } from "@dashboard/lib/github-client";
 import { recordAudit } from "@dashboard/lib/activity/audit";
+import { HIDDEN_TASK_LABEL } from "@dashboard/lib/constants";
 import { GOAL_LABEL_PREFIX } from "@dashboard/lib/goals";
 import { getOwner, getRepo } from "@dashboard/lib/github-client";
 import { isProtectedBranch } from "@dashboard/lib/branches";
@@ -87,6 +88,50 @@ const actionSchema = z.object({
 
 // `withActor` + `postWithFallback` live in @dashboard/lib/kody-command so
 // the CTO decision endpoint can reuse the exact same `@kody` post path.
+
+function isDashboardManagedLabel(label: string): boolean {
+  return (
+    label.startsWith(GOAL_LABEL_PREFIX) ||
+    label === HIDDEN_TASK_LABEL ||
+    label.startsWith("kody:")
+  );
+}
+
+function dashboardManagedLabelOptions(label: string): {
+  color: string;
+  description: string;
+} {
+  if (label === HIDDEN_TASK_LABEL) {
+    return {
+      color: "6b7280",
+      description: "Hidden from Kody dashboard task list",
+    };
+  }
+
+  return {
+    color: "38bdf8",
+    description: `Tasks attached to ${label}`,
+  };
+}
+
+async function addLabelWithManagedFallback(
+  issueNumber: number,
+  label: string,
+  userOctokit: Awaited<ReturnType<typeof getUserOctokit>>,
+): Promise<void> {
+  try {
+    await addLabels(issueNumber, [label], userOctokit ?? undefined);
+  } catch (error) {
+    if (!userOctokit || !isDashboardManagedLabel(label)) throw error;
+
+    console.warn(
+      "[Kody] addLabels with user token failed; retrying managed label with bot token:",
+      error,
+    );
+    await ensureLabel(label, dashboardManagedLabelOptions(label));
+    await addLabels(issueNumber, [label]);
+  }
+}
 
 export async function POST(
   req: NextRequest,
@@ -442,19 +487,31 @@ export async function POST(
           );
         }
         // GitHub's addLabels endpoint 422s on unknown labels — auto-create
-        // goal:* labels defensively so attaches always succeed.
-        if (label.startsWith(GOAL_LABEL_PREFIX)) {
+        // dashboard-managed labels defensively so first use always succeeds.
+        if (
+          label.startsWith(GOAL_LABEL_PREFIX) ||
+          label === HIDDEN_TASK_LABEL ||
+          label.startsWith("kody:")
+        ) {
           try {
             await ensureLabel(
               label,
-              { color: "38bdf8", description: `Tasks attached to ${label}` },
+              label === HIDDEN_TASK_LABEL
+                ? {
+                    color: "6b7280",
+                    description: "Hidden from the Kody dashboard task list",
+                  }
+                : {
+                    color: "38bdf8",
+                    description: `Tasks attached to ${label}`,
+                  },
               userOctokit ?? undefined,
             );
           } catch (labelErr) {
             console.warn("[Kody] ensureLabel failed (continuing):", labelErr);
           }
         }
-        await addLabels(issueNumber, [label], userOctokit ?? undefined);
+        await addLabelWithManagedFallback(issueNumber, label, userOctokit);
         return NextResponse.json({
           success: true,
           message: `Label "${label}" added`,

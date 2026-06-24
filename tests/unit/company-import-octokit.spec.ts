@@ -15,7 +15,7 @@
  * passed octokit for ALL of its GitHub access and succeed.
  *
  * Unlike company.spec.ts this does NOT mock the file helpers — it exercises
- * the real `duties-files`/`staff-files`/`commands/files`/`instructions/files`
+ * the real `agentResponsibilities-files`/`agent-files`/`commands/files`/`instructions/files`
  * so the octokit-threading is genuinely under test. Only github-client (the
  * shared context) is mocked.
  */
@@ -33,30 +33,33 @@ function badError(): Error {
 
 // The GLOBAL request-context octokit — simulates a context cleared by a
 // concurrent request (env-token fallback that 401s on everything).
+const badRepos = {
+  get: vi.fn(async () => {
+    throw badError();
+  }),
+  getContent: vi.fn(async () => {
+    throw badError();
+  }),
+  listCommits: vi.fn(async () => {
+    throw badError();
+  }),
+  createOrUpdateFileContents: vi.fn(async () => {
+    throw badError();
+  }),
+};
 const badOctokit = {
-  repos: {
-    get: vi.fn(async () => {
-      throw badError();
-    }),
-    getContent: vi.fn(async () => {
-      throw badError();
-    }),
-    listCommits: vi.fn(async () => {
-      throw badError();
-    }),
-    createOrUpdateFileContents: vi.fn(async () => {
-      throw badError();
-    }),
-  },
+  repos: badRepos,
+  rest: { repos: badRepos },
 };
 
 vi.mock("@dashboard/lib/github-client", () => ({
   getOctokit: vi.fn(() => badOctokit),
   getOwner: vi.fn(() => "acme"),
   getRepo: vi.fn(() => "widgets"),
-  invalidateDutiesCache: vi.fn(),
+  invalidateAgentResponsibilitiesCache: vi.fn(),
   invalidateStaffCache: vi.fn(),
   invalidateCommandsCache: vi.fn(),
+  fetchCompanyActivity: vi.fn(async () => []),
 }));
 
 import { applyCompanyBundle } from "@dashboard/lib/company/import";
@@ -64,31 +67,93 @@ import { COMPANY_BUNDLE_VERSION } from "@dashboard/lib/company/types";
 
 /**
  * A stateful fake of the user's (valid) Octokit. Tracks files written via
- * createOrUpdateFileContents so a subsequent getContent on the same path
- * returns them — mirroring real GitHub: 404 before write, content after.
+ * createOrUpdateFileContents and git tree commits so a subsequent getContent
+ * on the same path returns them — mirroring real GitHub: 404 before write,
+ * content after.
  */
 function makeGoodOctokit() {
   const written = new Map<string, string>(); // path -> base64 content
+  const blobs = new Map<string, string>(); // blob sha -> raw utf-8 content
+  const trees = new Map<
+    string,
+    Array<{ path?: string; sha?: string | null }>
+  >();
+  let blobId = 0;
+  let treeId = 0;
+  let commitId = 0;
   const nf = () => {
     const e = new Error("Not Found") as Error & { status: number };
     e.status = 404;
     throw e;
   };
+  const repos = {
+    get: vi.fn(async () => ({ data: { default_branch: "main" } })),
+    listCommits: vi.fn(async () => ({ data: [] })),
+    createOrUpdateFileContents: vi.fn(
+      async ({ path, content }: { path: string; content: string }) => {
+        written.set(path, content);
+        return { data: { content: { sha: `sha-${path}` }, commit: {} } };
+      },
+    ),
+    getContent: vi.fn(async ({ path }: { path: string }) => {
+      if (path.endsWith(".state.json")) return nf();
+      const c = written.get(path);
+      if (!c) return nf();
+      return {
+        data: {
+          type: "file",
+          content: c,
+          encoding: "base64",
+          sha: `sha-${path}`,
+          html_url: `https://github.com/acme/widgets/blob/main/${path}`,
+        },
+      };
+    }),
+  };
+
   return {
-    repos: {
-      get: vi.fn(async () => ({ data: { default_branch: "main" } })),
-      listCommits: vi.fn(async () => ({ data: [] })),
-      createOrUpdateFileContents: vi.fn(
-        async ({ path, content }: { path: string; content: string }) => {
-          written.set(path, content);
-          return { data: { content: { sha: `sha-${path}` }, commit: {} } };
+    repos,
+    rest: { repos },
+    git: {
+      getRef: vi.fn(async () => ({ data: { object: { sha: "commit-base" } } })),
+      getCommit: vi.fn(async () => ({ data: { tree: { sha: "tree-base" } } })),
+      createBlob: vi.fn(async ({ content }: { content: string }) => {
+        const sha = `blob-${++blobId}`;
+        blobs.set(sha, content);
+        return { data: { sha } };
+      }),
+      createTree: vi.fn(
+        async ({
+          tree,
+        }: {
+          tree: Array<{ path?: string; sha?: string | null }>;
+        }) => {
+          const sha = `tree-${++treeId}`;
+          trees.set(sha, tree);
+          return { data: { sha } };
         },
       ),
-      getContent: vi.fn(async ({ path }: { path: string }) => {
-        if (path.endsWith(".state.json")) return nf();
-        const c = written.get(path);
-        if (!c) return nf();
-        return { data: { content: c, sha: `sha-${path}` } };
+      createCommit: vi.fn(async ({ tree }: { tree: string }) => {
+        const sha = `commit-${++commitId}`;
+        trees.set(sha, trees.get(tree) ?? []);
+        return { data: { sha } };
+      }),
+      updateRef: vi.fn(async ({ sha }: { sha: string }) => {
+        for (const entry of trees.get(sha) ?? []) {
+          if (!entry.path) continue;
+          if (entry.sha === null) {
+            written.delete(entry.path);
+            continue;
+          }
+          const content = blobs.get(entry.sha ?? "");
+          if (content !== undefined) {
+            written.set(
+              entry.path,
+              Buffer.from(content, "utf-8").toString("base64"),
+            );
+          }
+        }
+        return { data: {} };
       }),
     },
   };
@@ -98,28 +163,48 @@ const bundle = {
   kodyCompany: COMPANY_BUNDLE_VERSION,
   exportedAt: "",
   exportedFrom: "",
-  staff: [
+  agent: [
     {
       slug: "cto",
       title: "CTO",
       body: "x",
       schedule: null,
       disabled: false,
-      staff: null,
+      agent: null,
+      reviewer: null,
+      action: null,
+      mentions: [],
+      agentAction: null,
+      agentActions: [],
+      agentResponsibilityTools: [],
+      tickScript: null,
+      readsFrom: [],
+      writesTo: [],
     },
   ],
-  duties: [
+  agentResponsibilities: [
     {
       slug: "nightly",
       title: "N",
       body: "y",
       schedule: "1d" as const,
       disabled: false,
-      staff: "cto",
+      agent: "cto",
+      reviewer: "qa",
+      action: "nightly",
+      mentions: [],
+      agentAction: null,
+      agentActions: [],
+      agentResponsibilityTools: [],
+      tickScript: null,
+      readsFrom: [],
+      writesTo: [],
     },
   ],
+  contexts: [],
   commands: [{ slug: "review", description: "d", argumentHint: "", body: "B" }],
-  executables: [],
+  agentActions: [],
+  goals: [],
   instructions: "Be terse.",
   config: null,
 };
@@ -133,11 +218,13 @@ describe("company import survives a cleared/bad request-context octokit", () => 
     const good = makeGoodOctokit();
 
     const result = await applyCompanyBundle(good as never, bundle, "skip");
-
     // Pre-fix: the existence-check read + confirm read used getOctokit()
     // (badOctokit) → 401 → every entry reported failed. Post-fix: all created.
-    expect(result.staff).toMatchObject({ created: 1, failed: 0 });
-    expect(result.duties).toMatchObject({ created: 1, failed: 0 });
+    expect(result.agent).toMatchObject({ created: 1, failed: 0 });
+    expect(result.agentResponsibilities).toMatchObject({
+      created: 1,
+      failed: 0,
+    });
     expect(result.commands).toMatchObject({ created: 1, failed: 0 });
     expect(result.instructions).toBe("created");
     expect(result.notes).toEqual([]);
@@ -154,9 +241,12 @@ describe("company import survives a cleared/bad request-context octokit", () => 
     good.repos.createOrUpdateFileContents.mockRejectedValueOnce(badError());
 
     const result = await applyCompanyBundle(good as never, bundle, "skip");
-    // The one staff write genuinely failed; everything else still succeeded.
-    expect(result.staff).toMatchObject({ created: 0, failed: 1 });
-    expect(result.duties).toMatchObject({ created: 1, failed: 0 });
+    // The one agent write genuinely failed; everything else still succeeded.
+    expect(result.agent).toMatchObject({ created: 0, failed: 1 });
+    expect(result.agentResponsibilities).toMatchObject({
+      created: 1,
+      failed: 0,
+    });
     expect(result.notes.some((n) => n.includes("Bad credentials"))).toBe(true);
   });
 });

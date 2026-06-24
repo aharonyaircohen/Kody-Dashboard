@@ -15,23 +15,64 @@ import {
   getUserOctokit,
   getRequestAuth,
 } from "@dashboard/lib/auth";
+import { resolveBackgroundToken } from "@dashboard/lib/auth/background-token";
 import {
   invalidateDashboardConfigCache,
   readDashboardConfig,
   writeDashboardConfig,
   type DashboardConfig,
 } from "@dashboard/lib/dashboard-config/store";
+import { createUserOctokit } from "@dashboard/lib/github-client";
 import { logger } from "@dashboard/lib/logger";
+
+const PreviewUrlSchema = z
+  .string()
+  .max(2048)
+  .refine(
+    (value) => {
+      if (
+        /^\/api\/kody\/views\/(?!_t\/)[A-Za-z0-9][A-Za-z0-9-]{0,63}(?:\/[^\s?#]*)?(?:\?[^#\s]*)?(?:#[^\s]*)?$/.test(
+          value,
+        )
+      ) {
+        return true;
+      }
+      try {
+        const parsed = new URL(value);
+        return parsed.protocol === "http:" || parsed.protocol === "https:";
+      } catch {
+        return false;
+      }
+    },
+    { message: "Must be a valid URL" },
+  );
 
 const PreviewEnvironmentSchema = z.object({
   id: z.string().min(1).max(64),
   label: z.string().min(1).max(48),
-  url: z.string().url({ message: "Must be a valid URL" }).max(2048),
+  url: PreviewUrlSchema,
   // Present only for uploaded-file environments — keys the Fly static
   // preview so removal can also tear it down.
   staticId: z.string().min(1).max(64).optional(),
   // Absolute expiry (ms epoch) for uploaded previews; reaped past this.
   expiresAt: z.number().int().nonnegative().optional(),
+  // Present only repo-backed views stored under views/<id>.
+  repoViewPath: z
+    .string()
+    .regex(/^(?:\.kody\/)?views\/[a-z0-9][a-z0-9-]{0,63}$/)
+    .optional(),
+  // Small, non-secret summary of uploaded files so chat can understand the
+  // preview even before the inspector extension can read the iframe.
+  uploadContext: z
+    .object({
+      name: z.string().min(1).max(255),
+      mimeType: z.string().max(120).optional(),
+      size: z.number().int().nonnegative().optional(),
+      title: z.string().max(200).optional(),
+      outline: z.string().max(4000).optional(),
+      textPreview: z.string().max(2000).optional(),
+    })
+    .optional(),
 });
 
 const UpsertSchema = z.object({
@@ -55,7 +96,10 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ error: "no_repo_context" }, { status: 400 });
   }
 
-  const octokit = await getUserOctokit(req);
+  const background = await resolveBackgroundToken(auth.owner, auth.repo);
+  const octokit = background
+    ? createUserOctokit(background.token)
+    : await getUserOctokit(req);
   if (!octokit)
     return NextResponse.json({ error: "no_octokit" }, { status: 401 });
 
@@ -127,7 +171,7 @@ export async function PUT(req: NextRequest) {
     }
     if ("namedPreviews" in bodyKeys) {
       const list = parsed.data.namedPreviews ?? [];
-      next.namedPreviews = list.length > 0 ? list : undefined;
+      next.namedPreviews = list;
       commitMessage = `chore(dashboard): update preview environments`;
     }
     if ("brainFlyChatEnabled" in bodyKeys) {

@@ -3,7 +3,7 @@
  * @domain kody
  * @pattern triage-strip
  * @ai-summary Cross-tile triage list for the dashboard homepage. Pulls items
- *   from the same hooks the source cards already poll (CI, tasks, duties,
+ *   from the same hooks the source cards already poll (CI, tasks, agentResponsibilities,
  *   engine health), ranks them by severity × age, and lets the operator
  *   dismiss with a 4-hour TTL so the strip doesn't get noisy.
  *
@@ -16,7 +16,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useKodyTasks } from "./index";
 import { useDefaultBranchCI } from "./useDefaultBranchCI";
-import { useDuties, useRunDuty } from "./useDuties";
+import { useAgentResponsibilities, useRunAgentResponsibility } from "./useAgentResponsibilities";
 import { useHealth } from "./useHealth";
 import { useRerunCIRun, useRetryTask } from "./useDashboardActions";
 import { useGitHubIdentity } from "./useGitHubIdentity";
@@ -107,12 +107,12 @@ export interface UseTriageStripResult {
 export function useTriageStrip(limit = 4): UseTriageStripResult {
   const { data: ci } = useDefaultBranchCI();
   const { data: tasks } = useKodyTasks();
-  const { data: duties } = useDuties();
+  const { data: agentResponsibilities } = useAgentResponsibilities();
   const { data: health } = useHealth();
   const { githubUser } = useGitHubIdentity();
   const rerunCI = useRerunCIRun();
   const retryTask = useRetryTask(githubUser?.login);
-  const runDuty = useRunDuty();
+  const runAgentResponsibility = useRunAgentResponsibility();
   const [dismissed, dismiss] = useDismissedState();
 
   const items = useMemo<TriageItem[]>(() => {
@@ -170,21 +170,21 @@ export function useTriageStrip(limit = 4): UseTriageStripResult {
       });
     }
 
-    // Failing duties — severity 2
-    for (const d of (duties ?? [])
+    // Failing agentResponsibilities — severity 2
+    for (const d of (agentResponsibilities ?? [])
       .filter((d) => !d.disabled && d.lastOutcome === "failed")
       .slice(0, 2)) {
       out.push({
-        id: `duty:${d.slug}`,
+        id: `agentResponsibility:${d.slug}`,
         severity: 2,
-        title: `Duty: ${d.title}`,
-        detail: d.staff ?? undefined,
-        href: "/duties",
+        title: `AgentResponsibility: ${d.title}`,
+        detail: d.agent ?? undefined,
+        href: "/agent-responsibilities",
         occurredAt: d.lastTickAt ?? d.updatedAt,
         action: {
           label: "Re-run",
-          onClick: () => runDuty.mutate({ slug: d.slug }),
-          pending: runDuty.isPending,
+          onClick: () => runAgentResponsibility.mutate({ slug: d.slug }),
+          pending: runAgentResponsibility.isPending,
         },
       });
     }
@@ -220,12 +220,12 @@ export function useTriageStrip(limit = 4): UseTriageStripResult {
   }, [
     ci,
     tasks,
-    duties,
+    agentResponsibilities,
     health,
     dismissed,
     rerunCI,
     retryTask,
-    runDuty,
+    runAgentResponsibility,
     limit,
   ]);
 
