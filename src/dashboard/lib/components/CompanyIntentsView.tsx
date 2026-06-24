@@ -10,6 +10,7 @@ import { useEffect, useMemo, useState, type FormEvent } from "react";
 import {
   AlertCircle,
   Archive,
+  ArrowLeft,
   CalendarClock,
   CircleDot,
   Compass,
@@ -197,9 +198,7 @@ export function CompanyIntentsView() {
         iconClassName="text-cyan-400"
         subtitle={`${intents.length} ${intents.length === 1 ? "intent" : "intents"} · ${activeCount} active · ${warningCount} warnings`}
         error={
-          error
-            ? `Failed to load intents: ${(error as Error).message}`
-            : null
+          error ? `Failed to load intents: ${(error as Error).message}` : null
         }
         search={query}
         onSearch={setQuery}
@@ -244,6 +243,7 @@ export function CompanyIntentsView() {
               record={selected}
               running={runIntent.isPending}
               updating={updateIntent.isPending}
+              onBack={() => setSelectedId(null)}
               onEdit={() => openEdit(selected)}
               onRun={() => runIntent.mutate(selected.id)}
               onLifecycle={setLifecycle}
@@ -292,15 +292,18 @@ export function CompanyIntentsView() {
         )}
       </MasterDetailShell>
 
-      <Dialog open={formMode !== null} onOpenChange={(open) => !open && setFormMode(null)}>
+      <Dialog
+        open={formMode !== null}
+        onOpenChange={(open) => !open && setFormMode(null)}
+      >
         <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-3xl">
           <DialogHeader>
             <DialogTitle>
               {formMode === "create" ? "New intent" : "Edit intent"}
             </DialogTitle>
             <DialogDescription>
-              Define what the CTO should optimize for when managing this
-              company portfolio.
+              Define what the CTO should optimize for when managing this company
+              portfolio.
             </DialogDescription>
           </DialogHeader>
           <form onSubmit={submitForm} className="space-y-5">
@@ -425,7 +428,10 @@ export function CompanyIntentsView() {
                 <Textarea
                   value={form.metrics}
                   onChange={(event) =>
-                    setForm((prev) => ({ ...prev, metrics: event.target.value }))
+                    setForm((prev) => ({
+                      ...prev,
+                      metrics: event.target.value,
+                    }))
                   }
                   placeholder="One per line"
                 />
@@ -445,7 +451,9 @@ export function CompanyIntentsView() {
                 label="QA"
                 value={form.qaDepth}
                 values={["light", "standard", "strict"]}
-                onChange={(qaDepth) => setForm((prev) => ({ ...prev, qaDepth }))}
+                onChange={(qaDepth) =>
+                  setForm((prev) => ({ ...prev, qaDepth }))
+                }
               />
               <SelectField
                 label="Blockers"
@@ -458,11 +466,7 @@ export function CompanyIntentsView() {
               <SelectField
                 label="Approval"
                 value={form.approval}
-                values={[
-                  "none",
-                  "before-production",
-                  "before-risky-actions",
-                ]}
+                values={["none", "before-production", "before-risky-actions"]}
                 onChange={(approval) =>
                   setForm((prev) => ({ ...prev, approval }))
                 }
@@ -620,6 +624,7 @@ function IntentDetail({
   record,
   running,
   updating,
+  onBack,
   onEdit,
   onRun,
   onLifecycle,
@@ -627,6 +632,7 @@ function IntentDetail({
   record: CompanyIntentRecord;
   running: boolean;
   updating: boolean;
+  onBack: () => void;
   onEdit: () => void;
   onRun: () => void;
   onLifecycle: (status: CompanyIntentStatus) => void;
@@ -634,117 +640,207 @@ function IntentDetail({
   const { intent, decisions, managerHealth } = record;
   const warnings = companyIntentWarnings(intent, managerHealth);
   return (
-    <div className="flex min-h-full flex-col">
-      <div className="border-b border-border p-4">
-        <div className="flex flex-col gap-3 xl:flex-row xl:items-start xl:justify-between">
-          <div className="min-w-0">
-            <div className="mb-2 flex flex-wrap gap-2">
-              <StatusBadge status={intent.status} />
-              <Badge variant="secondary">{intent.posture}</Badge>
-              <Badge variant="outline">priority {intent.priority}</Badge>
+    <article className="min-h-full">
+      <div className="border-b border-border bg-card/20">
+        <div className="mx-auto max-w-4xl space-y-6 p-4 md:p-8">
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={onBack}
+            className="-ml-2 gap-1 text-muted-foreground md:hidden"
+          >
+            <ArrowLeft className="h-4 w-4" />
+            All intents
+          </Button>
+
+          <header className="flex flex-wrap items-start justify-between gap-4">
+            <div className="min-w-0 flex-1 space-y-2">
+              <h1 className="inline-flex flex-wrap items-center gap-3 break-words font-mono text-2xl font-semibold tracking-tight md:text-3xl">
+                <span>{intent.id}</span>
+                <StatusBadge status={intent.status} />
+                <span className="rounded bg-white/[0.06] px-2 py-0.5 font-sans text-[11px] uppercase tracking-wide text-white/50">
+                  {intent.posture}
+                </span>
+                <span className="rounded bg-white/[0.06] px-2 py-0.5 font-sans text-[11px] uppercase tracking-wide text-white/50">
+                  priority {intent.priority}
+                </span>
+              </h1>
+              <p className="flex flex-wrap items-center gap-3 break-words text-xs text-muted-foreground">
+                <span>{intent.manager.agent}</span>
+                <span>·</span>
+                <span>{intent.manager.reviewEvery}</span>
+                <span>·</span>
+                <span>{decisions.length} decisions</span>
+              </p>
             </div>
-            <h2 className="break-words text-title-md font-semibold">
-              {intent.id}
-            </h2>
-            <p className="mt-2 max-w-4xl break-words text-body-sm text-muted-foreground">
+
+            <div className="flex shrink-0 items-center gap-2">
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={onRun}
+                disabled={running || intent.status !== "active"}
+                className="h-8 w-8 px-0"
+                title="Review now"
+                aria-label="Review now"
+              >
+                {running ? (
+                  <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                ) : (
+                  <Play className="h-3.5 w-3.5" />
+                )}
+              </Button>
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={onEdit}
+                className="h-8 w-8 px-0"
+                title="Edit intent"
+                aria-label="Edit intent"
+              >
+                <Edit3 className="h-3.5 w-3.5" />
+              </Button>
+              {intent.status === "active" ? (
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={() => onLifecycle("paused")}
+                  disabled={updating}
+                  className="h-8 w-8 px-0"
+                  title="Pause intent"
+                  aria-label="Pause intent"
+                >
+                  {updating ? (
+                    <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                  ) : (
+                    <Pause className="h-3.5 w-3.5" />
+                  )}
+                </Button>
+              ) : (
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={() => onLifecycle("active")}
+                  disabled={updating}
+                  className="h-8 w-8 px-0"
+                  title="Activate intent"
+                  aria-label="Activate intent"
+                >
+                  {updating ? (
+                    <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                  ) : (
+                    <Play className="h-3.5 w-3.5" />
+                  )}
+                </Button>
+              )}
+              {intent.status !== "archived" ? (
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={() => onLifecycle("archived")}
+                  disabled={updating}
+                  className="h-8 w-8 px-0"
+                  title="Archive intent"
+                  aria-label="Archive intent"
+                >
+                  <Archive className="h-3.5 w-3.5" />
+                </Button>
+              ) : null}
+            </div>
+          </header>
+
+          <div className="rounded-xl border border-white/[0.08] bg-black/20 p-4 md:p-5">
+            <p className="break-words text-sm text-white/80">
               {intent.for || "No intent target"}
             </p>
           </div>
-          <div className="flex flex-wrap gap-2">
-            <Button type="button" variant="outline" onClick={onEdit} className="gap-2">
-              <Edit3 className="h-4 w-4" aria-hidden="true" />
-              Edit
-            </Button>
-            <Button
-              type="button"
-              variant="outline"
-              onClick={onRun}
-              disabled={running || intent.status !== "active"}
-              className="gap-2"
-            >
-              {running ? (
-                <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />
-              ) : (
-                <Play className="h-4 w-4" aria-hidden="true" />
-              )}
-              Review now
-            </Button>
-            {intent.status === "active" ? (
-              <Button
-                type="button"
-                variant="outline"
-                onClick={() => onLifecycle("paused")}
-                disabled={updating}
-                className="gap-2"
-              >
-                <Pause className="h-4 w-4" aria-hidden="true" />
-                Pause
-              </Button>
-            ) : (
-              <Button
-                type="button"
-                variant="outline"
-                onClick={() => onLifecycle("active")}
-                disabled={updating}
-                className="gap-2"
-              >
-                <Play className="h-4 w-4" aria-hidden="true" />
-                Activate
-              </Button>
-            )}
-            {intent.status !== "archived" ? (
-              <Button
-                type="button"
-                variant="outline"
-                onClick={() => onLifecycle("archived")}
-                disabled={updating}
-                className="gap-2"
-              >
-                <Archive className="h-4 w-4" aria-hidden="true" />
-                Archive
-              </Button>
-            ) : null}
-          </div>
         </div>
       </div>
 
-      <div className="grid gap-0 lg:grid-cols-[minmax(0,1fr)_320px]">
-        <div className="min-w-0 divide-y divide-border">
-          {warnings.length ? (
-            <Block title="Warnings" icon={AlertCircle}>
-              <div className="flex flex-wrap gap-2">
-                {warnings.map((warning) => (
-                  <Badge key={warning} variant="outline" className="text-amber-600">
-                    {warning}
-                  </Badge>
-                ))}
-              </div>
-            </Block>
-          ) : null}
-          <Block title="Policy" icon={ShieldCheck}>
-            <PolicyGrid intent={intent} />
+      <div className="mx-auto max-w-4xl space-y-6 p-4 md:p-8">
+        {warnings.length ? (
+          <Block
+            title="Warnings"
+            subtitle="Issues that can block the CTO loop"
+            icon={AlertCircle}
+            count={warnings.length}
+          >
+            <div className="flex flex-wrap gap-2">
+              {warnings.map((warning) => (
+                <Badge
+                  key={warning}
+                  variant="outline"
+                  className="text-amber-600"
+                >
+                  {warning}
+                </Badge>
+              ))}
+            </div>
           </Block>
-          <Block title="Principles" icon={Compass}>
-            <TextList items={intent.principles} empty="No principles set." />
-          </Block>
-          <Block title="Metrics" icon={ShieldCheck}>
-            <TextList items={intent.metrics} empty="No metrics set." />
-          </Block>
-          <Block title="Decision Log" icon={CalendarClock}>
-            <DecisionLog decisions={decisions} />
-          </Block>
-        </div>
+        ) : null}
 
-        <aside className="border-t border-border p-4 lg:border-l lg:border-t-0">
-          <div className="space-y-5">
+        <Block
+          title="Policy"
+          subtitle="Release and automation posture"
+          icon={ShieldCheck}
+        >
+          <PolicyGrid intent={intent} />
+        </Block>
+
+        <div className="grid gap-6 xl:grid-cols-2">
+          <Block
+            title="CTO Loop"
+            subtitle="Manager responsibility wiring"
+            icon={Compass}
+          >
             <ManagerHealth intent={intent} record={record} />
-            <ChipGroup title="Repos" items={intent.scope.repos} />
-            <ChipGroup title="Areas" items={intent.scope.areas} />
-            <Portfolio intent={intent} />
-          </div>
-        </aside>
+          </Block>
+          <Block
+            title="Scope"
+            subtitle="Where this intent applies"
+            icon={Target}
+          >
+            <div className="space-y-5">
+              <ChipGroup title="Repos" items={intent.scope.repos} />
+              <ChipGroup title="Areas" items={intent.scope.areas} />
+              <Portfolio intent={intent} />
+            </div>
+          </Block>
+        </div>
+
+        <Block
+          title="Principles"
+          subtitle="Rules the CTO should preserve"
+          icon={Compass}
+          count={intent.principles.length}
+        >
+          <TextList items={intent.principles} empty="No principles set." />
+        </Block>
+
+        <Block
+          title="Metrics"
+          subtitle="Signals used to judge progress"
+          icon={ShieldCheck}
+          count={intent.metrics.length}
+        >
+          <TextList items={intent.metrics} empty="No metrics set." />
+        </Block>
+
+        <Block
+          title="Decision Log"
+          subtitle="Recent manager decisions"
+          icon={CalendarClock}
+          count={decisions.length}
+        >
+          <DecisionLog decisions={decisions} />
+        </Block>
       </div>
-    </div>
+    </article>
   );
 }
 
@@ -757,35 +853,36 @@ function ManagerHealth({
 }) {
   const health = record.managerHealth;
   return (
-    <div>
-      <h3 className="text-body-sm font-medium">CTO loop</h3>
-      <dl className="mt-2 space-y-2 text-body-xs text-muted-foreground">
-        <Meta label="Agent" value={intent.manager.agent} />
-        <Meta label="Review" value={intent.manager.reviewEvery} />
-        <Meta
-          label="Loop"
-          value={health?.loop.exists ? `${health.loop.id} (${health.loop.state ?? "ready"})` : `${intent.manager.loop} missing`}
-        />
-        <Meta
-          label="Responsibility"
-          value={
-            health?.responsibility.exists
-              ? health.responsibility.disabled
-                ? `${health.responsibility.id} disabled`
-                : `${health.responsibility.id} ready`
-              : `${intent.manager.responsibility} missing`
-          }
-        />
-        <Meta
-          label="Last review"
-          value={formatDate(intent.manager.lastReviewedAt)}
-        />
-        <Meta
-          label="Last tick"
-          value={formatDate(health?.responsibility.lastTickAt ?? undefined)}
-        />
-      </dl>
-    </div>
+    <dl className="space-y-2 text-body-xs text-muted-foreground">
+      <Meta label="Agent" value={intent.manager.agent} />
+      <Meta label="Review" value={intent.manager.reviewEvery} />
+      <Meta
+        label="Loop"
+        value={
+          health?.loop.exists
+            ? `${health.loop.id} (${health.loop.state ?? "ready"})`
+            : `${intent.manager.loop} missing`
+        }
+      />
+      <Meta
+        label="Responsibility"
+        value={
+          health?.responsibility.exists
+            ? health.responsibility.disabled
+              ? `${health.responsibility.id} disabled`
+              : `${health.responsibility.id} ready`
+            : `${intent.manager.responsibility} missing`
+        }
+      />
+      <Meta
+        label="Last review"
+        value={formatDate(intent.manager.lastReviewedAt)}
+      />
+      <Meta
+        label="Last tick"
+        value={formatDate(health?.responsibility.lastTickAt ?? undefined)}
+      />
+    </dl>
   );
 }
 
@@ -809,7 +906,7 @@ function PolicyGrid({ intent }: { intent: CompanyIntent }) {
       <div className="sm:col-span-2 xl:col-span-3">
         <ChipGroup
           title="Human required for"
-          items={automation.requiresHumanFor}
+          items={automation.requiresHumanFor ?? []}
         />
       </div>
     </div>
@@ -821,11 +918,19 @@ function Portfolio({ intent }: { intent: CompanyIntent }) {
     <div>
       <h3 className="text-body-sm font-medium">Portfolio</h3>
       <div className="mt-2 space-y-3">
-        <LinkedChipGroup title="Goals" items={intent.portfolio.goals} href="/agent-goals" />
-        <LinkedChipGroup title="Loops" items={intent.portfolio.loops} href="/agent-loops" />
+        <LinkedChipGroup
+          title="Goals"
+          items={intent.portfolio.goals ?? []}
+          href="/agent-goals"
+        />
+        <LinkedChipGroup
+          title="Loops"
+          items={intent.portfolio.loops ?? []}
+          href="/agent-loops"
+        />
         <LinkedChipGroup
           title="Responsibilities"
-          items={intent.portfolio.responsibilities}
+          items={intent.portfolio.responsibilities ?? []}
           href="/agent-responsibilities"
         />
       </div>
@@ -833,11 +938,7 @@ function Portfolio({ intent }: { intent: CompanyIntent }) {
   );
 }
 
-function DecisionLog({
-  decisions,
-}: {
-  decisions: CompanyIntentDecisionLog[];
-}) {
+function DecisionLog({ decisions }: { decisions: CompanyIntentDecisionLog[] }) {
   if (decisions.length === 0) {
     return (
       <p className="text-body-sm text-muted-foreground">
@@ -875,20 +976,37 @@ function DecisionLog({
 
 function Block({
   title,
+  subtitle,
   icon: Icon,
+  count,
   children,
 }: {
   title: string;
+  subtitle?: string;
   icon: typeof Compass;
+  count?: number;
   children: React.ReactNode;
 }) {
   return (
-    <section className="p-4">
-      <h3 className="mb-3 flex items-center gap-2 text-body-sm font-medium">
-        <Icon className="h-4 w-4 text-cyan-500" aria-hidden="true" />
-        {title}
-      </h3>
-      {children}
+    <section className="rounded-xl border border-white/[0.08] bg-white/[0.02]">
+      <header className="flex items-start justify-between gap-4 border-b border-white/[0.06] px-4 py-3">
+        <div className="flex min-w-0 items-start gap-2">
+          <Icon
+            className="mt-0.5 h-4 w-4 shrink-0 text-sky-300"
+            aria-hidden="true"
+          />
+          <div className="min-w-0">
+            <h2 className="text-sm font-medium text-white/90">{title}</h2>
+            {subtitle ? (
+              <p className="text-xs text-muted-foreground">{subtitle}</p>
+            ) : null}
+          </div>
+        </div>
+        {typeof count === "number" ? (
+          <span className="shrink-0 text-xs text-white/45">{count}</span>
+        ) : null}
+      </header>
+      <div className="p-4">{children}</div>
     </section>
   );
 }
@@ -1027,7 +1145,7 @@ function StatusBadge({ status }: { status: CompanyIntentStatus }) {
     <Badge
       variant="outline"
       className={cn(
-        "shrink-0 capitalize",
+        "shrink-0 font-sans text-xs capitalize",
         status === "active" && "border-emerald-500/40 text-emerald-600",
         status === "paused" && "border-amber-500/40 text-amber-600",
         status === "archived" && "border-muted-foreground/30",
@@ -1190,10 +1308,9 @@ function sectionText(label: string, value: string): string {
   return trimmed ? `${label}: ${trimmed}` : "";
 }
 
-function parsePortfolioText(value: string): Pick<
-  IntentFormState,
-  "goals" | "loops" | "responsibilities"
-> {
+function parsePortfolioText(
+  value: string,
+): Pick<IntentFormState, "goals" | "loops" | "responsibilities"> {
   const result = { goals: "", loops: "", responsibilities: "" };
   let current: keyof typeof result | null = null;
   for (const line of value.split(/\r?\n/)) {
@@ -1204,7 +1321,9 @@ function parsePortfolioText(value: string): Pick<
       continue;
     }
     if (current && line.trim()) {
-      result[current] = [result[current], line.trim()].filter(Boolean).join("\n");
+      result[current] = [result[current], line.trim()]
+        .filter(Boolean)
+        .join("\n");
     }
   }
   return result;
