@@ -22,7 +22,8 @@
   "company": {
     "activeGoals": [
       "codebase-health",
-      "ci-health"
+      "ci-health",
+      "prs-stay-mergeable"
     ],
     "activeAgents": [
       "ceo"
