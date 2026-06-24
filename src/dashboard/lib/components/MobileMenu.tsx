@@ -14,9 +14,9 @@
  */
 "use client";
 
-import { type ReactNode } from "react";
+import { useState, type ReactNode } from "react";
 import Link from "next/link";
-import { Github, LogOut } from "lucide-react";
+import { Github, LogOut, Plus } from "lucide-react";
 
 import { Avatar, AvatarFallback, AvatarImage } from "@dashboard/ui/avatar";
 import {
@@ -37,6 +37,8 @@ import {
   SETTINGS_NAV_SECTIONS,
 } from "./settings-nav";
 import { InboxBadge } from "./InboxBadge";
+import { useAuth } from "../auth-context";
+import { AddRepoForm } from "./AddRepoForm";
 
 const APP_VERSION = process.env.NEXT_PUBLIC_APP_VERSION;
 
@@ -60,9 +62,14 @@ export function MobileMenu({
   extras,
   bottomCta,
 }: MobileMenuProps) {
+  const { auth } = useAuth();
   const { githubUser, connectedRepo, clearGitHubUser } = useGitHubIdentity();
+  const [addRepoOpen, setAddRepoOpen] = useState(false);
 
-  const close = () => onOpenChange(false);
+  const close = () => {
+    setAddRepoOpen(false);
+    onOpenChange(false);
+  };
 
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
@@ -123,6 +130,26 @@ export function MobileMenu({
             </div>
           </div>
         )}
+
+        <div className="px-4 pt-4">
+          <div className="text-[11px] uppercase tracking-wider text-muted-foreground/80 mb-2 px-1">
+            Repository
+          </div>
+          {addRepoOpen ? (
+            <div className="rounded-xl border border-white/[0.06] bg-white/[0.02] p-3">
+              <AddRepoForm isBootstrap={!auth} onAdded={close} />
+            </div>
+          ) : (
+            <button
+              type="button"
+              onClick={() => setAddRepoOpen(true)}
+              className="flex h-11 w-full items-center justify-center gap-2 rounded-xl border border-white/[0.08] bg-white/[0.03] px-3 text-sm font-medium text-foreground transition hover:bg-white/[0.06]"
+            >
+              <Plus className="h-4 w-4" />
+              {auth ? "Add repository" : "Connect repository"}
+            </button>
+          )}
+        </div>
 
         {/* Views — Dashboard / Tasks / Vibe. The primary view switch, shared
             with the desktop rail (PRIMARY_VIEW_ITEMS) so the two can't drift. */}
