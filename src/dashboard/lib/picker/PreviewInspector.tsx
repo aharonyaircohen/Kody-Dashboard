@@ -35,6 +35,8 @@ import {
   formatPickedElementLabel,
   PICKER_DOWNLOAD_PATH,
   PICKER_DOCS_URL,
+  PICKER_FIREFOX_DOWNLOAD_PATH,
+  PICKER_FIREFOX_INSTALL_HINT,
   PICKER_INSTALL_HINT,
   type PreviewAction,
 } from "./protocol";
@@ -182,14 +184,23 @@ export function PreviewInspector({
       toast.success(`Added ${formatPickedElementLabel(el)} to chat`);
     },
   });
+  const isFirefox =
+    typeof navigator !== "undefined" &&
+    /(?:Firefox|FxiOS)\//.test(navigator.userAgent);
+  const pickerDownloadPath = isFirefox
+    ? PICKER_FIREFOX_DOWNLOAD_PATH
+    : PICKER_DOWNLOAD_PATH;
+  const pickerInstallHint = isFirefox
+    ? PICKER_FIREFOX_INSTALL_HINT
+    : PICKER_INSTALL_HINT;
 
   if (!picker.available) {
     return (
       <a
-        href={PICKER_DOWNLOAD_PATH}
+        href={pickerDownloadPath}
         download
         onClick={() =>
-          toast.info(PICKER_INSTALL_HINT, {
+          toast.info(pickerInstallHint, {
             duration: 12000,
             action: {
               label: "Guide",
