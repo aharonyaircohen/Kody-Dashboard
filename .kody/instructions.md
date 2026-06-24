@@ -1,1 +1,1 @@
-providein simpler terms larger view replies
+provide simpler terms larger view replies
