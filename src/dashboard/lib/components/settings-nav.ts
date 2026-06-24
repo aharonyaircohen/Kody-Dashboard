@@ -15,6 +15,7 @@ import {
   Brain,
   Building2,
   CheckCircle2,
+  Compass,
   Cpu,
   Database,
   FileText,
@@ -228,6 +229,14 @@ export const SETTINGS_NAV_SECTIONS: readonly SettingsNavSection[] = [
         exact: true,
         description: "Finite outcomes driven by missing evidence.",
         tint: "text-sky-300 bg-sky-500/10",
+      },
+      {
+        href: "/company-intents",
+        label: "Intents",
+        icon: Compass,
+        exact: true,
+        description: "CTO guidance for company goals, loops, and responsibilities.",
+        tint: "text-cyan-300 bg-cyan-500/10",
       },
       {
         href: "/agent-loops",
