@@ -9,8 +9,5 @@ export function getCmsAdapter(name: string): CmsAdapter | null {
   return ADAPTERS.get(name) ?? null;
 }
 
-export type {
-  CmsAdapter,
-  CmsAdapterContext,
-} from "./types";
+export type { CmsAdapter, CmsAdapterContext } from "./types";
 export { CmsAdapterError } from "./types";

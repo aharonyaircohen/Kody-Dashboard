@@ -326,9 +326,15 @@ async function fetchTickState(
   slug: string,
 ): Promise<TickStateFields> {
   try {
-    const file = await readStateText(octokit, getOwner(), getRepo(), tickStatePath(dir, slug), {
-      headers: { "If-None-Match": "" },
-    });
+    const file = await readStateText(
+      octokit,
+      getOwner(),
+      getRepo(),
+      tickStatePath(dir, slug),
+      {
+        headers: { "If-None-Match": "" },
+      },
+    );
     if (!file) return EMPTY_TICK_STATE;
     const raw = file.content;
     const parsed: unknown = JSON.parse(raw);
@@ -415,7 +421,8 @@ function buildFileContent(
   if (reviewer) fm.reviewer = reviewer.replace(/^@/, "");
   if (mentions.length > 0) fm.mentions = mentions;
   if (agentActions.length > 0) fm.agentActions = agentActions;
-  if (agentResponsibilityTools.length > 0) fm.agentResponsibilityTools = agentResponsibilityTools;
+  if (agentResponsibilityTools.length > 0)
+    fm.agentResponsibilityTools = agentResponsibilityTools;
   if (tickScript?.trim()) fm.tickScript = tickScript.trim();
   if (readsFrom.length > 0) fm.readsFrom = readsFrom;
   if (writesTo.length > 0) fm.writesTo = writesTo;
@@ -428,13 +435,18 @@ function effectiveAction(
   slug: string,
   frontmatter: TickFrontmatter,
 ): string | null {
-  return frontmatter.action ?? (stateDirPath(dir) === "agent-responsibilities" ? slug : null);
+  return (
+    frontmatter.action ??
+    (stateDirPath(dir) === "agent-responsibilities" ? slug : null)
+  );
 }
 
 function effectiveAgentAction(frontmatter: TickFrontmatter): string | null {
   return (
     frontmatter.agentAction ??
-    (frontmatter.agentActions?.length === 1 ? frontmatter.agentActions[0]! : null)
+    (frontmatter.agentActions?.length === 1
+      ? frontmatter.agentActions[0]!
+      : null)
   );
 }
 
@@ -477,9 +489,7 @@ export function createTickedFiles(config: TickedFilesConfig): TickedFilesApi {
     const slugs = entries
       .filter((e) => e.type === "file")
       .map((e) => ({ slug: slugFromName(e.name), name: e.name }))
-      .filter(
-        (e): e is { slug: string; name: string } => e.slug !== null,
-      );
+      .filter((e): e is { slug: string; name: string } => e.slug !== null);
 
     // Build a set of slugs that have state folders so we only pay for
     // per-file state reads when the engine has actually ticked the file.
@@ -544,8 +554,8 @@ export function createTickedFiles(config: TickedFilesConfig): TickedFilesApi {
             lastDurationMs: useActivity
               ? activity.durationMs
               : tickState.lastDurationMs,
-schedule: frontmatter.every ?? null,
-capabilityKind: null,
+            schedule: frontmatter.every ?? null,
+            capabilityKind: null,
             disabled: frontmatter.disabled === true,
             agent: frontmatter.agent ?? null,
             reviewer: frontmatter.reviewer ?? null,
@@ -553,7 +563,8 @@ capabilityKind: null,
             mentions: frontmatter.mentions ?? [],
             agentAction: effectiveAgentAction(frontmatter),
             agentActions: legacyAgentActions(frontmatter),
-            agentResponsibilityTools: frontmatter.agentResponsibilityTools ?? [],
+            agentResponsibilityTools:
+              frontmatter.agentResponsibilityTools ?? [],
             tickScript: frontmatter.tickScript ?? null,
             readsFrom: frontmatter.readsFrom ?? [],
             writesTo: frontmatter.writesTo ?? [],
@@ -628,8 +639,8 @@ capabilityKind: null,
         lastDurationMs: useActivity
           ? activity.durationMs
           : tickState.lastDurationMs,
-schedule: frontmatter.every ?? null,
-capabilityKind: null,
+        schedule: frontmatter.every ?? null,
+        capabilityKind: null,
         disabled: frontmatter.disabled === true,
         agent: frontmatter.agent ?? null,
         reviewer: frontmatter.reviewer ?? null,

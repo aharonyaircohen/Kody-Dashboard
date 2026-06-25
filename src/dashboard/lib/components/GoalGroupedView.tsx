@@ -216,7 +216,7 @@ export function useGoalCollapse(goals: Goal[], tasks: KodyTask[]) {
   );
 
   // Persisted across reloads/navigation. Default (first ever visit, nothing
-    // stored): collapse "Ungrouped" when missions exist, keep missions expanded.
+  // stored): collapse "Ungrouped" when missions exist, keep missions expanded.
   const {
     set: collapsed,
     has: isCollapsed,

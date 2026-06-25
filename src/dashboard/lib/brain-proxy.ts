@@ -184,7 +184,9 @@ export function formatAgentResponsibilityContext(
   if (!mc || mc.number == null) return null;
   const parts: string[] = [];
   parts.push(`[Current agentResponsibility]`);
-  parts.push(`- AgentResponsibility: #${mc.number}${mc.title ? ` — ${mc.title}` : ""}`);
+  parts.push(
+    `- AgentResponsibility: #${mc.number}${mc.title ? ` — ${mc.title}` : ""}`,
+  );
   if (mc.state) parts.push(`- State: ${mc.state}`);
   if (mc.labels?.length) parts.push(`- Labels: ${mc.labels.join(", ")}`);
   if (mc.body) {
@@ -215,7 +217,9 @@ export function buildDecoratedMessage(
     ? `[Repository]\nThe user has ${opts.repo} selected in the dashboard. All questions are about this repository unless they say otherwise — inspect its code/issues/PRs for context and refer to it by name.\n\nBefore making any code change or fix, first explain what you intend to change and why, then STOP and wait for the user to explicitly approve. Do NOT edit, commit, or push in the same turn as the explanation — the approval ask must be the last thing you do that turn. Only after the user says go: make the change, commit with a clear conventional-commit message, and push to the working branch as the final step — don't leave approved changes uncommitted.`
     : null;
   const taskPreamble = formatTaskContext(opts.taskContext);
-  const agentResponsibilityPreamble = formatAgentResponsibilityContext(opts.agentResponsibilityContext);
+  const agentResponsibilityPreamble = formatAgentResponsibilityContext(
+    opts.agentResponsibilityContext,
+  );
   // Style overlay goes LAST so its output rules win by recency over the
   // repo/task/agentResponsibility context blocks above it.
   const stylePreamble = opts.plainLanguage ? PLAIN_LANGUAGE_PREAMBLE : null;

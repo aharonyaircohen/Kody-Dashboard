@@ -36,12 +36,19 @@ const OUTCOMES = new Set(["completed", "failed", "unknown"]);
 function coerce(raw: unknown): CompanyActivityRecord | null {
   if (!raw || typeof raw !== "object") return null;
   const r = raw as Record<string, unknown>;
-  if (typeof r.ts !== "string" || typeof r.agentResponsibility !== "string") return null;
+  if (typeof r.ts !== "string" || typeof r.agentResponsibility !== "string")
+    return null;
   return {
     ts: r.ts,
-    action: typeof r.action === "string" ? r.action : `Ran agentResponsibility: ${r.agentResponsibility}`,
+    action:
+      typeof r.action === "string"
+        ? r.action
+        : `Ran agentResponsibility: ${r.agentResponsibility}`,
     agentResponsibility: r.agentResponsibility,
-    agentResponsibilityTitle: typeof r.agentResponsibilityTitle === "string" ? r.agentResponsibilityTitle : null,
+    agentResponsibilityTitle:
+      typeof r.agentResponsibilityTitle === "string"
+        ? r.agentResponsibilityTitle
+        : null,
     agent: typeof r.agent === "string" ? r.agent : null,
     staffTitle: typeof r.staffTitle === "string" ? r.staffTitle : null,
     trigger:
@@ -88,7 +95,8 @@ export function latestActivityByAgentResponsibility(
 ): Map<string, CompanyActivityRecord> {
   const latest = new Map<string, CompanyActivityRecord>();
   for (const rec of sortActivityNewestFirst(records)) {
-    if (!latest.has(rec.agentResponsibility)) latest.set(rec.agentResponsibility, rec);
+    if (!latest.has(rec.agentResponsibility))
+      latest.set(rec.agentResponsibility, rec);
   }
   return latest;
 }

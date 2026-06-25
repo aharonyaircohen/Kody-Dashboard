@@ -122,7 +122,9 @@ export function parseCtoAgent(rawBody: string): string | null {
  * legacy recs that predate the line; callers fall back to the agentIdentity slug.
  */
 export function parseCtoAgentResponsibility(rawBody: string): string | null {
-  const m = rawBody.match(/<!--\s*kody-agentResponsibility:\s*([a-z0-9][a-z0-9-]*)\s*-->/i);
+  const m = rawBody.match(
+    /<!--\s*kody-agentResponsibility:\s*([a-z0-9][a-z0-9-]*)\s*-->/i,
+  );
   return m ? m[1].toLowerCase() : null;
 }
 
@@ -315,5 +317,12 @@ export function detectCtoRecommendation(
   // Approve squash-merges the PR. Other actions are dispatchable iff they
   // resolved to a command to post.
   const dispatchable = isDashboardAction(action) || command !== null;
-  return { agent, agentResponsibility, taskNumber, action, command, dispatchable };
+  return {
+    agent,
+    agentResponsibility,
+    taskNumber,
+    action,
+    command,
+    dispatchable,
+  };
 }

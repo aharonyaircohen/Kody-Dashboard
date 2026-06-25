@@ -17,7 +17,8 @@ vi.mock("@dashboard/lib/agent-responsibilities-files", () => ({
   readAgentResponsibilityFile: vi.fn(),
 }));
 
-const agentResponsibilityFiles = await import("@dashboard/lib/agent-responsibilities-files");
+const agentResponsibilityFiles =
+  await import("@dashboard/lib/agent-responsibilities-files");
 const { readAgentResponsibilityFile } = agentResponsibilityFiles as unknown as {
   readAgentResponsibilityFile: ReturnType<typeof vi.fn>;
 };
@@ -73,7 +74,8 @@ describe("kody dispatch tools use agentResponsibilities", () => {
     );
 
     expect(result).toMatchObject({
-      error: 'Refusing to dispatch: agentResponsibility "feature" was not found.',
+      error:
+        'Refusing to dispatch: agentResponsibility "feature" was not found.',
     });
     expect(createComment).not.toHaveBeenCalled();
   });
@@ -100,7 +102,10 @@ describe("kody dispatch tools use agentResponsibilities", () => {
       command: "@kody feature",
       triggered: true,
     });
-    expect(readAgentResponsibilityFile).toHaveBeenCalledWith("feature", ctx.octokit);
+    expect(readAgentResponsibilityFile).toHaveBeenCalledWith(
+      "feature",
+      ctx.octokit,
+    );
     expect(createComment).toHaveBeenCalledWith({
       owner: "test-owner",
       repo: "test-repo",

@@ -20,15 +20,15 @@ use the `create_or_update_agentAction` tool.
 
 ## The pieces
 
-| Piece                     | What it is                                                                                                                                                                                                      | Where                                                                                                              |
-| ------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------ |
-| The agentAction **folder** | `.kody/agent-actions/<slug>/` — `profile.json` + `prompt.md` + optional `*.sh` preflight scripts + optional `skills/<name>/SKILL.md`. The engine reads this path first when a agentResponsibility lowers to that implementation. | the connected repo                                                                                                 |
-| **File layer**            | Reads/writes the whole folder atomically (one blob per file → one tree → one commit) via the Git Data API. For simple generated agentActions, reads strip the generated output contract and writes re-append it. | [`../src/dashboard/lib/agent-actions/files.ts`](../src/dashboard/lib/agent-actions/files.ts)                           |
-| **Profile helpers**       | Pure form-fields ↔ `profile.json` translation, slug validation, and engine-mirroring profile validation. No I/O.                                                                                                | [`../src/dashboard/lib/agent-actions/profile.ts`](../src/dashboard/lib/agent-actions/profile.ts)                       |
-| The **/agent-actions page** | CRUD UI: list, create, edit, validate, delete, import a skill, and wire scripts/tools. It does not own public action names.                                                                                     | [`../src/dashboard/lib/components/AgentActionsManager.tsx`](../src/dashboard/lib/components/AgentActionsManager.tsx) |
-| **Control API**           | `GET`/`POST` collection, `GET`/`PATCH`/`DELETE` one, plus `/import-skill` and `/analyze-tool` helpers.                                                                                                          | [`../app/api/kody/agent-actions/`](../app/api/kody/agent-actions/)                                                     |
-| **Chat tools**            | In-process tools that let Kody build/manage agentActions by conversation — same file layer, same atomic commit.                                                                                                  | [`../app/api/kody/chat/tools/agentAction-tools.ts`](../app/api/kody/chat/tools/agentAction-tools.ts)                 |
-| **Company bundle**        | Export/import flattens each folder into a portable path→content map, so agentActions travel with the rest of a company profile.                                                                                  | [`../src/dashboard/lib/company/`](../src/dashboard/lib/company/)                                                   |
+| Piece                       | What it is                                                                                                                                                                                                                       | Where                                                                                                                |
+| --------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------- |
+| The agentAction **folder**  | `.kody/agent-actions/<slug>/` — `profile.json` + `prompt.md` + optional `*.sh` preflight scripts + optional `skills/<name>/SKILL.md`. The engine reads this path first when a agentResponsibility lowers to that implementation. | the connected repo                                                                                                   |
+| **File layer**              | Reads/writes the whole folder atomically (one blob per file → one tree → one commit) via the Git Data API. For simple generated agentActions, reads strip the generated output contract and writes re-append it.                 | [`../src/dashboard/lib/agent-actions/files.ts`](../src/dashboard/lib/agent-actions/files.ts)                         |
+| **Profile helpers**         | Pure form-fields ↔ `profile.json` translation, slug validation, and engine-mirroring profile validation. No I/O.                                                                                                                 | [`../src/dashboard/lib/agent-actions/profile.ts`](../src/dashboard/lib/agent-actions/profile.ts)                     |
+| The **/agent-actions page** | CRUD UI: list, create, edit, validate, delete, import a skill, and wire scripts/tools. It does not own public action names.                                                                                                      | [`../src/dashboard/lib/components/AgentActionsManager.tsx`](../src/dashboard/lib/components/AgentActionsManager.tsx) |
+| **Control API**             | `GET`/`POST` collection, `GET`/`PATCH`/`DELETE` one, plus `/import-skill` and `/analyze-tool` helpers.                                                                                                                           | [`../app/api/kody/agent-actions/`](../app/api/kody/agent-actions/)                                                   |
+| **Chat tools**              | In-process tools that let Kody build/manage agentActions by conversation — same file layer, same atomic commit.                                                                                                                  | [`../app/api/kody/chat/tools/agentAction-tools.ts`](../app/api/kody/chat/tools/agentAction-tools.ts)                 |
+| **Company bundle**          | Export/import flattens each folder into a portable path→content map, so agentActions travel with the rest of a company profile.                                                                                                  | [`../src/dashboard/lib/company/`](../src/dashboard/lib/company/)                                                     |
 
 ## What a folder contains
 
@@ -36,12 +36,12 @@ Every agentAction is a folder, not a single file — which is why the file layer
 commits it through the Git Data API (one tree, one commit) rather than the
 single-file `createOrUpdateFileContents` the commands/agent-responsibilities helpers use.
 
-| File                     | Purpose                                                                                                                                                                                   | Generated from                                |
-| ------------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------- |
-| `profile.json`           | The engine manifest — role, inputs, `claudeCode` (model/tools/skills/permission), lifecycle, preflight chain.                                                                             | the form fields (or a raw override you paste) |
+| File                     | Purpose                                                                                                                                                                                    | Generated from                                |
+| ------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | --------------------------------------------- |
+| `profile.json`           | The engine manifest — role, inputs, `claudeCode` (model/tools/skills/permission), lifecycle, preflight chain.                                                                              | the form fields (or a raw override you paste) |
 | `prompt.md`              | Engine storage for user-authored instructions. It should be glue plus runtime context; reusable method goes in skills. Simple generated agentActions also get a generated output contract. | the instructions field + the landing          |
-| `skills/<name>/SKILL.md` | Each declared skill's body. Committed _into_ the folder — see [Skills](#skills).                                                                                                          | the skills list                               |
-| `*.sh`                   | Optional shell scripts run as preflight steps (setup work) before the agent.                                                                                                              | the shell-scripts list                        |
+| `skills/<name>/SKILL.md` | Each declared skill's body. Committed _into_ the folder — see [Skills](#skills).                                                                                                           | the skills list                               |
+| `*.sh`                   | Optional shell scripts run as preflight steps (setup work) before the agent.                                                                                                               | the shell-scripts list                        |
 
 On **read**, the file layer strips the generated contract from `prompt.md` so
 the editor shows only the instructions; on **write** it re-appends the right
@@ -57,11 +57,11 @@ plan.
 
 Start by deciding what kind of agentAction you are building:
 
-| Kind                         | Use when                                                                          | Shape                                                                                                       |
-| ---------------------------- | --------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------- |
+| Kind                          | Use when                                                                          | Shape                                                                                                       |
+| ----------------------------- | --------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------- |
 | **Agent agentAction**         | The work needs judgment, reading, editing, planning, or tool choice.              | `profile.json` wires an agent run; `prompt.md` gives short glue instructions; skills carry reusable method. |
 | **Deterministic agentAction** | The work is mechanical and repeatable: parse files, call APIs, generate a report. | `profile.json` runs a shell preflight, then `skipAgent`; `prompt.md` is only a small note.                  |
-| **Orchestrator agentAction**  | The work is routing or sequencing other agentActions.                              | `profile.json` uses postflight/preflight transitions; usually `skipAgent`.                                  |
+| **Orchestrator agentAction**  | The work is routing or sequencing other agentActions.                             | `profile.json` uses postflight/preflight transitions; usually `skipAgent`.                                  |
 
 Keep the agentAction folder easy for an operator to inspect:
 
@@ -260,15 +260,15 @@ the company files in [`../src/dashboard/lib/company/`](../src/dashboard/lib/comp
 
 ## File reference
 
-| File                                                                                                               | Purpose                                                           |
-| ------------------------------------------------------------------------------------------------------------------ | ----------------------------------------------------------------- |
-| [`../src/dashboard/lib/agent-actions/files.ts`](../src/dashboard/lib/agent-actions/files.ts)                           | Folder CRUD via the Git Data API (atomic multi-file commits)      |
-| [`../src/dashboard/lib/agent-actions/profile.ts`](../src/dashboard/lib/agent-actions/profile.ts)                       | Form fields ↔ `profile.json`, slug + profile validation, contract |
-| [`../src/dashboard/lib/agent-actions/index.ts`](../src/dashboard/lib/agent-actions/index.ts)                           | Public re-export surface                                          |
-| [`../src/dashboard/lib/components/AgentActionsManager.tsx`](../src/dashboard/lib/components/AgentActionsManager.tsx) | The /agent-actions CRUD UI                                          |
-| [`../app/api/kody/agent-actions/route.ts`](../app/api/kody/agent-actions/route.ts)                                     | List (`GET`) + create (`POST`)                                    |
-| [`../app/api/kody/agent-actions/[slug]/route.ts`](../app/api/kody/agent-actions/[slug]/route.ts)                       | Read (`GET`) / update (`PATCH`) / delete (`DELETE`) one           |
-| [`../app/api/kody/agent-actions/import-skill/route.ts`](../app/api/kody/agent-actions/import-skill/route.ts)           | Fetch a skill's `SKILL.md` from a GitHub source                   |
+| File                                                                                                                 | Purpose                                                           |
+| -------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------- |
+| [`../src/dashboard/lib/agent-actions/files.ts`](../src/dashboard/lib/agent-actions/files.ts)                         | Folder CRUD via the Git Data API (atomic multi-file commits)      |
+| [`../src/dashboard/lib/agent-actions/profile.ts`](../src/dashboard/lib/agent-actions/profile.ts)                     | Form fields ↔ `profile.json`, slug + profile validation, contract |
+| [`../src/dashboard/lib/agent-actions/index.ts`](../src/dashboard/lib/agent-actions/index.ts)                         | Public re-export surface                                          |
+| [`../src/dashboard/lib/components/AgentActionsManager.tsx`](../src/dashboard/lib/components/AgentActionsManager.tsx) | The /agent-actions CRUD UI                                        |
+| [`../app/api/kody/agent-actions/route.ts`](../app/api/kody/agent-actions/route.ts)                                   | List (`GET`) + create (`POST`)                                    |
+| [`../app/api/kody/agent-actions/[slug]/route.ts`](../app/api/kody/agent-actions/[slug]/route.ts)                     | Read (`GET`) / update (`PATCH`) / delete (`DELETE`) one           |
+| [`../app/api/kody/agent-actions/import-skill/route.ts`](../app/api/kody/agent-actions/import-skill/route.ts)         | Fetch a skill's `SKILL.md` from a GitHub source                   |
 | [`../app/api/kody/chat/tools/agentAction-tools.ts`](../app/api/kody/chat/tools/agentAction-tools.ts)                 | Chat tools for conversational CRUD                                |
 
 ## FAQ

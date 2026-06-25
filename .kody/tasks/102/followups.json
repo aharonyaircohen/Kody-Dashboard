@@ -1,0 +1,8 @@
+[
+  {
+    "title": "Engine goal-slug detection (external package)",
+    "body": "The @kody-ade/kody-engine package needs to be updated separately to detect when github.event.inputs.issue_number is a goal slug (matches a .kody/goals/<slug>/ directory) and read from .kody/goals/<slug>/state.json on the kody-state branch instead of treating it as a GitHub issue number. This is the second half of the fix described in issue #102.",
+    "rationale": "Without the engine-side change, dispatching with issue_number=<goal-slug> will reach the engine but the engine won't know to read from the goal state file — it will likely try to interpret the slug as an issue number and fail.",
+    "priority": "high"
+  }
+]

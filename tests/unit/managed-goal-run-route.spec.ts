@@ -55,10 +55,9 @@ on:
 `;
 
 function makeRequest(id: string) {
-  return new NextRequest(
-    `https://dash.test/api/kody/goals/managed/${id}/run`,
-    { method: "POST" },
-  );
+  return new NextRequest(`https://dash.test/api/kody/goals/managed/${id}/run`, {
+    method: "POST",
+  });
 }
 
 function makeParams(id: string) {
@@ -110,7 +109,10 @@ describe("managed goal run route", () => {
       },
     });
 
-    const res = await POST(makeRequest("web-release"), makeParams("web-release"));
+    const res = await POST(
+      makeRequest("web-release"),
+      makeParams("web-release"),
+    );
 
     expect(res.status).toBe(200);
     expect(getContent).toHaveBeenCalledWith({

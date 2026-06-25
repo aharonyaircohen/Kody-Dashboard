@@ -51,7 +51,10 @@ export async function GET(req: NextRequest) {
   setGitHubContext(headerAuth.owner, headerAuth.repo, headerAuth.token);
   try {
     const manifest = await readTrust();
-    return NextResponse.json({ agentResponsibilities: manifest.agentResponsibilities, log: manifest.log });
+    return NextResponse.json({
+      agentResponsibilities: manifest.agentResponsibilities,
+      log: manifest.log,
+    });
   } catch (err: unknown) {
     const message = err instanceof Error ? err.message : "read failed";
     return NextResponse.json(

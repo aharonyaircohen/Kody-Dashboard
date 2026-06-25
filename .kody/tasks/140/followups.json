@@ -1,0 +1,8 @@
+[
+  {
+    "title": "Mirror slash-command fix in the isKodyWaiting instruction branch",
+    "body": "In `KodyChat.tsx` the `isKodyWaiting && selectedTask?.id` branch in the submit handler also pushes a user bubble with `content: userMessage` (the expanded prompt + context chips). Same contamination risk as the normal path that this PR fixes. The model that receives the instruction is the action-instruction endpoint, not the chat model — so the wire content there is fine to be expanded, but the visible bubble should still show only `rawInput`. Apply the same `displayContent` pattern. The PR was scoped to the normal path per the issue spec; this is a sibling occurrence worth its own follow-up.",
+    "rationale": "Issue #140 only called out the normal submit path. The isKodyWaiting branch has the same user-bubble contamination but the model-facing wire (action-instruction endpoint) is correct. Fix is one-line: set `bubbleContent = rawInput` and use it in the manual setMessages call.",
+    "priority": "low"
+  }
+]

@@ -92,19 +92,19 @@ This is how Kody runs **autonomously without supervision**. You file a goal as a
 
 The engine handles the agent work. The dashboard turns it into a managed platform.
 
-| Capability                           | Why it matters                                                                                                                                                                                                      |
-| ------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| **Task board**                       | Kanban view (inbox → spec → building → review → done) across all engine activity. Drag to change status, click to drill in.                                                                                         |
-| **Parallel run monitoring**          | Watch 10 agents work on 10 tasks at once, live, in one view. CLI can't do this.                                                                                                                                     |
-| **Agent responsibility scheduler UI**                | Markdown-defined agent responsibilities in `.kody/agent-responsibilities/`, ticked off in the dashboard as they complete. Visual cron without leaving the app.                                                                                      |
-| **Live preview management**          | Per-task Fly.io preview environments, with per-repo Fly tokens managed in Settings (never deployment env vars).                                                                                                     |
-| **PR viewer**                        | File diffs, CI status, gate approvals — all inline, no GitHub roundtrip.                                                                                                                                            |
-| **Provider-agnostic chat**           | Configure any LLM (Claude, GPT, Gemini, Groq, OpenRouter, Mistral, DeepSeek, xAI, custom endpoints) per model entry. Two protocols, your keys.                                                                      |
-| **Multiple chat backends**           | Direct provider chat for quick questions, external Brain server for advanced reasoning, engine via Actions for full-power agent tasks. One UI.                                                                      |
-| **Per-repo encrypted secrets vault** | AES-256-GCM blob at `.kody/secrets.enc`. One master key powers vault + session JWT + HMAC, cryptographically separated by purpose prefixes. Per-user creds (Fly tokens, API keys) live here, not in deployment env. |
-| **Real-time status**                 | Push-based GitHub webhooks, IP-verified against GitHub's CIDR list (no shared secret). Polling is the backstop, not the source of truth.                                                                            |
-| **Changelog & report aggregation**   | Readable, dated output from every autonomous run, indexed and searchable.                                                                                                                                           |
-| **Notifications**                    | Desktop + in-app for completed tasks, blocked gates, report deliveries.                                                                                                                                             |
+| Capability                            | Why it matters                                                                                                                                                                                                      |
+| ------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Task board**                        | Kanban view (inbox → spec → building → review → done) across all engine activity. Drag to change status, click to drill in.                                                                                         |
+| **Parallel run monitoring**           | Watch 10 agents work on 10 tasks at once, live, in one view. CLI can't do this.                                                                                                                                     |
+| **Agent responsibility scheduler UI** | Markdown-defined agent responsibilities in `.kody/agent-responsibilities/`, ticked off in the dashboard as they complete. Visual cron without leaving the app.                                                      |
+| **Live preview management**           | Per-task Fly.io preview environments, with per-repo Fly tokens managed in Settings (never deployment env vars).                                                                                                     |
+| **PR viewer**                         | File diffs, CI status, gate approvals — all inline, no GitHub roundtrip.                                                                                                                                            |
+| **Provider-agnostic chat**            | Configure any LLM (Claude, GPT, Gemini, Groq, OpenRouter, Mistral, DeepSeek, xAI, custom endpoints) per model entry. Two protocols, your keys.                                                                      |
+| **Multiple chat backends**            | Direct provider chat for quick questions, external Brain server for advanced reasoning, engine via Actions for full-power agent tasks. One UI.                                                                      |
+| **Per-repo encrypted secrets vault**  | AES-256-GCM blob at `.kody/secrets.enc`. One master key powers vault + session JWT + HMAC, cryptographically separated by purpose prefixes. Per-user creds (Fly tokens, API keys) live here, not in deployment env. |
+| **Real-time status**                  | Push-based GitHub webhooks, IP-verified against GitHub's CIDR list (no shared secret). Polling is the backstop, not the source of truth.                                                                            |
+| **Changelog & report aggregation**    | Readable, dated output from every autonomous run, indexed and searchable.                                                                                                                                           |
+| **Notifications**                     | Desktop + in-app for completed tasks, blocked gates, report deliveries.                                                                                                                                             |
 
 The dashboard never bypasses GitHub — every state change is a real issue/PR/workflow event. If the dashboard goes down, the engine keeps running. If the engine goes down, the dashboard still shows you the last known state.
 
@@ -168,20 +168,20 @@ No hardcoded provider, no vendor lock-in, at any layer.
 
 ## How it compares
 
-|                                       | Kody                          | Devin   | Codegen | Factory.ai | Copilot Workspace | Cursor  | OpenHands |
-| ------------------------------------- | ----------------------------- | ------- | ------- | ---------- | ----------------- | ------- | --------- |
-| Open source                           | Yes                           | No      | No      | No         | No                | No      | Yes       |
-| Self-hosted                           | Yes                           | No      | No      | No         | No                | No      | Yes       |
-| Scheduled / autonomous runs           | Yes                           | No      | Limited | Limited    | No                | No      | No        |
-| Parallel tasks                        | Yes (native)                  | Limited | Yes     | Yes        | No                | No      | No        |
-| Runs in your CI                       | Yes                           | No      | No      | No         | GitHub-locked     | No      | No        |
-| `@kody`-style ChatOps in issues/PRs   | Yes                           | No      | Partial | Partial    | No                | No      | No        |
-| Free-form QA agent                    | Yes                           | No      | No      | No         | No                | No      | No        |
+|                                                      | Kody                          | Devin   | Codegen | Factory.ai | Copilot Workspace | Cursor  | OpenHands |
+| ---------------------------------------------------- | ----------------------------- | ------- | ------- | ---------- | ----------------- | ------- | --------- |
+| Open source                                          | Yes                           | No      | No      | No         | No                | No      | Yes       |
+| Self-hosted                                          | Yes                           | No      | No      | No         | No                | No      | Yes       |
+| Scheduled / autonomous runs                          | Yes                           | No      | Limited | Limited    | No                | No      | No        |
+| Parallel tasks                                       | Yes (native)                  | Limited | Yes     | Yes        | No                | No      | No        |
+| Runs in your CI                                      | Yes                           | No      | No      | No         | GitHub-locked     | No      | No        |
+| `@kody`-style ChatOps in issues/PRs                  | Yes                           | No      | Partial | Partial    | No                | No      | No        |
+| Free-form QA agent                                   | Yes                           | No      | No      | No         | No                | No      | No        |
 | Goal-driven agentResponsibilities (autonomous loops) | Yes                           | No      | No      | No         | No                | No      | No        |
-| Multi-model (any provider)            | Yes (LiteLLM + OpenAI-compat) | No      | No      | Limited    | No                | Limited | Yes       |
-| Visual control plane (dashboard)      | Yes                           | Yes     | Yes     | Yes        | Yes               | n/a     | Yes       |
-| Per-seat pricing                      | No                            | Yes     | Yes     | Yes        | Yes               | Yes     | No        |
-| Audit trail in your repo              | Yes                           | No      | No      | No         | Partial           | No      | No        |
+| Multi-model (any provider)                           | Yes (LiteLLM + OpenAI-compat) | No      | No      | Limited    | No                | Limited | Yes       |
+| Visual control plane (dashboard)                     | Yes                           | Yes     | Yes     | Yes        | Yes               | n/a     | Yes       |
+| Per-seat pricing                                     | No                            | Yes     | Yes     | Yes        | Yes               | Yes     | No        |
+| Audit trail in your repo                             | Yes                           | No      | No      | No         | Partial           | No      | No        |
 
 Of every product in this table, Kody is the only one that is both open-source and in the scheduled-fleet category. The closest "code while you sleep" rivals — Devin, Codegen, Factory.ai — are all closed and per-seat priced; the open-source ones (OpenHands) are single-session tools, not autonomous fleets. Ownership and self-hosting is the axis the closed competitors structurally can't cross.
 

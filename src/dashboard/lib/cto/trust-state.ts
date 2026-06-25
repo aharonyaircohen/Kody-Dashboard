@@ -79,7 +79,13 @@ function withStats(
   agentResponsibility: string,
   stats: TrustAgentResponsibilityStats,
 ): TrustManifest {
-  return { ...manifest, agentResponsibilities: { ...manifest.agentResponsibilities, [agentResponsibility]: stats } };
+  return {
+    ...manifest,
+    agentResponsibilities: {
+      ...manifest.agentResponsibilities,
+      [agentResponsibility]: stats,
+    },
+  };
 }
 
 export function statsFor(
@@ -219,7 +225,10 @@ export function applyTrustOp(
 }
 
 /** True when the engine may let this agentResponsibility self-dispatch. */
-export function isGraduated(manifest: TrustManifest, agentResponsibility: string): boolean {
+export function isGraduated(
+  manifest: TrustManifest,
+  agentResponsibility: string,
+): boolean {
   return manifest.agentResponsibilities[agentResponsibility]?.mode === "auto";
 }
 
@@ -236,7 +245,10 @@ export function parseTrustManifest(
     return {
       version: TRUST_MANIFEST_VERSION,
       agentResponsibilities:
-        parsed.agentResponsibilities && typeof parsed.agentResponsibilities === "object" ? parsed.agentResponsibilities : {},
+        parsed.agentResponsibilities &&
+        typeof parsed.agentResponsibilities === "object"
+          ? parsed.agentResponsibilities
+          : {},
       log: Array.isArray(parsed.log) ? parsed.log : [],
     };
   } catch {
@@ -281,29 +293,32 @@ export function summarizeTrust(
   threshold: number = TRUST_GRADUATION_THRESHOLD,
 ): TrustAgentResponsibilityView[] {
   const staffByAgentResponsibility = new Map<string, string | null>();
-  for (const d of agentResponsibilities) staffByAgentResponsibility.set(d.slug, d.agent);
+  for (const d of agentResponsibilities)
+    staffByAgentResponsibility.set(d.slug, d.agent);
 
   const slugs = new Set<string>([
     ...Object.keys(manifest.agentResponsibilities),
     ...staffByAgentResponsibility.keys(),
   ]);
 
-  const views: TrustAgentResponsibilityView[] = [...slugs].map((agentResponsibility) => {
-    const stats = manifest.agentResponsibilities[agentResponsibility];
-    const s = stats ?? freshStats();
-    const remaining =
-      s.mode === "auto" ? 0 : Math.max(0, threshold - s.consecutiveApprovals);
-    const progress =
-      threshold <= 0 ? 1 : Math.min(1, s.consecutiveApprovals / threshold);
-    return {
-      agentResponsibility,
-      agent: staffByAgentResponsibility.get(agentResponsibility) ?? null,
-      ...s,
-      remaining,
-      progress,
-      hasHistory: !!stats,
-    };
-  });
+  const views: TrustAgentResponsibilityView[] = [...slugs].map(
+    (agentResponsibility) => {
+      const stats = manifest.agentResponsibilities[agentResponsibility];
+      const s = stats ?? freshStats();
+      const remaining =
+        s.mode === "auto" ? 0 : Math.max(0, threshold - s.consecutiveApprovals);
+      const progress =
+        threshold <= 0 ? 1 : Math.min(1, s.consecutiveApprovals / threshold);
+      return {
+        agentResponsibility,
+        agent: staffByAgentResponsibility.get(agentResponsibility) ?? null,
+        ...s,
+        remaining,
+        progress,
+        hasHistory: !!stats,
+      };
+    },
+  );
 
   // Auto agentResponsibilities first, then those with history, then alpha.
   return views.sort((a, b) => {

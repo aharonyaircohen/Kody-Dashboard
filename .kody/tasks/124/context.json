@@ -1,0 +1,18 @@
+{
+  "taskId": "124",
+  "taskType": "issue",
+  "target": "124",
+  "outcome": "success",
+  "exitCode": 0,
+  "reason": "Added merge_pr tool to in-process chat agent; passed verify gate (typecheck/lint/format/tests)",
+  "prUrl": null,
+  "runUrl": null,
+  "filesTouched": [
+    "app/api/kody/chat/tools/github-tools.ts",
+    "src/dashboard/lib/agents.ts",
+    "tests/unit/chat-tools-merge-pr.spec.ts"
+  ],
+  "sessionLog": ".kody/sessions/gh-27117497848-1.jsonl",
+  "startedAt": "2026-06-08T05:21:00Z",
+  "finishedAt": "2026-06-08T05:31:06Z"
+}

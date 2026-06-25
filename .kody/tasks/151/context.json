@@ -1,0 +1,18 @@
+{
+  "taskId": "151",
+  "taskType": "issue",
+  "target": "151",
+  "outcome": "success",
+  "exitCode": 0,
+  "reason": "Added the publish-vercel executable (profile.json + prompt.md) and a pin-the-contract unit test. Mirrors the comment-only plan executable; uses setLifecycleLabel/loadIssueContext/composePrompt preflight and parseAgentResult/postAgentComment postflight so the engine posts the agent's PR_SUMMARY as the issue comment.",
+  "prUrl": null,
+  "runUrl": null,
+  "filesTouched": [
+    ".kody/executables/publish-vercel/profile.json",
+    ".kody/executables/publish-vercel/prompt.md",
+    "tests/unit/executables/publish-vercel.spec.ts"
+  ],
+  "sessionLog": ".kody/sessions/7be0c1e7-57b5-4f33-9f4e-37367a0f3aa8.jsonl",
+  "startedAt": "2026-06-08T11:25:00Z",
+  "finishedAt": "2026-06-08T11:33:00Z"
+}

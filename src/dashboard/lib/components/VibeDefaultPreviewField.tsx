@@ -70,7 +70,8 @@ export function VibeDefaultPreviewField({
         </label>
         <p className="text-[11px] text-zinc-500">
           Shown when no issue is selected. Stored per repo at{" "}
-          <code className="text-zinc-400">dashboard.json</code> in the state repo.
+          <code className="text-zinc-400">dashboard.json</code> in the state
+          repo.
         </p>
       </div>
       <div className="flex items-center gap-2">

@@ -169,7 +169,9 @@ export type ChatContext =
        * it can answer questions about that specific agentResponsibility/agents.
        */
       kind: "agentResponsibility";
-      agentResponsibility: import("./api").AgentResponsibility | import("./api").Agent;
+      agentResponsibility:
+        | import("./api").AgentResponsibility
+        | import("./api").Agent;
     }
   | {
       /**

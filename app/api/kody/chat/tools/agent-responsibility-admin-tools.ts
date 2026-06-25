@@ -59,7 +59,8 @@ export function createAgentResponsibilityAdminTools(ctx: Ctx) {
         if (!isValidSlug(slug)) return { error: `invalid slug "${slug}"` };
         try {
           const agentResponsibility = await readAgentResponsibilityFile(slug);
-          if (!agentResponsibility) return { error: `agentResponsibility "${slug}" not found` };
+          if (!agentResponsibility)
+            return { error: `agentResponsibility "${slug}" not found` };
           return { agentResponsibility };
         } catch (err) {
           return { error: err instanceof Error ? err.message : String(err) };
@@ -74,7 +75,8 @@ export function createAgentResponsibilityAdminTools(ctx: Ctx) {
         if (!isValidSlug(slug)) return { error: `invalid slug "${slug}"` };
         try {
           const existing = await readAgentResponsibilityFile(slug);
-          if (!existing) return { error: `agentResponsibility "${slug}" not found` };
+          if (!existing)
+            return { error: `agentResponsibility "${slug}" not found` };
           await deleteAgentResponsibilityFile(octokit, slug);
           return { ok: true, action: "deleted", slug };
         } catch (err) {
@@ -90,7 +92,8 @@ export function createAgentResponsibilityAdminTools(ctx: Ctx) {
         if (!isValidSlug(slug)) return { error: `invalid slug "${slug}"` };
         try {
           const existing = await readAgentResponsibilityFile(slug);
-          if (!existing) return { error: `agentResponsibility "${slug}" not found` };
+          if (!existing)
+            return { error: `agentResponsibility "${slug}" not found` };
           const repoMeta = await octokit.rest.repos.get({
             owner,
             repo,

@@ -101,7 +101,10 @@ describe("recordAudit", () => {
     const firstBatch = h.appendDurable.mock.calls[0]?.[0] as
       | Array<Record<string, unknown>>
       | undefined;
-    expect(firstBatch?.[0]).toMatchObject({ type: "agentResponsibility.run", actor: "alice" });
+    expect(firstBatch?.[0]).toMatchObject({
+      type: "agentResponsibility.run",
+      actor: "alice",
+    });
   });
 
   it("falls back to actor 'unknown' and skips the durable write with no auth", async () => {

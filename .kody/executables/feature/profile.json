@@ -1,0 +1,82 @@
+{
+  "name": "feature",
+  "role": "primitive",
+  "describe": "Implement a feature / refactor issue end-to-end in ONE session: research \u2192 plan \u2192 build \u2192 test \u2192 verify, then branch, commit, open PR. Single-session \u2014 no multi-stage orchestration.",
+  "inputs": [
+    {
+      "name": "issue",
+      "flag": "--issue",
+      "type": "int",
+      "required": true,
+      "describe": "GitHub issue number to implement."
+    },
+    {
+      "name": "base",
+      "flag": "--base",
+      "type": "string",
+      "required": false,
+      "describe": "Optional base branch override (stacked-PR). Used by goal-tick so each task PR forks from the previous task's head ref."
+    }
+  ],
+  "claudeCode": {
+    "model": "inherit",
+    "permissionMode": "acceptEdits",
+    "maxTurns": null,
+    "maxTurnTimeoutSec": 1200,
+    "systemPromptAppend": null,
+    "cacheable": true,
+    "enableVerifyTool": true,
+    "verifyAttempts": 4,
+    "tools": [
+      "Read",
+      "Write",
+      "Edit",
+      "Bash",
+      "Grep",
+      "Glob",
+      "mcp__kody-verify",
+      "mcp__codegraph"
+    ],
+    "hooks": ["block-git"],
+    "skills": [],
+    "commands": [],
+    "subagents": [],
+    "plugins": [],
+    "mcpServers": [
+      {
+        "name": "codegraph",
+        "command": "codegraph",
+        "args": ["serve", "--mcp"]
+      }
+    ]
+  },
+  "cliTools": [],
+  "lifecycle": "pr-branch",
+  "lifecycleConfig": {
+    "label": {
+      "name": "kody:running",
+      "color": "fbca04",
+      "description": "kody: implementing the change"
+    },
+    "context": "task",
+    "sync": false,
+    "verify": true,
+    "advance": false,
+    "mirrorState": true,
+    "finalize": true
+  },
+  "scripts": {
+    "preflight": [
+      {
+        "shell": "install-codegraph.sh"
+      },
+      {
+        "script": "runFlow"
+      }
+    ],
+    "postflight": []
+  },
+  "output": {
+    "actionTypes": ["FEATURE_COMPLETED", "FEATURE_FAILED", "AGENT_NOT_RUN"]
+  }
+}

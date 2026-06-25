@@ -117,7 +117,7 @@ export function createPlannerTools(ctx: Ctx) {
             categoryLabel: CATEGORY_LABEL[category],
             goalId,
             note: appendWarnings(
-          `${CATEGORY_LABEL[category]} task filed and attached to mission "${goalId}". ` +
+              `${CATEGORY_LABEL[category]} task filed and attached to mission "${goalId}". ` +
                 "Kody pipeline NOT auto-triggered — comment `@kody` on the issue to run it.",
               metadataWarnings,
             ),

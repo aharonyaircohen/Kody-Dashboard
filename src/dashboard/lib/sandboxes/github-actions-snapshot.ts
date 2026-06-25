@@ -23,7 +23,12 @@ async function getExistingFileSha(
   auth: GitHubRepoAuth,
   path: string,
 ): Promise<string | undefined> {
-  const file = await readStateFileMetadata(octokit, auth.owner, auth.repo, path);
+  const file = await readStateFileMetadata(
+    octokit,
+    auth.owner,
+    auth.repo,
+    path,
+  );
   return file?.sha;
 }
 

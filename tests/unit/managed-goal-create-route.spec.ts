@@ -159,10 +159,10 @@ describe("POST /api/kody/goals/managed", () => {
     expect(write.id).toBe("keep-codebase-healthy-report-drift");
     expect(write.state).toMatchObject({
       type: "agentLoop",
-        schedule: "1d",
-        scheduleMode: "agentLoop",
-        saveReport: true,
-        destination: {
+      schedule: "1d",
+      scheduleMode: "agentLoop",
+      saveReport: true,
+      destination: {
         outcome: "Keep codebase healthy report drift.",
         evidence: [],
       },

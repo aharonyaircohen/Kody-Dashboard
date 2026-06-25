@@ -26,6 +26,8 @@ describe("RepoSwitcher org grouping", () => {
 
   it("links each owner group to its org manager", () => {
     expect(SOURCE).toMatch(/Manage org/);
-    expect(SOURCE).toMatch(/href=\{`\/org\/\$\{encodeURIComponent\(group\.owner\)\}`\}/);
+    expect(SOURCE).toMatch(
+      /href=\{`\/org\/\$\{encodeURIComponent\(group\.owner\)\}`\}/,
+    );
   });
 });

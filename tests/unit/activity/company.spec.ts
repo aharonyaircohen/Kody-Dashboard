@@ -24,7 +24,10 @@ describe("parseActivityJsonl", () => {
       }),
       "",
       "{ not json",
-      JSON.stringify({ ts: "2026-05-23T09:00:00Z", agentResponsibility: "sweep" }), // minimal
+      JSON.stringify({
+        ts: "2026-05-23T09:00:00Z",
+        agentResponsibility: "sweep",
+      }), // minimal
     ].join("\n");
 
     const out = parseActivityJsonl(text);
@@ -72,16 +75,23 @@ describe("sortActivityNewestFirst", () => {
   it("orders by ts descending", () => {
     const recs = parseActivityJsonl(
       [
-        JSON.stringify({ ts: "2026-05-23T08:00:00Z", agentResponsibility: "a" }),
-        JSON.stringify({ ts: "2026-05-23T12:00:00Z", agentResponsibility: "b" }),
-        JSON.stringify({ ts: "2026-05-23T10:00:00Z", agentResponsibility: "c" }),
+        JSON.stringify({
+          ts: "2026-05-23T08:00:00Z",
+          agentResponsibility: "a",
+        }),
+        JSON.stringify({
+          ts: "2026-05-23T12:00:00Z",
+          agentResponsibility: "b",
+        }),
+        JSON.stringify({
+          ts: "2026-05-23T10:00:00Z",
+          agentResponsibility: "c",
+        }),
       ].join("\n"),
     );
-    expect(sortActivityNewestFirst(recs).map((r) => r.agentResponsibility)).toEqual([
-      "b",
-      "c",
-      "a",
-    ]);
+    expect(
+      sortActivityNewestFirst(recs).map((r) => r.agentResponsibility),
+    ).toEqual(["b", "c", "a"]);
   });
 });
 
@@ -89,9 +99,18 @@ describe("latestActivityByAgentResponsibility", () => {
   it("keeps the newest record per agentResponsibility", () => {
     const recs = parseActivityJsonl(
       [
-        JSON.stringify({ ts: "2026-05-23T08:00:00Z", agentResponsibility: "docs" }),
-        JSON.stringify({ ts: "2026-05-23T12:00:00Z", agentResponsibility: "qa" }),
-        JSON.stringify({ ts: "2026-05-23T10:00:00Z", agentResponsibility: "docs" }),
+        JSON.stringify({
+          ts: "2026-05-23T08:00:00Z",
+          agentResponsibility: "docs",
+        }),
+        JSON.stringify({
+          ts: "2026-05-23T12:00:00Z",
+          agentResponsibility: "qa",
+        }),
+        JSON.stringify({
+          ts: "2026-05-23T10:00:00Z",
+          agentResponsibility: "docs",
+        }),
       ].join("\n"),
     );
     const latest = latestActivityByAgentResponsibility(recs);

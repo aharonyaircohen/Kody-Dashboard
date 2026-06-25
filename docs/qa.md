@@ -14,12 +14,12 @@ just hits a login wall. Flip the agentResponsibilities on once you've done the o
 
 ## The pieces
 
-| Piece                        | What it is                                                                                                                                                                          | Where                                                                  |
-| ---------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------- |
-| `qa` **agent**               | Identity only — a senior quality advocate who trusts what it has _seen_ over what a diff claims, flags but never fixes, never rubber-stamps. No tasks, verbs, or cadence live here. | [`../.kody/agents/qa.md`](../.kody/agents/qa.md)                         |
-| `qa` **agentResponsibility**                | Changelog verification (`every: 30m`, `disabled: true` in the profile).                                                                                                             | [`../.kody/agent-responsibilities/qa/agent-responsibility.md`](../.kody/agent-responsibilities/qa/agent-responsibility.md)             |
-| `qa-sweep` **agentResponsibility**          | Broad exploratory smoke (`every: 1h`, ~once/day, `disabled: true` in the profile).                                                                                                  | [`../.kody/agent-responsibilities/qa-sweep/agent-responsibility.md`](../.kody/agent-responsibilities/qa-sweep/agent-responsibility.md) |
-| `qa-engineer` **agentAction** | The browser. Playwright MCP (headless Chromium), read-only on the repo, emits one structured report.                                                                                | engine: `src/agent-actions/qa-engineer/`                                 |
+| Piece                              | What it is                                                                                                                                                                          | Where                                                                                                                                  |
+| ---------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------- |
+| `qa` **agent**                     | Identity only — a senior quality advocate who trusts what it has _seen_ over what a diff claims, flags but never fixes, never rubber-stamps. No tasks, verbs, or cadence live here. | [`../.kody/agents/qa.md`](../.kody/agents/qa.md)                                                                                       |
+| `qa` **agentResponsibility**       | Changelog verification (`every: 30m`, `disabled: true` in the profile).                                                                                                             | [`../.kody/agent-responsibilities/qa/agent-responsibility.md`](../.kody/agent-responsibilities/qa/agent-responsibility.md)             |
+| `qa-sweep` **agentResponsibility** | Broad exploratory smoke (`every: 1h`, ~once/day, `disabled: true` in the profile).                                                                                                  | [`../.kody/agent-responsibilities/qa-sweep/agent-responsibility.md`](../.kody/agent-responsibilities/qa-sweep/agent-responsibility.md) |
+| `qa-engineer` **agentAction**      | The browser. Playwright MCP (headless Chromium), read-only on the repo, emits one structured report.                                                                                | engine: `src/agent-actions/qa-engineer/`                                                                                               |
 
 Neither agentResponsibility browses anything itself. Each one opens a tracking issue and
 posts `@kody qa-engineer …` onto it; the engine picks that up, runs the
@@ -172,15 +172,15 @@ per-PR verification; add the sweep for periodic broad coverage.
 
 ## File reference
 
-| File                                                                   | Purpose                                              |
-| ---------------------------------------------------------------------- | ---------------------------------------------------- |
-| [`../.kody/agents/qa.md`](../.kody/agents/qa.md)                         | QA agent (identity only)                           |
-| [`../.kody/agent-responsibilities/qa/agent-responsibility.md`](../.kody/agent-responsibilities/qa/agent-responsibility.md)             | Changelog-verification agentResponsibility                          |
-| [`../.kody/agent-responsibilities/qa-sweep/agent-responsibility.md`](../.kody/agent-responsibilities/qa-sweep/agent-responsibility.md) | Broad exploratory sweep agentResponsibility                         |
-| `src/agent-actions/qa-engineer/profile.json` (engine)                    | AgentAction manifest — inputs, tools, preflight chain |
-| `src/agent-actions/qa-engineer/prompt.md` (engine)                       | The QA engineer's browsing prompt + report format    |
-| `src/scripts/resolveQaUrl.ts` (engine)                                 | Base-URL resolution preflight                        |
-| `src/scripts/loadQaContext.ts` (engine)                                | Profile + Variables + Vault context preflight        |
+| File                                                                                                                                   | Purpose                                               |
+| -------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------- |
+| [`../.kody/agents/qa.md`](../.kody/agents/qa.md)                                                                                       | QA agent (identity only)                              |
+| [`../.kody/agent-responsibilities/qa/agent-responsibility.md`](../.kody/agent-responsibilities/qa/agent-responsibility.md)             | Changelog-verification agentResponsibility            |
+| [`../.kody/agent-responsibilities/qa-sweep/agent-responsibility.md`](../.kody/agent-responsibilities/qa-sweep/agent-responsibility.md) | Broad exploratory sweep agentResponsibility           |
+| `src/agent-actions/qa-engineer/profile.json` (engine)                                                                                  | AgentAction manifest — inputs, tools, preflight chain |
+| `src/agent-actions/qa-engineer/prompt.md` (engine)                                                                                     | The QA engineer's browsing prompt + report format     |
+| `src/scripts/resolveQaUrl.ts` (engine)                                                                                                 | Base-URL resolution preflight                         |
+| `src/scripts/loadQaContext.ts` (engine)                                                                                                | Profile + Variables + Vault context preflight         |
 
 ## FAQ
 

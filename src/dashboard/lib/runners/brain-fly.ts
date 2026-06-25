@@ -717,10 +717,7 @@ export async function provisionBrain(
         `brain-fly: app ${app} has a machine without BRAIN_API_KEY env — destroy first, then re-provision`,
       );
     }
-    const suspensionConfig = alignBrainSuspensionConfig(
-      existing.config,
-      input,
-    );
+    const suspensionConfig = alignBrainSuspensionConfig(existing.config, input);
     if (suspensionConfig.changed && suspensionConfig.config) {
       await updateMachineConfig(
         input.flyToken,

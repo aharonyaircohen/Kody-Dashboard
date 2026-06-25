@@ -1,0 +1,19 @@
+{
+  "taskId": "125",
+  "taskType": "issue",
+  "target": "issue#125",
+  "outcome": "success",
+  "exitCode": 0,
+  "reason": "Added @ai-summary headers to all 4 modules in src/dashboard/lib/ui-verify/; apply-label.ts is the central/folder-root file with a folder-level summary, the other three carry focused why+trap notes. No code, exports, or tests changed.",
+  "prUrl": null,
+  "runUrl": null,
+  "filesTouched": [
+    "src/dashboard/lib/ui-verify/apply-label.ts",
+    "src/dashboard/lib/ui-verify/dispatch.ts",
+    "src/dashboard/lib/ui-verify/labels.ts",
+    "src/dashboard/lib/ui-verify/verdict.ts"
+  ],
+  "sessionLog": ".kody/sessions/125.jsonl",
+  "startedAt": "2026-06-08T05:10:00Z",
+  "finishedAt": "2026-06-08T05:12:00Z"
+}

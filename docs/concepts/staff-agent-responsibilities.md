@@ -38,15 +38,15 @@ agentResponsibility supplies its own job and the agent only supplies judgment an
 
 So:
 
-|                         | Agents (agent)         | AgentResponsibility (job)                 | AgentAction (implementation)     |
-| ----------------------- | ----------------------- | -------------------------- | ------------------------------- |
-| Path                    | `.kody/agents/<slug>.md` | `.kody/agent-responsibilities/<slug>/`     | `.kody/agent-actions/<slug>/`     |
-| Answers                 | Who is acting?          | Why/what/how often?        | How is the work performed?      |
-| Owns the schedule?      | No                      | Yes, via `profile.json`    | No                              |
-| Owns the action name?   | No                      | Yes, `profile.json.action` | No                              |
-| Owns reusable method?   | No                      | No                         | Yes, via skills/scripts/prompts |
-| Names the agent member? | No                      | Yes, `profile.json.runner` | No                              |
-| Independently ticked?   | No                      | Yes                        | No, unless a agentResponsibility invokes it    |
+|                         | Agents (agent)           | AgentResponsibility (job)              | AgentAction (implementation)                |
+| ----------------------- | ------------------------ | -------------------------------------- | ------------------------------------------- |
+| Path                    | `.kody/agents/<slug>.md` | `.kody/agent-responsibilities/<slug>/` | `.kody/agent-actions/<slug>/`               |
+| Answers                 | Who is acting?           | Why/what/how often?                    | How is the work performed?                  |
+| Owns the schedule?      | No                       | Yes, via `profile.json`                | No                                          |
+| Owns the action name?   | No                       | Yes, `profile.json.action`             | No                                          |
+| Owns reusable method?   | No                       | No                                     | Yes, via skills/scripts/prompts             |
+| Names the agent member? | No                       | Yes, `profile.json.runner`             | No                                          |
+| Independently ticked?   | No                       | Yes                                    | No, unless a agentResponsibility invokes it |
 
 ## AgentResponsibility profile
 
@@ -176,19 +176,19 @@ important per-agentResponsibility throttle.
 
 ## File reference
 
-| File                                                                                         | Purpose                                 |
-| -------------------------------------------------------------------------------------------- | --------------------------------------- |
-| [`docs/agent-responsibilities.md`](../agent-responsibilities.md)                                                             | AgentResponsibility creation guide and folder contract |
-| [`src/dashboard/lib/agent-files.ts`](../../src/dashboard/lib/agent-files.ts)                 | Agents markdown store                    |
-| [`src/dashboard/lib/agent-responsibilities-files.ts`](../../src/dashboard/lib/agent-responsibilities-files.ts)               | Folder-backed agentResponsibility store                |
-| [`src/dashboard/lib/ticked/schedule.ts`](../../src/dashboard/lib/ticked/schedule.ts)         | Dashboard next-tick display math        |
-| [`app/api/kody/agent/route.ts`](../../app/api/kody/agent/route.ts)                           | Agents API                               |
-| [`app/api/kody/agent-responsibilities/route.ts`](../../app/api/kody/agent-responsibilities/route.ts)                         | AgentResponsibilities API                              |
-| [`.kody/agents/cto.md`](../../.kody/agents/cto.md)                                             | Example identity-only agent           |
-| [`.kody/agent-responsibilities/security-audit/agent-responsibility.md`](../../.kody/agent-responsibilities/security-audit/agent-responsibility.md)           | Example agentResponsibility body                       |
-| [`.kody/agent-responsibilities/security-audit/profile.json`](../../.kody/agent-responsibilities/security-audit/profile.json) | Example agentResponsibility profile                    |
-| `kody2/src/scripts/dispatchAgentResponsibilityFileTicks.ts` (engine)                                        | Scheduler fan-out                       |
-| `kody2/src/scripts/loadJobFromFile.ts` (engine)                                              | AgentResponsibility loader                             |
+| File                                                                                                                                               | Purpose                                                |
+| -------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------ |
+| [`docs/agent-responsibilities.md`](../agent-responsibilities.md)                                                                                   | AgentResponsibility creation guide and folder contract |
+| [`src/dashboard/lib/agent-files.ts`](../../src/dashboard/lib/agent-files.ts)                                                                       | Agents markdown store                                  |
+| [`src/dashboard/lib/agent-responsibilities-files.ts`](../../src/dashboard/lib/agent-responsibilities-files.ts)                                     | Folder-backed agentResponsibility store                |
+| [`src/dashboard/lib/ticked/schedule.ts`](../../src/dashboard/lib/ticked/schedule.ts)                                                               | Dashboard next-tick display math                       |
+| [`app/api/kody/agent/route.ts`](../../app/api/kody/agent/route.ts)                                                                                 | Agents API                                             |
+| [`app/api/kody/agent-responsibilities/route.ts`](../../app/api/kody/agent-responsibilities/route.ts)                                               | AgentResponsibilities API                              |
+| [`.kody/agents/cto.md`](../../.kody/agents/cto.md)                                                                                                 | Example identity-only agent                            |
+| [`.kody/agent-responsibilities/security-audit/agent-responsibility.md`](../../.kody/agent-responsibilities/security-audit/agent-responsibility.md) | Example agentResponsibility body                       |
+| [`.kody/agent-responsibilities/security-audit/profile.json`](../../.kody/agent-responsibilities/security-audit/profile.json)                       | Example agentResponsibility profile                    |
+| `kody2/src/scripts/dispatchAgentResponsibilityFileTicks.ts` (engine)                                                                               | Scheduler fan-out                                      |
+| `kody2/src/scripts/loadJobFromFile.ts` (engine)                                                                                                    | AgentResponsibility loader                             |
 
 ## FAQ
 

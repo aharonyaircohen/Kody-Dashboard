@@ -83,8 +83,12 @@ describe("operator overrides", () => {
 
   it("degrade resets to ask; reset wipes; input never mutated", () => {
     const grad = graduateAgentResponsibility(approvals("qa", 2), "qa");
-    expect(degradeAgentResponsibility(grad, "qa").agentResponsibilities.qa.mode).toBe("ask");
-    expect(resetAgentResponsibility(grad, "qa").agentResponsibilities.qa).toEqual({
+    expect(
+      degradeAgentResponsibility(grad, "qa").agentResponsibilities.qa.mode,
+    ).toBe("ask");
+    expect(
+      resetAgentResponsibility(grad, "qa").agentResponsibilities.qa,
+    ).toEqual({
       approvals: 0,
       rejections: 0,
       consecutiveApprovals: 0,

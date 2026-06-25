@@ -16,7 +16,10 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useKodyTasks } from "./index";
 import { useDefaultBranchCI } from "./useDefaultBranchCI";
-import { useAgentResponsibilities, useRunAgentResponsibility } from "./useAgentResponsibilities";
+import {
+  useAgentResponsibilities,
+  useRunAgentResponsibility,
+} from "./useAgentResponsibilities";
 import { useHealth } from "./useHealth";
 import { useRerunCIRun, useRetryTask } from "./useDashboardActions";
 import { useGitHubIdentity } from "./useGitHubIdentity";

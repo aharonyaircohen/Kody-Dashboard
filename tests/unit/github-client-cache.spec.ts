@@ -200,8 +200,12 @@ describe("invalidateIssueCache", () => {
 describe("invalidateAgentResponsibilitiesCache", () => {
   it("clears only the per-item cache when a slug is given", () => {
     // Seed both the per-item cache and the listing cache.
-    setCache("agentResponsibility:acme:widgets:my-slug", 60_000, { title: "agentResponsibility" });
-    setCache("agentResponsibilities:acme:widgets:{}", 60_000, [{ slug: "my-slug" }]);
+    setCache("agentResponsibility:acme:widgets:my-slug", 60_000, {
+      title: "agentResponsibility",
+    });
+    setCache("agentResponsibilities:acme:widgets:{}", 60_000, [
+      { slug: "my-slug" },
+    ]);
 
     invalidateAgentResponsibilitiesCache("my-slug");
 
@@ -212,15 +216,21 @@ describe("invalidateAgentResponsibilitiesCache", () => {
   });
 
   it("clears only the listing cache when no slug is given", () => {
-    setCache("agentResponsibility:acme:widgets:my-slug", 60_000, { title: "agentResponsibility" });
-    setCache("agentResponsibilities:acme:widgets:{}", 60_000, [{ slug: "my-slug" }]);
+    setCache("agentResponsibility:acme:widgets:my-slug", 60_000, {
+      title: "agentResponsibility",
+    });
+    setCache("agentResponsibilities:acme:widgets:{}", 60_000, [
+      { slug: "my-slug" },
+    ]);
 
     invalidateAgentResponsibilitiesCache();
 
     // Listing cache should be gone; per-item cache should remain.
     const keys = getCacheStats().keys;
     expect(keys.some((k) => k.startsWith("agentResponsibility:"))).toBe(true);
-    expect(keys.some((k) => k.startsWith("agentResponsibilities:"))).toBe(false);
+    expect(keys.some((k) => k.startsWith("agentResponsibilities:"))).toBe(
+      false,
+    );
   });
 });
 

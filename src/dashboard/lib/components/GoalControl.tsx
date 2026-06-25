@@ -323,7 +323,7 @@ export function GoalControlInner({
         title="Remove this mission?"
         description={
           pendingDelete
-              ? `Mission "${pendingDelete.name}" will be removed from the manifest. Tasks labelled with this mission keep their labels (you can clean them up on GitHub).`
+            ? `Mission "${pendingDelete.name}" will be removed from the manifest. Tasks labelled with this mission keep their labels (you can clean them up on GitHub).`
             : ""
         }
         variant="destructive"
@@ -404,7 +404,7 @@ function GoalDetail({
                   <>
                     <span
                       className="font-mono opacity-80"
- title="Mission id — mention #{number} or goal:{number} in chat to direct the conversation here"
+                      title="Mission id — mention #{number} or goal:{number} in chat to direct the conversation here"
                     >
                       #{goal.discussionNumber}
                     </span>
@@ -560,7 +560,7 @@ function GoalDetail({
                 <span className="font-medium text-foreground">
                   Attach tasks
                 </span>{" "}
-              to link open issues to this mission and start tracking progress.
+                to link open issues to this mission and start tracking progress.
               </p>
             </div>
           </div>
@@ -953,8 +953,8 @@ export function CreateGoalDialog({
         <DialogHeader>
           <DialogTitle>New mission</DialogTitle>
           <DialogDescription>
-            Describe the outcome. Tasks can later be attached to this mission via a
-            label.
+            Describe the outcome. Tasks can later be attached to this mission
+            via a label.
           </DialogDescription>
         </DialogHeader>
 
@@ -1066,8 +1066,8 @@ export function EditGoalDialog({
         <DialogHeader>
           <DialogTitle>Edit mission</DialogTitle>
           <DialogDescription>
-            Update the mission name, due date, or description. Changes are written
-            back to the manifest issue.
+            Update the mission name, due date, or description. Changes are
+            written back to the manifest issue.
           </DialogDescription>
         </DialogHeader>
 

@@ -162,9 +162,9 @@ function CompanyManagerInner() {
                 Export company
               </p>
               <p className="text-xs text-white/50 mt-1">
-                Download a JSON bundle of this repo&apos;s agent, agentResponsibilities,
-                agentGoals/agent-loops, context, repo-defined commands,
-                agentActions, and instructions.
+                Download a JSON bundle of this repo&apos;s agent,
+                agentResponsibilities, agentGoals/agent-loops, context,
+                repo-defined commands, agentActions, and instructions.
               </p>
             </div>
             <Button size="sm" onClick={handleExport} disabled={exporting}>
@@ -242,7 +242,12 @@ function CompanyManagerInner() {
             {lastImport && (
               <div className="text-xs text-white/60 border-t border-white/[0.06] pt-3 space-y-1">
                 <p>{countLine("Agent", lastImport.agent)}</p>
-                <p>{countLine("AgentResponsibilities", lastImport.agentResponsibilities)}</p>
+                <p>
+                  {countLine(
+                    "AgentResponsibilities",
+                    lastImport.agentResponsibilities,
+                  )}
+                </p>
                 <p>{countLine("Contexts", lastImport.contexts)}</p>
                 <p>{countLine("Commands", lastImport.commands)}</p>
                 <p>{countLine("AgentActions", lastImport.agentActions)}</p>

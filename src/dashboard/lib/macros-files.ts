@@ -61,7 +61,12 @@ export async function readMacrosFile(
 ): Promise<{ macros: Macro[]; sha: string | null }> {
   const octokit = octokitOverride ?? getOctokit();
   try {
-    const file = await readStateText(octokit, getOwner(), getRepo(), MACROS_PATH);
+    const file = await readStateText(
+      octokit,
+      getOwner(),
+      getRepo(),
+      MACROS_PATH,
+    );
     if (!file) {
       return { macros: [], sha: null };
     }

@@ -29,7 +29,7 @@ context entry" is a planned affordance but **not built yet**.
 | -------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------- |
 | **Context entry**          | One free-form markdown file. Slug = entry name (also the `###` heading Kody sees); body = the curated text. No built-ins.                                 | `.kody/context/<slug>.md`                                                               |
 | **`agent:` frontmatter**   | A tiny one-line inline YAML list naming the agent-member slugs that **own** the entry. Decides which consumers load it.                                   | Frontmatter block atop each file (`agent: [kody, qa-engineer]`)                         |
-| **Built-in audiences**     | `kody` (the in-process chat agent) and `qa-engineer` (the engine QA preflight). Always offered in the picker even without a `.kody/agents/*.md` file.    | [`context/frontmatter.ts`](../src/dashboard/lib/context/frontmatter.ts)                 |
+| **Built-in audiences**     | `kody` (the in-process chat agent) and `qa-engineer` (the engine QA preflight). Always offered in the picker even without a `.kody/agents/*.md` file.     | [`context/frontmatter.ts`](../src/dashboard/lib/context/frontmatter.ts)                 |
 | **`*` all-agent wildcard** | An entry owned by `*` is loaded by **every** consumer (chat, QA, and any future agent). Mutually exclusive with specific slugs — collapses to a lone `*`. | `ALL_STAFF` constant                                                                    |
 | **Chat-prompt loader**     | Concatenates the `kody`-owned (or `*`) entries into the chat system prompt under a `## Context` heading. 60s in-process per-repo cache.                   | `loadContextForPrompt()` in [`context/files.ts`](../src/dashboard/lib/context/files.ts) |
 
@@ -46,8 +46,8 @@ separated, square brackets). Three shapes:
 
 | `agent:` value           | Meaning                                         | Who loads it                      |
 | ------------------------ | ----------------------------------------------- | --------------------------------- |
-| `[kody]` (default)       | Owned by the built-in chat agent.             | The in-process `kody` chat prompt |
-| `[qa-engineer]`          | Owned by the QA reviewer agent.               | The engine's QA preflight only    |
+| `[kody]` (default)       | Owned by the built-in chat agent.               | The in-process `kody` chat prompt |
+| `[qa-engineer]`          | Owned by the QA reviewer agent.                 | The engine's QA preflight only    |
 | `[kody, qa-engineer, …]` | Owned by several specific agent members.        | Each named consumer               |
 | `[*]` (all-agent)        | Owned by everyone, including agent added later. | Every consumer                    |
 | `[]` (empty)             | **Unassigned** — owned by nobody.               | No consumer (parked/draft)        |

@@ -31,7 +31,10 @@ vi.mock("@dashboard/lib/logger", () => ({
   logger: { warn: vi.fn(), info: vi.fn(), error: vi.fn() },
 }));
 
-function req(path: string, init?: ConstructorParameters<typeof NextRequest>[1]) {
+function req(
+  path: string,
+  init?: ConstructorParameters<typeof NextRequest>[1],
+) {
   return new NextRequest(`https://dash.test${path}`, init);
 }
 
@@ -164,12 +167,12 @@ describe("org repos route", () => {
     expect(vi.mocked(global.fetch).mock.calls[1][0]).toBe(
       "https://api.github.com/orgs/acme/repos",
     );
-    expect(JSON.parse(String(vi.mocked(global.fetch).mock.calls[1][1]?.body))).toMatchObject(
-      {
-        name: "new-service",
-        private: true,
-        auto_init: true,
-      },
-    );
+    expect(
+      JSON.parse(String(vi.mocked(global.fetch).mock.calls[1][1]?.body)),
+    ).toMatchObject({
+      name: "new-service",
+      private: true,
+      auto_init: true,
+    });
   });
 });

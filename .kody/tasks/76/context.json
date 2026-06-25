@@ -1,0 +1,16 @@
+{
+  "taskId": "76",
+  "taskType": "pr",
+  "target": "76",
+  "outcome": "success",
+  "exitCode": 0,
+  "reason": "Resolved merge conflicts in src/dashboard/lib/previews/fly-previews.ts between PR #76 and origin/main; both blocks (JSDoc for healthCheck, inline comment in createMachine) preserved HEAD wording to keep the PR's opt-in health-check intent intact.",
+  "prUrl": null,
+  "runUrl": null,
+  "filesTouched": [
+    "src/dashboard/lib/previews/fly-previews.ts"
+  ],
+  "sessionLog": ".kody/sessions/76.jsonl",
+  "startedAt": "2026-06-06T20:50:00Z",
+  "finishedAt": "2026-06-06T20:53:11Z"
+}

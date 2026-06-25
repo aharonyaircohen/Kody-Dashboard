@@ -36,11 +36,14 @@ vi.mock("@dashboard/lib/activity/audit", () => ({
 }));
 
 const auth = await import("@dashboard/lib/auth");
-const agentResponsibilityFiles = await import("@dashboard/lib/agent-responsibilities-files");
+const agentResponsibilityFiles =
+  await import("@dashboard/lib/agent-responsibilities-files");
 const githubClient = await import("@dashboard/lib/github-client");
 
 const getUserOctokit = vi.mocked(auth.getUserOctokit);
-const readResolvedAgentResponsibilityFile = vi.mocked(agentResponsibilityFiles.readResolvedAgentResponsibilityFile);
+const readResolvedAgentResponsibilityFile = vi.mocked(
+  agentResponsibilityFiles.readResolvedAgentResponsibilityFile,
+);
 const clearGitHubContext = vi.mocked(githubClient.clearGitHubContext);
 
 import { POST } from "../../app/api/kody/agent-responsibilities/[slug]/run/route";
@@ -50,16 +53,19 @@ afterEach(() => {
 });
 
 function makeRunRequest(slug: string) {
-  return new NextRequest(`https://dash.test/api/kody/agent-responsibilities/${slug}/run`, {
-    method: "POST",
-    headers: {
-      "content-type": "application/json",
-      "x-kody-token": "ghp_test-token",
-      "x-kody-owner": "test-owner",
-      "x-kody-repo": "test-repo",
+  return new NextRequest(
+    `https://dash.test/api/kody/agent-responsibilities/${slug}/run`,
+    {
+      method: "POST",
+      headers: {
+        "content-type": "application/json",
+        "x-kody-token": "ghp_test-token",
+        "x-kody-owner": "test-owner",
+        "x-kody-repo": "test-repo",
+      },
+      body: JSON.stringify({ force: true }),
     },
-    body: JSON.stringify({ force: true }),
-  });
+  );
 }
 
 function makeParams(slug: string) {

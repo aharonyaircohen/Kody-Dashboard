@@ -130,12 +130,11 @@ the `kody:*` labels are the human-visible projection.
 
 This trips people up, so it's worth being precise:
 
-| State                         | Stored as                                                          | Read by                                                        |
-| ----------------------------- | ------------------------------------------------------------------ | -------------------------------------------------------------- |
-| Per-task `kodyState`          | A **comment on the GitHub issue** (repo-global, not branch-scoped) | `fetchKodyState` → `fetchComments` → `findKodyStateInComments` |
-| Goal/job file state, cursors | Files in the **configured Kody state repo** | State-repo readers such as `readStateText` / `listStateDirectory` |
-| Human config (`.md`, prompts) | The **default branch**                                             | their own readers                                              |
-
+| State                         | Stored as                                                          | Read by                                                           |
+| ----------------------------- | ------------------------------------------------------------------ | ----------------------------------------------------------------- |
+| Per-task `kodyState`          | A **comment on the GitHub issue** (repo-global, not branch-scoped) | `fetchKodyState` → `fetchComments` → `findKodyStateInComments`    |
+| Goal/job file state, cursors  | Files in the **configured Kody state repo**                        | State-repo readers such as `readStateText` / `listStateDirectory` |
+| Human config (`.md`, prompts) | The **default branch**                                             | their own readers                                                 |
 
 So the broad rule "all machine-written engine state goes to the configured Kody
 state repo, never the consumer default branch" holds for **file-based** state —
@@ -221,7 +220,7 @@ Never add `noCache: true` to "fix staleness"; lower the TTL, call
 | ---------------------------------------------------------------------------------------------- | ---------------------------------------------------------------- |
 | [`tasks/derive-column.ts`](../src/dashboard/lib/tasks/derive-column.ts)                        | Pure lane derivation — the priority order above. **Read first.** |
 | [`kody-state.ts`](../src/dashboard/lib/kody-state.ts)                                          | Parse the canonical `kodyState` comment; newest-wins selection.  |
-| [`state-repo.ts`](../src/dashboard/lib/state-repo.ts)                                          | Resolves and reads/writes the configured Kody state repo.         |
+| [`state-repo.ts`](../src/dashboard/lib/state-repo.ts)                                          | Resolves and reads/writes the configured Kody state repo.        |
 | [`constants.ts`](../src/dashboard/lib/constants.ts)                                            | `ColumnId`, `COLUMN_DEFS`, `parseKodyPhase`, `parseKodyFlow`.    |
 | [`types.ts`](../src/dashboard/lib/types.ts)                                                    | `KodyTask`, `GitHubIssue`/`PR`/`WorkflowRun`, `ColumnId`.        |
 | [`/api/kody/tasks/route.ts`](../app/api/kody/tasks/route.ts)                                   | GET list (derivation orchestration) + POST create.               |

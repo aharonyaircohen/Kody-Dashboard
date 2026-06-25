@@ -115,7 +115,10 @@ function parseReportMarkdown(raw: string, slug: string) {
   return {
     title: deriveTitle(afterFrontmatter, slug),
     body: stripLeadingH1(afterFrontmatter),
-    agentResponsibilitySlug: topLevelValue(frontmatter, "agentResponsibilitySlug"),
+    agentResponsibilitySlug: topLevelValue(
+      frontmatter,
+      "agentResponsibilitySlug",
+    ),
     reviewStatus: topLevelValue(frontmatter, "reviewStatus"),
     reviewArea: topLevelValue(frontmatter, "reviewArea"),
     findingCount: countFindings(frontmatter),
@@ -132,7 +135,12 @@ export async function listReportFiles(): Promise<ReportFile[]> {
   const owner = getOwner();
   const repo = getRepo();
 
-  const { entries } = await listStateDirectory(octokit, owner, repo, REPORTS_DIR);
+  const { entries } = await listStateDirectory(
+    octokit,
+    owner,
+    repo,
+    REPORTS_DIR,
+  );
 
   const slugs = entries
     .filter((e) => e.type === "file")

@@ -98,7 +98,9 @@ export function composeBasePrompt(
   // 2. Workflows — the 4 agentResponsibility wrappers, each listing the skills it owns.
   parts.push("## Workflows");
   for (const agentResponsibility of bundle.agentResponsibilities) {
-    parts.push(`### ${agentResponsibility.title}\n\n${agentResponsibility.body.trim()}`);
+    parts.push(
+      `### ${agentResponsibility.title}\n\n${agentResponsibility.body.trim()}`,
+    );
   }
 
   // 3. Skills — reusable method per workflow.
@@ -172,7 +174,7 @@ These apply every turn. They protect correctness without changing the reply cont
 - **No fabrication.** Never invent file paths, file contents, issue/PR numbers, SHAs, or tool results.
 - **Cite your evidence.** Every claim about the repo gets a \`file:line\` citation from a tool result THIS turn. "No matches for X" is a valid finding — say so explicitly.
 - **End with direction when useful.** For non-trivial replies, include a recommended next step and one direct proceed-style question. For tiny factual answers, stop after the answer unless a follow-up would clearly help.
-- **No sycophantic openers.** Start with the answer. "Great question", "Sure!", "Of course", "Absolutely", "Happy to help", and "Certainly" are all banned.`
+- **No sycophantic openers.** Start with the answer. "Great question", "Sure!", "Of course", "Absolutely", "Happy to help", and "Certainly" are all banned.`;
 
 /**
  * Filter a tool set down to the names declared in the bundle's

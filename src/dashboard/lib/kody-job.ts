@@ -57,11 +57,16 @@ export function validateKodyJob(input: unknown): KodyJob {
     throw new InvalidKodyJobError("job must be an object");
   }
   const j = input as Record<string, unknown>;
-  if (typeof j.agentResponsibility !== "string" || j.agentResponsibility.trim().length === 0) {
+  if (
+    typeof j.agentResponsibility !== "string" ||
+    j.agentResponsibility.trim().length === 0
+  ) {
     throw new InvalidKodyJobError("job must reference a agentResponsibility");
   }
   if (!isValidAgentResponsibilitySlug(j.agentResponsibility)) {
-    throw new InvalidKodyJobError("job.agentResponsibility must be a valid agentResponsibility slug");
+    throw new InvalidKodyJobError(
+      "job.agentResponsibility must be a valid agentResponsibility slug",
+    );
   }
   if (j.flavor !== "instant" && j.flavor !== "scheduled") {
     throw new InvalidKodyJobError(

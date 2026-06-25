@@ -553,8 +553,8 @@ function ReportDetail({
                 Empty report
               </p>
               <p className="text-xs text-muted-foreground max-w-sm mx-auto">
-                The agentResponsibility that produces this report hasn&apos;t written content
-                yet.
+                The agentResponsibility that produces this report hasn&apos;t
+                written content yet.
               </p>
             </div>
           )}
