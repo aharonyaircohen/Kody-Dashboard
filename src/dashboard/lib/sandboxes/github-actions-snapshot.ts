@@ -7,7 +7,10 @@ import { readFile } from "node:fs/promises";
 import type { Octokit } from "@octokit/rest";
 import type { NextRequest } from "next/server";
 import { getUserOctokit } from "@dashboard/lib/auth";
-import { writeGitHubFileWithRetry } from "@dashboard/lib/github-contents-write";
+import {
+  readStateFileMetadata,
+  writeStateBase64,
+} from "@dashboard/lib/state-repo";
 import type { LocalSandbox } from "./local-sandboxes";
 
 interface GitHubRepoAuth {
@@ -15,34 +18,13 @@ interface GitHubRepoAuth {
   repo: string;
 }
 
-const BRANCH = "main";
-
 async function getExistingFileSha(
   octokit: Octokit,
   auth: GitHubRepoAuth,
   path: string,
 ): Promise<string | undefined> {
-  try {
-    const res = await octokit.repos.getContent({
-      owner: auth.owner,
-      repo: auth.repo,
-      path,
-      ref: BRANCH,
-    });
-    return !Array.isArray(res.data) && res.data.type === "file"
-      ? res.data.sha
-      : undefined;
-  } catch (err) {
-    if (
-      typeof err === "object" &&
-      err !== null &&
-      "status" in err &&
-      err.status === 404
-    ) {
-      return undefined;
-    }
-    throw err;
-  }
+  const file = await readStateFileMetadata(octokit, auth.owner, auth.repo, path);
+  return file?.sha;
 }
 
 export async function hasGitHubActionsSandboxSnapshot(
@@ -57,7 +39,7 @@ export async function hasGitHubActionsSandboxSnapshot(
 export function githubActionsSandboxSnapshotPath(
   sandbox: LocalSandbox,
 ): string {
-  return `.kody/sandboxes/${sandbox.scope}/${sandbox.id}/snapshot.tar.gz.enc`;
+  return `sandboxes/${sandbox.scope}/${sandbox.id}/snapshot.tar.gz.enc`;
 }
 
 export async function publishGitHubActionsSandboxSnapshotWithOctokit(
@@ -69,13 +51,13 @@ export async function publishGitHubActionsSandboxSnapshotWithOctokit(
   const content = await readFile(sandbox.snapshotPath, "base64");
   const sha = await getExistingFileSha(octokit, auth, path);
 
-  await writeGitHubFileWithRetry(octokit, {
+  await writeStateBase64({
+    octokit,
     owner: auth.owner,
     repo: auth.repo,
     path,
     message: `chore(kody): save sandbox ${sandbox.id} [skip ci]`,
-    content,
-    branch: BRANCH,
+    contentBase64: content,
     ...(sha ? { sha } : {}),
   });
 }

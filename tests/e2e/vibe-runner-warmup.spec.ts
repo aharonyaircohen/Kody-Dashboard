@@ -3,7 +3,7 @@
  *   minutes ("Almost ready... 3:24 elapsed") instead of becoming ready fast.
  *
  *   The dashboard's "Almost ready" timer waits for the runner to emit a
- *   `chat.ready` event (written to .kody/events/{taskId}.jsonl). This test
+ *   `chat.ready` event (written to the state repo events log). This test
  *   drives the exact handoff endpoint the chat uses
  *   (/api/kody/chat/interactive/start-fly) and measures how long until
  *   chat.ready appears. It should complete within the Fly boot budget; the
@@ -34,28 +34,18 @@ function parseRepo(url: string): { owner: string; repo: string } {
 
 const { owner, repo } = parseRepo(REPO_URL);
 
-/** Read .kody/events/{taskId}.jsonl from the repo; [] until first commit. */
+/** Read state-repo events through the dashboard; [] until first write. */
 async function readEvents(taskId: string): Promise<Array<{ event?: string }>> {
-  const res = await fetch(
-    `https://api.github.com/repos/${owner}/${repo}/contents/${encodeURIComponent(
-      `.kody/events/${taskId}.jsonl`,
-    )}?ref=main`,
-    {
-      headers: {
-        Authorization: `Bearer ${TOKEN}`,
-        Accept: "application/vnd.github+json",
-        "X-GitHub-Api-Version": "2022-11-28",
-      },
+  const res = await fetch(`${BASE_URL}/api/kody/events/poll?taskId=${encodeURIComponent(taskId)}&since=0`, {
+    headers: {
+      "x-kody-token": TOKEN,
+      "x-kody-owner": owner,
+      "x-kody-repo": repo,
     },
-  );
-  if (res.status === 404) return [];
+  });
   if (!res.ok) return [];
-  const body = (await res.json()) as { content?: string; encoding?: string };
-  if (!body.content) return [];
-  const text = Buffer.from(body.content, "base64").toString("utf8");
-  return text
-    .split("\n")
-    .filter(Boolean)
+  const body = (await res.json()) as { lines?: string[] };
+  return (body.lines ?? [])
     .map((l) => {
       try {
         return JSON.parse(l);

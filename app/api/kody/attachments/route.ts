@@ -2,8 +2,8 @@
  * @fileType api-endpoint
  * @domain kody
  * @pattern attachments-api
- * @ai-summary Uploads a comment attachment by committing it to the connected
- *   repo (.kody/attachments/) and returns markdown to embed in a comment body.
+ * @ai-summary Uploads a comment attachment by committing it to the configured
+ *   state repo (`attachments/`) and returns markdown to embed in a comment body.
  *   Shared by every GitHub-backed composer (issues, PRs, goal discussions).
  */
 import { NextRequest, NextResponse } from "next/server";

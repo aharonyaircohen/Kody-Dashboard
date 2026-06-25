@@ -4,7 +4,7 @@
  * @pattern vibe
  * @ai-summary Inline editor for the Vibe page's default preview URL. Shown
  *   on the empty preview pane when no issue is selected. Persists to
- *   `.kody/dashboard.json` via `/api/kody/dashboard-config` (PUT). The
+ *   state repo `dashboard.json` via `/api/kody/dashboard-config` (PUT). The
  *   parent owns the value + save mutation; this component is presentation.
  */
 "use client";
@@ -70,7 +70,7 @@ export function VibeDefaultPreviewField({
         </label>
         <p className="text-[11px] text-zinc-500">
           Shown when no issue is selected. Stored per repo at{" "}
-          <code className="text-zinc-400">.kody/dashboard.json</code>.
+          <code className="text-zinc-400">dashboard.json</code> in the state repo.
         </p>
       </div>
       <div className="flex items-center gap-2">

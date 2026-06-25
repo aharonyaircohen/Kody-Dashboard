@@ -11,6 +11,7 @@ vi.mock("@dashboard/lib/previews/fly-previews", () => ({
 import {
   classifyApp,
   listFlyInventory,
+  rowsForFlyApp,
 } from "@dashboard/lib/runners/fly-inventory";
 import type { FlyPreviewConfig } from "@dashboard/lib/previews/fly-previews";
 
@@ -66,5 +67,34 @@ describe("fly inventory", () => {
       "kody-old-service",
       expect.anything(),
     );
+  });
+
+  it("can build a Brain row from a directly-known app", () => {
+    const rows = rowsForFlyApp(
+      "local-2",
+      [
+        {
+          id: "m-brain",
+          state: "started",
+          region: "fra",
+          name: "brain-fra",
+          guest: { cpuKind: "performance", cpus: 1, memoryMb: 2048 },
+          createdAt: "2026-06-24T20:10:02Z",
+        },
+      ],
+      Date.parse("2026-06-24T20:10:12Z"),
+      { feature: "brain", label: "local-2" },
+    );
+
+    expect(rows).toEqual([
+      expect.objectContaining({
+        feature: "brain",
+        app: "local-2",
+        machineId: "m-brain",
+        name: "brain-fra",
+        label: "local-2",
+        sizeLabel: "perf 1x · 2 GB",
+      }),
+    ]);
   });
 });

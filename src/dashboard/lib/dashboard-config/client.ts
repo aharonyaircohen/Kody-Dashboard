@@ -2,7 +2,7 @@
  * @fileType api-client
  * @domain dashboard-config
  * @pattern browser-fetch
- * @ai-summary Browser-side read/write for `.kody/dashboard.json` via
+ * @ai-summary Browser-side read/write for state-repo `dashboard.json` via
  *   `/api/kody/dashboard-config`. Shared by the Vibe page (default preview URL)
  *   and the Preview workspace (named environments) so both hit one merge-safe
  *   PUT and one GET shape. The route partial-merges, so a patch only touches the

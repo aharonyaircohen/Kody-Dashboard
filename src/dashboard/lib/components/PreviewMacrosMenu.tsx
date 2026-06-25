@@ -7,7 +7,7 @@
  *   any saved macro via the inspector extension (preview_act through the
  *   picker hook), or send a macro to chat for the model to drive itself.
  *
- *   Stored in the repo at `.kody/macros.json` via /api/kody/macros, so
+ *   Stored in the state repo at `macros.json` via /api/kody/macros, so
  *   macros sync across devices and the chat agent can manage them too.
  */
 "use client";

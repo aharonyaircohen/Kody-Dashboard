@@ -117,6 +117,7 @@ describe("saved terminal snapshot routes", () => {
     const res = await savePOST(
       saveReq({
         actorLogin: "alice",
+        id: "auto-brain",
         name: "Runner",
         transport: { type: "fly", app: "runner", machineId: "m1" },
         chatSessionId: "chat-1",
@@ -137,6 +138,7 @@ describe("saved terminal snapshot routes", () => {
       "widgets",
       "alice",
       expect.objectContaining({
+        id: "auto-brain",
         name: "Runner",
         chatSessionId: "chat-1",
       }),

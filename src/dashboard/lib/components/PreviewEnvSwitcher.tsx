@@ -5,7 +5,7 @@
  * @ai-summary Toolbar dropdown to switch between named preview environments
  *   (Production / Staging / Dev …) and manage the list (add / edit / remove).
  *   Mirrors PreviewViewsBar's popover, but the list is repo-shared state in
- *   `.kody/dashboard.json`, so mutations route through the parent's `onSave`
+ *   state repo `dashboard.json`, so mutations route through the parent's `onSave`
  *   (which PUTs the config) instead of localStorage.
  */
 "use client";
@@ -47,7 +47,7 @@ interface PreviewEnvSwitcherProps {
   environments: PreviewEnvironment[];
   selectedId: string | null;
   onSelect: (env: PreviewEnvironment) => void;
-  /** Persist the next list (parent PUTs `.kody/dashboard.json`). */
+  /** Persist the next list (parent PUTs state repo `dashboard.json`). */
   onSave: (next: PreviewEnvironment[]) => Promise<void>;
   /** Add an environment with label + url (parent persists + selects). */
   onAdd: (label: string, url: string) => Promise<void>;

@@ -30,7 +30,7 @@ export function createAgentResponsibilityAdminTools(ctx: Ctx) {
 
   return {
     list_agentResponsibilities: tool({
-      description: `List agentResponsibilities in ${repoRef} (.kody/agent-responsibilities/). Returns slug, action, implementation agentAction, disabled flag, and last-tick info for each.`,
+      description: `List agentResponsibilities in ${repoRef} (state repo agent-responsibilities/). Returns slug, action, implementation agentAction, disabled flag, and last-tick info for each.`,
       inputSchema: z.object({}),
       execute: async () => {
         try {
@@ -68,7 +68,7 @@ export function createAgentResponsibilityAdminTools(ctx: Ctx) {
     }),
 
     delete_agentResponsibility: tool({
-      description: `Delete an agentResponsibility from ${repoRef} (removes .kody/agent-responsibilities/<slug>/).`,
+      description: `Delete an agentResponsibility from ${repoRef} (removes agent-responsibilities/<slug>/ from the state repo).`,
       inputSchema: z.object({ slug: z.string().min(1).max(64) }),
       execute: async ({ slug }) => {
         if (!isValidSlug(slug)) return { error: `invalid slug "${slug}"` };

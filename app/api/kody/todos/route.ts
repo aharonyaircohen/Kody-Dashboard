@@ -2,8 +2,8 @@
  * @fileType api-endpoint
  * @domain todos
  * @pattern todo-lists-api
- * @ai-summary Kody todo-lists API — GET lists `.kody/todos/*.md`, POST creates
- * a new repo-scoped todo list with optional note-like items.
+ * @ai-summary Kody todo-lists API — GET lists state-repo `todos/*.md`, POST
+ * creates a new repo-scoped todo list with optional note-like items.
  */
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";

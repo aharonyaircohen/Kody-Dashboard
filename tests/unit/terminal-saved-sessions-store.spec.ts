@@ -21,6 +21,7 @@ vi.mock("@dashboard/lib/logger", () => ({
 
 import {
   SAVED_TERMINAL_OUTPUT_LIMIT,
+  savedTerminalAutoSaveId,
   savedTerminalSessionsPath,
 } from "@dashboard/lib/terminal/saved-session-types";
 import {
@@ -115,6 +116,104 @@ describe("saved terminal session store", () => {
         },
       ],
     });
+  });
+
+  it("collapses repeated auto-saves for the same terminal target", async () => {
+    stateRepo.readStateText.mockResolvedValue({
+      sha: "sha-1",
+      content: JSON.stringify({
+        version: 1,
+        sessions: [
+          {
+            id: "old-auto",
+            name: "Auto-save: brain",
+            transport: { type: "fly", app: "brain", machineId: "m1" },
+            chatSessionId: "chat-1",
+            output: "old",
+            createdAt: "2026-06-24T00:00:00.000Z",
+            updatedAt: "2026-06-24T00:00:00.000Z",
+            savedBy: "alice",
+          },
+          {
+            id: "new-auto",
+            name: "Auto-save: brain",
+            transport: { type: "fly", app: "brain", machineId: "m1" },
+            chatSessionId: "chat-1",
+            output: "new",
+            createdAt: "2026-06-24T00:00:00.000Z",
+            updatedAt: "2026-06-24T00:05:00.000Z",
+            savedBy: "alice",
+          },
+          {
+            id: "manual",
+            name: "Manual brain",
+            transport: { type: "fly", app: "brain", machineId: "m1" },
+            chatSessionId: "chat-1",
+            output: "manual",
+            createdAt: "2026-06-24T00:00:00.000Z",
+            updatedAt: "2026-06-24T00:01:00.000Z",
+            savedBy: "alice",
+          },
+        ],
+      }),
+    });
+
+    const result = await readSavedTerminalSessions(
+      fakeOctokit(),
+      "acme",
+      "widgets",
+      "alice",
+    );
+
+    expect(result.doc.sessions.map((session) => session.id)).toEqual([
+      "new-auto",
+      "manual",
+    ]);
+  });
+
+  it("does not rewrite an unchanged auto-save snapshot", async () => {
+    const transport = { type: "fly" as const, app: "brain", machineId: "m1" };
+    const id = savedTerminalAutoSaveId(transport, "chat-1");
+    stateRepo.readStateText.mockResolvedValue({
+      sha: "sha-1",
+      content: JSON.stringify({
+        version: 1,
+        sessions: [
+          {
+            id,
+            name: "Auto-save: brain",
+            transport,
+            chatSessionId: "chat-1",
+            cwd: "/repo",
+            shell: "bash",
+            output: "same output",
+            createdAt: "2026-06-24T00:00:00.000Z",
+            updatedAt: "2026-06-24T00:00:00.000Z",
+            savedBy: "alice",
+          },
+        ],
+      }),
+    });
+
+    const result = await upsertSavedTerminalSession(
+      fakeOctokit(),
+      "acme",
+      "widgets",
+      "alice",
+      {
+        id,
+        name: "Auto-save: brain",
+        transport,
+        chatSessionId: "chat-1",
+        cwd: "/repo",
+        shell: "bash",
+        output: "same output",
+      },
+      new Date("2026-06-24T00:10:00.000Z"),
+    );
+
+    expect(result.session.updatedAt).toBe("2026-06-24T00:00:00.000Z");
+    expect(stateRepo.writeStateText).not.toHaveBeenCalled();
   });
 
   it("deletes a saved snapshot without touching other snapshots", async () => {

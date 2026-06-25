@@ -5,7 +5,8 @@
  *
  * GET /api/kody/chat/history?taskId=xxx
  *
- * Fetches the chat session history from the engine repo's session file.
+ * Fetches the chat session history from the configured Kody state repo's
+ * session file.
  * Used when reopening a task's chat to restore full conversation context.
  */
 
@@ -16,6 +17,7 @@ import {
   getRequestAuth,
 } from "@dashboard/lib/auth";
 import { logger } from "@dashboard/lib/logger";
+import { readStateText } from "@dashboard/lib/state-repo";
 
 export const runtime = "nodejs";
 
@@ -54,7 +56,7 @@ export async function GET(req: NextRequest) {
   }
 
   const { owner, repo } = getEngineRepo(req);
-  const sessionPath = `.kody/sessions/${taskId}.jsonl`;
+  const sessionPath = `sessions/${taskId}.jsonl`;
 
   const octokit = await getUserOctokit(req);
   if (!octokit) {
@@ -65,20 +67,12 @@ export async function GET(req: NextRequest) {
   }
 
   try {
-    const { data } = await octokit.rest.repos.getContent({
-      owner,
-      repo,
-      path: sessionPath,
-      ref: "main",
-    });
-
-    if (!("content" in data) || !data.content) {
+    const file = await readStateText(octokit, owner, repo, sessionPath);
+    if (!file) {
       return NextResponse.json({ messages: [] });
     }
 
-    // GitHub returns content base64-encoded
-    const content = Buffer.from(data.content, "base64").toString("utf-8");
-    const lines = content.trim().split("\n").filter(Boolean);
+    const lines = file.content.trim().split("\n").filter(Boolean);
 
     const messages: ChatMessage[] = [];
     for (const line of lines) {

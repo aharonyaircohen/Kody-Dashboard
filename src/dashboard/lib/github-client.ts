@@ -25,7 +25,13 @@ import {
   sortActivityNewestFirst,
   type CompanyActivityRecord,
 } from "./activity/company";
-import { listStateDirectory, readStateText } from "./state-repo";
+import {
+  listStateDirectory,
+  readStateText,
+  resolveStateRepo,
+  stateRepoPath,
+  writeStateBase64,
+} from "./state-repo";
 import { parseKodyRunLogZip, type KodyRunLogsRun } from "./activity/run-logs";
 import type {
   KodyPipelineStatus,
@@ -219,7 +225,7 @@ export function invalidateAgentResponsibilitiesCache(slug?: string): void {
  * Invalidate cache entries for agent files. Pass a slug to scope to one
  * agent, or omit to clear the listing cache (e.g. on bulk changes).
  * Mirrors `invalidateAgentResponsibilitiesCache` — agent are an independent feature
- * stored at `.kody/agents/<slug>.md`.
+ * stored at `agents/<slug>.md` in the state repo.
  */
 export function invalidateStaffCache(slug?: string): void {
   if (typeof slug === "string" && slug.length > 0) {
@@ -235,7 +241,7 @@ export function invalidateStaffCache(slug?: string): void {
 /**
  * Invalidate cache entries for prompt files. Pass a slug to scope to one
  * prompt, or omit to clear the listing cache (e.g. on bulk changes).
- * Prompts live at `.kody/commands/<slug>.md` and back the chat slash
+ * Prompts live at `commands/<slug>.md` in the state repo and back the chat slash
  * command menu.
  */
 export function invalidateCommandsCache(slug?: string): void {
@@ -3161,8 +3167,8 @@ export async function uploadIssueAttachment(
 }
 
 /**
- * Upload a comment attachment by committing it to the connected repo under
- * `.kody/attachments/`, then handing back a markdown snippet to embed in the
+ * Upload a comment attachment by committing it to the state repo under
+ * `attachments/`, then handing back a markdown snippet to embed in the
  * comment body.
  *
  * Why commit-to-repo: GitHub's public REST API has no attachment-upload
@@ -3187,25 +3193,31 @@ export async function uploadCommentAttachment(
   const octokit = userOctokit ?? getOctokit();
   const owner = getOwner();
   const repo = getRepo();
-  const branch = await getDefaultBranch();
+  const stateTarget = await resolveStateRepo(octokit, owner, repo);
+  const stateRepo = await octokit.repos.get({
+    owner: stateTarget.owner,
+    repo: stateTarget.repo,
+  });
+  const branch = stateRepo.data.default_branch;
 
   // Sanitize: keep it filesystem/URL safe, cap length, always keep extension.
   const cleaned = file.name.replace(/[^a-zA-Z0-9._-]+/g, "-").slice(-80);
   const safeName = cleaned.replace(/^[-.]+/, "") || "file";
-  const path = `.kody/attachments/${globalThis.crypto.randomUUID()}-${safeName}`;
+  const relativePath = `attachments/${globalThis.crypto.randomUUID()}-${safeName}`;
+  const path = stateRepoPath(stateTarget, relativePath);
 
-  await writeGitHubFileWithRetry(octokit, {
+  await writeStateBase64({
+    octokit,
     owner,
     repo,
-    path,
-    branch,
+    path: relativePath,
     message: `chore(attachments): add ${safeName}`,
-    content: file.contentBase64,
+    contentBase64: file.contentBase64,
   });
 
   const isImage = /\.(png|jpe?g|gif|webp|svg|bmp|avif)$/i.test(safeName);
-  const rawUrl = `https://raw.githubusercontent.com/${owner}/${repo}/${branch}/${path}`;
-  const blobUrl = `https://github.com/${owner}/${repo}/blob/${branch}/${path}`;
+  const rawUrl = `https://raw.githubusercontent.com/${stateTarget.owner}/${stateTarget.repo}/${branch}/${path}`;
+  const blobUrl = `https://github.com/${stateTarget.owner}/${stateTarget.repo}/blob/${branch}/${path}`;
   const markdown = isImage
     ? `![${safeName}](${rawUrl})`
     : `[📎 ${safeName}](${blobUrl})`;

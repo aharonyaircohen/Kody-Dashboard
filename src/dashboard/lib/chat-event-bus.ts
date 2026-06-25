@@ -4,9 +4,9 @@
  * @pattern in-process-pubsub
  *
  * In-memory pub/sub for chat events. The ingest endpoint publishes; the SSE
- * stream subscribes. Events are also written by the engine to
- * `.kody/events/{id}.jsonl` in git — the stream still polls that file as
- * durable fallback and for rehydration on reconnect.
+ * stream subscribes. Events are also written by the engine to the configured
+ * state repo — the stream still polls that file as durable fallback and for
+ * rehydration on reconnect.
  *
  * LIMITATION: module-scoped state doesn't cross Vercel serverless instances.
  * An ingest POST routed to instance A won't reach an SSE connection on

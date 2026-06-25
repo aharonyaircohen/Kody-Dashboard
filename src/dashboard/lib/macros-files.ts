@@ -1,9 +1,9 @@
 /**
  * @fileType util
  * @domain preview
- * @pattern repo-file-store
+ * @pattern state-repo-file-store
  * @ai-summary Server-side store for saved preview macros, moved off
- *   per-browser localStorage into a single repo file `.kody/macros.json` so
+ *   per-browser localStorage into a single state-repo file `macros.json` so
  *   chat (server-side) and every device can read, rename, and delete them.
  *   Shape: `{ version: 1, macros: Macro[] }`. Reads use the module-level
  *   GitHub context (getOctokit/getOwner/getRepo, set by the chat route + API
@@ -15,11 +15,11 @@
  */
 
 import type { Octokit } from "@octokit/rest";
-import { writeGitHubFileWithRetry } from "@dashboard/lib/github-contents-write";
 import { getOctokit, getOwner, getRepo } from "./github-client";
+import { readStateText, writeStateText } from "./state-repo";
 import type { Macro } from "./macros";
 
-export const MACROS_PATH = ".kody/macros.json";
+export const MACROS_PATH = "macros.json";
 
 interface MacrosDocument {
   version: 1;
@@ -61,18 +61,13 @@ export async function readMacrosFile(
 ): Promise<{ macros: Macro[]; sha: string | null }> {
   const octokit = octokitOverride ?? getOctokit();
   try {
-    const { data } = await octokit.repos.getContent({
-      owner: getOwner(),
-      repo: getRepo(),
-      path: MACROS_PATH,
-    });
-    if (Array.isArray(data) || !("content" in data) || !data.content) {
+    const file = await readStateText(octokit, getOwner(), getRepo(), MACROS_PATH);
+    if (!file) {
       return { macros: [], sha: null };
     }
-    const raw = Buffer.from(data.content, "base64").toString("utf-8");
-    const doc = parseDoc(raw);
+    const doc = parseDoc(file.content);
     const macros = doc.macros.slice().sort((a, b) => b.createdAt - a.createdAt);
-    return { macros, sha: data.sha };
+    return { macros, sha: file.sha };
   } catch (error: unknown) {
     if ((error as { status?: number })?.status === 404) {
       return { macros: [], sha: null };
@@ -94,12 +89,13 @@ export async function writeMacrosFile(
 ): Promise<{ macros: Macro[] }> {
   const doc: MacrosDocument = { version: 1, macros: opts.macros };
   const content = `${JSON.stringify(doc, null, 2)}\n`;
-  await writeGitHubFileWithRetry(opts.octokit, {
+  await writeStateText({
+    octokit: opts.octokit,
     owner: getOwner(),
     repo: getRepo(),
     path: MACROS_PATH,
     message: opts.message ?? "chore(macros): update saved preview macros",
-    content: Buffer.from(content, "utf-8").toString("base64"),
+    content,
     sha: opts.sha ?? undefined,
   });
   return { macros: opts.macros };

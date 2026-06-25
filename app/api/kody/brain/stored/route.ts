@@ -25,7 +25,10 @@ import {
   readBrainApp,
   type BrainAppFile,
 } from "@dashboard/lib/brain/store";
-import { setGitHubContext } from "@dashboard/lib/github-client";
+import {
+  clearGitHubContext,
+  setGitHubContext,
+} from "@dashboard/lib/github-client";
 import { logger } from "@dashboard/lib/logger";
 import { resolveFlyContext } from "@dashboard/lib/runners/fly-context";
 
@@ -46,6 +49,8 @@ export async function GET(req: NextRequest) {
     ctx.context.owner,
     ctx.context.repo,
     ctx.context.githubToken,
+    ctx.context.storeRepoUrl,
+    ctx.context.storeRef,
   );
 
   try {
@@ -61,6 +66,8 @@ export async function GET(req: NextRequest) {
       "brain stored: read failed",
     );
     return NextResponse.json({ error: message }, { status: 502 });
+  } finally {
+    clearGitHubContext();
   }
 }
 
@@ -76,6 +83,8 @@ export async function DELETE(req: NextRequest) {
     ctx.context.owner,
     ctx.context.repo,
     ctx.context.githubToken,
+    ctx.context.storeRepoUrl,
+    ctx.context.storeRef,
   );
 
   try {
@@ -88,6 +97,8 @@ export async function DELETE(req: NextRequest) {
       "brain stored: clear failed",
     );
     return NextResponse.json({ error: message }, { status: 502 });
+  } finally {
+    clearGitHubContext();
   }
 }
 

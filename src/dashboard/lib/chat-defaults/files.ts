@@ -3,12 +3,12 @@
  * @domain kody
  * @pattern chat-defaults-files
  *
- * File I/O for the chat defaults bundle. Chat prompt source lives in normal
- * Kody primitives:
+ * File I/O for optional app-local chat defaults overrides. Chat prompt source
+ * can be represented with normal Kody primitive folders:
  * - `.kody/agent-actions/kody-chat/`
  * - `.kody/agent-responsibilities/kody-*` folders
  *
- * TypeScript defaults remain the fallback when those repo files are absent.
+ * TypeScript defaults remain the fallback when those local override files are absent.
  */
 
 import { readFile } from "node:fs/promises";

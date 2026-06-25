@@ -2,15 +2,22 @@
  * @fileType util
  * @domain todos
  * @pattern todo-list-files
- * @ai-summary Read/write Kody todo-list files under `.kody/todos/<slug>.md`
- * via GitHub contents API. Each file is one list; each item is a note-like
- * markdown record with its own completed state.
+ * @ai-summary Read/write Kody todo-list files under `todos/<slug>.md`
+ * in the configured Kody state repo. Each file is one list; each item is a
+ * note-like markdown record with its own completed state.
  */
 import type { Octokit } from "@octokit/rest";
-import { writeGitHubFileWithRetry } from "@dashboard/lib/github-contents-write";
 import { getOctokit, getOwner, getRepo } from "../github-client";
+import {
+  deleteStateFile,
+  listStateDirectory,
+  readStateText,
+  resolveStateRepo,
+  stateRepoPath,
+  writeStateText,
+} from "../state-repo";
 
-const TODOS_DIR = ".kody/todos";
+const TODOS_DIR = "todos";
 const FRONTMATTER_RE = /^---\r?\n([\s\S]*?)\r?\n---\r?\n?/;
 const ITEMS_BLOCK_RE = /<!--\s*kody-todo-items-json\s*\r?\n([\s\S]*?)\r?\n-->/;
 const SLUG_RE = /^[a-z0-9][a-z0-9_-]{0,63}$/;
@@ -64,28 +71,16 @@ function slugifyTitle(title: string): string {
   return slug || "todo-list";
 }
 
-function buildHtmlUrl(slug: string, branch: string | null): string {
-  const ref = branch ?? "HEAD";
-  return `https://github.com/${getOwner()}/${getRepo()}/blob/${ref}/${TODOS_DIR}/${slug}.md`;
-}
-
-async function getDefaultBranch(octokit: Octokit): Promise<string> {
-  const { data } = await octokit.repos.get({
-    owner: getOwner(),
-    repo: getRepo(),
-  });
-  return data.default_branch;
-}
-
 async function fetchLastCommitDate(
   octokit: Octokit,
   filePath: string,
 ): Promise<string> {
   try {
+    const target = await resolveStateRepo(octokit, getOwner(), getRepo());
     const { data } = await octokit.repos.listCommits({
-      owner: getOwner(),
-      repo: getRepo(),
-      path: filePath,
+      owner: target.owner,
+      repo: target.repo,
+      path: stateRepoPath(target, filePath),
       per_page: 1,
     });
     return (
@@ -235,29 +230,18 @@ function joinTodoFile(meta: TodoFrontmatter, items: TodoItemFile[]): string {
 
 export async function listTodoFiles(): Promise<TodoFile[]> {
   const octokit = getOctokit();
-  const branch = await getDefaultBranch(octokit).catch(() => null);
-  let entries: Array<{ name: string; type: string }> = [];
-
-  try {
-    const { data } = await octokit.repos.getContent({
-      owner: getOwner(),
-      repo: getRepo(),
-      path: TODOS_DIR,
-    });
-    if (!Array.isArray(data)) return [];
-    entries = data
-      .filter((item) => item.type === "file")
-      .map((item) => ({ name: item.name, type: item.type }));
-  } catch (error: unknown) {
-    if ((error as { status?: number })?.status === 404) return [];
-    throw error;
-  }
+  const { entries } = await listStateDirectory(
+    octokit,
+    getOwner(),
+    getRepo(),
+    TODOS_DIR,
+  );
 
   const files = await Promise.all(
     entries.map(async (entry) => {
       const slug = slugFromName(entry.name);
       if (!slug) return null;
-      return readTodoFile(slug, octokit, branch);
+      return readTodoFile(slug, octokit);
     }),
   );
 
@@ -269,28 +253,18 @@ export async function listTodoFiles(): Promise<TodoFile[]> {
 export async function readTodoFile(
   slug: string,
   octokitOverride?: Octokit,
-  branchOverride?: string | null,
+  _branchOverride?: string | null,
 ): Promise<TodoFile | null> {
   if (!isValidTodoSlug(slug)) return null;
   const octokit = octokitOverride ?? getOctokit();
-  const branch =
-    branchOverride === undefined
-      ? await getDefaultBranch(octokit).catch(() => null)
-      : branchOverride;
   const filePath = `${TODOS_DIR}/${slug}.md`;
 
   try {
-    const { data } = await octokit.repos.getContent({
-      owner: getOwner(),
-      repo: getRepo(),
-      path: filePath,
-    });
-    if (Array.isArray(data) || !("content" in data) || !data.content) {
-      return null;
-    }
+    const file = await readStateText(octokit, getOwner(), getRepo(), filePath);
+    if (!file) return null;
 
     const updatedAt = await fetchLastCommitDate(octokit, filePath);
-    const raw = Buffer.from(data.content, "base64").toString("utf-8");
+    const raw = file.content;
     const { frontmatter, markdown } = parseFrontmatter(raw, slug, updatedAt);
     const parsedItems = parseItems(markdown, frontmatter.createdAt);
     const items =
@@ -303,9 +277,9 @@ export async function readTodoFile(
       title: frontmatter.title,
       items,
       createdAt: frontmatter.createdAt,
-      sha: data.sha,
+      sha: file.sha,
       updatedAt,
-      htmlUrl: buildHtmlUrl(slug, branch),
+      htmlUrl: file.htmlUrl ?? "",
     };
   } catch (error: unknown) {
     if ((error as { status?: number })?.status === 404) return null;
@@ -358,12 +332,13 @@ export async function writeTodoFile(opts: WriteTodoOptions): Promise<TodoFile> {
       opts.sha ? "update" : "add"
     } ${opts.slug}`;
 
-  await writeGitHubFileWithRetry(opts.octokit, {
+  await writeStateText({
+    octokit: opts.octokit,
     owner: getOwner(),
     repo: getRepo(),
     path: filePath,
     message,
-    content: Buffer.from(normalizedContent, "utf-8").toString("base64"),
+    content: normalizedContent,
     sha: opts.sha,
   });
 
@@ -384,7 +359,8 @@ export async function deleteTodoFile(
   const existing = await readTodoFile(slug, octokit);
   if (!existing) return;
 
-  await octokit.repos.deleteFile({
+  await deleteStateFile({
+    octokit,
     owner: getOwner(),
     repo: getRepo(),
     path: `${TODOS_DIR}/${slug}.md`,

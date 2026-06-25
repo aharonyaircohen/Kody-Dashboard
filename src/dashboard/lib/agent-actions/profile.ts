@@ -4,7 +4,7 @@
  * @pattern agentAction-profile
  * @ai-summary Pure helpers that translate the dashboard's simple agentAction
  *   form fields <-> a valid engine `profile.json`. The engine reads custom
- *   agentActions from `.kody/agent-actions/<slug>/profile.json`.
+ *   agentActions from `agent-actions/<slug>/profile.json` in the state repo.
  *   We generate the same shape the built-in `feature` agentAction uses for
  *   the "opens a PR" landing (the `pr-branch` lifecycle wraps context-load
  *   → composePrompt → agent → verify → commit → PR → comment). The
@@ -63,7 +63,7 @@ export const COMMON_TOOLS = [
 
 /** Dashboard-facing description of an agentAction, independent of GitHub I/O. */
 export interface AgentActionFields {
-  /** Folder name under `.kody/agent-actions/`. AgentResponsibilities reference this as implementation. */
+  /** Folder name under `agent-actions/` in the state repo. AgentResponsibilities reference this as implementation. */
   slug: string;
   /** One-line human description (`profile.describe`). */
   describe: string;

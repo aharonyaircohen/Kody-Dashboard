@@ -76,10 +76,10 @@ export interface KodyAuth {
    */
   brainPerf?: "low" | "medium" | "high";
   /**
-   * Brain Fly terminal activity limit. Number = milliseconds; "never" keeps
-   * the terminal session until the user closes/restarts it or the machine dies.
-   * Absent = bridge default.
+   * Brain Fly auto-suspension policy. Absent = auto-suspend when idle.
    */
+  brainSuspension?: BrainSuspensionMode;
+  /** Legacy browser key from the previous terminal-activity UI. */
   brainTerminalActivityLimit?: BrainTerminalActivityLimit;
   /** Shared Kody store repository URL used for company-level agentResponsibilities/agent-actions. */
   storeRepoUrl?: string;
@@ -89,6 +89,7 @@ export interface KodyAuth {
 
 export type FlyPerfTier = NonNullable<KodyAuth["flyPerf"]>;
 export type BrainTerminalActivityLimit = number | "never";
+export type BrainSuspensionMode = "auto" | "never";
 
 interface AuthContextValue {
   auth: KodyAuth | null;
@@ -117,6 +118,7 @@ interface AuthContextValue {
     vercelBypassSecret?: string | null;
     flyPerf?: FlyPerfTier | null;
     brainPerf?: FlyPerfTier | null;
+    brainSuspension?: BrainSuspensionMode | null;
     brainTerminalActivityLimit?: BrainTerminalActivityLimit | null;
     storeRepoUrl?: string | null;
     storeRef?: string | null;
@@ -156,6 +158,12 @@ function migrateAuth(raw: unknown): KodyAuth | null {
     const idx = Math.min(Math.max(0, a.currentRepoIndex), a.repos.length - 1);
     const cur = a.repos[idx];
     // Trust repos[idx] as source of truth — repaint flat fields if drifted.
+    const brainSuspension =
+      a.brainSuspension === "auto" || a.brainSuspension === "never"
+        ? a.brainSuspension
+        : a.brainTerminalActivityLimit === "never"
+          ? "never"
+          : undefined;
     return {
       ...(a as KodyAuth),
       currentRepoIndex: idx,
@@ -163,6 +171,8 @@ function migrateAuth(raw: unknown): KodyAuth | null {
       owner: cur.owner,
       repo: cur.repo,
       token: cur.token,
+      brainSuspension,
+      brainTerminalActivityLimit: undefined,
       storeRepoUrl:
         a.storeRepoUrl ??
         (typeof a.storeRepo === "string" && a.storeRepo
@@ -194,6 +204,12 @@ function migrateAuth(raw: unknown): KodyAuth | null {
     vercelBypassSecret: a.vercelBypassSecret,
     flyPerf: a.flyPerf,
     brainPerf: a.brainPerf,
+    brainSuspension:
+      a.brainSuspension === "auto" || a.brainSuspension === "never"
+        ? a.brainSuspension
+        : a.brainTerminalActivityLimit === "never"
+          ? "never"
+          : undefined,
     storeRepoUrl:
       a.storeRepoUrl ??
       (typeof a.storeRepo === "string" && a.storeRepo
@@ -395,6 +411,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       vercelBypassSecret?: string | null;
       flyPerf?: FlyPerfTier | null;
       brainPerf?: FlyPerfTier | null;
+      brainSuspension?: BrainSuspensionMode | null;
       brainTerminalActivityLimit?: BrainTerminalActivityLimit | null;
       storeRepoUrl?: string | null;
       storeRef?: string | null;
@@ -417,6 +434,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         if (patch.brainPerf !== undefined) {
           next.brainPerf =
             patch.brainPerf === null ? undefined : patch.brainPerf;
+        }
+        if (patch.brainSuspension !== undefined) {
+          next.brainSuspension =
+            patch.brainSuspension === null ? undefined : patch.brainSuspension;
+          next.brainTerminalActivityLimit = undefined;
         }
         if (patch.brainTerminalActivityLimit !== undefined) {
           next.brainTerminalActivityLimit =

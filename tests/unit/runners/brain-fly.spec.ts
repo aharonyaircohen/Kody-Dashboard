@@ -453,6 +453,40 @@ describe("provisionBrain", () => {
     const portNums = svc.ports.map((p) => p.port).sort((a, b) => a - b);
     expect(portNums).toEqual([80, 443]);
   });
+
+  it("disables Brain autostop when suspension is set to never", async () => {
+    const calls = installFetchStub((call) => {
+      if (
+        call.method === "GET" &&
+        call.url.endsWith("/apps/kody-brain-alice")
+      ) {
+        return { json: { name: "kody-brain-alice" } };
+      }
+      if (call.method === "GET" && call.url.endsWith("/machines"))
+        return { json: [] };
+      if (call.method === "POST" && call.url.endsWith("/machines")) {
+        return { json: { id: "m", state: "starting" } };
+      }
+      throw new Error(`unexpected: ${call.method} ${call.url}`);
+    });
+    await provisionBrain({
+      flyToken: TOKEN,
+      account: "alice",
+      repo: "a/r",
+      githubToken: "gh",
+      apiKeyOverride: "k",
+      suspendOnIdle: false,
+    });
+    const create = calls.find(
+      (c) => c.method === "POST" && c.url.endsWith("/machines"),
+    )!;
+    const svc = (
+      create.body as {
+        config: { services: Array<{ autostop: false | "suspend" }> };
+      }
+    ).config.services[0]!;
+    expect(svc.autostop).toBe(false);
+  });
 });
 
 // ────────────────────────────────────────────────────────────────────────────
@@ -599,6 +633,60 @@ describe("provisionBrain image-ref healing", () => {
     expect(out.machineId).toBe("m-good");
     expect(out.apiKey).toBe("live-key");
     expect(calls.some((c) => c.method === "DELETE")).toBe(false);
+  });
+
+  it("updates a reused machine when Brain suspension is set to never", async () => {
+    const calls = installFetchStub((call) => {
+      if (call.method === "GET" && call.url.endsWith("/apps/kody-brain-alice"))
+        return { json: { name: "kody-brain-alice" } };
+      if (call.method === "GET" && call.url.endsWith("/machines"))
+        return {
+          json: [
+            {
+              id: "m-good",
+              state: "started",
+              region: "fra",
+              config: {
+                image: `${DEFAULT_IMAGE}@sha256:fresh`,
+                env: { BRAIN_API_KEY: "live-key" },
+                services: [
+                  {
+                    internal_port: 8080,
+                    autostop: "suspend",
+                    autostart: true,
+                    min_machines_running: 0,
+                  },
+                ],
+              },
+            },
+          ],
+        };
+      if (call.method === "POST" && call.url.endsWith("/machines/m-good"))
+        return { json: { id: "m-good", state: "started" } };
+      if (call.method === "DELETE")
+        throw new Error(`must not recreate: ${call.url}`);
+      throw new Error(`unexpected: ${call.method} ${call.url}`);
+    });
+
+    const out = await provisionBrain({
+      flyToken: TOKEN,
+      account: "alice",
+      githubToken: "gh",
+      suspendOnIdle: false,
+    });
+
+    expect(out.machineId).toBe("m-good");
+    expect(out.apiKey).toBe("live-key");
+    const update = calls.find(
+      (c) => c.method === "POST" && c.url.endsWith("/machines/m-good"),
+    )!;
+    expect(
+      (
+        update.body as {
+          config: { services: Array<{ autostop: false | "suspend" }> };
+        }
+      ).config.services[0]!.autostop,
+    ).toBe(false);
   });
 });
 

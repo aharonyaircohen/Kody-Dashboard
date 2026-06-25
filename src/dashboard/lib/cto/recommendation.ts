@@ -7,7 +7,7 @@
  *   task number, and the *actual* action named. Every agent leads its
  *   recommendation comment with a prose marker (`🧭 **CTO recommendation** —
  *   \`<action>\``, `🧪 **QA result** — \`<action>\``, …) AND a machine-readable
- *   `<!-- kody-agent: <slug> -->` HTML comment (see .kody/agents/*.md). The
+ *   `<!-- kody-agent: <slug> -->` HTML comment (see state-repo `agents/*.md`). The
  *   slug line is the deterministic identity signal — it survives any agentIdentity's
  *   wording and is stripped from the inbox snippet (buildSnippet drops HTML
  *   comments), so the operator never sees it. Legacy recs that predate the

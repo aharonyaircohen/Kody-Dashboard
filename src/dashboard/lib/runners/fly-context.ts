@@ -51,6 +51,9 @@ export interface FlyContext {
   engineModel: string | undefined;
   githubToken: string;
   octokit: Octokit;
+  /** Optional Store repo/ref headers carried by dashboard auth. */
+  storeRepoUrl?: string;
+  storeRef?: string;
   /** Secrets the engine reads at runtime; FLY_API_TOKEN is already extracted. */
   allSecrets: Record<string, string>;
   flyToken: string | undefined;
@@ -177,6 +180,8 @@ export async function resolveFlyContext(
       engineModel,
       githubToken,
       octokit,
+      storeRepoUrl: headerAuth?.storeRepoUrl,
+      storeRef: headerAuth?.storeRef,
       allSecrets,
       flyToken,
       perfTier,

@@ -5,7 +5,7 @@
  *
  * GET /api/kody/events/poll?taskId=xxx&since=N
  *
- * Returns events from `.kody/events/{taskId}.jsonl` starting at line N.
+ * Returns events from the state repo's `events/{taskId}.jsonl` starting at line N.
  * One-shot JSON response — the client polls back at its own cadence.
  *
  * Push (HttpSink → /ingest → in-memory bus) was attempted but doesn't

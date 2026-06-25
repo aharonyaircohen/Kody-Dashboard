@@ -1,5 +1,5 @@
 /**
- * @fileoverview Regression guard for Brain Fly terminal activity settings.
+ * @fileoverview Regression guard for Brain Fly suspension settings.
  * @testFramework vitest
  * @domain terminal
  */
@@ -21,16 +21,13 @@ const SURFACE_SOURCE = readFileSync(
   "utf8",
 );
 
-describe("Brain terminal activity limit UI", () => {
-  it("offers minutes, hours, and never for Brain Fly terminals", () => {
-    expect(BRAIN_CARD_SOURCE).toContain("brainTerminalActivityLimit");
-    expect(BRAIN_CARD_SOURCE).toContain("Brain terminal activity");
-    expect(BRAIN_CARD_SOURCE).toContain("30 min");
-    expect(BRAIN_CARD_SOURCE).toContain("1 hour");
-    expect(BRAIN_CARD_SOURCE).toContain("4 hours");
-    expect(BRAIN_CARD_SOURCE).toContain("12 hours");
+describe("Brain suspension UI", () => {
+  it("offers idle auto-suspend and never for Brain Fly", () => {
+    expect(BRAIN_CARD_SOURCE).toContain("brainSuspension");
+    expect(BRAIN_CARD_SOURCE).toContain("Brain suspension");
+    expect(BRAIN_CARD_SOURCE).toContain("When idle");
     expect(BRAIN_CARD_SOURCE).toContain("Never");
-    expect(SURFACE_SOURCE).toContain("getStoredBrainTerminalActivityLimit()");
+    expect(BRAIN_CARD_SOURCE).toContain('"x-kody-brain-suspension"');
     expect(SURFACE_SOURCE).toContain('current.feature === "brain"');
   });
 });

@@ -3,7 +3,7 @@
  * @domain preview
  * @pattern browser-fetch
  * @ai-summary Browser-side helpers for repo-backed static views stored under
- * `.kody/views/<id>` in the connected consumer repo.
+ * `views/<id>` in the configured Kody state repo.
  */
 "use client";
 

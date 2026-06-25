@@ -2,7 +2,7 @@
  * @fileType component
  * @domain kody
  * @pattern memory-manager
- * @ai-summary Operator UI for Kody memory files under `.kody/memory/`.
+ * @ai-summary Operator UI for Kody memory files under state repo `memory/`.
  *   Operators can search, create, edit, and delete memories without using chat
  *   tools directly.
  */
@@ -308,7 +308,7 @@ function MemoryManagerInner({ embedded = false }: MemoryManagerProps) {
         title="Delete this memory?"
         description={
           pendingDelete
-            ? `Memory "${pendingDelete.id}" will be removed from .kody/memory/ and the index will be refreshed.`
+            ? `Memory "${pendingDelete.id}" will be removed from the state repo memory store and the index will be refreshed.`
             : ""
         }
         variant="destructive"
@@ -565,7 +565,7 @@ function MemoryFormDialog({
         <DialogHeader>
           <DialogTitle>{isEditing ? "Edit memory" : "New memory"}</DialogTitle>
           <DialogDescription>
-            Memory is stored in .kody/memory and is injected into Kody chat
+            Memory is stored in the state repo and is injected into Kody chat
             through the generated index.
           </DialogDescription>
         </DialogHeader>

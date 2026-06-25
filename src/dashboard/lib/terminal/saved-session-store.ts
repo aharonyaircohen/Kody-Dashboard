@@ -19,6 +19,7 @@ import {
   SAVED_TERMINAL_LIMIT,
   SAVED_TERMINAL_NAME_LIMIT,
   SAVED_TERMINAL_OUTPUT_LIMIT,
+  savedTerminalTransportKey,
   type SavedTerminalSession,
   type SavedTerminalSessionsDocument,
   type SavedTerminalSnapshotInput,
@@ -71,6 +72,24 @@ function sortSessions(
   return [...sessions].sort((a, b) => b.updatedAt.localeCompare(a.updatedAt));
 }
 
+function autoSaveDedupeKey(session: SavedTerminalSession): string | null {
+  if (!session.name.startsWith("Auto-save: ")) return null;
+  return savedTerminalTransportKey(session.transport, session.chatSessionId);
+}
+
+function dedupeAutoSavedSessions(
+  sessions: SavedTerminalSession[],
+): SavedTerminalSession[] {
+  const seen = new Set<string>();
+  return sortSessions(sessions).filter((session) => {
+    const key = autoSaveDedupeKey(session);
+    if (!key) return true;
+    if (seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
+}
+
 function makeSavedTerminalId(now: Date): string {
   return `terminal-${now.getTime().toString(36)}-${randomUUID().slice(0, 8)}`;
 }
@@ -85,7 +104,7 @@ function parseDoc(
     const parsed = SavedTerminalSessionsDocumentSchema.parse(JSON.parse(raw));
     return {
       version: 1,
-      sessions: sortSessions(parsed.sessions),
+      sessions: dedupeAutoSavedSessions(parsed.sessions),
     };
   } catch (err) {
     logger.warn(
@@ -135,6 +154,7 @@ export async function upsertSavedTerminalSession(
   const existing = input.id
     ? doc.sessions.find((session) => session.id === input.id)
     : null;
+  const output = limitSavedTerminalOutput(input.output ?? "");
   const session: SavedTerminalSession = {
     id: existing?.id ?? input.id ?? makeSavedTerminalId(now),
     name: input.name.trim().slice(0, SAVED_TERMINAL_NAME_LIMIT),
@@ -142,15 +162,27 @@ export async function upsertSavedTerminalSession(
     chatSessionId: input.chatSessionId,
     cwd: input.cwd,
     shell: input.shell,
-    output: limitSavedTerminalOutput(input.output ?? ""),
+    output,
     createdAt: existing?.createdAt ?? timestamp,
     updatedAt: timestamp,
     savedBy: actorLogin,
   };
+  if (
+    existing &&
+    existing.name === session.name &&
+    JSON.stringify(existing.transport) === JSON.stringify(session.transport) &&
+    existing.chatSessionId === session.chatSessionId &&
+    existing.cwd === session.cwd &&
+    existing.shell === session.shell &&
+    existing.output === session.output &&
+    existing.savedBy === session.savedBy
+  ) {
+    return { doc, session: existing, sha: sha ?? "" };
+  }
 
   const next: SavedTerminalSessionsDocument = {
     version: 1,
-    sessions: sortSessions([
+    sessions: dedupeAutoSavedSessions([
       session,
       ...doc.sessions.filter((item) => item.id !== session.id),
     ]).slice(0, SAVED_TERMINAL_LIMIT),

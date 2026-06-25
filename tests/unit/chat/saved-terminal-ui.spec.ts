@@ -40,9 +40,32 @@ describe("saved terminal snapshot UI", () => {
   it("supports opt-in auto-save when a terminal session ends", () => {
     expect(CHAT_SOURCE).toContain("Auto-save on stop");
     expect(CHAT_SOURCE).toContain("autoSaveTerminalOnEnd");
+    expect(CHAT_SOURCE).toContain("savedTerminalAutoSaveId");
     expect(CHAT_SOURCE).toContain("handleAutoSaveTerminalSnapshot");
     expect(CHAT_SOURCE).toContain("onSessionEnded");
+    expect(CHAT_SOURCE).not.toContain('successMessage: "Terminal auto-saved"');
     expect(SURFACE_SOURCE).toContain("onSessionEnded");
     expect(SURFACE_SOURCE).toContain("notifyTerminalSessionEnded");
+  });
+
+  it("restores Fly snapshots without reconnecting automatically", () => {
+    expect(CHAT_SOURCE).toContain("restoredSnapshotOnlyTerminalIds");
+    expect(CHAT_SOURCE).toContain("readRestoredSnapshotOnlyTerminalIds");
+    expect(CHAT_SOURCE).toContain("writeRestoredSnapshotOnlyTerminalIds");
+    expect(CHAT_SOURCE).toContain("RESTORED_SNAPSHOT_ONLY_TERMINAL_IDS_KEY");
+    expect(CHAT_SOURCE).toContain("suppressFlyAutoConnect");
+    expect(SURFACE_SOURCE).toContain("suppressFlyAutoConnect");
+    expect(SURFACE_SOURCE).toContain('updateFlyConnectionState("closed")');
+  });
+
+  it("does not loop forever when a Fly terminal connect fails", () => {
+    expect(SURFACE_SOURCE).toContain("flyConnectFailureKeyRef");
+    expect(SURFACE_SOURCE).toContain("handledFlyConnectNonceKeyRef");
+    expect(SURFACE_SOURCE).toContain(
+      "flyConnectFailureKeyRef.current === attemptKey",
+    );
+    expect(SURFACE_SOURCE).toContain(
+      "handledFlyConnectNonceKeyRef.current === nonceKey",
+    );
   });
 });

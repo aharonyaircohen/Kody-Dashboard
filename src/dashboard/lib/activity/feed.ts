@@ -3,7 +3,7 @@
  * @domain kody
  * @pattern activity-feed
  * @ai-summary Pure: fold the engine's per-session event lines
- *   (`.kody/events/*.jsonl`, read via `readFeedEntries`) into the Activity
+ *   (`events/*.jsonl` in the state repo, read via `readFeedEntries`) into the Activity
  *   Feed. The unit is a *session* (a chat or run), not a raw event line —
  *   each session carries origin, issue/run links, initiator, lifecycle
  *   times and an ordered, fully-expandable event list (raw payload kept,

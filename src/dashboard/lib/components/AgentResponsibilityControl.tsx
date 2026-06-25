@@ -3,7 +3,7 @@
  * @domain kody
  * @pattern agentResponsibility-control-page
  * @ai-summary AgentResponsibility Control — list, view, create, edit, and delete agentResponsibilities.
- *   A agentResponsibility is a folder at `.kody/agent-responsibilities/<slug>/` in the connected repo:
+ *   A agentResponsibility is a folder at `agent-responsibilities/<slug>/` in the state repo:
  *   `profile.json` stores metadata and `agent-responsibility.md` describes intent,
  *   allowed commands, and restrictions.
  */
@@ -65,6 +65,11 @@ import {
   formatDuration,
   formatRelativePast,
 } from "../agent-responsibilities-schedule";
+import {
+  ALL_SCHEDULE_EVERY_OPTIONS,
+  scheduleEveryLabel,
+  type ScheduleEvery,
+} from "../agent-responsibilities-frontmatter";
 import {
   type AgentResponsibility,
   type AgentResponsibilityCapabilityKind,
@@ -420,12 +425,12 @@ export function AgentResponsibilityControlInner() {
                       {agentResponsibility.disabled ? (
                         <span
                           className="shrink-0 inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-medium uppercase tracking-wide bg-white/[0.06] text-muted-foreground border border-white/[0.08]"
-                        title="Disabled for runner dispatch. Manual Run still works."
+                          title="Disabled for runner dispatch. Manual Run still works."
                         >
                           <PowerOff className="w-2.5 h-2.5" />
                           Disabled
                         </span>
-                    ) : null}
+                      ) : null}
                     </div>
                     <div className="text-xs text-muted-foreground mt-1 flex items-center gap-2 flex-wrap">
                       <span className="font-mono opacity-80">
@@ -509,7 +514,7 @@ export function AgentResponsibilityControlInner() {
           pendingDelete
             ? pendingDelete.source === "store"
               ? `AgentResponsibility "${pendingDelete.title}" (${pendingDelete.slug}) will be removed from this repo's active Store responsibilities. The Store asset will not be deleted.`
-              : `AgentResponsibility "${pendingDelete.title}" (${pendingDelete.slug}) will be removed from .kody/agent-responsibilities/ via a commit on the default branch.`
+              : `AgentResponsibility "${pendingDelete.title}" (${pendingDelete.slug}) will be removed from the state repo responsibility store.`
             : ""
         }
         variant="destructive"
@@ -580,7 +585,7 @@ function AgentResponsibilityDetail({
                 {agentResponsibility.disabled ? (
                   <span
                     className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[11px] font-medium uppercase tracking-wide bg-white/[0.06] text-muted-foreground border border-white/[0.08]"
-                title="Disabled for runner dispatch. Manual Run still works."
+                    title="Disabled for runner dispatch. Manual Run still works."
                   >
                     <PowerOff className="w-3 h-3" />
                     Disabled
@@ -783,8 +788,8 @@ function AgentResponsibilityDetail({
               </p>
               <p className="text-xs text-muted-foreground max-w-sm mx-auto">
                 Use <span className="font-medium text-foreground">Edit</span> to
-                describe the agentResponsibility&apos;s purpose,
-                allowed commands, and restrictions.
+                describe the agentResponsibility&apos;s purpose, allowed
+                commands, and restrictions.
               </p>
             </div>
             <Button
@@ -825,8 +830,9 @@ function CreateAgentResponsibilityDialog({
     createMutation.mutate(
       {
         title: values.title,
-      body: values.body,
-      capabilityKind: values.capabilityKind,
+        body: values.body,
+        schedule: values.schedule,
+        capabilityKind: values.capabilityKind,
         disabled: false,
         agent: values.agent,
         reviewer: values.reviewer,
@@ -848,8 +854,8 @@ function CreateAgentResponsibilityDialog({
         <DialogHeader>
           <DialogTitle>New agentResponsibility</DialogTitle>
           <DialogDescription>
-            Describe the agentResponsibility&apos;s purpose, allowed
-            commands, and restrictions.
+            Describe the agentResponsibility&apos;s purpose, allowed commands,
+            and restrictions.
           </DialogDescription>
         </DialogHeader>
 
@@ -895,6 +901,7 @@ function EditAgentResponsibilityDialog({
     const patch: {
       title?: string;
       body?: string;
+      schedule?: ScheduleEvery | null;
       capabilityKind?: AgentResponsibilityCapabilityKind | null;
       agent?: string | null;
       reviewer?: string | null;
@@ -903,6 +910,8 @@ function EditAgentResponsibilityDialog({
     } = {};
     if (values.title !== agentResponsibility.title) patch.title = values.title;
     if (values.body !== agentResponsibility.body) patch.body = values.body;
+    if (values.schedule !== agentResponsibility.schedule)
+      patch.schedule = values.schedule;
     if (values.capabilityKind !== agentResponsibility.capabilityKind) {
       patch.capabilityKind = values.capabilityKind;
     }
@@ -1093,7 +1102,6 @@ function LastTickInline({
   );
 }
 
-
 function LastTickDetail({
   lastTickAt,
   lastOutcome,
@@ -1160,6 +1168,7 @@ function buildAgentResponsibilityBodyForCapabilityKind(
 interface AgentResponsibilityFormValues {
   title: string;
   body: string;
+  schedule: ScheduleEvery | null;
   capabilityKind: AgentResponsibilityCapabilityKind | null;
   agent: string | null;
   reviewer: string | null;
@@ -1170,6 +1179,7 @@ interface AgentResponsibilityFormValues {
 interface AgentResponsibilityFormSubmitValues {
   title: string;
   body: string;
+  schedule: ScheduleEvery | null;
   capabilityKind: AgentResponsibilityCapabilityKind | null;
   agent: string | null;
   reviewer: string | null;
@@ -1182,6 +1192,7 @@ function buildNewAgentResponsibilityFormValues(): AgentResponsibilityFormValues 
   return {
     title: "",
     body: buildAgentResponsibilityBodyForCapabilityKind(capabilityKind),
+    schedule: null,
     capabilityKind,
     agent: null,
     reviewer: null,
@@ -1196,6 +1207,7 @@ function buildAgentResponsibilityFormValues(
   return {
     title: agentResponsibility.title,
     body: agentResponsibility.body || "",
+    schedule: agentResponsibility.schedule,
     capabilityKind: agentResponsibility.capabilityKind,
     agent: agentResponsibility.agent,
     reviewer: agentResponsibility.reviewer,
@@ -1231,6 +1243,9 @@ function AgentResponsibilityForm({
 }) {
   const [title, setTitle] = useState(initialValues.title);
   const [body, setBody] = useState(initialValues.body);
+  const [schedule, setSchedule] = useState<ScheduleEvery | null>(
+    initialValues.schedule,
+  );
   const [bodyTouched, setBodyTouched] = useState(false);
   const [capabilityKind, setCapabilityKind] =
     useState<AgentResponsibilityCapabilityKind | null>(
@@ -1249,6 +1264,7 @@ function AgentResponsibilityForm({
   useEffect(() => {
     setTitle(initialValues.title);
     setBody(initialValues.body);
+    setSchedule(initialValues.schedule);
     setBodyTouched(false);
     setCapabilityKind(initialValues.capabilityKind);
     setAgent(initialValues.agent);
@@ -1288,6 +1304,7 @@ function AgentResponsibilityForm({
     onSubmit({
       title: title.trim(),
       body,
+      schedule,
       capabilityKind,
       agent,
       reviewer,
@@ -1314,25 +1331,18 @@ function AgentResponsibilityForm({
           onChange={updateCapabilityKind}
           allowUnset={!simpleCreate}
         />
-        {simpleCreate ? (
-        <AgentActionSelect value={agentAction} onChange={setAgentAction} />
-        ) : (
-          <>
-        <div className="space-y-1.5">
-          <Label htmlFor={actionId}>Action</Label>
-          <Input
-            id={actionId}
-            value={action}
-            onChange={(e) => updateAction(e.target.value)}
-            placeholder="e.g. release-notes"
-          />
-        </div>
-            <AgentResponsibilityAgentActionOutputRow
-              agentAction={agentAction}
-              onAgentActionChange={setAgentAction}
-            />
-          </>
-        )}
+        <AgentResponsibilityActionScheduleRow
+          actionId={actionId}
+          action={action}
+          onActionChange={updateAction}
+          schedule={schedule}
+          onScheduleChange={setSchedule}
+          hideAction={simpleCreate}
+        />
+        <AgentResponsibilityAgentActionOutputRow
+          agentAction={agentAction}
+          onAgentActionChange={setAgentAction}
+        />
         <AgentResponsibilityAgentRoleRow
           agent={agent}
           onAgentChange={setAgent}
@@ -1367,6 +1377,73 @@ function AgentResponsibilityForm({
         </Button>
       </div>
     </>
+  );
+}
+
+function AgentResponsibilityActionScheduleRow({
+  actionId,
+  action,
+  onActionChange,
+  schedule,
+  onScheduleChange,
+  hideAction = false,
+}: {
+  actionId: string;
+  action: string;
+  onActionChange: (next: string) => void;
+  schedule: ScheduleEvery | null;
+  onScheduleChange: (next: ScheduleEvery | null) => void;
+  hideAction?: boolean;
+}) {
+  return (
+    <div
+      className={cn("grid grid-cols-1 gap-4", !hideAction && "md:grid-cols-2")}
+    >
+      {hideAction ? null : (
+        <div className="space-y-1.5">
+          <Label htmlFor={actionId}>Action</Label>
+          <Input
+            id={actionId}
+            value={action}
+            onChange={(e) => onActionChange(e.target.value)}
+            placeholder="e.g. release-notes"
+          />
+        </div>
+      )}
+      <ScheduleSelect value={schedule} onChange={onScheduleChange} />
+    </div>
+  );
+}
+
+function ScheduleSelect({
+  value,
+  onChange,
+}: {
+  value: ScheduleEvery | null;
+  onChange: (next: ScheduleEvery | null) => void;
+}) {
+  return (
+    <div className="space-y-1.5">
+      <Label htmlFor="agentResponsibility-schedule">Schedule</Label>
+      <Select
+        value={value ?? "__default__"}
+        onValueChange={(next) =>
+          onChange(next === "__default__" ? null : (next as ScheduleEvery))
+        }
+      >
+        <SelectTrigger id="agentResponsibility-schedule">
+          <SelectValue placeholder="Every scheduler wake" />
+        </SelectTrigger>
+        <SelectContent>
+          <SelectItem value="__default__">Every scheduler wake</SelectItem>
+          {ALL_SCHEDULE_EVERY_OPTIONS.map((option) => (
+            <SelectItem key={option} value={option}>
+              {scheduleEveryLabel(option)}
+            </SelectItem>
+          ))}
+        </SelectContent>
+      </Select>
+    </div>
   );
 }
 
@@ -1498,7 +1575,7 @@ function AgentSelect({
           </>
         ) : (
           <span className="text-amber-400">
-              No agent assigned. Pick one before using this in a loop or goal.
+            No agent assigned. Pick one before using this in a loop or goal.
           </span>
         )}
       </p>

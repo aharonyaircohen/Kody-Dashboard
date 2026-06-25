@@ -51,7 +51,9 @@ describe("Kody chat evals", () => {
 
   it("tells Kody to ask at most one blocking clarifying question", () => {
     expect(prompt).toContain("Ask at most one clarifying question");
-    expect(prompt).toContain("Do not ask about wording, naming, priority");
+    expect(prompt).toContain(
+      "If there is no blocking question, ask only for approval",
+    );
   });
 
   it("does not encourage endless clarification loops in Vibe mode", () => {
@@ -91,7 +93,9 @@ describe("Kody chat evals", () => {
 
   it("tells Kody to ask at most one blocking clarifying question", () => {
     expect(prompt).toContain("Ask at most one clarifying question");
-    expect(prompt).toContain("Do not ask about wording, naming, priority");
+    expect(prompt).toContain(
+      "If there is no blocking question, ask only for approval",
+    );
   });
 
   it("does not encourage endless clarification loops in Vibe mode", () => {

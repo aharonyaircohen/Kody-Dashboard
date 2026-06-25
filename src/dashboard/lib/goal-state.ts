@@ -38,7 +38,7 @@ export interface GoalRunState {
   mergeApproved?: boolean;
   /**
    * "Let Kody manage this goal end-to-end." When true, the `goal-manager`
-   * agent (`.kody/agents/goal-manager.md`) picks the goal up: decomposes
+   * agent (`agents/goal-manager.md` in the state repo) picks the goal up: decomposes
    * it into task issues, lets `goal-tick` execute them, verifies the
    * end-to-end journey with `qa-engineer`, recovers stalls, and leaves a
    * single open deliverable PR for a human to merge. Absent/false → the

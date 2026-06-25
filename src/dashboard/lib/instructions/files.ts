@@ -3,7 +3,7 @@
  * @domain kody
  * @pattern instructions-files
  * @ai-summary Read/write the per-repo user instructions document
- *   stored at `.kody/instructions.md`. This is a single free-form
+ *   stored at `instructions.md` in the configured Kody state repo. This is a single free-form
  *   markdown file (no frontmatter) appended to every kody-direct
  *   chat turn under "## User instructions for this repo" — the
  *   user's place to put tone, length, formatting, or behavioral
@@ -16,10 +16,16 @@
  */
 
 import type { Octokit } from "@octokit/rest";
-import { writeGitHubFileWithRetry } from "@dashboard/lib/github-contents-write";
 import { getOctokit, getOwner, getRepo } from "../github-client";
+import {
+  deleteStateFile,
+  readStateText,
+  resolveStateRepo,
+  stateRepoPath,
+  writeStateText,
+} from "../state-repo";
 
-const INSTRUCTIONS_PATH = ".kody/instructions.md";
+const INSTRUCTIONS_PATH = "instructions.md";
 
 export interface InstructionsFile {
   body: string;
@@ -28,20 +34,13 @@ export interface InstructionsFile {
   htmlUrl: string;
 }
 
-async function getDefaultBranch(octokit: Octokit): Promise<string> {
-  const { data } = await octokit.repos.get({
-    owner: getOwner(),
-    repo: getRepo(),
-  });
-  return data.default_branch;
-}
-
 async function fetchLastCommitDate(octokit: Octokit): Promise<string> {
   try {
+    const target = await resolveStateRepo(octokit, getOwner(), getRepo());
     const { data } = await octokit.repos.listCommits({
-      owner: getOwner(),
-      repo: getRepo(),
-      path: INSTRUCTIONS_PATH,
+      owner: target.owner,
+      repo: target.repo,
+      path: stateRepoPath(target, INSTRUCTIONS_PATH),
       per_page: 1,
     });
     return (
@@ -54,31 +53,19 @@ async function fetchLastCommitDate(octokit: Octokit): Promise<string> {
   }
 }
 
-function buildHtmlUrl(branch: string | null): string {
-  const ref = branch ?? "HEAD";
-  return `https://github.com/${getOwner()}/${getRepo()}/blob/${ref}/${INSTRUCTIONS_PATH}`;
-}
-
 export async function readInstructionsFile(
   octokitOverride?: Octokit,
 ): Promise<InstructionsFile | null> {
   const octokit = octokitOverride ?? getOctokit();
-  const branch = await getDefaultBranch(octokit).catch(() => null);
   try {
-    const { data } = await octokit.repos.getContent({
-      owner: getOwner(),
-      repo: getRepo(),
-      path: INSTRUCTIONS_PATH,
-    });
-    if (Array.isArray(data) || !("content" in data) || !data.content)
-      return null;
-    const body = Buffer.from(data.content, "base64").toString("utf-8");
+    const file = await readStateText(octokit, getOwner(), getRepo(), INSTRUCTIONS_PATH);
+    if (!file) return null;
     const updatedAt = await fetchLastCommitDate(octokit);
     return {
-      body,
-      sha: data.sha,
+      body: file.content,
+      sha: file.sha,
       updatedAt,
-      htmlUrl: buildHtmlUrl(branch),
+      htmlUrl: file.htmlUrl ?? "",
     };
   } catch (error: unknown) {
     if ((error as { status?: number })?.status === 404) return null;
@@ -101,12 +88,13 @@ export async function writeInstructionsFile(
     opts.message ??
     `${opts.sha ? "chore" : "feat"}(instructions): ${opts.sha ? "update" : "add"} chat instructions`;
 
-  await writeGitHubFileWithRetry(opts.octokit, {
+  await writeStateText({
+    octokit: opts.octokit,
     owner: getOwner(),
     repo: getRepo(),
     path: INSTRUCTIONS_PATH,
     message,
-    content: Buffer.from(body, "utf-8").toString("base64"),
+    content: body,
     sha: opts.sha,
   });
 
@@ -125,7 +113,8 @@ export async function writeInstructionsFile(
 export async function deleteInstructionsFile(octokit: Octokit): Promise<void> {
   const existing = await readInstructionsFile();
   if (!existing) return;
-  await octokit.repos.deleteFile({
+  await deleteStateFile({
+    octokit,
     owner: getOwner(),
     repo: getRepo(),
     path: INSTRUCTIONS_PATH,

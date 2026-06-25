@@ -76,14 +76,22 @@ describe("Store command resolution", () => {
     vi.clearAllMocks();
     listCommits.mockResolvedValue({ data: [] });
     getContent.mockImplementation(async ({ path }: { path: string }) => {
-      if (path === ".kody/commands") {
+      if (path === "repo/commands") {
         return {
-          data: [{ name: "review.md", sha: "repo-review-sha", type: "file" }],
+          data: [
+            {
+              name: "review.md",
+              path: "repo/commands/review.md",
+              sha: "repo-review-sha",
+              type: "file",
+            },
+          ],
         };
       }
-      if (path === ".kody/commands/review.md") {
+      if (path === "repo/commands/review.md") {
         return {
           data: {
+            type: "file",
             content: repoCommandContent("Repo review body"),
             sha: "repo-review-sha",
           },

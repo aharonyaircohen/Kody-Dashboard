@@ -7,7 +7,7 @@
  *   Output format: "v1:<iv_b64>:<ct_b64>:<tag_b64>".
  *
  *   Generate with `pnpm vault:init`. Rotating the key invalidates every
- *   encrypted secret in .kody/secrets.enc — back values up first.
+ *   encrypted secret in state repo `secrets.enc` — back values up first.
  */
 
 import {

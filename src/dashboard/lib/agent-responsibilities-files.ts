@@ -3,8 +3,8 @@
  * @domain kody
  * @pattern agentResponsibilities-files
  * @ai-summary Folder-backed agentResponsibility store. A agentResponsibility is a directory at
- *   `.kody/agent-responsibilities/<slug>/` with `profile.json` for metadata and `agent-responsibility.md`
- *   for the human-readable why/output/limits body. The exported API matches
+ *   `agent-responsibilities/<slug>/` in the state repo with `profile.json` for metadata
+ *   and `agent-responsibility.md` for the human-readable why/output/limits body. The exported API matches
  *   the old markdown-file helper so routes/components can stay stable.
  */
 
@@ -34,6 +34,7 @@ import {
   type TickFile,
   type TickWriteOptions,
 } from "./ticked/files";
+import { isScheduleEvery, type ScheduleEvery } from "./ticked/frontmatter";
 import {
   buildCompanyStoreHtmlUrl,
   companyStoreUpdatedAt,
@@ -51,6 +52,7 @@ interface AgentResponsibilityProfile {
   name: string;
   action?: string;
   agentAction?: string;
+  every?: ScheduleEvery;
   capabilityKind?: AgentResponsibilityCapabilityKind;
   disabled?: boolean;
   agent?: string;
@@ -70,20 +72,26 @@ export function isValidSlug(slug: string): boolean {
   return /^[a-z0-9][a-z0-9_-]{0,63}$/.test(slug);
 }
 
-export function buildAgentResponsibilityBody(title: string, body: string): string {
+export function buildAgentResponsibilityBody(
+  title: string,
+  body: string,
+): string {
   const stripped = stripLeadingH1(body.replace(/^\s+/, ""));
   return stripped.length > 0
     ? `# ${title.trim()}\n\n${stripped}${stripped.endsWith("\n") ? "" : "\n"}`
     : `# ${title.trim()}\n`;
 }
 
-export function buildAgentResponsibilityProfile(opts: TickWriteOptions): AgentResponsibilityProfile {
+export function buildAgentResponsibilityProfile(
+  opts: TickWriteOptions,
+): AgentResponsibilityProfile {
   const profile: AgentResponsibilityProfile = {
     name: opts.slug,
     describe: opts.title,
   };
   if (opts.action?.trim()) profile.action = opts.action.trim();
   if (opts.agentAction?.trim()) profile.agentAction = opts.agentAction.trim();
+  if (opts.schedule) profile.every = opts.schedule;
   if (opts.capabilityKind) profile.capabilityKind = opts.capabilityKind;
   if (opts.disabled === true) profile.disabled = true;
   const agentSlug = (opts.agent ?? "").trim();
@@ -94,7 +102,8 @@ export function buildAgentResponsibilityProfile(opts: TickWriteOptions): AgentRe
   if (opts.mentions?.length) profile.mentions = cleanList(opts.mentions, true);
   if (opts.agentActions?.length)
     profile.agentActions = cleanList(opts.agentActions);
-  if (opts.agentResponsibilityTools?.length) profile.tools = cleanList(opts.agentResponsibilityTools);
+  if (opts.agentResponsibilityTools?.length)
+    profile.tools = cleanList(opts.agentResponsibilityTools);
   if (opts.tickScript?.trim()) profile.tickScript = opts.tickScript.trim();
   if (opts.readsFrom?.length) profile.readsFrom = cleanList(opts.readsFrom);
   if (opts.writesTo?.length) profile.writesTo = cleanList(opts.writesTo);
@@ -137,13 +146,17 @@ const MANAGED_PROFILE_KEYS: ReadonlySet<string> = new Set([
   "writesTo",
 ]);
 
-function parseAgentResponsibilityProfile(raw: unknown, slug: string): AgentResponsibilityProfile {
+function parseAgentResponsibilityProfile(
+  raw: unknown,
+  slug: string,
+): AgentResponsibilityProfile {
   const r =
     raw && typeof raw === "object" ? (raw as Record<string, unknown>) : {};
   return {
     name: stringField(r.name) ?? slug,
     action: stringField(r.action),
     agentAction: stringField(r.agentAction),
+    every: isScheduleEvery(r.every) ? r.every : undefined,
     capabilityKind: agentResponsibilityCapabilityKindField(r.capabilityKind),
     disabled: typeof r.disabled === "boolean" ? r.disabled : undefined,
     agent: stringField(r.agent),
@@ -222,9 +235,15 @@ async function fetchTickState(
   slug: string,
 ): Promise<TickStateFields> {
   try {
-    const file = await readStateText(octokit, getOwner(), getRepo(), agentResponsibilityStatePath(slug), {
-      headers: { "If-None-Match": "" },
-    });
+    const file = await readStateText(
+      octokit,
+      getOwner(),
+      getRepo(),
+      agentResponsibilityStatePath(slug),
+      {
+        headers: { "If-None-Match": "" },
+      },
+    );
     if (!file) return EMPTY_TICK_STATE;
     const parsed: unknown = JSON.parse(file.content);
     if (!parsed || typeof parsed !== "object") return EMPTY_TICK_STATE;
@@ -298,7 +317,9 @@ export async function listLocalAgentResponsibilityFiles(): Promise<
   );
 }
 
-export async function listAgentResponsibilityFiles(): Promise<AgentResponsibilityFile[]> {
+export async function listAgentResponsibilityFiles(): Promise<
+  AgentResponsibilityFile[]
+> {
   const octokit = getOctokit();
   const { entries } = await listStateDirectory(
     octokit,
@@ -313,7 +334,9 @@ export async function listAgentResponsibilityFiles(): Promise<AgentResponsibilit
       .filter((e) => e.type === "dir" && isValidSlug(e.name))
       .map((e) => readAgentResponsibilityFile(e.name, octokit)),
   );
-  const local = agentResponsibilities.filter((d): d is AgentResponsibilityFile => d !== null);
+  const local = agentResponsibilities.filter(
+    (d): d is AgentResponsibilityFile => d !== null,
+  );
   const store = await listStoreAgentResponsibilityFiles(
     octokit,
     new Set(local.map((d) => d.slug)),
@@ -335,7 +358,9 @@ async function listStoreAgentResponsibilityFiles(
       .filter((slug) => !localSlugs.has(slug))
       .map((slug) => readStoreAgentResponsibilityFile(slug, octokit)),
   );
-  return agentResponsibilities.filter((d): d is AgentResponsibilityFile => d !== null);
+  return agentResponsibilities.filter(
+    (d): d is AgentResponsibilityFile => d !== null,
+  );
 }
 
 export async function readResolvedAgentResponsibilityFile(
@@ -344,7 +369,10 @@ export async function readResolvedAgentResponsibilityFile(
 ): Promise<AgentResponsibilityFile | null> {
   const local = await readAgentResponsibilityFile(slug, octokitOverride);
   if (local) return local;
-  return readStoreAgentResponsibilityFile(slug, octokitOverride ?? getOctokit());
+  return readStoreAgentResponsibilityFile(
+    slug,
+    octokitOverride ?? getOctokit(),
+  );
 }
 
 export async function readAgentResponsibilityFile(
@@ -372,7 +400,7 @@ export async function readAgentResponsibilityFile(
         headers: { "If-None-Match": "" },
       }),
       fetchLastCommitDate(octokit, bodyPath),
-        fetchStateLastCommitDate(octokit, slug),
+      fetchStateLastCommitDate(octokit, slug),
       fetchTickState(octokit, slug),
       fetchRecentAgentResponsibilityActivity(),
     ]);
@@ -400,7 +428,7 @@ export async function readAgentResponsibilityFile(
       lastDurationMs: useActivity
         ? activity.durationMs
         : tickState.lastDurationMs,
-      schedule: null,
+      schedule: profile.every ?? null,
       capabilityKind: profile.capabilityKind ?? null,
       disabled: profile.disabled === true,
       agent: profile.agent ?? null,
@@ -451,7 +479,7 @@ async function readStoreAgentResponsibilityFile(
     nextEligibleAt: null,
     lastOutcome: null,
     lastDurationMs: null,
-    schedule: null,
+    schedule: profile.every ?? null,
     capabilityKind: profile.capabilityKind ?? null,
     disabled: profile.disabled === true,
     agent: profile.agent ?? null,
@@ -470,7 +498,9 @@ async function readStoreAgentResponsibilityFile(
   };
 }
 
-export async function writeAgentResponsibilityFile(opts: TickWriteOptions): Promise<AgentResponsibilityFile> {
+export async function writeAgentResponsibilityFile(
+  opts: TickWriteOptions,
+): Promise<AgentResponsibilityFile> {
   if (!isValidSlug(opts.slug)) {
     throw new Error(
       `Invalid agentResponsibilities slug: "${opts.slug}". Use lowercase letters, digits, dashes, underscores.`,

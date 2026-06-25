@@ -3,8 +3,8 @@
  * @domain kody
  * @pattern agentResponsibility-control-hooks
  * @ai-summary React Query hooks for the AgentResponsibility Control page.
- *   Backed by `.kody/agent-responsibilities/<slug>/` folders in the connected repo via the
- *   contents API; agentResponsibilities are no longer GitHub issues.
+ *   Backed by `agent-responsibilities/<slug>/` folders in the state repo via
+ *   the API; agentResponsibilities are no longer GitHub issues.
  */
 "use client";
 
@@ -19,6 +19,7 @@ import {
   getStoredAuth,
 } from "../api";
 import { useAuth } from "../auth-context";
+import type { ScheduleEvery } from "../ticked/frontmatter";
 
 export interface AgentResponsibilityQueryScope {
   owner?: string | null;
@@ -96,6 +97,7 @@ export function useCreateAgentResponsibility(actorLogin?: string) {
       slug?: string;
       title: string;
       body: string;
+      schedule?: ScheduleEvery | null;
       capabilityKind?: AgentResponsibilityCapabilityKind | null;
       disabled?: boolean;
       agent?: string | null;
@@ -145,6 +147,7 @@ export function useUpdateAgentResponsibility(
     {
       title?: string;
       body?: string;
+      schedule?: ScheduleEvery | null;
       capabilityKind?: AgentResponsibilityCapabilityKind | null;
       disabled?: boolean;
       agent?: string | null;

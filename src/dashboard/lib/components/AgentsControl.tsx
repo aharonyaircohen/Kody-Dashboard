@@ -3,8 +3,8 @@
  * @domain kody
  * @pattern agent-control-page
  * @ai-summary Agent Control — list, view, create, edit, and delete agent.
- *   An agent is a pure reusable identity file at `.kody/agents/<slug>.md`
- *   in the connected repo: a markdown body describing the agent's
+ *   An agent is a pure reusable identity file at `agents/<slug>.md`
+ *   in the state repo: a markdown body describing the agent's
  *   intent, allowed commands, and restrictions. Agents have no schedule, no
  *   state, and no run/tick — they're agent identities referenced by other flows.
  *   The chat rail reuses the existing agentResponsibility scope kind (an agent is
@@ -58,7 +58,7 @@ import { useChatScope } from "./ChatRailShell";
 
 /**
  * Kody — the built-in chat agentIdentity. Always present in the agent list and
- * never editable or removable (it lives in code, not a `.kody/agents/*.md`
+ * never editable or removable (it lives in code, not a state repo `agents/*.md`
  * file). Identified by the `kody` slug; `isBuiltinAgent` gates the UI.
  */
 const BUILTIN_KODY_AGENT: Agent = {
@@ -375,7 +375,7 @@ export function AgentsControlInner({
             pendingDelete
               ? pendingDelete.source === "store"
                 ? `Agent member "${pendingDelete.title}" (${pendingDelete.slug}) will be removed from this repo's active Store agents. The Store asset will not be deleted.`
-                : `Agent member "${pendingDelete.title}" (${pendingDelete.slug}) will be removed from .kody/agents/ via a commit on the default branch.`
+                : `Agent member "${pendingDelete.title}" (${pendingDelete.slug}) will be removed from the state repo agent store.`
               : ""
           }
           variant="destructive"

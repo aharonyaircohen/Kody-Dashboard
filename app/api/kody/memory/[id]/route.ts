@@ -3,7 +3,7 @@
  * @domain kody
  * @pattern memory-api
  * @ai-summary Memory detail API — GET reads one memory, PATCH updates it,
- *   DELETE removes it. Backed by `.kody/memory/<id>.md`.
+ *   DELETE removes it. Backed by `memory/<id>.md` in the state repo.
  */
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { NextRequest, NextResponse } from "next/server";

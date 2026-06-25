@@ -4,7 +4,7 @@
  * @pattern context-api
  * @ai-summary Context entry detail API — GET reads a single entry, PATCH
  *   updates its body/agents, DELETE removes it. Backed by
- *   `.kody/context/<slug>.md` via the GitHub contents API. No built-ins, so a
+ *   `context/<slug>.md` in the state repo. No built-ins, so a
  *   missing file is a plain 404.
  */
 /* eslint-disable @typescript-eslint/no-explicit-any */

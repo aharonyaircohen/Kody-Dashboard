@@ -162,6 +162,7 @@ import {
 } from "@dashboard/lib/chat-ui-actions";
 import {
   SAVED_TERMINAL_NAME_LIMIT,
+  savedTerminalAutoSaveId,
   terminalTransportLabel,
   type SavedTerminalSession,
   type SavedTerminalTransport,
@@ -207,18 +208,24 @@ function savedTerminalActorQuery(actorLogin?: string | null): string {
 }
 
 const AUTO_SAVE_TERMINAL_ON_END_KEY = "kody-chat:auto-save-terminal-on-end";
+const RESTORED_SNAPSHOT_ONLY_TERMINAL_IDS_KEY =
+  "kody-chat:restored-snapshot-only-terminal-ids";
 
-function savedTerminalAutoSaveStorageKey(): string {
-  if (typeof window === "undefined") return AUTO_SAVE_TERMINAL_ON_END_KEY;
+function repoScopedTerminalStorageKey(base: string): string {
+  if (typeof window === "undefined") return base;
   try {
     const raw = window.localStorage.getItem("kody_auth");
-    if (!raw) return AUTO_SAVE_TERMINAL_ON_END_KEY;
+    if (!raw) return base;
     const auth = JSON.parse(raw) as { owner?: string; repo?: string };
-    if (!auth.owner || !auth.repo) return AUTO_SAVE_TERMINAL_ON_END_KEY;
-    return `${AUTO_SAVE_TERMINAL_ON_END_KEY}:${auth.owner.toLowerCase()}/${auth.repo.toLowerCase()}`;
+    if (!auth.owner || !auth.repo) return base;
+    return `${base}:${auth.owner.toLowerCase()}/${auth.repo.toLowerCase()}`;
   } catch {
-    return AUTO_SAVE_TERMINAL_ON_END_KEY;
+    return base;
   }
+}
+
+function savedTerminalAutoSaveStorageKey(): string {
+  return repoScopedTerminalStorageKey(AUTO_SAVE_TERMINAL_ON_END_KEY);
 }
 
 function readAutoSaveTerminalOnEnd(): boolean {
@@ -241,6 +248,43 @@ function writeAutoSaveTerminalOnEnd(enabled: boolean): void {
     );
   } catch {
     /* localStorage is best-effort for this UI preference */
+  }
+}
+
+function restoredSnapshotOnlyTerminalIdsStorageKey(): string {
+  return repoScopedTerminalStorageKey(RESTORED_SNAPSHOT_ONLY_TERMINAL_IDS_KEY);
+}
+
+function readRestoredSnapshotOnlyTerminalIds(): Set<string> {
+  if (typeof window === "undefined") return new Set();
+  try {
+    const raw = window.localStorage.getItem(
+      restoredSnapshotOnlyTerminalIdsStorageKey(),
+    );
+    if (!raw) return new Set();
+    const parsed = JSON.parse(raw) as unknown;
+    if (!Array.isArray(parsed)) return new Set();
+    return new Set(
+      parsed
+        .filter((value): value is string => typeof value === "string")
+        .slice(-100),
+    );
+  } catch {
+    return new Set();
+  }
+}
+
+function writeRestoredSnapshotOnlyTerminalIds(ids: Set<string>): void {
+  if (typeof window === "undefined") return;
+  try {
+    const key = restoredSnapshotOnlyTerminalIdsStorageKey();
+    if (ids.size === 0) {
+      window.localStorage.removeItem(key);
+      return;
+    }
+    window.localStorage.setItem(key, JSON.stringify([...ids].slice(-100)));
+  } catch {
+    /* localStorage is best-effort UI persistence */
   }
 }
 
@@ -416,7 +460,7 @@ export function KodyChat({
   // and never remounts after Settings saves a Brain config — the dropdown
   // entry wouldn't appear until a full page reload.
   const { auth } = useAuth();
-  // Slash command list (builtins + repo `.kody/commands/*.md`).
+  // Slash command list (builtins + state repo `commands/*.md`).
   // Stale-while-revalidate keeps autocomplete instant; the API itself
   // is cached on the server side via the GitHub client.
   const { commands: slashCommands } = useSlashCommands(auth);
@@ -431,7 +475,7 @@ export function KodyChat({
   // non-empty FLY_API_TOKEN. The Fly dropdown row is hidden until then so
   // users can't pick a runner that will fail at start-fly time.
   const [flyConfigured, setFlyConfigured] = useState(false);
-  // Per-repo opt-in for the "Kody Brain (Fly)" chat row (.kody/dashboard.json,
+  // Per-repo opt-in for the "Kody Brain (Fly)" chat row (state repo dashboard.json,
   // default false). Chat-only — does NOT gate Fly task execution.
   const [brainFlyChatEnabled, setBrainFlyChatEnabled] = useState(false);
   // User-managed chat models from /api/kody/models (LLM_MODELS variable).
@@ -493,7 +537,7 @@ export function KodyChat({
       if (!info) return parts.length > 0 ? parts.join("\n\n") : null;
       // Append the saved-macros catalog so the model can offer to run them
       // when the user mentions one by name ("run my Login macro"). Macros
-      // now live in the repo (.kody/macros.json), so fetch per-send — newly
+      // now live in the state repo (macros.json), so fetch per-send — newly
       // saved macros are visible immediately, and it works across devices.
       parts.push(formatPageInfo(info));
       try {
@@ -1088,9 +1132,24 @@ export function KodyChat({
   );
   const [pendingTerminalRestore, setPendingTerminalRestore] =
     useState<SavedTerminalSession | null>(null);
+  const [restoredSnapshotOnlyTerminalIds, setRestoredSnapshotOnlyTerminalIds] =
+    useState<Set<string>>(() => readRestoredSnapshotOnlyTerminalIds());
   useEffect(() => {
     writeAutoSaveTerminalOnEnd(autoSaveTerminalOnEnd);
   }, [autoSaveTerminalOnEnd]);
+  useEffect(() => {
+    writeRestoredSnapshotOnlyTerminalIds(restoredSnapshotOnlyTerminalIds);
+  }, [restoredSnapshotOnlyTerminalIds]);
+  useEffect(() => {
+    setRestoredSnapshotOnlyTerminalIds(readRestoredSnapshotOnlyTerminalIds());
+  }, [sessionStoreScope]);
+  useEffect(() => {
+    setRestoredSnapshotOnlyTerminalIds((prev) => {
+      const mountedIds = new Set(mountedChatTerminals.map((item) => item.id));
+      const next = new Set([...prev].filter((id) => mountedIds.has(id)));
+      return next.size === prev.size ? prev : next;
+    });
+  }, [mountedChatTerminals]);
 
   const refreshLocalSandboxes = useCallback(async () => {
     const headers = authHeaders();
@@ -1339,6 +1398,7 @@ export function KodyChat({
 
   const saveTerminalSnapshot = useCallback(
     async (input: {
+      id?: string;
       name: string;
       transport: ChatTerminalTransport;
       chatSessionId: string;
@@ -1359,6 +1419,7 @@ export function KodyChat({
           headers: { "Content-Type": "application/json", ...authHeaders() },
           body: JSON.stringify({
             actorLogin,
+            id: input.id,
             name: trimmed,
             transport: savedTransport,
             chatSessionId: input.chatSessionId,
@@ -1436,11 +1497,11 @@ export function KodyChat({
       );
       const label = terminalTransportLabel(savedTransport);
       await saveTerminalSnapshot({
+        id: savedTerminalAutoSaveId(savedTransport, terminal.sessionId),
         name: `Auto-save: ${label}`,
         transport: terminal.transport,
         chatSessionId: terminal.sessionId,
         snapshot,
-        successMessage: "Terminal auto-saved",
       });
     },
     [autoSaveTerminalOnEnd, saveTerminalSnapshot],
@@ -1658,6 +1719,14 @@ export function KodyChat({
       name: pendingTerminalRestore.name,
       output: pendingTerminalRestore.output,
     });
+    if (pendingTerminalRestore.transport.type === "fly") {
+      setRestoredSnapshotOnlyTerminalIds((prev) => {
+        if (prev.has(activeTerminalInstanceId)) return prev;
+        const next = new Set(prev);
+        next.add(activeTerminalInstanceId);
+        return next;
+      });
+    }
     setPendingTerminalRestore(null);
     toast.success("Terminal snapshot restored");
   }, [activeTerminalInstanceId, chatMode, pendingTerminalRestore]);
@@ -2220,7 +2289,7 @@ export function KodyChat({
   // `visibilityState=hidden` halts the server poll (req.signal.abort fires);
   // we reopen on `visible`. Loss of in-flight push events is acceptable —
   // chat history is hydrated from useChatSessions (the global session store)
-  // on next view, with .kody/chat/global.json as a cross-device fallback.
+  // on next view, with state repo chat/global.json as a cross-device fallback.
   useEffect(() => {
     const sid =
       selectedTask?.id ??
@@ -5560,8 +5629,22 @@ export function KodyChat({
                   }
                   transport={terminal.transport}
                   onAddToChat={addTerminalContextToChat}
-                  onConnectionStateChange={(state) =>
-                    recordTerminalConnectionState(terminal.id, state)
+                  onConnectionStateChange={(state) => {
+                    recordTerminalConnectionState(terminal.id, state);
+                    if (state === "connecting" || state === "connected") {
+                      setRestoredSnapshotOnlyTerminalIds((prev) => {
+                        if (!prev.has(terminal.id)) return prev;
+                        const next = new Set(prev);
+                        next.delete(terminal.id);
+                        return next;
+                      });
+                    }
+                  }}
+                  suppressFlyAutoConnect={
+                    terminal.transport.type === "fly" &&
+                    (restoredSnapshotOnlyTerminalIds.has(terminal.id) ||
+                      (pendingTerminalRestore?.transport.type === "fly" &&
+                        terminal.id === activeTerminalInstanceId))
                   }
                   onSessionEnded={(snapshot) =>
                     void handleAutoSaveTerminalSnapshot(terminal, snapshot)

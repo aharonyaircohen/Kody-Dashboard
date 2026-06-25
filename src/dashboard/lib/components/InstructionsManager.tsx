@@ -2,7 +2,7 @@
  * @fileType component
  * @domain instructions
  * @pattern instructions-manager
- * @ai-summary Editor for `.kody/instructions.md` — the per-repo user
+ * @ai-summary Editor for state repo `instructions.md` — the per-repo user
  *   instructions appended to every kody-direct chat turn. Single
  *   textarea + a "View base prompt" button that opens a read-only
  *   dialog showing the base agent prompt the overlay sits on top of.
@@ -302,7 +302,7 @@ function InstructionsManagerInner() {
           Free-form markdown appended to every chat turn for the in-process Kody
           agent. Use it to set tone, length, formatting, or behavioral
           preferences for this repo. Stored at{" "}
-          <code className="text-white/80">.kody/instructions.md</code>.
+          <code className="text-white/80">instructions.md</code> in the state repo.
         </p>
 
         {isLoading && (
@@ -339,7 +339,7 @@ function InstructionsManagerInner() {
               <div className="flex items-center justify-between gap-3">
                 <p className="text-xs font-medium text-white/70">Active file</p>
                 <code className="font-mono text-[11px] text-cyan-200">
-                  .kody/instructions.md
+                  instructions.md
                 </code>
               </div>
               <div className="mt-3 space-y-1.5">
@@ -391,7 +391,7 @@ function InstructionsManagerInner() {
       <ConfirmDialog
         open={confirmDelete}
         title="Remove instructions?"
-        description="The .kody/instructions.md file will be deleted from the repo. Chat falls back to the base agent prompt only."
+        description="The state repo instructions.md file will be deleted. Chat falls back to the base agent prompt only."
         confirmLabel={remove.isPending ? "Removing…" : "Remove"}
         variant="destructive"
         onConfirm={() => {

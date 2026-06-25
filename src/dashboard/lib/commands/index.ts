@@ -5,7 +5,7 @@
  * @ai-summary Public surface for the commands feature. `listCommands()`
  *   merges repo-local commands, activated Store commands, then dashboard fallback
  *   built-ins. Repo wins on slug collision; Store owns shared defaults.
- *   `.kody/commands/.disable-builtins` suppresses dashboard fallback built-ins.
+ *   `commands/.disable-builtins` in the state repo suppresses dashboard fallback built-ins.
  */
 
 import { BUILTIN_COMMANDS } from "./builtins";
@@ -31,7 +31,7 @@ export { BUILTIN_COMMANDS } from "./builtins";
 /**
  * Return every command available to the current repo. Resolution order is
  * repo-local files, activated Store files, then dashboard fallback built-ins. Honors
- * the `.disable-builtins` sentinel for fallback built-ins only.
+ * the `commands/.disable-builtins` sentinel for fallback built-ins only.
  */
 export async function listCommands(
   options: {

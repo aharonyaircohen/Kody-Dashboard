@@ -25,7 +25,7 @@ import { DEFAULT_AGENT_SLUG } from "./recommendation";
  * Hard ceiling on undecided recommendations visible in the inbox at once,
  * applied **per agentResponsibility** — a chatty agentResponsibility can't crowd other agentResponsibilities out of
  * the operator's queue. Mirrors the "at most 10 pending" rule in
- * `.kody/agents/*.md`, but enforced here so it actually holds.
+ * state-repo `agents/*.md`, but enforced here so it actually holds.
  */
 export const MAX_PENDING_CTO_RECS = 10;
 

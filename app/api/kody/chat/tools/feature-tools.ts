@@ -83,7 +83,7 @@ The legacy \`/api/kody/chat\` endpoint is deprecated and returns 410.
 Engine path details: dispatches \`kody.yml\` in the connected repo with the
 session ID and an inline HMAC token. The engine streams events back to
 \`/api/kody/events/ingest\` (real-time) and commits them to
-\`.kody/events/{sessionId}.jsonl\` (durable fallback, polled by
+state repo \`events/{sessionId}.jsonl\` (durable fallback, polled by
 \`/api/kody/events/stream\`). Token verified via HMAC of sessionId with
 \`KODY_MASTER_KEY\` (purpose-prefixed as \`kody-chat-token:\${KODY_MASTER_KEY}\`).`,
   },
@@ -116,15 +116,15 @@ Each stage's status is committed to a per-task \`status.json\` on the work branc
     id: "kody-agentResponsibilities",
     name: "Kody AgentResponsibilities",
     summary:
-      "Folders at .kody/agent-responsibilities/<slug>/ that define responsibility purpose and execution binding.",
-    details: `A Kody AgentResponsibility is a folder at \`.kody/agent-responsibilities/<slug>/\`:
+      "Folders at state repo agent-responsibilities/<slug>/ that define responsibility purpose and execution binding.",
+    details: `A Kody AgentResponsibility is a folder at state repo \`agent-responsibilities/<slug>/\`:
 
 - \`profile.json\` stores action, agentAction, agent, mentions, and data-contract metadata.
 - \`agent-responsibility.md\` stores the human-readable purpose, output, allowed commands, and restrictions.
 
 Responsibilities do not own cadence. Goals and loops decide when to run a responsibility.
 
-Format (must match existing agentResponsibilities in \`.kody/agent-responsibilities/\`):
+Format (must match existing agentResponsibilities in state repo \`agent-responsibilities/\`):
 - \`profile.json\` metadata
 - \`agent-responsibility.md\` with an H1 title
 - \`## Job\` — purpose and outcome
@@ -151,14 +151,14 @@ the current profile.`,
     id: "kody-agent",
     name: "Kody Agent (reusable agent files)",
     summary:
-      "Markdown files at .kody/agents/<slug>.md — pure reusable agent identities.",
-    details: `A Kody Agent member is a markdown file at \`.kody/agents/<slug>.md\`. A
+      "Markdown files at state repo agents/<slug>.md — pure reusable agent identities.",
+    details: `A Kody Agent member is a markdown file at state repo \`agents/<slug>.md\`. A
 agent is a pure reusable identity — a markdown body describing intent,
 allowed commands, and restrictions. Agents have NO schedule, NO state,
 and NO run/tick; they're agent identities referenced by other flows. The Agent
 page is a pure agentIdentity editor (list / view / create / edit / delete).
 
-Format (must match existing agent in \`.kody/agents/\`):
+Format (must match existing agent in state repo \`agents/\`):
 - H1 title
 - \`## Agent\` — purpose / agentIdentity
 - \`## Allowed Commands\`
@@ -171,10 +171,10 @@ agentIdentity after a gap-analysis conversation.`,
     id: "memory",
     name: "Persistent Memory System",
     summary:
-      'Per-repo memory at .kody/memory/. Index injected into every chat turn under "Remembered context".',
-    details: `Each connected repo has a persistent memory system at \`.kody/memory/\`.
+      'Per-repo memory at state repo memory/. Index injected into every chat turn under "Remembered context".',
+    details: `Each connected repo has a persistent memory system at state repo \`memory/\`.
 
-- Memories are markdown files at \`.kody/memory/<id>.md\` (one per entry).
+- Memories are markdown files at \`memory/<id>.md\` (one per entry).
 - Types: \`feedback\`, \`project\`, \`reference\`, \`user\`.
 - An \`INDEX.md\` is injected into every chat turn under "## Remembered context"
   so the assistant can apply relevant entries automatically.

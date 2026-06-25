@@ -3,7 +3,7 @@
  * @domain instructions
  * @pattern chat-tools
  * @ai-summary Chat tools to manage the single repo instructions file
- *   (`.kody/instructions.md`) — read, set, delete. The instructions body is
+ *   (`instructions.md` in the state repo) — read, set, delete. The instructions body is
  *   appended to the chat system prompt, so it's how the user gives Kody
  *   standing guidance for this repo.
  */
@@ -30,7 +30,7 @@ export function createInstructionsTools(ctx: Ctx) {
 
   return {
     read_instructions: tool({
-      description: `Read the standing instructions for ${repoRef} (.kody/instructions.md), the markdown appended to Kody's system prompt for this repo. Returns null body if none set.`,
+      description: `Read the standing instructions for ${repoRef} (state repo instructions.md), the markdown appended to Kody's system prompt for this repo. Returns null body if none set.`,
       inputSchema: z.object({}),
       execute: async () => {
         try {
@@ -43,7 +43,7 @@ export function createInstructionsTools(ctx: Ctx) {
     }),
 
     set_instructions: tool({
-      description: `Replace the standing instructions for ${repoRef} (commits .kody/instructions.md). This OVERWRITES the whole file — read it first and include any content you want to keep. Body is plain markdown.`,
+      description: `Replace the standing instructions for ${repoRef} (commits instructions.md in the state repo). This OVERWRITES the whole file — read it first and include any content you want to keep. Body is plain markdown.`,
       inputSchema: z.object({ body: z.string().min(1) }),
       execute: async ({ body }) => {
         try {
@@ -66,7 +66,7 @@ export function createInstructionsTools(ctx: Ctx) {
     }),
 
     delete_instructions: tool({
-      description: `Delete the standing instructions file for ${repoRef} (removes .kody/instructions.md).`,
+      description: `Delete the standing instructions file for ${repoRef} (removes instructions.md from the state repo).`,
       inputSchema: z.object({}),
       execute: async () => {
         try {

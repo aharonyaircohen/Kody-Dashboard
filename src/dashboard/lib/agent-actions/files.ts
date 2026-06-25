@@ -3,7 +3,7 @@
  * @domain agentActions
  * @pattern agentActions-files
  * @ai-summary Read/write custom agentActions under
- *   `.kody/agent-actions/<slug>/` via GitHub. An agentAction is a *folder*
+ *   `agent-actions/<slug>/` in the configured Kody state repo. An agentAction is a *folder*
  *   (profile.json + prompt.md + optional `*.sh` + optional
  *   `skills/<name>/SKILL.md`), so unlike the single-file commands/agent-responsibilities
  *   helpers this commits the whole folder atomically using the Git Data
@@ -12,6 +12,13 @@
 
 import type { Octokit } from "@octokit/rest";
 import { getOctokit, getOwner, getRepo } from "../github-client";
+import {
+  listStateDirectory,
+  readStateText,
+  resolveStateRepo,
+  stateRepoPath,
+  type StateRepoTarget,
+} from "../state-repo";
 import {
   appendContract,
   composeProfile,
@@ -34,10 +41,10 @@ import {
 export { isValidSlug } from "./profile";
 
 /**
- * Custom agentActions live at `.kody/agent-actions/<slug>/`. All reads and
+ * Custom agentActions live at `agent-actions/<slug>/` in the state repo. All reads and
  * writes go through this single home.
  */
-const EXECUTABLES_DIR = ".kody/agent-actions";
+const EXECUTABLES_DIR = "agent-actions";
 
 export interface AgentActionSkill {
   /** Skill folder name under `skills/`. */
@@ -91,17 +98,24 @@ export interface WriteAgentActionFolderFilesOptions {
   isUpdate?: boolean;
 }
 
-async function getDefaultBranch(octokit: Octokit): Promise<string> {
+async function getStateRepoContext(
+  octokit: Octokit,
+): Promise<{ target: StateRepoTarget; branch: string }> {
+  const target = await resolveStateRepo(octokit, getOwner(), getRepo());
   const { data } = await octokit.repos.get({
-    owner: getOwner(),
-    repo: getRepo(),
+    owner: target.owner,
+    repo: target.repo,
   });
-  return data.default_branch;
+  return { target, branch: data.default_branch };
 }
 
-function buildHtmlUrl(slug: string, branch: string | null): string {
+function buildHtmlUrl(
+  target: StateRepoTarget,
+  slug: string,
+  branch: string | null,
+): string {
   const ref = branch ?? "HEAD";
-  return `https://github.com/${getOwner()}/${getRepo()}/tree/${ref}/${EXECUTABLES_DIR}/${slug}`;
+  return `https://github.com/${target.owner}/${target.repo}/tree/${ref}/${stateRepoPath(target, `${EXECUTABLES_DIR}/${slug}`)}`;
 }
 
 async function fetchLastCommitDate(
@@ -109,10 +123,11 @@ async function fetchLastCommitDate(
   filePath: string,
 ): Promise<string> {
   try {
+    const target = await resolveStateRepo(octokit, getOwner(), getRepo());
     const { data } = await octokit.repos.listCommits({
-      owner: getOwner(),
-      repo: getRepo(),
-      path: filePath,
+      owner: target.owner,
+      repo: target.repo,
+      path: stateRepoPath(target, filePath),
       per_page: 1,
     });
     return (
@@ -170,42 +185,25 @@ async function readFileText(
   octokit: Octokit,
   path: string,
 ): Promise<string | null> {
-  try {
-    const { data } = await octokit.repos.getContent({
-      owner: getOwner(),
-      repo: getRepo(),
-      path,
-    });
-    if (Array.isArray(data) || !("content" in data) || !data.content)
-      return null;
-    return Buffer.from(data.content, "base64").toString("utf-8");
-  } catch (error: unknown) {
-    if ((error as { status?: number })?.status === 404) return null;
-    throw error;
-  }
+  const file = await readStateText(octokit, getOwner(), getRepo(), path);
+  return file?.content ?? null;
 }
 
 /**
- * List every agentAction folder under `.kody/agent-actions/`. Returns `[]` if the
+ * List every agentAction folder under `agent-actions/`. Returns `[]` if the
  * directory does not exist (fresh repo).
  */
 async function listAgentActionFolders(
   octokit: Octokit,
+  target: StateRepoTarget,
   branch: string | null,
 ): Promise<AgentActionSummary[]> {
-  let entries: Array<{ name: string; type: string }> = [];
-  try {
-    const { data } = await octokit.repos.getContent({
-      owner: getOwner(),
-      repo: getRepo(),
-      path: EXECUTABLES_DIR,
-    });
-    if (!Array.isArray(data)) return [];
-    entries = data as Array<{ name: string; type: string }>;
-  } catch (error: unknown) {
-    if ((error as { status?: number })?.status === 404) return [];
-    throw error;
-  }
+  const { entries } = await listStateDirectory(
+    octokit,
+    getOwner(),
+    getRepo(),
+    EXECUTABLES_DIR,
+  );
 
   const slugs = entries
     .filter((e) => e.type === "dir" && isValidSlug(e.name))
@@ -237,7 +235,7 @@ async function listAgentActionFolders(
         describe,
         landing,
         updatedAt: null,
-        htmlUrl: buildHtmlUrl(slug, branch),
+        htmlUrl: buildHtmlUrl(target, slug, branch),
         agent,
         every,
       };
@@ -247,20 +245,20 @@ async function listAgentActionFolders(
   return summaries.filter((s): s is AgentActionSummary => s !== null);
 }
 
-/** List every agentAction under `.kody/agent-actions/`, sorted by slug. */
+/** List every agentAction under `agent-actions/`, sorted by slug. */
 export async function listLocalAgentActionFiles(): Promise<
   AgentActionSummary[]
 > {
   const octokit = getOctokit();
-  const branch = await getDefaultBranch(octokit).catch(() => null);
-  return listAgentActionFolders(octokit, branch);
+  const { target, branch } = await getStateRepoContext(octokit);
+  return listAgentActionFolders(octokit, target, branch);
 }
 
 export async function listAgentActionFiles(): Promise<AgentActionSummary[]> {
   const octokit = getOctokit();
-  const branch = await getDefaultBranch(octokit).catch(() => null);
+  const { target, branch } = await getStateRepoContext(octokit);
 
-  const local = await listAgentActionFolders(octokit, branch);
+  const local = await listAgentActionFolders(octokit, target, branch);
   const store = await listStoreAgentActionFiles(
     octokit,
     new Set(local.map((e) => e.slug)),
@@ -323,7 +321,7 @@ export async function readAgentActionFile(
 ): Promise<AgentActionDetail | null> {
   if (!isValidSlug(slug)) return null;
   const octokit = octokitOverride ?? getOctokit();
-  const branch = await getDefaultBranch(octokit).catch(() => null);
+  const { target, branch } = await getStateRepoContext(octokit);
 
   const base = `${EXECUTABLES_DIR}/${slug}`;
   const profileRaw = await readFileText(octokit, `${base}/profile.json`);
@@ -343,18 +341,7 @@ export async function readAgentActionFile(
   );
 
   // Enumerate the folder once to find `*.sh` files and the skills/ subdir.
-  let entries: Array<{ name: string; type: string }> = [];
-  try {
-    const { data } = await octokit.repos.getContent({
-      owner: getOwner(),
-      repo: getRepo(),
-      path: base,
-    });
-    if (Array.isArray(data))
-      entries = data as Array<{ name: string; type: string }>;
-  } catch {
-    entries = [];
-  }
+  const entries = (await readDirectoryEntries(octokit, base)) ?? [];
 
   const shellScripts = await Promise.all(
     entries
@@ -377,7 +364,7 @@ export async function readAgentActionFile(
     describe: fields.describe,
     landing: fields.landing,
     updatedAt: await fetchLastCommitDate(octokit, `${base}/profile.json`),
-    htmlUrl: buildHtmlUrl(slug, branch),
+    htmlUrl: buildHtmlUrl(target, slug, branch),
     agent,
     prompt,
     model: fields.model,
@@ -473,18 +460,7 @@ async function readSkills(
   octokit: Octokit,
   skillsPath: string,
 ): Promise<AgentActionSkill[]> {
-  let dirs: Array<{ name: string; type: string }> = [];
-  try {
-    const { data } = await octokit.repos.getContent({
-      owner: getOwner(),
-      repo: getRepo(),
-      path: skillsPath,
-    });
-    if (Array.isArray(data))
-      dirs = data as Array<{ name: string; type: string }>;
-  } catch {
-    return [];
-  }
+  const dirs = (await readDirectoryEntries(octokit, skillsPath)) ?? [];
   const skills = await Promise.all(
     dirs
       .filter((e) => e.type === "dir")
@@ -519,18 +495,13 @@ async function readDirectoryEntries(
   octokit: Octokit,
   path: string,
 ): Promise<Array<{ name: string; type: string }> | null> {
-  try {
-    const { data } = await octokit.repos.getContent({
-      owner: getOwner(),
-      repo: getRepo(),
-      path,
-    });
-    if (!Array.isArray(data)) return null;
-    return data as Array<{ name: string; type: string }>;
-  } catch (error: unknown) {
-    if ((error as { status?: number })?.status === 404) return null;
-    throw error;
-  }
+  const { entries } = await listStateDirectory(
+    octokit,
+    getOwner(),
+    getRepo(),
+    path,
+  );
+  return entries.length > 0 ? entries : null;
 }
 
 async function readFolderFilesRecursive(
@@ -562,7 +533,7 @@ async function readFolderFilesRecursive(
   return true;
 }
 
-/** Read every text file under `.kody/agent-actions/<slug>/`, recursively. */
+/** Read every text file under `agent-actions/<slug>/`, recursively. */
 export async function readAgentActionFolderFiles(
   slug: string,
   octokitOverride?: Octokit,
@@ -597,17 +568,17 @@ async function commitChanges(
 ): Promise<void> {
   const owner = getOwner();
   const repo = getRepo();
-  const branch = await getDefaultBranch(octokit);
+  const { target, branch } = await getStateRepoContext(octokit);
 
   const { data: ref } = await octokit.git.getRef({
-    owner,
-    repo,
+    owner: target.owner,
+    repo: target.repo,
     ref: `heads/${branch}`,
   });
   const baseCommitSha = ref.object.sha;
   const { data: baseCommit } = await octokit.git.getCommit({
-    owner,
-    repo,
+    owner: target.owner,
+    repo: target.repo,
     commit_sha: baseCommitSha,
   });
 
@@ -615,20 +586,20 @@ async function commitChanges(
     changes.map(async (c) => {
       if (c.content === null) {
         return {
-          path: c.path,
+          path: stateRepoPath(target, c.path),
           mode: "100644" as const,
           type: "blob" as const,
           sha: null,
         };
       }
       const { data: blob } = await octokit.git.createBlob({
-        owner,
-        repo,
+        owner: target.owner,
+        repo: target.repo,
         content: Buffer.from(c.content, "utf-8").toString("base64"),
         encoding: "base64",
       });
       return {
-        path: c.path,
+        path: stateRepoPath(target, c.path),
         mode: "100644" as const,
         type: "blob" as const,
         sha: blob.sha,
@@ -637,21 +608,21 @@ async function commitChanges(
   );
 
   const { data: newTree } = await octokit.git.createTree({
-    owner,
-    repo,
+    owner: target.owner,
+    repo: target.repo,
     base_tree: baseCommit.tree.sha,
     tree,
   });
   const { data: newCommit } = await octokit.git.createCommit({
-    owner,
-    repo,
+    owner: target.owner,
+    repo: target.repo,
     message,
     tree: newTree.sha,
     parents: [baseCommitSha],
   });
   await octokit.git.updateRef({
-    owner,
-    repo,
+    owner: target.owner,
+    repo: target.repo,
     ref: `heads/${branch}`,
     sha: newCommit.sha,
   });

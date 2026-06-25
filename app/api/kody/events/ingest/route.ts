@@ -22,7 +22,7 @@
  * Also accepts an array of events for batching.
  *
  * Events are fanned out to any SSE / long-poll subscribers for this
- * sessionId. The engine also commits events to `.kody/events/{id}.jsonl`
+ * sessionId. The engine also persists events to the configured state repo
  * for durability; this endpoint is the low-latency path.
  */
 

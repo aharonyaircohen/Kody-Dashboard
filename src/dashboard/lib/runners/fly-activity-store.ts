@@ -2,7 +2,7 @@
  * @fileType utility
  * @domain runner
  * @pattern fly-activity-store
- * @ai-summary Persists Fly activity snapshots to .kody/state/fly-activity.json
+ * @ai-summary Persists Fly activity snapshots to `state/fly-activity.json`
  *   in the configured Kody state repo (GitHub is the only datastore; no Vercel KV/cron).
  *   Writes are throttled (≥5min interval), pruned to 14-day window, and use
  *   CAS to avoid clobbering. snapshotDue() lets callers skip an expensive Fly

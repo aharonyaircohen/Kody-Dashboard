@@ -117,9 +117,14 @@ test.describe("Repository setup", () => {
     const rawAuth = await authHandle.jsonValue();
     expect(rawAuth).not.toBeNull();
 
+    const repoUrl = new URL(TEST_REPO);
+    const [expectedOwner, expectedRepo] = repoUrl.pathname
+      .replace(/^\//, "")
+      .split("/");
+
     const parsed = JSON.parse(String(rawAuth));
-    expect(parsed.owner).toBe("aharonyaircohen");
-    expect(parsed.repo).toBe("Kody-Dashboard");
+    expect(parsed.owner).toBe(expectedOwner);
+    expect(parsed.repo).toBe(expectedRepo);
     expect(parsed.token).toBe("ghp_mock_token");
     expect(parsed.repos).toHaveLength(1);
 

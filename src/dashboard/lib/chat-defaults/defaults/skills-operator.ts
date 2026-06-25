@@ -22,7 +22,7 @@ Never call \`create_*\` / \`report_bug\` on first turn.
 export const DEFAULT_SKILL_CREATE_DUTY: SkillEntry = {
   slug: "create-agentResponsibility",
   title: "create-agentResponsibility",
-  body: `\`.kody/agent-responsibilities/<slug>/\` is recurring work: \`profile.json\` holds action/cadence/agent/agentAction metadata and \`agent-responsibility.md\` holds purpose, allowed commands, and restrictions. First call \`read_agent_responsibility_creation_guide\`. Never first turn.
+  body: `State-repo \`agent-responsibilities/<slug>/\` is recurring work: \`profile.json\` holds action/cadence/agent/agentAction metadata and \`agent-responsibility.md\` holds purpose, allowed commands, and restrictions. First call \`read_agent_responsibility_creation_guide\`. Never first turn.
 
 Sufficiency: purpose, agent, schedule, allowed commands, restrictions, optional agentActions, and optional inputs. If the work should produce reports, select or create a report agentAction; do not put report settings or report paths in the agentResponsibility. Show the profile and body, then call \`create_or_update_agent_responsibility\` — the same tool handles both new agentResponsibilities and patches to an existing one (read-merge: omit a field to preserve it; pass \`body\` to replace the markdown; only call it after the user approves the diff).
 
@@ -32,5 +32,5 @@ Sufficiency: purpose, agent, schedule, allowed commands, restrictions, optional 
 export const DEFAULT_SKILL_CREATE_AGENT: SkillEntry = {
   slug: "create-agent",
   title: "create-agent",
-  body: `\`.kody/agents/<slug>.md\` — a pure reusable identity file (markdown body: intent, allowed commands, restrictions). Agents have no schedule, no state, no run/tick; they're agent identities referenced by other flows. Same gap loop and sufficiency bar as Create Kody agentResponsibility. Show body, then call \`create_kody_agent\`.`,
+  body: `State-repo \`agents/<slug>.md\` — a pure reusable identity file (markdown body: intent, allowed commands, restrictions). Agents have no schedule, no state, no run/tick; they're agent identities referenced by other flows. Same gap loop and sufficiency bar as Create Kody agentResponsibility. Show body, then call \`create_kody_agent\`.`,
 };

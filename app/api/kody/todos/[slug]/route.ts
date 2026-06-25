@@ -2,7 +2,7 @@
  * @fileType api-endpoint
  * @domain todos
  * @pattern todo-list-detail-api
- * @ai-summary Todo-list detail API — GET reads one `.kody/todos/<slug>.md`,
+ * @ai-summary Todo-list detail API — GET reads one state-repo `todos/<slug>.md`,
  * PATCH edits list title/items, DELETE removes it.
  */
 import { NextRequest, NextResponse } from "next/server";

@@ -2,8 +2,8 @@
  * @fileType util
  * @domain kody
  * @pattern context-files
- * @ai-summary Read/write context-entry files under `.kody/context/<slug>.md`
- *   via the GitHub contents API. Multi-file like prompts: the slug is the
+ * @ai-summary Read/write context-entry files under `context/<slug>.md`
+ *   in the configured Kody state repo. Multi-file like prompts: the slug is the
  *   entry name (e.g. `company-profile`, `mission`, `products`) and the body
  *   is free-form markdown — curated context you write FOR Kody (company
  *   facts, brand, agentIdentity briefs). Reference docs that already live in the
@@ -103,7 +103,7 @@ async function fetchLastCommitDate(
 }
 
 /**
- * List every context file under `.kody/context/`. Returns `[]` if the
+ * List every context file under `context/` in the state repo. Returns `[]` if the
  * directory does not exist. Sorted by slug for a stable UI order.
  */
 export async function listContextFiles(): Promise<ContextFile[]> {
@@ -136,12 +136,12 @@ export async function listContextFiles(): Promise<ContextFile[]> {
           { headers: { "If-None-Match": "" } },
         );
         if (!file) return null;
-        const raw = file.content.replace(/^s+/, "");
+        const raw = file.content.replace(/^\s+/, "");
         const { frontmatter, body } = splitContextFrontmatter(raw);
         const updatedAt = await fetchLastCommitDate(octokit, filePath);
         return {
           slug,
-          body: body.replace(/^s+/, ""),
+          body: body.replace(/^\s+/, ""),
           agent: frontmatter.agent,
           sha: file.sha,
           updatedAt,
@@ -168,12 +168,12 @@ export async function readContextFile(
       headers: { "If-None-Match": "" },
     });
     if (!file) return null;
-    const raw = file.content.replace(/^s+/, "");
+    const raw = file.content.replace(/^\s+/, "");
     const { frontmatter, body } = splitContextFrontmatter(raw);
     const updatedAt = await fetchLastCommitDate(octokit, filePath);
     return {
       slug,
-      body: body.replace(/^s+/, ""),
+      body: body.replace(/^\s+/, ""),
       agent: frontmatter.agent,
       sha: file.sha,
       updatedAt,

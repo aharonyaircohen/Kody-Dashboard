@@ -193,7 +193,7 @@ export function formatAgentResponsibilityContext(
     parts.push(`\n[AgentResponsibility body]\n${truncated}`);
   }
   parts.push(
-    "\nThe user is chatting about this specific agentResponsibility. A Kody agentResponsibility is a folder at `.kody/agent-responsibilities/<slug>/`: `profile.json` holds action/cadence/agents metadata, and `agent-responsibility.md` describes purpose, output, allowed commands, and restrictions. Answer grounded in the body above — do NOT claim the agentResponsibility does not exist.",
+    "\nThe user is chatting about this specific agentResponsibility. A Kody agentResponsibility is a folder at state-repo `agent-responsibilities/<slug>/`: `profile.json` holds action/cadence/agents metadata, and `agent-responsibility.md` describes purpose, output, allowed commands, and restrictions. Answer grounded in the body above — do NOT claim the agentResponsibility does not exist.",
   );
   return parts.join("\n");
 }

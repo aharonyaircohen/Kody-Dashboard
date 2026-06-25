@@ -74,6 +74,7 @@ interface ChatTerminalSurfaceProps {
   active: boolean;
   chatSessionId: string;
   connectNonce?: number;
+  suppressFlyAutoConnect?: boolean;
   transport?: ChatTerminalTransport;
   onAddToChat: (context: string) => void;
   onConnectionStateChange?: (state: ChatTerminalConnectionState) => void;
@@ -178,6 +179,7 @@ export const ChatTerminalSurface = forwardRef<
     active,
     chatSessionId,
     connectNonce = 0,
+    suppressFlyAutoConnect = false,
     transport = { type: "local" },
     onAddToChat,
     onConnectionStateChange,
@@ -193,6 +195,8 @@ export const ChatTerminalSurface = forwardRef<
   const flySocketRef = useRef<WebSocket | null>(null);
   const flyConnectionStateRef = useRef<ChatTerminalConnectionState>("idle");
   const flyTargetKeyRef = useRef<string | null>(null);
+  const flyConnectFailureKeyRef = useRef<string | null>(null);
+  const handledFlyConnectNonceKeyRef = useRef<string | null>(null);
   const localStartFailureKeyRef = useRef<string | null>(null);
   const activeRef = useRef(active);
   const outputCaptureRef = useRef("");
@@ -211,6 +215,8 @@ export const ChatTerminalSurface = forwardRef<
 
   useEffect(() => {
     localStartFailureKeyRef.current = null;
+    flyConnectFailureKeyRef.current = null;
+    handledFlyConnectNonceKeyRef.current = null;
   }, [chatSessionId, currentTransportKey]);
 
   useEffect(() => {
@@ -364,6 +370,10 @@ export const ChatTerminalSurface = forwardRef<
         const terminal = terminalRef.current;
         if (!terminal) return;
         const text = usefulCapturedOutput(snapshot.output ?? "");
+        setError(null);
+        if (transportRef.current.type === "fly") {
+          updateFlyConnectionState("closed");
+        }
         outputCaptureRef.current = text;
         terminal.clear();
         terminal.writeln(
@@ -375,7 +385,7 @@ export const ChatTerminalSurface = forwardRef<
         terminal.focus();
       },
     }),
-    [getTerminalSnapshot, sendRawInput],
+    [getTerminalSnapshot, sendRawInput, updateFlyConnectionState],
   );
 
   useEffect(() => {
@@ -529,6 +539,12 @@ export const ChatTerminalSurface = forwardRef<
 
       const key = transportKey(current);
       const existingState = flyConnectionStateRef.current;
+      const attemptKey = `${chatSessionId}:${key}`;
+      if (opts.force) {
+        flyConnectFailureKeyRef.current = null;
+      } else if (flyConnectFailureKeyRef.current === attemptKey) {
+        return;
+      }
       if (
         !opts.force &&
         flyTargetKeyRef.current === key &&
@@ -584,6 +600,7 @@ export const ChatTerminalSurface = forwardRef<
           };
           throw new Error(body.message ?? body.error ?? `HTTP ${res.status}`);
         }
+        flyConnectFailureKeyRef.current = null;
         const session = (await res.json()) as { webSocketUrl: string };
         const ws = new WebSocket(session.webSocketUrl);
         flySocketRef.current = ws;
@@ -652,6 +669,7 @@ export const ChatTerminalSurface = forwardRef<
       } catch (err) {
         const message =
           err instanceof Error ? err.message : "Failed to connect terminal";
+        flyConnectFailureKeyRef.current = attemptKey;
         setError(message);
         updateFlyConnectionState("error");
         terminal.writeln(`\x1b[31m${message}\x1b[0m`);
@@ -744,6 +762,14 @@ export const ChatTerminalSurface = forwardRef<
     if (!ready || !active) return;
     fitAddonRef.current?.fit();
     if (transport.type === "fly") {
+      if (suppressFlyAutoConnect) {
+        if (flySocketRef.current || flyTargetKeyRef.current) {
+          disconnectFly();
+        } else {
+          updateFlyConnectionState("closed");
+        }
+        return;
+      }
       void connectFly();
       return;
     }
@@ -756,7 +782,9 @@ export const ChatTerminalSurface = forwardRef<
     disconnectFly,
     ready,
     start,
+    suppressFlyAutoConnect,
     transport.type,
+    updateFlyConnectionState,
   ]);
 
   useEffect(() => {
@@ -817,9 +845,13 @@ export const ChatTerminalSurface = forwardRef<
     if (!ready || !active || transport.type !== "fly" || connectNonce === 0) {
       return;
     }
+    const nonceKey = `${chatSessionId}:${currentTransportKey}:${connectNonce}`;
+    if (handledFlyConnectNonceKeyRef.current === nonceKey) return;
+    handledFlyConnectNonceKeyRef.current = nonceKey;
     void connectFly({ force: true });
   }, [
     active,
+    chatSessionId,
     connectFly,
     connectNonce,
     currentTransportKey,

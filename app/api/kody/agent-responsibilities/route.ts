@@ -3,7 +3,7 @@
  * @domain kody
  * @pattern agentResponsibilities-api
  * @ai-summary AgentResponsibility Control API — GET lists agentResponsibilities, POST creates one.
- *   A agentResponsibility is a folder at `.kody/agent-responsibilities/<slug>/` in the connected repo:
+ *   A agentResponsibility is a folder at `agent-responsibilities/<slug>/` in the state repo:
  *   `profile.json` holds metadata and `agent-responsibility.md` holds the readable body.
  * Goals and loops dispatch these folders.
  */
@@ -70,9 +70,15 @@ export async function GET(req: NextRequest) {
           item.source !== "store" || activeAgentResponsibilities.has(item.slug),
       )
       .sort((a, b) => a.slug.localeCompare(b.slug));
-    return NextResponse.json({ agentResponsibilities }, { headers: NO_STORE_HEADERS });
+    return NextResponse.json(
+      { agentResponsibilities },
+      { headers: NO_STORE_HEADERS },
+    );
   } catch (error: any) {
-    console.error("[AgentResponsibilities] Error fetching agentResponsibilities:", error);
+    console.error(
+      "[AgentResponsibilities] Error fetching agentResponsibilities:",
+      error,
+    );
 
     if (error?.status === 401) {
       return NextResponse.json(
@@ -88,7 +94,10 @@ export async function GET(req: NextRequest) {
     }
 
     return NextResponse.json(
-      { agentResponsibilities: [], error: error?.message || "Failed to fetch agentResponsibilities" },
+      {
+        agentResponsibilities: [],
+        error: error?.message || "Failed to fetch agentResponsibilities",
+      },
       { status: 500, headers: NO_STORE_HEADERS },
     );
   } finally {
@@ -100,6 +109,10 @@ const createAgentResponsibilitySchema = z.object({
   slug: z.string().min(1).max(64).optional(),
   title: z.string().min(1),
   body: z.string().default(""),
+  schedule: z
+    .enum(["15m", "30m", "1h", "2h", "6h", "12h", "1d", "3d", "7d", "manual"])
+    .nullable()
+    .optional(),
   disabled: z.boolean().optional(),
   capabilityKind: z.enum(["observe", "act", "verify"]).nullable().optional(),
   agent: z.string().min(1).nullable().optional(),
@@ -197,12 +210,13 @@ export async function POST(req: NextRequest) {
   try {
     const payload = await req.json();
     const {
-    slug: requestedSlug,
-    title,
-    body,
-    disabled,
-    capabilityKind,
-    agent,
+      slug: requestedSlug,
+      title,
+      body,
+      schedule,
+      disabled,
+      capabilityKind,
+      agent,
       reviewer,
       action,
       mentions,
@@ -258,7 +272,10 @@ export async function POST(req: NextRequest) {
     const existing = await readAgentResponsibilityFile(slug);
     if (existing) {
       return NextResponse.json(
-        { error: "slug_taken", message: `AgentResponsibility "${slug}" already exists.` },
+        {
+          error: "slug_taken",
+          message: `AgentResponsibility "${slug}" already exists.`,
+        },
         { status: 409 },
       );
     }
@@ -280,12 +297,13 @@ export async function POST(req: NextRequest) {
 
     const agentResponsibility = await writeAgentResponsibilityFile({
       octokit: userOctokit,
-    slug,
-    title,
-    body,
-    disabled: disabled === true,
-    capabilityKind: capabilityKind ?? null,
-    agent: agentSlug,
+      slug,
+      title,
+      body,
+      schedule: schedule ?? null,
+      disabled: disabled === true,
+      capabilityKind: capabilityKind ?? null,
+      agent: agentSlug,
       reviewer: reviewerSlug,
       action: actionSlug,
       mentions: normalizeMentions(mentions),
@@ -300,14 +318,17 @@ export async function POST(req: NextRequest) {
     recordAudit(req, {
       action: "agentResponsibility.create",
       resource: slug,
-    agentResponsibility: slug,
-    agent: agent ?? null,
-    detail: `created agentResponsibility "${title}"`,
-  });
+      agentResponsibility: slug,
+      agent: agent ?? null,
+      detail: `created agentResponsibility "${title}"`,
+    });
 
     return NextResponse.json({ agentResponsibility });
   } catch (error: any) {
-    console.error("[AgentResponsibilities] Error creating agentResponsibility:", error);
+    console.error(
+      "[AgentResponsibilities] Error creating agentResponsibility:",
+      error,
+    );
 
     if (error instanceof z.ZodError) {
       return NextResponse.json(

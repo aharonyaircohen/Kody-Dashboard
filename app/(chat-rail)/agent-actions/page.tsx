@@ -2,8 +2,8 @@
  * @fileType page
  * @domain agentActions
  * @pattern agentActions-page
- * @ai-summary AgentActions list (`.kody/agent-actions/<slug>/`) with create /
- *   edit / delete. AgentResponsibilities own public actions and execution assignment.
+ * @ai-summary AgentActions list (`agent-actions/<slug>/` in the state repo)
+ *   with create / edit / delete. AgentResponsibilities own public actions and execution assignment.
  */
 import { AuthGuard } from "@dashboard/lib/auth-guard";
 import { AgentActionsManager } from "@dashboard/lib/components/AgentActionsManager";

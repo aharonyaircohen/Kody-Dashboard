@@ -31,6 +31,13 @@ export interface StateRepoFile {
   size?: number;
 }
 
+export interface StateRepoFileMetadata {
+  path: string;
+  sha: string;
+  htmlUrl?: string;
+  size?: number;
+}
+
 export interface StateRepoEntry {
   name: string;
   path: string;
@@ -216,6 +223,36 @@ export async function readStateText(
   }
 }
 
+export async function readStateFileMetadata(
+  octokit: Octokit,
+  owner: string,
+  repo: string,
+  filePath: string,
+): Promise<StateRepoFileMetadata | null> {
+  const target = await resolveStateRepo(octokit, owner, repo);
+  const path = stateRepoPath(target, filePath);
+  try {
+    const res = await octokit.repos.getContent({
+      owner: target.owner,
+      repo: target.repo,
+      path,
+    });
+    const data = res.data as ContentFile | ContentFile[];
+    if (Array.isArray(data) || data.type !== "file" || !data.sha) {
+      return null;
+    }
+    return {
+      path,
+      sha: data.sha,
+      htmlUrl: data.html_url,
+      size: data.size,
+    };
+  } catch (err) {
+    if ((err as { status?: number }).status === 404) return null;
+    throw err;
+  }
+}
+
 export async function listStateDirectory(
   octokit: Octokit,
   owner: string,
@@ -268,6 +305,7 @@ export async function writeStateText({
   content,
   message,
   sha,
+  maxAttempts,
 }: {
   octokit: Octokit;
   owner: string;
@@ -276,6 +314,7 @@ export async function writeStateText({
   content: string;
   message: string;
   sha?: string;
+  maxAttempts?: number;
 }): Promise<{ sha: string | null }> {
   const target = await resolveStateRepo(octokit, owner, repo);
   const res = await writeGitHubFileWithRetry(octokit, {
@@ -285,8 +324,42 @@ export async function writeStateText({
     message,
     content: Buffer.from(content, "utf8").toString("base64"),
     ...(sha ? { sha } : {}),
+    ...(maxAttempts ? { maxAttempts } : {}),
   });
   return { sha: res.sha };
+}
+
+export async function writeStateBase64({
+  octokit,
+  owner,
+  repo,
+  path,
+  contentBase64,
+  message,
+  sha,
+  maxAttempts,
+}: {
+  octokit: Octokit;
+  owner: string;
+  repo: string;
+  path: string;
+  contentBase64: string;
+  message: string;
+  sha?: string;
+  maxAttempts?: number;
+}): Promise<{ sha: string | null; path: string; htmlUrl: string | null }> {
+  const target = await resolveStateRepo(octokit, owner, repo);
+  const targetPath = stateRepoPath(target, path);
+  const res = await writeGitHubFileWithRetry(octokit, {
+    owner: target.owner,
+    repo: target.repo,
+    path: targetPath,
+    message,
+    content: contentBase64,
+    ...(sha ? { sha } : {}),
+    ...(maxAttempts ? { maxAttempts } : {}),
+  });
+  return { sha: res.sha, path: targetPath, htmlUrl: res.htmlUrl };
 }
 
 export async function writeStateFiles({

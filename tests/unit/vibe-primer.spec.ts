@@ -39,11 +39,10 @@ describe("buildVibePrimer — fresh (no taskContext)", () => {
     expect(primer).toContain("Your reply MUST cite the commit SHA");
   });
 
-  it("mandates the .kody pathspec exclusion (chat plumbing must not leak into the PR)", () => {
-    expect(primer).toContain(
-      "git add -A -- ':!.kody/sessions' ':!.kody/events'",
-    );
-    expect(primer).toMatch(/do\s*\n?\s*NOT run a bare `git add -A`/);
+  it("keeps session and event state out of the feature branch contract", () => {
+    expect(primer).toContain("git add -A");
+    expect(primer).toContain("Kody session and event state");
+    expect(primer).toContain("external state repo");
   });
 });
 

@@ -19,6 +19,11 @@ import {
 } from "@dashboard/lib/auth";
 import { logger } from "@dashboard/lib/logger";
 import { resolvePreviewConfigForOctokit } from "@dashboard/lib/previews/config";
+import {
+  appendSavedBrainMachineToInventory,
+  emptyFlyInventory,
+  refreshFlyInventoryCounts,
+} from "@dashboard/lib/runners/fly-inventory-server";
 import { listFlyInventory } from "@dashboard/lib/runners/fly-inventory";
 
 export const runtime = "nodejs";
@@ -41,6 +46,23 @@ export async function GET(req: NextRequest) {
     owner: auth.owner,
     repo: auth.repo,
   });
+
+  const inventory = emptyFlyInventory();
+  let inventoryErr: unknown = null;
+  try {
+    if (cfg) {
+      const listed = await listFlyInventory(cfg);
+      inventory.machines.push(...listed.machines);
+    }
+  } catch (err) {
+    inventoryErr = err;
+  }
+
+  const addedBrain = await appendSavedBrainMachineToInventory(req, inventory);
+  if (inventory.machines.length > 0 || addedBrain) {
+    return NextResponse.json(refreshFlyInventoryCounts(inventory));
+  }
+
   if (!cfg) {
     return NextResponse.json(
       {
@@ -51,17 +73,16 @@ export async function GET(req: NextRequest) {
     );
   }
 
-  try {
-    const inventory = await listFlyInventory(cfg);
-    return NextResponse.json(inventory);
-  } catch (err) {
+  if (inventoryErr) {
     logger.error(
-      { err, owner: auth.owner, repo: auth.repo },
+      { err: inventoryErr, owner: auth.owner, repo: auth.repo },
       "fly-machines: inventory failed",
     );
     return NextResponse.json(
-      { error: "inventory_failed", message: (err as Error).message },
+      { error: "inventory_failed", message: (inventoryErr as Error).message },
       { status: 500 },
     );
   }
+
+  return NextResponse.json(inventory);
 }

@@ -5,7 +5,7 @@
  * @ai-summary Standalone `/preview` page — the full Vibe preview (iframe, Web/
  *   Admin views, device sizes, element inspector → chat) detached from any task.
  *   Adds a named-environment switcher (Production / Staging / Dev …) whose list
- *   lives in `.kody/dashboard.json`. The shared chat rail provides the composer
+ *   lives in state repo `dashboard.json`. The shared chat rail provides the composer
  *   the inspector injects into, so element-pick + screenshot work here too.
  *   The shell renders the page header above this; we just fill the pane.
  */
@@ -250,7 +250,7 @@ export function PreviewWorkspace() {
     toast.success(`Saved "${created.label}"`);
   };
 
-  // Upload file(s) into the connected repo under .kody/views/<id> and
+  // Upload file(s) into the state repo under views/<id> and
   // add the dashboard-served URL as a named preview environment.
   const uploadFiles = async (files: File[]): Promise<void> => {
     if (files.length === 0) return;

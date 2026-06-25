@@ -3,8 +3,8 @@
  * @domain kody
  * @pattern agent-control-hooks
  * @ai-summary React Query hooks for the Agent Control page.
- *   Backed by `.kody/agents/<slug>.md` files in the connected repo via
- *   the contents API. Duplicated from useAgentResponsibilities.ts.
+ *   Backed by `agents/<slug>.md` files in the state repo via the API.
+ *   Duplicated from useAgentResponsibilities.ts.
  */
 "use client";
 

@@ -3,7 +3,7 @@
  * @domain commands
  * @pattern commands-page
  * @ai-summary Commands CRUD entry point. Manages slash-command commands
- *   stored at `.kody/commands/<slug>.md` and the dashboard built-ins
+ *   stored at `commands/<slug>.md` in the state repo and the dashboard built-ins
  *   that ship with the codebase. These appear as `/<slug>` in the
  *   chat composer.
  */

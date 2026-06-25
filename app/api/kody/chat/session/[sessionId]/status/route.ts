@@ -10,10 +10,10 @@
  * for > 90s without events, awaiting reply for > 180s without events, or
  * tab returning from background).
  *
- * Truth is derived from the events JSONL file the engine writes to GitHub
- * (`.kody/events/{sessionId}.jsonl`). The runner itself owns no signal we
- * can query directly; the file's last line, last event type, and event age
- * are the only signals we get.
+ * Truth is derived from the events JSONL file the engine writes to the state
+ * repo (`events/{sessionId}.jsonl`). The runner itself owns no signal we can
+ * query directly; the file's last line, last event type, and event age are the
+ * only signals we get.
  *
  * Response (no client-side cache — always fresh):
  *   {

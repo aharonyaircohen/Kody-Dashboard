@@ -23,6 +23,7 @@ import type {
   CompanyIntentRecord,
   CompanyIntentStatus,
 } from "./company-intents";
+import type { ScheduleEvery } from "./ticked/frontmatter";
 
 const API_BASE = "/api/kody";
 
@@ -105,6 +106,23 @@ export function getStoredBrainTerminalActivityLimit(): number | "never" | null {
     return null;
   } catch {
     return null;
+  }
+}
+
+export function getStoredBrainSuspension(): "auto" | "never" {
+  if (typeof window === "undefined") return "auto";
+  try {
+    const raw = localStorage.getItem("kody_auth");
+    if (!raw) return "auto";
+    const parsed = JSON.parse(raw) as {
+      brainSuspension?: unknown;
+      brainTerminalActivityLimit?: unknown;
+    };
+    if (parsed.brainSuspension === "never") return "never";
+    if (parsed.brainSuspension === "auto") return "auto";
+    return parsed.brainTerminalActivityLimit === "never" ? "never" : "auto";
+  } catch {
+    return "auto";
   }
 }
 
@@ -923,7 +941,7 @@ export const remoteApi = {
 export type AgentResponsibilityCapabilityKind = "observe" | "act" | "verify";
 
 export interface AgentResponsibility {
-  /** AgentResponsibility folder name under `.kody/agent-responsibilities/`; stable identity. */
+  /** AgentResponsibility folder name under state-repo `agent-responsibilities/`; stable identity. */
   slug: string;
   title: string;
   body: string;
@@ -947,8 +965,8 @@ export interface AgentResponsibility {
   lastOutcome: "completed" | "failed" | null;
   /** Wall-clock of the most recent tick (ms) — `data.lastDurationMs`, or null. */
   lastDurationMs: number | null;
-  /** Legacy compatibility only. Responsibilities no longer own cadence. */
-  schedule: null;
+  /** Cadence between autonomous runs; null means every scheduler wake. */
+  schedule: ScheduleEvery | null;
   capabilityKind: AgentResponsibilityCapabilityKind | null;
   /**
    * Mirrors `disabled: true` in `profile.json`. When `true` the engine
@@ -980,7 +998,7 @@ export interface AgentResponsibility {
   writesTo: string[];
   /** Convenience link to the file on github.com. */
   htmlUrl: string;
-  /** Legacy folder-agentResponsibility flag; current agentAction files live under `.kody/agent-actions/`. */
+  /** Legacy folder-agentResponsibility flag; current agentAction files live under state-repo `agent-actions/`. */
   folder?: boolean;
   /** Runtime resolution source. Local repo assets win over store assets. */
   source?: "local" | "store";
@@ -1017,6 +1035,7 @@ export const agentResponsibilitiesApi = {
     slug?: string;
     title: string;
     body: string;
+    schedule?: ScheduleEvery | null;
     capabilityKind?: AgentResponsibilityCapabilityKind | null;
     disabled?: boolean;
     agent?: string | null;
@@ -1047,6 +1066,7 @@ export const agentResponsibilitiesApi = {
     data: {
       title?: string;
       body?: string;
+      schedule?: ScheduleEvery | null;
       capabilityKind?: AgentResponsibilityCapabilityKind | null;
       disabled?: boolean;
       agent?: string | null;

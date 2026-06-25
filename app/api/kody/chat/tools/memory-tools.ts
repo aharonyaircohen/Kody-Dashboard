@@ -3,8 +3,8 @@
  * @domain kody
  * @pattern ai-sdk-tool
  * @ai-summary Memory tools for the kody-direct chat agent. Persist
- *   facts/feedback/project-context/references as `.kody/memory/<id>.md`
- *   files in the connected repo. Mirrors the create_or_update_agent_responsibility tool: each
+ *   facts/feedback/project-context/references as `memory/<id>.md`
+ *   files in the state repo. Mirrors the create_or_update_agent_responsibility tool: each
  *   write commits a markdown file via the GitHub contents API and rebuilds
  *   the sibling `INDEX.md` so the next chat turn can see the new entry.
  *
@@ -66,7 +66,7 @@ export function createMemoryTools(ctx: Ctx) {
   return {
     remember: tool({
       description:
-        `Persist a memory in ${repoRef} as \`.kody/memory/<id>.md\`. Memories are ` +
+        `Persist a memory in ${repoRef} as state repo \`memory/<id>.md\`. Memories are ` +
         "loaded into every future chat turn (via the INDEX) so the agent does not " +
         "re-learn the same facts.\n\n" +
         "WRITE on signal, not on schedule. Triggers:\n" +
@@ -352,7 +352,7 @@ export function createMemoryTools(ctx: Ctx) {
 
     recall_search: tool({
       description:
-        `Search every memory file in ${repoRef} (under \`.kody/memory/\`) by free-text ` +
+        `Search every memory file in ${repoRef} (under state repo \`memory/\`) by free-text ` +
         "query, using GitHub code search. Returns up to 20 matches with file path, " +
         "snippet, and the memory id (filename without `.md`). Use this when:\n" +
         "- The injected `## Remembered context` index is truncated.\n" +
@@ -369,7 +369,7 @@ export function createMemoryTools(ctx: Ctx) {
           .describe(
             'Free-text query. Examples: "deploy workflow", "merge freeze", ' +
               '"prefers terse responses". GitHub code-search syntax (path:, repo:, ' +
-              "language:) is supported but already scoped to .kody/memory/ in this repo.",
+              "language:) is supported but already scoped to state repo memory/ in this repo.",
           ),
       }),
       execute: async ({ query }) => {

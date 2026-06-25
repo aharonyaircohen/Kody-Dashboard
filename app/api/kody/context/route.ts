@@ -3,7 +3,7 @@
  * @domain kody
  * @pattern context-api
  * @ai-summary Context API — GET lists context entries
- *   (`.kody/context/<slug>.md`), POST creates a new one. Entries owned by the
+ *   (`context/<slug>.md` in the state repo), POST creates a new one. Entries owned by the
  *   built-in `kody` agent are injected into the kody-direct chat system
  *   prompt so the agent knows what the company is and does.
  */

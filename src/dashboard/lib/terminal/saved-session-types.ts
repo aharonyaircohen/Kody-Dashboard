@@ -60,6 +60,46 @@ export function limitSavedTerminalOutput(output: string): string {
   return output.slice(-SAVED_TERMINAL_OUTPUT_LIMIT);
 }
 
+function hashId(value: string): string {
+  let hash = 0x811c9dc5;
+  for (let i = 0; i < value.length; i += 1) {
+    hash ^= value.charCodeAt(i);
+    hash = Math.imul(hash, 0x01000193);
+  }
+  return (hash >>> 0).toString(36);
+}
+
+function cleanIdPart(value: string): string {
+  return (
+    value
+      .toLowerCase()
+      .replace(/[^a-z0-9_-]+/g, "-")
+      .replace(/^-+|-+$/g, "")
+      .slice(0, 90) || "terminal"
+  );
+}
+
+export function savedTerminalTransportKey(
+  transport: SavedTerminalTransport,
+  chatSessionId = "",
+): string {
+  if (transport.type === "fly") {
+    return `fly:${transport.app}:${transport.machineId}`;
+  }
+  if (transport.type === "github-actions") {
+    return `github-actions:${transport.sandboxId}`;
+  }
+  return `local:${transport.sandboxId ?? chatSessionId}`;
+}
+
+export function savedTerminalAutoSaveId(
+  transport: SavedTerminalTransport,
+  chatSessionId: string,
+): string {
+  const key = savedTerminalTransportKey(transport, chatSessionId);
+  return `auto-${hashId(key)}-${cleanIdPart(key)}`.slice(0, 120);
+}
+
 export function terminalTransportLabel(
   transport: SavedTerminalTransport,
 ): string {

@@ -20,14 +20,15 @@ import {
 import { logger } from "@dashboard/lib/logger";
 import { resolvePreviewConfigForOctokit } from "@dashboard/lib/previews/config";
 import { startMachine } from "@dashboard/lib/previews/fly-previews";
+import { appendSavedBrainMachineToInventory } from "@dashboard/lib/runners/fly-inventory-server";
 import { listFlyInventory } from "@dashboard/lib/runners/fly-inventory";
 import { ensureTerminalBridge } from "@dashboard/lib/terminal/bridge-fly";
 import {
   buildTerminalWebSocketUrl,
-  findTerminalTargetMachine,
   isTerminalFeatureAllowed,
   isTerminalMachineLive,
   isTerminalMachineStartable,
+  resolveTerminalTargetMachine,
   selectTerminalTarget,
   terminalActivityLimitForTarget,
 } from "@dashboard/lib/terminal/session";
@@ -114,7 +115,8 @@ export async function POST(req: NextRequest) {
 
   try {
     let inventory = await listFlyInventory(cfg);
-    const requested = findTerminalTargetMachine(inventory, parsed.data);
+    await appendSavedBrainMachineToInventory(req, inventory);
+    const requested = resolveTerminalTargetMachine(inventory, parsed.data);
     if (!requested) {
       return NextResponse.json(
         {
@@ -145,18 +147,26 @@ export async function POST(req: NextRequest) {
       }
       logger.info(
         { app: requested.app, machineId: requested.machineId },
-        "terminal: waking runner machine",
+        "terminal: waking machine",
       );
       await startMachine(requested.app, requested.machineId, cfg);
+      const selectedInput = {
+        app: requested.app,
+        machineId: requested.machineId,
+      };
       for (let attempt = 0; attempt < WAKE_POLL_ATTEMPTS; attempt++) {
         if (attempt > 0) await sleep(WAKE_POLL_INTERVAL_MS);
         inventory = await listFlyInventory(cfg);
-        const next = findTerminalTargetMachine(inventory, parsed.data);
+        await appendSavedBrainMachineToInventory(req, inventory);
+        const next = resolveTerminalTargetMachine(inventory, selectedInput);
         if (next && isTerminalMachineLive(next.state)) break;
       }
     }
 
-    const selected = selectTerminalTarget(inventory, parsed.data);
+    const selected = selectTerminalTarget(inventory, {
+      app: requested.app,
+      machineId: requested.machineId,
+    });
     if (!selected.ok) {
       return NextResponse.json(
         { error: selected.error, message: TARGET_MESSAGE[selected.error] },
@@ -173,8 +183,8 @@ export async function POST(req: NextRequest) {
     const token = mintTerminalBridgeToken({
       owner: auth.owner,
       repo: auth.repo,
-      app: parsed.data.app,
-      machineId: parsed.data.machineId,
+      app: selected.machine.app,
+      machineId: selected.machine.machineId,
       chatSessionId: parsed.data.chatSessionId,
       resetSession: parsed.data.resetSession,
       ...(activityLimitMs !== undefined ? { activityLimitMs } : {}),

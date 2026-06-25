@@ -124,7 +124,7 @@ export async function dispatchAgentMentions(
     }
     const token = bg.token;
 
-    // Resolve this repo's agent roster (per-repo `.kody/agents/`), so a
+    // Resolve this repo's agent roster (state-repo `agents/`), so a
     // newly-connected repo works with zero setup.
     let slugs: string[] = [];
     setGitHubContext(owner, repo, token);

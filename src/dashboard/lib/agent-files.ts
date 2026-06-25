@@ -3,7 +3,7 @@
  * @domain kody
  * @pattern agent-files
  * @ai-summary Agent preset over the shared ticked-file store. An agent
- *   member is a `.kody/agents/<slug>.md` file; agentResponsibilities and agent are the
+ *   member is an `agents/<slug>.md` state file; agentResponsibilities and agent are the
  *   same mechanism, so the implementation lives once in `ticked/files.ts`.
  *   This file binds the agent directory / commit scope / cache and
  *   re-exports the API under the `*AgentFile` names so importers stay
@@ -29,7 +29,7 @@ import {
 export type AgentFile = TickFile;
 
 const impl = createTickedFiles({
-  dir: ".kody/agents",
+  dir: "agents",
   commitScope: "agent",
   invalidateCache: invalidateStaffCache,
 });

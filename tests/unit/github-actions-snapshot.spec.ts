@@ -30,9 +30,9 @@ function sandbox(snapshotPath: string): LocalSandbox {
 }
 
 describe("githubActionsSandboxSnapshotPath", () => {
-  it("matches the path restored by the GitHub Actions workflow", () => {
+  it("matches the state-repo path restored by the GitHub Actions workflow", () => {
     expect(githubActionsSandboxSnapshotPath(sandbox("/tmp/snapshot"))).toBe(
-      ".kody/sandboxes/owner-repo/sandbox-00000000-0000-4000-8000-000000000000/snapshot.tar.gz.enc",
+      "sandboxes/owner-repo/sandbox-00000000-0000-4000-8000-000000000000/snapshot.tar.gz.enc",
     );
   });
 });
@@ -58,9 +58,8 @@ describe("publishGitHubActionsSandboxSnapshotWithOctokit", () => {
     expect(octokit.repos.createOrUpdateFileContents).toHaveBeenCalledWith(
       expect.objectContaining({
         owner: "owner",
-        repo: "repo",
-        branch: "main",
-        path: githubActionsSandboxSnapshotPath(sandbox(snapshotPath)),
+        repo: "kody-state",
+        path: `repo/${githubActionsSandboxSnapshotPath(sandbox(snapshotPath))}`,
         content: Buffer.from("snapshot bytes").toString("base64"),
       }),
     );

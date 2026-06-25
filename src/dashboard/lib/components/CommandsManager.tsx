@@ -3,7 +3,7 @@
  * @domain commands
  * @pattern commands-manager
  * @ai-summary CRUD UI for repo-local slash commands plus activated Store
- * commands. Repo commands live at `.kody/commands/<slug>.md`; Store commands
+ * commands. Repo commands live at `commands/<slug>.md` in the state repo; Store commands
  * are enabled by `company.activeCommands`; Dashboard built-ins are fallback
  * only. Editing a shared command writes a same-slug repo copy so repo wins by
  * slug — UI just says "Edit", fork happens silently.
@@ -295,9 +295,9 @@ function CommandsManagerInner() {
                 Commands appear as <code className="text-white/55">/slash</code>{" "}
                 entries in chat. Stored at{" "}
                 <code className="text-white/55">
-                  .kody/commands/&lt;slug&gt;.md
+                  commands/&lt;slug&gt;.md
                 </code>{" "}
-                in this repo so they&apos;re git-tracked and team-shareable.
+                in the state repo so they&apos;re git-tracked and team-shareable.
               </p>
             </CardContent>
           </Card>
@@ -395,8 +395,8 @@ function CommandsManagerInner() {
         <p className="text-[11px] text-white/30 pt-4 flex items-center gap-1.5">
           <FileText className="w-3 h-3" />
           Built-ins ship with the dashboard. Editing one saves a same-slug copy
-          to <code className="text-white/50 mx-1">.kody/commands/</code> in the
-          repo, which then takes over the slot.
+          to <code className="text-white/50 mx-1">commands/</code> in the
+          state repo, which then takes over the slot.
         </p>
       </div>
 
@@ -496,8 +496,8 @@ function CommandEditor({
           </DialogTitle>
           <DialogDescription>
             {isBuiltinEdit
-              ? "Saving stores your version at .kody/commands/<slug>.md in the repo, which takes over from the shared default."
-              : "Stored at .kody/commands/<slug>.md. Use $ARGUMENTS for the full input, $0/$1/… for positional tokens."}
+              ? "Saving stores your version at commands/<slug>.md in the state repo, which takes over from the shared default."
+              : "Stored at commands/<slug>.md in the state repo. Use $ARGUMENTS for the full input, $0/$1/… for positional tokens."}
           </DialogDescription>
         </DialogHeader>
         <div className="space-y-3 mt-2">

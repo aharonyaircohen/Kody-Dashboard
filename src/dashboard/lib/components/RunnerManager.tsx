@@ -37,7 +37,7 @@ import { PreviewsCard } from "./PreviewsCard";
 import { PageShell } from "./PageShell";
 import { SimpleTooltip } from "./SimpleTooltip";
 import { VaultLockedBanner } from "./VaultLockedBanner";
-import { useAuth, type FlyPerfTier } from "../auth-context";
+import { buildAuthHeaders, useAuth, type FlyPerfTier } from "../auth-context";
 
 const FLY_VAULT_KEY = "FLY_API_TOKEN";
 const POOL_MIN_VAULT_KEY = "POOL_MIN";
@@ -441,12 +441,7 @@ function RunnerConfigView({
 export function RunnerManager({ view = "config" }: RunnerManagerProps) {
   const { auth } = useAuth();
   const headers = useMemo<Record<string, string>>(() => {
-    if (!auth) return EMPTY_HEADERS;
-    return {
-      "x-kody-token": auth.token,
-      "x-kody-owner": auth.owner,
-      "x-kody-repo": auth.repo,
-    };
+    return auth ? buildAuthHeaders(auth) : EMPTY_HEADERS;
   }, [auth]);
   const flyTokenConfigured = useFlyTokenConfigured(headers);
   const copy = FLY_VIEW_COPY[view];

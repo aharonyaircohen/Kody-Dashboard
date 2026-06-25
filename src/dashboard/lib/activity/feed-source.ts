@@ -3,13 +3,11 @@
  * @domain kody
  * @pattern activity-feed-source
  * @ai-summary Rate-limit-safe reader for the Activity Feed. The engine
- *   streams events to per-session files `.kody/events/{sessionId}.jsonl`
- *   in the connected repo (NOT the dashboard-internal
- *   `.kody/event-log.jsonl`, which the engine doesn't write here). So the
- *   Feed lists the events dir, takes the most-recent N sessions, and reads
- *   each via the shared ETag-aware `readEventsFile`. The directory listing
- *   has its own 60s cache + in-flight dedup + stale fallback (CLAUDE.md
- *   rate-limit rules); per-file reads get free 304s from `readEventsFile`.
+ *   streams events to per-session files `events/{sessionId}.jsonl`
+ *   in the configured Kody state repo. The Feed lists the events dir, takes
+ *   the most-recent N sessions, and reads each via the shared ETag-aware
+ *   `readEventsFile`. The directory listing has its own 60s cache + in-flight
+ *   dedup + stale fallback; per-file reads get free 304s from `readEventsFile`.
  *   The Feed tab is also load-on-demand (not polled), so steady state is
  *   ~zero GitHub calls.
  */
@@ -17,9 +15,10 @@ import type { Octokit } from "@octokit/rest";
 import { createUserOctokit } from "../github-client";
 import { readEventsFile } from "../chat-events-reader";
 import type { EventLogEntry } from "../kody-store/event-log";
+import { listStateDirectory } from "../state-repo";
 
 const BRANCH = process.env.KODY_STORE_BRANCH ?? "main";
-const EVENTS_DIR = ".kody/events";
+const EVENTS_DIR = "events";
 const LIST_TTL_MS = 60_000;
 /** Most-recent session files merged into one feed — caps GitHub reads. */
 const MAX_SESSIONS = 12;
@@ -59,14 +58,13 @@ async function listRecentSessions(
 
   const promise = (async () => {
     try {
-      const { data } = await octokit.rest.repos.getContent({
+      const { entries } = await listStateDirectory(
+        octokit,
         owner,
         repo,
-        path: EVENTS_DIR,
-        ref: BRANCH,
-      });
-      const files = Array.isArray(data) ? data : [];
-      const sessions = files
+        EVENTS_DIR,
+      );
+      const sessions = entries
         .filter((f) => f.type === "file" && f.name.endsWith(".jsonl"))
         .sort((a, b) => sessionTs(b.name) - sessionTs(a.name))
         .slice(0, MAX_SESSIONS)

@@ -3,7 +3,8 @@
  * @fileType store
  * @domain kody
  *
- * Append-only event log stored in `.kody/event-log.jsonl` in the repo via GitHub API.
+ * Append-only event log stored in `event-log.jsonl` in the configured
+ * Kody state repo via GitHub API.
  * Each line is a JSON-encoded EventLogEntry. The full file is kept under 10k entries
  * by trimming on read (oldest entries trimmed first).
  *
@@ -11,7 +12,7 @@
  */
 
 import { createUserOctokit } from "@dashboard/lib/github-client";
-import { updateGitHubFileWithRetry } from "@dashboard/lib/github-contents-write";
+import { readStateText, writeStateText } from "@dashboard/lib/state-repo";
 import type { Octokit } from "@octokit/rest";
 
 export interface EventLogEntry {
@@ -45,7 +46,7 @@ function getOrCreateOctokit(octokit?: Octokit | null): Octokit | null {
   return createUserOctokit(token);
 }
 
-const STORE_FILE = ".kody/event-log.jsonl";
+const STORE_FILE = "event-log.jsonl";
 const MAX_ENTRIES = 10000;
 
 function generateId(): string {
@@ -61,16 +62,11 @@ async function getFileContent(
   branch: string,
 ): Promise<{ content: string; sha?: string } | null> {
   try {
-    const { data } = await octokit.rest.repos.getContent({
-      owner,
-      repo,
-      path: STORE_FILE,
-      ref: branch,
-    });
-    if ("content" in data && data.content) {
+    const file = await readStateText(octokit, owner, repo, STORE_FILE);
+    if (file) {
       return {
-        content: Buffer.from(data.content, "base64").toString("utf-8"),
-        sha: data.sha as string,
+        content: file.content,
+        sha: file.sha,
       };
     }
   } catch (err: unknown) {
@@ -125,24 +121,27 @@ export async function logEvent(
     emittedAt: new Date().toISOString(),
   };
 
-  await updateGitHubFileWithRetry(octokit, {
-    owner,
-    repo,
-    path: STORE_FILE,
-    branch,
-    message: `kody: append event log`,
-    maxAttempts: 3,
-    mutate: (current) => {
-      const existingContent = current?.contentBase64
-        ? Buffer.from(current.contentBase64, "base64").toString("utf-8")
-        : null;
-      return {
-        content: Buffer.from(
-          appendEventLogEntry(existingContent, entry),
-        ).toString("base64"),
-      };
-    },
-  });
+  for (let attempt = 1; attempt <= 3; attempt += 1) {
+    const existing = await getFileContent(octokit, owner, repo, branch);
+    try {
+      await writeStateText({
+        octokit,
+        owner,
+        repo,
+        path: STORE_FILE,
+        message: `kody: append event log`,
+        content: appendEventLogEntry(existing?.content ?? null, entry),
+        sha: existing?.sha,
+        maxAttempts: 1,
+      });
+      break;
+    } catch (error: unknown) {
+      if ((error as { status?: number })?.status === 409 && attempt < 3) {
+        continue;
+      }
+      throw error;
+    }
+  }
   return entry;
 }
 

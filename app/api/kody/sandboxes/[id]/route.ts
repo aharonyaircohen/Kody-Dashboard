@@ -15,6 +15,11 @@ import {
   deleteLocalSandbox,
   getLocalSandbox,
 } from "@dashboard/lib/sandboxes/local-sandboxes";
+import { githubActionsSandboxSnapshotPath } from "@dashboard/lib/sandboxes/github-actions-snapshot";
+import {
+  deleteStateFile,
+  readStateFileMetadata,
+} from "@dashboard/lib/state-repo";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -26,33 +31,21 @@ async function deleteGitHubSnapshot(
 ) {
   const octokit = await getUserOctokit(req);
   if (!octokit) return;
-  try {
-    const existing = await octokit.repos.getContent({
-      owner: auth.owner,
-      repo: auth.repo,
-      path,
-      ref: "main",
-    });
-    if (Array.isArray(existing.data) || existing.data.type !== "file") return;
-    await octokit.repos.deleteFile({
-      owner: auth.owner,
-      repo: auth.repo,
-      path,
-      sha: existing.data.sha,
-      branch: "main",
-      message: `chore(kody): delete sandbox snapshot [skip ci]`,
-    });
-  } catch (err) {
-    if (
-      typeof err === "object" &&
-      err !== null &&
-      "status" in err &&
-      err.status === 404
-    ) {
-      return;
-    }
-    throw err;
-  }
+  const existing = await readStateFileMetadata(
+    octokit,
+    auth.owner,
+    auth.repo,
+    path,
+  );
+  if (!existing) return;
+  await deleteStateFile({
+    octokit,
+    owner: auth.owner,
+    repo: auth.repo,
+    path,
+    sha: existing.sha,
+    message: `chore(kody): delete sandbox snapshot [skip ci]`,
+  });
 }
 
 interface RouteContext {
@@ -73,7 +66,7 @@ export async function DELETE(req: NextRequest, ctx: RouteContext) {
       await deleteGitHubSnapshot(
         req,
         auth,
-        `.kody/sandboxes/${sandbox.scope}/${sandbox.id}/snapshot.tar.gz.enc`,
+        githubActionsSandboxSnapshotPath(sandbox),
       );
     }
     const deleted = await deleteLocalSandbox(auth, id);

@@ -3,7 +3,7 @@
  * @domain preview
  * @pattern repo-backed-static-view-ticket
  * @ai-summary Auth-gated endpoint that mints a short-lived encrypted access
- * token for one `.kody/views/<view-id>` folder.
+ * token for one state repo `views/<view-id>` folder.
  */
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";

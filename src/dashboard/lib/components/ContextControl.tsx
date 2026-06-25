@@ -3,8 +3,8 @@
  * @domain context
  * @pattern context-control-page
  * @ai-summary Context Control — list, view, create, edit, and delete context
- *   entries. An entry is a markdown file at `.kody/context/<slug>.md` in the
- *   connected repo: the slug is the entry name (e.g. `company-profile`,
+ *   entries. An entry is a markdown file at `context/<slug>.md` in the state repo:
+ *   the slug is the entry name (e.g. `company-profile`,
  *   `mission`, `products`) and the body is free-form markdown — curated
  *   context you write FOR Kody (company facts, brand, agentIdentity briefs).
  *   Reference docs that already live in the repo (README, DESIGN_SYSTEM.md)
@@ -89,7 +89,7 @@ const ALL_AGENT_OPTION: StaffOption = {
   hint: "Every agent, including ones added later",
 };
 
-/** Built-in agents always offered, even with no matching `.kody/agents/*.md` file. */
+/** Built-in agents always offered, even with no matching state repo `agents/*.md` file. */
 const BUILTIN_AGENT: StaffOption[] = [
   {
     slug: KODY_CHAT_AGENT,
@@ -121,7 +121,7 @@ function staffBadgeLabel(slug: string): string {
 
 /**
  * The options offered in an agent multi-select: the built-ins (Kody, QA)
- * plus any `.kody/agents/*.md` members in the connected repo.
+ * plus any state repo `agents/*.md` members.
  */
 function useAgentsOptions(): StaffOption[] {
   const { data: agent = [] } = useAgents();
@@ -450,7 +450,7 @@ export function ContextControlInner({
           title="Delete this context entry?"
           description={
             pendingDelete
-              ? `Entry "${pendingDelete.slug}" will be removed from .kody/context/ via a commit on the default branch.`
+              ? `Entry "${pendingDelete.slug}" will be removed from the state repo context store.`
               : ""
           }
           variant="destructive"
@@ -525,7 +525,7 @@ function EntryDetail({
               <div className="rounded-md border border-white/[0.08] bg-white/[0.03] px-3 py-2 text-xs">
                 <span className="text-white/50">Active file </span>
                 <code className="font-mono text-teal-200">
-                  {`.kody/context/${entry.slug}.md`}
+                  {`context/${entry.slug}.md`}
                 </code>
               </div>
             </div>
@@ -790,7 +790,7 @@ function CreateEntryDialog({
         <DialogHeader>
           <DialogTitle>New context entry</DialogTitle>
           <DialogDescription>
-            Stored at .kody/context/&lt;slug&gt;.md. The slug is the entry name
+            Stored at context/&lt;slug&gt;.md in the state repo. The slug is the entry name
             Kody sees (e.g. company-profile, mission, products); the body is
             plain markdown. Agent decides which consumers load it — leave all
             unchecked to keep the entry unassigned.
@@ -898,7 +898,7 @@ function EditEntryDialog({
             <div className="flex items-center justify-between gap-3 text-xs">
               <span className="font-medium text-white/70">Active file</span>
               <code className="font-mono text-teal-200">
-                {`.kody/context/${entry.slug}.md`}
+                {`context/${entry.slug}.md`}
               </code>
             </div>
             <div className="mt-3 space-y-1.5">

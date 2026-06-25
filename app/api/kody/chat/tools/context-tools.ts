@@ -3,7 +3,7 @@
  * @domain context
  * @pattern chat-tools
  * @ai-summary Chat tools to manage curated Context entries
- *   (`.kody/context/<slug>.md`) — list, read, create/update, delete. Context
+ *   (`context/<slug>.md` in the state repo) — list, read, create/update, delete. Context
  *   is the company-curated knowledge fed to agentIdentity identities. Each entry's
  *   `agent` array scopes which agent identities see it ("kody" by default, "*" = all).
  */
@@ -32,7 +32,7 @@ export function createContextTools(ctx: Ctx) {
 
   return {
     list_context: tool({
-      description: `List curated context entries in ${repoRef} (.kody/context/). Returns slug and the agentIdentity identities each entry is scoped to.`,
+      description: `List curated context entries in ${repoRef} (state repo context/). Returns slug and the agentIdentity identities each entry is scoped to.`,
       inputSchema: z.object({}),
       execute: async () => {
         try {
@@ -62,7 +62,7 @@ export function createContextTools(ctx: Ctx) {
     }),
 
     create_or_update_context: tool({
-      description: `Create or update a context entry in ${repoRef} (commits .kody/context/<slug>.md). \`agent\` lists which agent slugs see it — use ["kody"] for chat only, ["*"] for every agentIdentity, or specific slugs. The body is plain markdown (no frontmatter).`,
+      description: `Create or update a context entry in ${repoRef} (commits context/<slug>.md in the state repo). \`agent\` lists which agent slugs see it — use ["kody"] for chat only, ["*"] for every agentIdentity, or specific slugs. The body is plain markdown (no frontmatter).`,
       inputSchema: z.object({
         slug: z.string().min(1).max(64),
         body: z.string().min(1),
@@ -94,7 +94,7 @@ export function createContextTools(ctx: Ctx) {
     }),
 
     delete_context: tool({
-      description: `Delete a context entry from ${repoRef} (removes .kody/context/<slug>.md).`,
+      description: `Delete a context entry from ${repoRef} (removes context/<slug>.md from the state repo).`,
       inputSchema: z.object({ slug: z.string().min(1).max(64) }),
       execute: async ({ slug }) => {
         if (!isValidSlug(slug)) return { error: `invalid slug "${slug}"` };

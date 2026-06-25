@@ -24,6 +24,10 @@ import { NextRequest, NextResponse } from "next/server";
 
 import { requireKodyAuth } from "@dashboard/lib/auth";
 import { clearBrainApp, readBrainApp } from "@dashboard/lib/brain/store";
+import {
+  clearGitHubContext,
+  setGitHubContext,
+} from "@dashboard/lib/github-client";
 import { logger } from "@dashboard/lib/logger";
 import { destroyBrain } from "@dashboard/lib/runners/brain-fly";
 import { resolveFlyContext } from "@dashboard/lib/runners/fly-context";
@@ -48,26 +52,34 @@ export async function POST(req: NextRequest) {
     );
   }
 
-  // If the dashboard has a stored record for this user, the Fly app may
-  // be living under a `-2`/`-3` suffix from a previous auto-rename. Read
-  // the record and pass the actual app name to destroyBrain so we don't
-  // target a default name that the token can't see. Best-effort: if the
-  // read fails we fall back to the default name and let Fly respond.
-  let storedAppName: string | undefined;
-  try {
-    const stored = await readBrainApp(
-      ctx.context.account,
-      ctx.context.githubToken,
-    );
-    storedAppName = stored?.appName;
-  } catch (readErr) {
-    logger.warn(
-      { err: readErr, owner: ctx.context.owner },
-      "brain destroy: stored record read failed (non-fatal)",
-    );
-  }
+  setGitHubContext(
+    ctx.context.owner,
+    ctx.context.repo,
+    ctx.context.githubToken,
+    ctx.context.storeRepoUrl,
+    ctx.context.storeRef,
+  );
 
   try {
+    // If the dashboard has a stored record for this user, the Fly app may
+    // be living under a `-2`/`-3` suffix from a previous auto-rename. Read
+    // the record and pass the actual app name to destroyBrain so we don't
+    // target a default name that the token can't see. Best-effort: if the
+    // read fails we fall back to the default name and let Fly respond.
+    let storedAppName: string | undefined;
+    try {
+      const stored = await readBrainApp(
+        ctx.context.account,
+        ctx.context.githubToken,
+      );
+      storedAppName = stored?.appName;
+    } catch (readErr) {
+      logger.warn(
+        { err: readErr, owner: ctx.context.owner },
+        "brain destroy: stored record read failed (non-fatal)",
+      );
+    }
+
     await destroyBrain({
       flyToken: ctx.context.flyToken,
       account: ctx.context.account,
@@ -86,5 +98,7 @@ export async function POST(req: NextRequest) {
     const message = err instanceof Error ? err.message : String(err);
     logger.error({ err, owner: ctx.context.owner }, "brain destroy failed");
     return NextResponse.json({ error: message }, { status: 502 });
+  } finally {
+    clearGitHubContext();
   }
 }

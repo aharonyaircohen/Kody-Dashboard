@@ -3,7 +3,7 @@
  * @domain runners
  * @pattern fly-machines-brain
  * @ai-summary Persistent per-user Brain app provisioner: auto_destroy=false,
- *   autostop="suspend" for near-zero idle (~1s resume). Shares flyToken
+ *   optional autostop="suspend" for near-zero idle (~1s resume). Shares flyToken
  *   plumbing with fly.ts but diverges on lifecycle — brain-fly is NOT one-shot.
  *   Reuses existing machine when image ref unchanged; recreates only on genuine
  *   image tag change to avoid churn loops. App name = kody-brain-<account>
@@ -12,9 +12,10 @@
  * Separate module from runners/fly.ts on purpose:
  *   - fly.ts spawns one-shot, ephemeral machines (auto_destroy=true,
  *     restart=no). It is the wrong shape for a long-running server.
- *   - brain-fly.ts provisions a persistent app + machine with autostop=
- *     "suspend" so it resumes on demand (~1s cold) and idles at near-zero
- *     cost. Shares only the `flyToken` plumbing from runners/fly-context.
+ *   - brain-fly.ts provisions a persistent app + machine. By default it uses
+ *     autostop="suspend" so it resumes on demand (~1s cold) and idles at
+ *     near-zero cost; users can disable that auto-suspend. Shares only the
+ *     `flyToken` plumbing from runners/fly-context.
  *
  * One Fly app per user. App name = `kody-brain-<account>` (lowercased,
  * hyphen-safe). The app exposes :443 → :8080 (the brain-serve HTTP port).
@@ -87,6 +88,8 @@ export interface ProvisionBrainInput {
   model?: string;
   /** Performance tier — maps to a fixed Fly guest shape. */
   perfTier?: PerfTier;
+  /** Default true. False disables Fly's idle auto-suspend for the Brain app. */
+  suspendOnIdle?: boolean;
   /** Default branch to clone. */
   ref?: string;
   /** Override the generated app name (tests). */
@@ -313,10 +316,26 @@ interface FlyApp {
   organization?: { slug: string };
 }
 
+type BrainAutostop = false | "suspend";
+
+interface BrainMachineServiceConfig {
+  autostop?: BrainAutostop | true;
+  autostart?: boolean;
+  min_machines_running?: number;
+  [key: string]: unknown;
+}
+
+interface BrainMachineConfig {
+  image?: string;
+  env?: Record<string, string>;
+  services?: BrainMachineServiceConfig[];
+  [key: string]: unknown;
+}
+
 interface FlyMachine {
   id: string;
   state?: string;
-  config?: { image?: string; env?: Record<string, string> };
+  config?: BrainMachineConfig;
   region?: string;
 }
 
@@ -515,6 +534,50 @@ async function destroyMachine(
   );
 }
 
+function brainAutostop(input: ProvisionBrainInput): BrainAutostop {
+  return input.suspendOnIdle === false ? false : "suspend";
+}
+
+function alignBrainSuspensionConfig(
+  config: BrainMachineConfig | undefined,
+  input: ProvisionBrainInput,
+): { changed: boolean; config?: BrainMachineConfig } {
+  if (!config?.services?.length) return { changed: false };
+  const targetAutostop = brainAutostop(input);
+  let changed = false;
+  const services = config.services.map((service) => {
+    const next = { ...service };
+    if (next.autostop !== targetAutostop) {
+      next.autostop = targetAutostop;
+      changed = true;
+    }
+    if (next.autostart !== true) {
+      next.autostart = true;
+      changed = true;
+    }
+    if (next.min_machines_running !== 0) {
+      next.min_machines_running = 0;
+      changed = true;
+    }
+    return next;
+  });
+  return changed ? { changed, config: { ...config, services } } : { changed };
+}
+
+async function updateMachineConfig(
+  flyToken: string,
+  appName: string,
+  machineId: string,
+  config: BrainMachineConfig,
+): Promise<void> {
+  await flyFetch<FlyMachine>(
+    `/apps/${encodeURIComponent(appName)}/machines/${encodeURIComponent(
+      machineId,
+    )}`,
+    { method: "POST", token: flyToken, body: { config } },
+  );
+}
+
 /**
  * Create a new persistent brain machine in the given app.
  *
@@ -553,7 +616,7 @@ async function createMachine(
           ],
           protocol: "tcp",
           internal_port: 8080,
-          autostop: "suspend",
+          autostop: brainAutostop(input),
           autostart: true,
           min_machines_running: 0,
           concurrency: { type: "requests", soft_limit: 50, hard_limit: 100 },
@@ -652,6 +715,26 @@ export async function provisionBrain(
     if (!existingKey) {
       throw new Error(
         `brain-fly: app ${app} has a machine without BRAIN_API_KEY env — destroy first, then re-provision`,
+      );
+    }
+    const suspensionConfig = alignBrainSuspensionConfig(
+      existing.config,
+      input,
+    );
+    if (suspensionConfig.changed && suspensionConfig.config) {
+      await updateMachineConfig(
+        input.flyToken,
+        app,
+        existing.id,
+        suspensionConfig.config,
+      );
+      logger.info(
+        {
+          app,
+          machineId: existing.id,
+          autostop: brainAutostop(input),
+        },
+        "brain-fly: updated machine suspension config",
       );
     }
     logger.info(

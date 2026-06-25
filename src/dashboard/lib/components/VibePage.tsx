@@ -6,7 +6,7 @@
  *   preview iframe + compact issue list. Selecting an issue swaps both the
  *   chat scope and the iframe; merging an issue removes it from the list.
  *   Reuses KodyChat (root layout), PreviewActions, MergeButton, CIStatusBadge.
- *   Default preview URL persists per-repo in `.kody/dashboard.json`.
+ *   Default preview URL persists per-repo in state repo `dashboard.json`.
  */
 "use client";
 

@@ -2,7 +2,7 @@
  * @fileType api-endpoint
  * @domain dashboard-config
  * @pattern repo-config
- * @ai-summary GET — return per-repo dashboard config from `.kody/dashboard.json`.
+ * @ai-summary GET — return per-repo dashboard config from state repo `dashboard.json`.
  *   PUT — upsert config (currently `defaultPreviewUrl`). Plain JSON, not encrypted.
  *   Used by the Vibe page to remember the default preview URL across users.
  */

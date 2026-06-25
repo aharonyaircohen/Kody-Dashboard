@@ -3,7 +3,7 @@
  * @domain kody
  * @pattern instructions-api
  * @ai-summary Per-repo user instructions document at
- *   `.kody/instructions.md`. GET reads it, PUT upserts it, DELETE
+ *   state-repo `instructions.md`. GET reads it, PUT upserts it, DELETE
  *   removes it. The body is appended to every kody-direct chat
  *   turn so users can override tone / length / formatting without
  *   touching code.

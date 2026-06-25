@@ -2,8 +2,8 @@
  * @fileType api-endpoint
  * @domain preview
  * @pattern repo-backed-static-views
- * @ai-summary POST uploads static resources into the connected consumer repo
- * under `.kody/views/<view-id>/` and returns a dashboard-served view URL.
+ * @ai-summary POST uploads static resources into the configured Kody state repo
+ * under `views/<view-id>/` and returns a dashboard-served view URL.
  */
 import { randomUUID } from "node:crypto";
 import { NextRequest, NextResponse } from "next/server";

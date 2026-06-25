@@ -53,7 +53,7 @@ export interface OrgContext {
  * Each line is ~150 chars (one bullet per memory), so 300 lines ≈ 45KB of
  * prompt overhead — still a small fraction of the model's context window.
  * Above this the agent falls back to `recall_search` (GitHub code search
- * scoped to `.kody/memory/`) and `list_memories` / `recall` tools.
+ * scoped to state repo `memory/`) and `list_memories` / `recall` tools.
  */
 const MEMORY_INDEX_MAX_LINES = 300;
 
@@ -84,7 +84,7 @@ export function buildSystemPrompt(
      */
     currentPage?: string;
     /**
-     * Raw body of `.kody/memory/INDEX.md` (or `null` when the file doesn't
+     * Raw body of state repo `memory/INDEX.md` (or `null` when the file doesn't
      * exist). Injected under a `## Remembered context` heading so the agent
      * can decide whether a new memory would be a duplicate / update of an
      * existing one. The full body of any entry is fetched on demand via
@@ -105,7 +105,7 @@ export function buildSystemPrompt(
      */
     flyConfigured?: boolean;
     /**
-     * Raw body of `.kody/instructions.md` (or `null` when the file doesn't
+     * Raw body of state repo `instructions.md` (or `null` when the file doesn't
      * exist). Appended LAST inside the system prompt so it wins against
      * the base agent prompt for tone / length / formatting preferences.
      * Voice overlay still wins on mic turns — voice is applied outside
@@ -113,7 +113,7 @@ export function buildSystemPrompt(
      */
     userInstructions?: string | null;
     /**
-     * Concatenated bodies of the `kody`-owned `.kody/context/*.md` entries (or
+     * Concatenated bodies of the `kody`-owned state repo `context/*.md` entries (or
      * `null` when the repo has none). Factual "who the company is / what it
      * does" context the agent should treat as background — injected near the
      * TOP (after the connected-repo block) so it frames everything, unlike
@@ -162,7 +162,7 @@ Rules:
     sections.push(
       `## Context — your default frame
 
-You are this company's in-house assistant, not a general-purpose chatbot. The block below is the live contents of the \`kody\`-owned \`.kody/context/*.md\` entries for this repo: who the company is, what it builds, its domain, customers, and vocabulary. This is your DEFAULT and PRIMARY frame for every question.
+You are this company's in-house assistant, not a general-purpose chatbot. The block below is the live contents of the \`kody\`-owned state repo \`context/*.md\` entries for this repo: who the company is, what it builds, its domain, customers, and vocabulary. This is your DEFAULT and PRIMARY frame for every question.
 
 - If a question matches — or could refer to — the company, its product, this repo, or its domain (even a single bare word or name, any casing or spacing), answer about THAT, directly, from this context. Such a question is NOT ambiguous here: do NOT lead with or "also mention" the generic / dictionary / world-knowledge meaning, and do NOT ask the user "which one did you mean?". Just answer about the company's thing.
 - Example: if the product is named "Foo", then "what is foo / a foo / Foo?" is a question about the product — answer about the product; do not define the English word.
@@ -189,7 +189,7 @@ For managed goals, ask for missing outcome/proof steps if needed. Keep the route
       sections.push(
         `## Remembered context
 
-The block below is the live index of \`.kody/memory/*.md\` for this repo.
+The block below is the live index of state repo \`memory/*.md\` for this repo.
 Each bullet is one stored memory: title, file id, one-line hook, and type.
 Treat it as the agent's persistent notes — facts/feedback/project context the
 user has chosen to keep across sessions.
@@ -226,7 +226,7 @@ ${truncateMemoryIndex(opts.memoryIndex.trim())}`,
       lines.push(`\n### AgentResponsibility body\n\n${bodyPreview}`);
     }
     lines.push(
-      "\nThe user is chatting about **this specific agentResponsibility**. A Kody agentResponsibility is a folder at `.kody/agent-responsibilities/<slug>/`: `profile.json` holds action/cadence/agents metadata, and `agent-responsibility.md` describes purpose, output, allowed commands, and restrictions. Answer their questions grounded in the agentResponsibility body above — do NOT claim the agentResponsibility does not exist. If they want to edit the agentResponsibility, help them draft changes to the profile and body.",
+      "\nThe user is chatting about **this specific agentResponsibility**. A Kody agentResponsibility is a folder at state repo `agent-responsibilities/<slug>/`: `profile.json` holds action/cadence/agents metadata, and `agent-responsibility.md` describes purpose, output, allowed commands, and restrictions. Answer their questions grounded in the agentResponsibility body above — do NOT claim the agentResponsibility does not exist. If they want to edit the agentResponsibility, help them draft changes to the profile and body.",
     );
     sections.push(lines.join("\n"));
   }
@@ -429,7 +429,7 @@ When they ask you to interact with or verify something in that preview
     sections.push(
       `## User instructions for this repo
 
-The block below is the live contents of \`.kody/instructions.md\` for this repo — the user's explicit preferences for how you should behave in this chat. These OVERRIDE the base agent prompt for tone, length, formatting, and any other preference the user has chosen to record here. Apply them automatically; do not narrate that you're applying them.
+The block below is the live contents of state repo \`instructions.md\` for this repo — the user's explicit preferences for how you should behave in this chat. These OVERRIDE the base agent prompt for tone, length, formatting, and any other preference the user has chosen to record here. Apply them automatically; do not narrate that you're applying them.
 
 If a user instruction conflicts with a hard rule above (never fake tool calls, research before evaluating, issue-creation gates), the hard rule still wins — those exist to prevent footguns. Everything else, the user instruction wins.
 

@@ -2,7 +2,7 @@
  * @fileType api-endpoint
  * @domain preview
  * @pattern macros-api
- * @ai-summary Saved preview macros, stored in the repo at `.kody/macros.json`.
+ * @ai-summary Saved preview macros, stored in the configured state repo at `macros.json`.
  *   GET lists them; POST appends a new one ({ name, steps }); DELETE removes
  *   one by id (?id=). Mirrors the secrets route auth shape: header PAT for
  *   reads, verified actor + user octokit for the commits writes perform.

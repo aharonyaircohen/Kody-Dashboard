@@ -217,6 +217,23 @@ const INFLIGHT = new Map<
 >();
 const TTL_MS = 60_000;
 
+type ReposApi = {
+  getContent: (params: {
+    owner: string;
+    repo: string;
+    path: string;
+  }) => Promise<{ data: unknown }>;
+};
+
+function getReposApi(octokit: Octokit): ReposApi {
+  const candidate = octokit as Octokit & { repos?: unknown };
+  const repos = candidate.rest?.repos ?? candidate.repos;
+  if (!repos || typeof repos !== "object") {
+    throw new Error("github_contents_api_missing");
+  }
+  return repos as ReposApi;
+}
+
 function cacheKey(owner: string, repo: string): string {
   return `${owner}/${repo}`;
 }
@@ -227,12 +244,14 @@ async function fetchConfig(
   repo: string,
 ): Promise<{ config: KodyConfig; sha: string | null }> {
   try {
-    const res = await octokit.rest.repos.getContent({
+    const res = await getReposApi(octokit).getContent({
       owner,
       repo,
       path: KODY_CONFIG_PATH,
     });
-    const data = res.data;
+    const data = res.data as
+      | { content?: string; sha?: string }
+      | Array<unknown>;
     if (Array.isArray(data) || !("content" in data) || !data.content) {
       return { config: defaultConfig, sha: null };
     }

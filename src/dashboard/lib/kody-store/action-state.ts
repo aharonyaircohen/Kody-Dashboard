@@ -3,14 +3,15 @@
  * @fileType store
  * @domain kody
  *
- * Stores action polling state in `.kody/action-state.json` in the repo via GitHub API.
+ * Stores action polling state in `action-state.json` in the configured
+ * Kody state repo via GitHub API.
  * Replaces the old local-FS store that didn't survive Vercel serverless cold starts.
  *
  * Uses SHA-based upsert for safe concurrent writes (createOrUpdateFileContents).
  */
 
 import { createUserOctokit } from "@dashboard/lib/github-client";
-import { writeGitHubFileWithRetry } from "@dashboard/lib/github-contents-write";
+import { readStateText, writeStateText } from "@dashboard/lib/state-repo";
 import type { Octokit } from "@octokit/rest";
 
 export type ActionStatus = "running" | "waiting" | "complete" | "cancelled";
@@ -54,7 +55,7 @@ function getOrCreateOctokit(octokit?: Octokit | null): Octokit | null {
 
 // ─── GitHub file helpers ───────────────────────────────────────────────────────
 
-const STORE_FILE = ".kody/action-state.json";
+const STORE_FILE = "action-state.json";
 
 /**
  * Per-instance ETag + payload cache for the action-state file.
@@ -92,18 +93,12 @@ async function readMap(
   const key = cacheKey(owner, repo, branch);
   const cached = readCache.get(key);
   try {
-    const response = await octokit.rest.repos.getContent({
-      owner,
-      repo,
-      path: STORE_FILE,
-      ref: branch,
+    const file = await readStateText(octokit, owner, repo, STORE_FILE, {
       headers: cached?.etag ? { "If-None-Match": cached.etag } : undefined,
     });
-    const { data, headers } = response;
-    const newEtag = (headers as Record<string, string | undefined>)?.etag;
-    if ("content" in data && data.content) {
-      const json = Buffer.from(data.content, "base64").toString("utf-8");
-      if (newEtag) readCache.set(key, { etag: newEtag, json });
+    if (file) {
+      const json = file.content;
+      if (file.etag) readCache.set(key, { etag: file.etag, json });
       return parseToMap(json);
     }
   } catch (err: unknown) {
@@ -133,16 +128,13 @@ async function writeMap(
   map: Map<string, ActionState>,
   existingSha?: string,
 ): Promise<void> {
-  const content = Buffer.from(
-    JSON.stringify([...map.values()], null, 2),
-  ).toString("base64");
-  await writeGitHubFileWithRetry(octokit, {
+  await writeStateText({
+    octokit,
     owner,
     repo,
     path: STORE_FILE,
     message: `kody: update action state`,
-    content,
-    branch,
+    content: JSON.stringify([...map.values()], null, 2),
     ...(existingSha ? { sha: existingSha } : {}),
     maxAttempts: 1,
   });
@@ -158,13 +150,8 @@ async function getSha(
   branch: string,
 ): Promise<string | undefined> {
   try {
-    const { data } = await octokit.rest.repos.getContent({
-      owner,
-      repo,
-      path: STORE_FILE,
-      ref: branch,
-    });
-    if ("sha" in data && typeof data.sha === "string") return data.sha;
+    const file = await readStateText(octokit, owner, repo, STORE_FILE);
+    if (file?.sha) return file.sha;
   } catch (err: unknown) {
     const e = err as { status?: number };
     if (e.status !== 404) throw err;

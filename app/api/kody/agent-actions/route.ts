@@ -3,7 +3,7 @@
  * @domain agentActions
  * @pattern agentActions-api
  * @ai-summary AgentActions Control API — GET lists custom agentActions
- *   stored at `.kody/agent-actions/<slug>/`, POST creates a new
+ *   stored at `agent-actions/<slug>/` in the state repo, POST creates a new
  *   one. Each agentAction is a folder the engine resolves before its own
  *   built-ins (kody2/src/registry.ts).
  */

@@ -510,7 +510,7 @@ export async function POST(req: NextRequest) {
   const messages = trimToRecent(allMessages);
   const trimmedCount = allMessages.length - messages.length;
 
-  // Resolve the model from the user-managed list in .kody/variables.json.
+  // Resolve the model from the user-managed list in state repo variables.json.
   // The client can override per-request via `body.model`, but it must
   // match an enabled entry — we never trust arbitrary ids from the wire.
   // Voice mode does not affect model selection; it's a per-turn prompt
@@ -638,7 +638,7 @@ export async function POST(req: NextRequest) {
         {
           role: "system",
           content:
-            `Explicit memory request already persisted to .kody/memory/${file.id}.md ` +
+            `Explicit memory request already persisted to state repo memory/${file.id}.md ` +
             `as ${file.meta.type}. Do not call remember/update_memory again. ` +
             "Briefly confirm it was saved.",
         },

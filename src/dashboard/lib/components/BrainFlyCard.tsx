@@ -13,9 +13,10 @@
  *   - Turn off → POST /api/kody/brain/destroy (with confirm).
  *   - Refresh  → re-fetch GET /api/kody/brain/status.
  *
- * Suspend/resume are also automatic: the machine auto-suspends after idle
- * and auto-resumes in ~1s on the next chat. The explicit buttons let the
- * user force a pause now (zero compute) without tearing down the app.
+ * Suspend/resume are automatic by default: the machine auto-suspends after
+ * idle and auto-resumes in ~1s on the next chat. The Brain suspension setting
+ * can disable that auto-suspend; the explicit button still lets the user
+ * pause now without tearing down the app.
  *
  * Visibility: rendered only when the connected repo has FLY_API_TOKEN in
  * its vault (same gate as the existing Fly Runner card). Without that
@@ -44,7 +45,7 @@ import { ConfirmDialog } from "./ConfirmDialog";
 import { SimpleTooltip } from "./SimpleTooltip";
 import {
   useAuth,
-  type BrainTerminalActivityLimit,
+  type BrainSuspensionMode,
   type FlyPerfTier,
 } from "../auth-context";
 
@@ -58,36 +59,21 @@ const BRAIN_SIZE_LABELS: Record<FlyPerfTier, { label: string; hint: string }> =
     medium: { label: "Balanced", hint: "performance 1× / 2 GB — default" },
     high: { label: "Fast", hint: "performance 2× / 4 GB — costs more" },
   };
-const BRAIN_TERMINAL_ACTIVITY_DEFAULT = 30 * 60_000;
-const BRAIN_TERMINAL_ACTIVITY_OPTIONS: Array<{
-  value: BrainTerminalActivityLimit;
+const BRAIN_SUSPENSION_DEFAULT: BrainSuspensionMode = "auto";
+const BRAIN_SUSPENSION_OPTIONS: Array<{
+  value: BrainSuspensionMode;
   label: string;
   hint: string;
 }> = [
   {
-    value: 30 * 60_000,
-    label: "30 min",
-    hint: "Default. Good for normal terminal checks.",
-  },
-  {
-    value: 60 * 60_000,
-    label: "1 hour",
-    hint: "Enough for slower installs or tests.",
-  },
-  {
-    value: 4 * 60 * 60_000,
-    label: "4 hours",
-    hint: "For long terminal jobs.",
-  },
-  {
-    value: 12 * 60 * 60_000,
-    label: "12 hours",
-    hint: "For very long terminal jobs.",
+    value: "auto",
+    label: "When idle",
+    hint: "Let Fly suspend Brain when it is unused. It resumes on the next chat.",
   },
   {
     value: "never",
     label: "Never",
-    hint: "Keep the terminal session until you restart or close it.",
+    hint: "Keep Brain running until you suspend it or turn it off.",
   },
 ];
 
@@ -179,8 +165,11 @@ export function BrainFlyCard({
 }: BrainFlyCardProps) {
   const { auth, updateIntegrations } = useAuth();
   const brainPerf: FlyPerfTier = auth?.brainPerf ?? BRAIN_SIZE_DEFAULT;
-  const brainTerminalActivityLimit: BrainTerminalActivityLimit =
-    auth?.brainTerminalActivityLimit ?? BRAIN_TERMINAL_ACTIVITY_DEFAULT;
+  const brainSuspension: BrainSuspensionMode =
+    auth?.brainSuspension ??
+    (auth?.brainTerminalActivityLimit === "never"
+      ? "never"
+      : BRAIN_SUSPENSION_DEFAULT);
   const [state, setState] = useState<BrainFlyState>("unknown");
   const [app, setApp] = useState<string | null>(null);
   const [stored, setStored] = useState<StatusResponse["stored"]>(null);
@@ -223,7 +212,7 @@ export function BrainFlyCard({
       // ignore — best-effort persistence
     }
   }, [customAppName]);
-  // Per-repo `.kody/dashboard.json` flag — whether the "Kody Brain (Fly)"
+  // Per-repo state repo dashboard.json flag — whether the "Kody Brain (Fly)"
   // row is offered in the chat picker. Default off. Independent of the
   // provision lifecycle above and of Fly task execution.
   const [chatEnabled, setChatEnabled] = useState(false);
@@ -313,14 +302,20 @@ export function BrainFlyCard({
       const trimmedOverride = customAppName.trim();
       const res = await fetch("/api/kody/brain/provision", {
         method: "POST",
-        headers: { ...headers, "x-kody-brain-perf": brainPerf },
+        headers: {
+          ...headers,
+          "Content-Type": "application/json",
+          "x-kody-brain-perf": brainPerf,
+          "x-kody-brain-suspension": brainSuspension,
+        },
         body: JSON.stringify(
           trimmedOverride.length > 0 ? { appName: trimmedOverride } : {},
         ),
       });
       const body = (await res.json().catch(() => ({}))) as ProvisionResponse;
       if (!res.ok) {
-        toast.error(body.error ?? `Provision failed (HTTP ${res.status})`);
+        const message = body.error ?? `Provision failed (HTTP ${res.status})`;
+        toast.error(message);
         return;
       }
       if (body.originalName) {
@@ -339,7 +334,8 @@ export function BrainFlyCard({
       // suspended state if the user doesn't chat for a while.
       await refresh();
     } catch (err) {
-      toast.error(`Provision failed: ${(err as Error).message}`);
+      const message = `Provision failed: ${(err as Error).message}`;
+      toast.error(message);
     } finally {
       setBusy("idle");
     }
@@ -355,6 +351,7 @@ export function BrainFlyCard({
           ...headers,
           "Content-Type": "application/json",
           "x-kody-brain-perf": brainPerf,
+          "x-kody-brain-suspension": brainSuspension,
         },
         body: JSON.stringify(
           trimmedOverride.length > 0 ? { appName: trimmedOverride } : {},
@@ -483,6 +480,64 @@ export function BrainFlyCard({
   const isOn =
     state === "running" || state === "suspended" || state === "stopped";
 
+  async function saveBrainSuspension(value: BrainSuspensionMode) {
+    updateIntegrations({
+      brainSuspension: value === BRAIN_SUSPENSION_DEFAULT ? null : value,
+    });
+    if (!flyTokenConfigured || Object.keys(headers).length === 0 || !isOn) {
+      return;
+    }
+    setBusy("provisioning");
+    try {
+      const trimmedOverride = customAppName.trim();
+      const res = await fetch("/api/kody/brain/provision", {
+        method: "POST",
+        headers: {
+          ...headers,
+          "Content-Type": "application/json",
+          "x-kody-brain-perf": brainPerf,
+          "x-kody-brain-suspension": value,
+        },
+        body: JSON.stringify(
+          trimmedOverride.length > 0 ? { appName: trimmedOverride } : {},
+        ),
+      });
+      const body = (await res.json().catch(() => ({}))) as ProvisionResponse;
+      if (!res.ok) {
+        toast.error(
+          body.error ?? `Brain suspension save failed (HTTP ${res.status})`,
+        );
+        return;
+      }
+      if (value === "never" && (state === "suspended" || state === "stopped")) {
+        const resumeRes = await fetch("/api/kody/brain/resume", {
+          method: "POST",
+          headers,
+        });
+        if (!resumeRes.ok) {
+          const resumeBody = (await resumeRes.json().catch(() => ({}))) as {
+            error?: string;
+          };
+          toast.error(
+            resumeBody.error ??
+              `Brain wake failed after saving Never (HTTP ${resumeRes.status})`,
+          );
+          return;
+        }
+      }
+      toast.success(
+        value === "never"
+          ? "Brain will stay running until you suspend it or turn it off"
+          : "Brain may suspend when idle",
+      );
+      await refresh();
+    } catch (err) {
+      toast.error(`Brain suspension save failed: ${(err as Error).message}`);
+    } finally {
+      setBusy("idle");
+    }
+  }
+
   // Orphan: the dashboard has a stored record for this user but the Fly
   // token can't see the app (token revoked, app moved to a different
   // org, slug taken by another account, etc.). The user can clear the
@@ -601,33 +656,28 @@ export function BrainFlyCard({
             <div className="space-y-1.5">
               <div className="flex items-center gap-2">
                 <span className="text-xs text-white/70">
-                  Brain terminal activity
+                  Brain suspension
                 </span>
                 <SimpleTooltip
-                  content="How long a Brain terminal stays alive after its last input or output."
+                  content="Whether Fly may auto-suspend the Brain machine when it is idle."
                   side="right"
                 >
                   <Info className="w-3 h-3 text-white/50 hover:text-white/80 cursor-help" />
                 </SimpleTooltip>
               </div>
               <select
-                value={String(brainTerminalActivityLimit)}
+                value={brainSuspension}
                 onChange={(event) => {
-                  const value =
-                    event.target.value === "never"
-                      ? "never"
-                      : Number(event.target.value);
-                  updateIntegrations({
-                    brainTerminalActivityLimit:
-                      value === BRAIN_TERMINAL_ACTIVITY_DEFAULT ? null : value,
-                  });
+                  const value = event.target.value as BrainSuspensionMode;
+                  void saveBrainSuspension(value);
                 }}
+                disabled={busy !== "idle"}
                 className="h-8 w-full rounded-md border border-white/10 bg-black/30 px-2 text-xs text-white/80 outline-none focus:border-violet-500/50"
               >
-                {BRAIN_TERMINAL_ACTIVITY_OPTIONS.map((option) => (
+                {BRAIN_SUSPENSION_OPTIONS.map((option) => (
                   <option
-                    key={String(option.value)}
-                    value={String(option.value)}
+                    key={option.value}
+                    value={option.value}
                     title={option.hint}
                   >
                     {option.label}
@@ -790,7 +840,11 @@ export function BrainFlyCard({
                 onClick={turnOn}
                 disabled={busy !== "idle" || !flyTokenConfigured}
               >
-                <Power className="w-3 h-3 mr-1" />
+                {busy === "provisioning" ? (
+                  <Loader2 className="w-3 h-3 mr-1 animate-spin" />
+                ) : (
+                  <Power className="w-3 h-3 mr-1" />
+                )}
                 {busy === "provisioning" ? "Turning on…" : "Turn on"}
               </Button>
             )}

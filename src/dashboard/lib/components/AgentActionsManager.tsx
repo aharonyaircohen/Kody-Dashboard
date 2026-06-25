@@ -3,7 +3,7 @@
  * @domain agentActions
  * @pattern agentActions-manager
  * @ai-summary CRUD UI for custom agentActions stored at
- *   `.kody/agent-actions/<slug>/` in the connected repo. The engine resolves
+ *   `agent-actions/<slug>/` in the state repo. The engine resolves
  *   these before its own built-ins when a agentResponsibility lowers to an implementation.
  *   The editor is a simple form (describe + instructions + model + tools), plus a skills
  *   tab (paste a `SKILL.md` or import one from a GitHub source) and a scripts tab
@@ -528,7 +528,7 @@ function AgentActionsManagerInner() {
           <EmptyState
             icon={<Sparkles />}
             title="No agentActions yet"
-            hint="An agentAction is an implementation folder stored at .kody/agent-actions/<slug>/. AgentResponsibilities own public @kody action names."
+            hint="An agentAction is an implementation folder stored at agent-actions/<slug>/ in the state repo. AgentResponsibilities own public @kody action names."
             action={
               <Button asChild size="sm" className="gap-1">
                 <Link href="/agent-actions/new">
@@ -1357,7 +1357,7 @@ function AgentActionEditorForm({
             <p className="text-xs text-white/50">
               {isReadOnly
                 ? "Store-linked agentAction. Visible here, edited in kody-store."
-                : "Stored at .kody/agent-actions/<slug>/. AgentResponsibilities reference this slug as their implementation."}
+                : "Stored at agent-actions/<slug>/ in the state repo. AgentResponsibilities reference this slug as their implementation."}
             </p>
           </div>
           <Button

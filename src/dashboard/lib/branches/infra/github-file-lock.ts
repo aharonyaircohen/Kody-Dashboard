@@ -4,7 +4,7 @@
  * @pattern lock-adapter
  * @ai-summary GitHub-file-backed implementation of LockPort.
  *
- *   Stores leases as `.kody/locks/<key>.json` in the repo. Mutual
+ *   Stores leases as `locks/<key>.json` in the configured Kody state repo. Mutual
  *   exclusion comes from GitHub's "create file" semantics: PUT with
  *   no `sha` field returns 422 if the file already exists, so two
  *   concurrent creates produce one 201 winner and one 422 loser —
@@ -20,7 +20,11 @@
  *   acquire per vibe session start) and latency is fine (~200ms).
  */
 import type { Octokit } from "@octokit/rest";
-import { writeGitHubFileWithRetry } from "@dashboard/lib/github-contents-write";
+import {
+  deleteStateFile,
+  readStateText,
+  writeStateText,
+} from "@dashboard/lib/state-repo";
 import type { Lease, LockPort } from "../domain/lock-port";
 
 interface OctokitCtx {
@@ -40,9 +44,9 @@ interface LockFileContents {
 
 function lockPath(key: string): string {
   // Slashes in `key` would collide with subdirectory paths. Replace
-  // with underscores so keys are flat children of .kody/locks/.
+  // with underscores so keys are flat children of locks/.
   const safeKey = key.replace(/[^a-z0-9._-]/gi, "_");
-  return `.kody/locks/${safeKey}.json`;
+  return `locks/${safeKey}.json`;
 }
 
 export class GitHubFileLock implements LockPort {
@@ -55,19 +59,18 @@ export class GitHubFileLock implements LockPort {
       ttlMs,
     };
     const message = `lock: acquire ${key}`;
-    const contentB64 = Buffer.from(JSON.stringify(contents, null, 2)).toString(
-      "base64",
-    );
+    const content = JSON.stringify(contents, null, 2);
 
     // Step 1: try to CREATE the file (no `sha` → fails with 422 if
     // it already exists).
     try {
-      const data = await writeGitHubFileWithRetry(this.ctx.octokit, {
+      const data = await writeStateText({
+        octokit: this.ctx.octokit,
         owner: this.ctx.owner,
         repo: this.ctx.repo,
         path,
         message,
-        content: contentB64,
+        content,
         maxAttempts: 1,
       });
       return makeLease(this.ctx, path, data.sha);
@@ -83,11 +86,13 @@ export class GitHubFileLock implements LockPort {
     // Step 2: inspect the existing file. If its TTL expired, take over.
     let existing;
     try {
-      existing = await this.ctx.octokit.rest.repos.getContent({
-        owner: this.ctx.owner,
-        repo: this.ctx.repo,
+      existing = await readStateText(
+        this.ctx.octokit,
+        this.ctx.owner,
+        this.ctx.repo,
         path,
-      });
+      );
+      if (!existing) return this.acquire(key, ttlMs);
     } catch (err) {
       // Race: someone deleted the file between our create and our read.
       // Retry the create once.
@@ -98,13 +103,8 @@ export class GitHubFileLock implements LockPort {
       throw err;
     }
 
-    if (Array.isArray(existing.data) || existing.data.type !== "file") {
-      throw new Error(`Lock path ${path} unexpectedly points to a directory`);
-    }
-    const sha = existing.data.sha;
-    const decoded = Buffer.from(existing.data.content, "base64").toString(
-      "utf8",
-    );
+    const sha = existing.sha;
+    const decoded = existing.content;
 
     let parsed: LockFileContents;
     try {
@@ -122,12 +122,13 @@ export class GitHubFileLock implements LockPort {
 
     // Expired — take over with a PUT-with-sha (replaces the dead lease).
     try {
-      const data = await writeGitHubFileWithRetry(this.ctx.octokit, {
+      const data = await writeStateText({
+        octokit: this.ctx.octokit,
         owner: this.ctx.owner,
         repo: this.ctx.repo,
         path,
         message: `lock: take over expired ${key}`,
-        content: contentB64,
+        content,
         sha,
         maxAttempts: 1,
       });
@@ -151,7 +152,8 @@ function makeLease(ctx: OctokitCtx, path: string, sha: string | null): Lease {
       released = true;
       if (!sha) return;
       try {
-        await ctx.octokit.rest.repos.deleteFile({
+        await deleteStateFile({
+          octokit: ctx.octokit,
           owner: ctx.owner,
           repo: ctx.repo,
           path,

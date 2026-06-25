@@ -3,7 +3,7 @@
  * @domain kody
  * @pattern memory-page
  * @ai-summary Kody memory management page. Lets operators create, edit,
- *   search, and delete `.kody/memory/<id>.md` files.
+ *   search, and delete `memory/<id>.md` state-repo files.
  */
 import { AuthGuard } from "@dashboard/lib/auth-guard";
 import { MemoryManager } from "@dashboard/lib/components/MemoryManager";

@@ -601,7 +601,7 @@ function FeedView({ active }: { active: boolean }) {
       )}
       <p className="mt-6 text-[10px] text-white/30">
         One row per chat/run session, grouped from the engine&apos;s per-session
-        event files (.kody/events/*.jsonl). Expand a session for its events;
+        event files in the state repo (events/*.jsonl). Expand a session for its events;
         expand an event for the exact time and raw payload (copyable). Loads
         only when this tab is open (60s server cache, recent sessions only),
         never polled — no steady-state GitHub API budget.

@@ -5,6 +5,7 @@ import {
   findTerminalTargetMachine,
   isTerminalFeatureAllowed,
   isTerminalMachineStartable,
+  resolveTerminalTargetMachine,
   selectTerminalTarget,
   terminalActivityLimitForTarget,
 } from "@dashboard/lib/terminal/session";
@@ -82,6 +83,24 @@ describe("terminal session policy", () => {
     expect(selected).toMatchObject({
       ok: true,
       machine: { machineId: "brain-1" },
+    });
+  });
+
+  it("uses the current Brain machine when the saved machine id is stale", () => {
+    expect(
+      resolveTerminalTargetMachine(INVENTORY, {
+        app: "kody-brain-alice",
+        machineId: "destroyed-brain",
+      }),
+    ).toMatchObject({ machineId: "brain-1", feature: "brain" });
+    expect(
+      selectTerminalTarget(INVENTORY, {
+        app: "kody-brain-alice",
+        machineId: "destroyed-brain",
+      }),
+    ).toMatchObject({
+      ok: true,
+      machine: { machineId: "brain-1", feature: "brain" },
     });
   });
 

@@ -9,7 +9,11 @@
  *   transient prefix flips. Pure module — no React.
  */
 
-import { getStoredAuth, getStoredBrainConfig } from "../api";
+import {
+  getStoredAuth,
+  getStoredBrainConfig,
+  getStoredBrainSuspension,
+} from "../api";
 import type { ChatContext } from "../chat-types";
 import type { LiveScopeKey } from "./kody-chat-reducer";
 
@@ -27,6 +31,7 @@ export function authHeaders(): Record<string, string> {
           ? { "x-kody-store-repo-url": auth.storeRepoUrl }
           : {}),
         ...(auth.storeRef ? { "x-kody-store-ref": auth.storeRef } : {}),
+        "x-kody-brain-suspension": getStoredBrainSuspension(),
       }
     : {};
 }

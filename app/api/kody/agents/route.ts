@@ -3,8 +3,8 @@
  * @domain kody
  * @pattern agent-api
  * @ai-summary Agent Control API — GET lists agent, POST creates one.
- *   An agent is a markdown file at `.kody/agents/<slug>.md` in the
- *   connected repo. Duplicated from the agentResponsibilities API; the manual "Run now"
+ *   An agent is a markdown file at `agents/<slug>.md` in the state repo.
+ *   Duplicated from the agentResponsibilities API; the manual "Run now"
  *   path reuses the engine's `agent-responsibility-tick` plumbing.
  */
 /* eslint-disable @typescript-eslint/no-explicit-any */

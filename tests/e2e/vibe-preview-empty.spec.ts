@@ -49,16 +49,18 @@ async function gh<T = unknown>(
   return { ok: res.ok, status: res.status, json };
 }
 
-/** Read .kody/events/{taskId}.jsonl; [] until first commit. */
+/** Read state-repo events through the dashboard; [] until first write. */
 async function readEvents(taskId: string): Promise<Array<{ event?: string }>> {
-  const r = await gh<{ content?: string }>(
-    `/repos/${owner}/${repo}/contents/${encodeURIComponent(`.kody/events/${taskId}.jsonl`)}?ref=main`,
-  );
-  if (!r.ok || !r.json.content) return [];
-  return Buffer.from(r.json.content, "base64")
-    .toString("utf8")
-    .split("\n")
-    .filter(Boolean)
+  const res = await fetch(`${BASE_URL}/api/kody/events/poll?taskId=${encodeURIComponent(taskId)}&since=0`, {
+    headers: {
+      "x-kody-token": TOKEN,
+      "x-kody-owner": owner,
+      "x-kody-repo": repo,
+    },
+  });
+  if (!res.ok) return [];
+  const body = (await res.json()) as { lines?: string[] };
+  return (body.lines ?? [])
     .map((l) => {
       try {
         return JSON.parse(l);
@@ -113,18 +115,28 @@ test.describe("REPRO — Vibe preview is empty (runner never pushes to the pre-c
       `create branch ${mkBranch.status}`,
     ).toBe(true);
 
-    // Placeholder commit so the draft PR can open (mirrors "vibe: start session").
-    await gh(
-      `/repos/${owner}/${repo}/contents/.kody/vibe-placeholder-${stamp}.txt`,
+    // Empty marker commit so the draft PR can open (mirrors branch-service).
+    const baseCommit = await gh<{ tree: { sha: string } }>(
+      `/repos/${owner}/${repo}/git/commits/${baseSha}`,
+    );
+    const markerCommit = await gh<{ sha: string }>(
+      `/repos/${owner}/${repo}/git/commits`,
       {
-        method: "PUT",
+        method: "POST",
         body: JSON.stringify({
-          message: "vibe: start session",
-          content: Buffer.from(`vibe ${stamp}`).toString("base64"),
-          branch,
+          message: `vibe: start session for #${issueNumber}`,
+          tree: baseCommit.json.tree.sha,
+          parents: [baseSha],
         }),
       },
     );
+    expect(markerCommit.ok, `create marker commit ${markerCommit.status}`).toBe(
+      true,
+    );
+    await gh(`/repos/${owner}/${repo}/git/refs/heads/${branch}`, {
+      method: "PATCH",
+      body: JSON.stringify({ sha: markerCommit.json.sha, force: true }),
+    });
 
     const pr = await gh<{ number: number }>(`/repos/${owner}/${repo}/pulls`, {
       method: "POST",

@@ -36,6 +36,10 @@ import { NextRequest, NextResponse } from "next/server";
 
 import { requireKodyAuth } from "@dashboard/lib/auth";
 import { readBrainApp, writeBrainApp } from "@dashboard/lib/brain/store";
+import {
+  clearGitHubContext,
+  setGitHubContext,
+} from "@dashboard/lib/github-client";
 import { logger } from "@dashboard/lib/logger";
 import {
   brainAppName,
@@ -55,6 +59,13 @@ function brainPerfFrom(
 ): PerfTier | undefined {
   const raw = req.headers.get("x-kody-brain-perf");
   return raw === "low" || raw === "medium" || raw === "high" ? raw : fallback;
+}
+
+function brainSuspendOnIdleFrom(req: NextRequest): boolean | undefined {
+  const raw = req.headers.get("x-kody-brain-suspension");
+  if (raw === "never") return false;
+  if (raw === "auto") return true;
+  return undefined;
 }
 
 /** Parse and validate the optional `appName` from the request body. */
@@ -88,24 +99,32 @@ export async function POST(req: NextRequest) {
     );
   }
 
-  // Parse the optional explicit override from the UI.
-  const body = (await req.json().catch(() => ({}))) as unknown;
-  const override = parseAppNameOverride(body);
-
-  // Otherwise, prefer the previously-stored name so the Runner and
-  // chat route stay in sync. Fall back to the derived default.
-  let appName: string;
-  if (override) {
-    appName = override;
-  } else {
-    const stored = await readBrainApp(
-      ctx.context.account,
-      ctx.context.githubToken,
-    ).catch(() => null);
-    appName = stored?.appName ?? brainAppName(ctx.context.account);
-  }
+  setGitHubContext(
+    ctx.context.owner,
+    ctx.context.repo,
+    ctx.context.githubToken,
+    ctx.context.storeRepoUrl,
+    ctx.context.storeRef,
+  );
 
   try {
+    // Parse the optional explicit override from the UI.
+    const body = (await req.json().catch(() => ({}))) as unknown;
+    const override = parseAppNameOverride(body);
+
+    // Otherwise, prefer the previously-stored name so the Runner and
+    // chat route stay in sync. Fall back to the derived default.
+    let appName: string;
+    if (override) {
+      appName = override;
+    } else {
+      const stored = await readBrainApp(
+        ctx.context.account,
+        ctx.context.githubToken,
+      ).catch(() => null);
+      appName = stored?.appName ?? brainAppName(ctx.context.account);
+    }
+
     const result = await provisionBrain({
       flyToken: ctx.context.flyToken,
       account: ctx.context.account,
@@ -113,6 +132,7 @@ export async function POST(req: NextRequest) {
       githubToken: ctx.context.githubToken,
       allSecrets: ctx.context.allSecrets,
       perfTier: brainPerfFrom(req, ctx.context.perfTier),
+      suspendOnIdle: brainSuspendOnIdleFrom(req),
       appNameOverride: appName,
     });
     try {
@@ -133,5 +153,7 @@ export async function POST(req: NextRequest) {
     const message = err instanceof Error ? err.message : String(err);
     logger.error({ err, owner: ctx.context.owner }, "brain provision failed");
     return NextResponse.json({ error: message }, { status: 502 });
+  } finally {
+    clearGitHubContext();
   }
 }

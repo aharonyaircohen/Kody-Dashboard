@@ -188,6 +188,19 @@ describe("header builders", () => {
       "x-kody-token": "tok",
       "x-kody-owner": "o",
       "x-kody-repo": "r",
+      "x-kody-brain-suspension": "auto",
+    });
+  });
+
+  it("authHeaders carries the saved Brain suspension policy", () => {
+    installStorage({
+      owner: "o",
+      repo: "r",
+      token: "tok",
+      brainSuspension: "never",
+    });
+    expect(authHeaders()).toMatchObject({
+      "x-kody-brain-suspension": "never",
     });
   });
 

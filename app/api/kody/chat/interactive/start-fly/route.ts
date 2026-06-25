@@ -9,9 +9,8 @@
  * `kody.yml` workflow on GitHub Actions, spawns a Fly Machine that runs
  * the same engine image. Used by the `kody-live-fly` agent.
  *
- * The session JSONL lives in the same place (.kody/sessions/{id}.jsonl)
- * so the existing append + event-stream paths work unchanged — only the
- * runtime moves.
+ * The session JSONL lives in the state repo's `sessions/{id}.jsonl`, so the
+ * existing append + event-stream paths work unchanged — only the runtime moves.
  *
  * Body: see /interactive/start (taskId, idleExitMs, hardCapMs).
  */

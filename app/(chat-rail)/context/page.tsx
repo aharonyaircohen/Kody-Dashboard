@@ -3,7 +3,7 @@
  * @domain context
  * @pattern context-page
  * @ai-summary Context CRUD entry point. Manages free-form markdown files
- *   stored at `.kody/context/<slug>.md`. Entries owned by the built-in
+ *   stored at `context/<slug>.md` in the state repo. Entries owned by the built-in
  *   `kody` agent are injected into the kody-direct chat system prompt so the
  *   agent knows what the company is and does.
  */

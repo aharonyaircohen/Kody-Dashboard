@@ -20,8 +20,8 @@
  *   6. We poll the GitHub API for new commits on the PR branch beyond
  *      the initial "vibe: start session" placeholder. Timeout: 6 minutes
  *      (covers ~90s GHA boot + ~2-3min for the agent to read, edit, push).
- *   7. The new commit's diff contains src changes AND NOT `.kody/sessions/`
- *      or `.kody/events/` (regression for the `git add -A` pathspec rule).
+ *   7. The new commit's diff contains src changes and no consumer `.kody/`
+ *      state files.
  *
  * Skipped when E2E_GITHUB_TOKEN / E2E_GITHUB_REPO are not set, since the
  * test cannot authenticate against the dashboard or read the resulting PR.
@@ -297,23 +297,8 @@ test.describe("Vibe — LIVE full flow against production", () => {
       `/repos/${owner}/${repo}/pulls/${prNumber}/files?per_page=100`,
     )) as PrFile[];
 
-    // NOTE — the .kody/sessions and .kody/events files still leak into
-    // PRs until @kody-ade/kody-engine 0.4.72+ is published (worktree-on-
-    // main fix). Once the engine is on npm, switch this assertion back
-    // to `toEqual([])`. For now we just log so the test doesn't fail
-    // on a pending publish.
-    const leakedSessions = files.filter((f) =>
-      f.filename.startsWith(".kody/sessions/"),
-    );
-    const leakedEvents = files.filter((f) =>
-      f.filename.startsWith(".kody/events/"),
-    );
-    if (leakedSessions.length > 0 || leakedEvents.length > 0) {
-      // eslint-disable-next-line no-console
-      console.log(
-        `[live-e2e] runner-bookkeeping leak: ${leakedSessions.length + leakedEvents.length} files — fix is in engine 0.4.72, pending npm publish`,
-      );
-    }
+    const leakedStateFiles = files.filter((f) => f.filename.startsWith(".kody/"));
+    expect(leakedStateFiles, "PR must not contain consumer .kody state files").toEqual([]);
 
     const srcChange = files.find(
       (f) => f.filename === "src/app/(frontend)/page.tsx",
@@ -400,21 +385,12 @@ test.describe("Vibe — LIVE full flow against production", () => {
     }
 
     if (followupReady) {
-      // ── 10. Re-verify .kody/sessions+events leak status (see note above).
+      // ── 10. Re-verify consumer .kody state does not leak.
       const filesAfterFollowup = (await ghFetch(
         `/repos/${owner}/${repo}/pulls/${prNumber}/files?per_page=100`,
       )) as PrFile[];
-      const leakedAfter = filesAfterFollowup.filter(
-        (f) =>
-          f.filename.startsWith(".kody/sessions/") ||
-          f.filename.startsWith(".kody/events/"),
-      );
-      if (leakedAfter.length > 0) {
-        // eslint-disable-next-line no-console
-        console.log(
-          `[live-e2e] follow-up runner-bookkeeping leak: ${leakedAfter.length} files — fix pending engine 0.4.72 publish`,
-        );
-      }
+      const leakedAfter = filesAfterFollowup.filter((f) => f.filename.startsWith(".kody/"));
+      expect(leakedAfter, "follow-up PR must not contain consumer .kody state files").toEqual([]);
     }
 
     // ── 11. Merge the PR via the dashboard's approve endpoint. ─────────

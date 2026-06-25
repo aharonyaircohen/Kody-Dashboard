@@ -3,7 +3,7 @@
  * @domain instructions
  * @pattern instructions-page
  * @ai-summary Per-repo chat instructions editor. Stores
- *   `.kody/instructions.md`, appended to every kody-direct chat
+ *   `instructions.md` in the state repo, appended to every kody-direct chat
  *   turn so users can override tone / length / formatting.
  */
 import { AuthGuard } from "@dashboard/lib/auth-guard";

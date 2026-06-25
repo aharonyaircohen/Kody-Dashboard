@@ -5,9 +5,9 @@
  *
  * POST /api/kody/chat/trigger
  *
- * Persists the chat session file to the target repo, then dispatches the
+ * Persists the chat session file to the configured Kody state repo, then dispatches the
  * engine's `kody.yml` workflow with chat-mode inputs. The engine reads
- * `.kody/sessions/{sessionId}.jsonl`, runs `kody dispatch` → chat flow,
+ * `sessions/{sessionId}.jsonl`, runs `kody dispatch` → chat flow,
  * and streams events back to the dashboard via the ingest endpoint using
  * the inline HMAC token embedded in `dashboardUrl`.
  *
@@ -32,8 +32,7 @@ import {
 } from "@dashboard/lib/vibe/primer";
 import { applyPageContextToLastUser } from "@dashboard/lib/chat/page-context";
 import { recordDispatchFailure } from "@dashboard/lib/health/dispatch-failures";
-import { writeGitHubFileWithRetry } from "@dashboard/lib/github-contents-write";
-import { Buffer } from "buffer";
+import { readStateText, writeStateText } from "@dashboard/lib/state-repo";
 
 export const runtime = "nodejs";
 
@@ -127,7 +126,7 @@ export async function POST(req: NextRequest) {
 
   const { owner, repo } = getEngineRepo(req);
   const workflowId = getChatWorkflowId();
-  const sessionPath = `.kody/sessions/${taskId}.jsonl`;
+  const sessionPath = `sessions/${taskId}.jsonl`;
 
   // Serialize messages as JSONL
   const jsonlContent =
@@ -150,8 +149,6 @@ export async function POST(req: NextRequest) {
     );
   }
 
-  const encodedContent = Buffer.from(jsonlContent).toString("base64");
-
   try {
     logger.info(
       { taskId, owner, repo, messageCount: messages.length },
@@ -160,15 +157,7 @@ export async function POST(req: NextRequest) {
 
     let sha: string | undefined;
     try {
-      const existing = await octokit.rest.repos.getContent({
-        owner,
-        repo,
-        path: sessionPath,
-        ref: "main",
-      });
-      if ("sha" in existing.data && typeof existing.data.sha === "string") {
-        sha = existing.data.sha;
-      }
+      sha = (await readStateText(octokit, owner, repo, sessionPath))?.sha;
     } catch (err: unknown) {
       const e = err as { status?: number };
       if (e.status !== 404) {
@@ -179,14 +168,14 @@ export async function POST(req: NextRequest) {
       }
     }
 
-    await writeGitHubFileWithRetry(octokit, {
+    await writeStateText({
+      octokit,
       owner,
       repo,
       path: sessionPath,
       message: `chat: update session ${taskId}`,
-      content: encodedContent,
+      content: jsonlContent,
       ...(sha ? { sha } : {}),
-      branch: "main",
     });
 
     logger.info({ taskId, owner, repo }, "chat: triggering workflow");

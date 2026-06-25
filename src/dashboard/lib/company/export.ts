@@ -16,7 +16,10 @@ import { listAgentFiles } from "../agent-files";
 import { listRepoCommandFiles } from "../commands/files";
 import { listContextFiles } from "../context/files";
 import { readInstructionsFile } from "../instructions/files";
-import { listAgentActionFiles, readAgentActionFolderFiles } from "../agent-actions";
+import {
+  listAgentActionFiles,
+  readAgentActionFolderFiles,
+} from "../agent-actions";
 import { listManagedGoalFiles } from "../managed-goals-files";
 import { getEngineConfig } from "../engine/config";
 import {
@@ -38,6 +41,7 @@ function toTickEntry(file: TickFile): CompanyTickEntry {
     slug: file.slug,
     title: file.title,
     body: file.body,
+    schedule: file.schedule,
     disabled: file.disabled,
     agent: file.agent,
     reviewer: file.reviewer,

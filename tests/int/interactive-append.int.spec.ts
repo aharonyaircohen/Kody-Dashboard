@@ -4,8 +4,8 @@
  * @testFramework vitest
  * @domain vibe
  *
- * The runner reads each user turn out of `.kody/sessions/<id>.jsonl` on its
- * next pull. The vibe primer is SERVER-ONLY (the dashboard never renders it),
+ * The runner reads each user turn out of the state-repo session log on its
+ * next sync. The vibe primer is SERVER-ONLY (the dashboard never renders it),
  * so it must be injected here, into the turn content that gets written to the
  * session file — otherwise the runner has no idea it's in vibe mode, forgets
  * to commit/push, and re-creates a fresh branch. These tests pin that the
@@ -17,13 +17,31 @@
  * is captured from the PUT body and decoded, so we assert on real output.
  */
 
-import { afterAll, afterEach, beforeAll, describe, expect, it } from "vitest";
+import {
+  afterAll,
+  afterEach,
+  beforeAll,
+  beforeEach,
+  describe,
+  expect,
+  it,
+} from "vitest";
 import nock from "nock";
 import { NextRequest } from "next/server";
 import { POST as appendPOST } from "../../app/api/kody/chat/interactive/append/route";
 
 const GITHUB_API = "https://api.github.com";
 const REAL_FETCH = globalThis.fetch;
+
+function mockRepoConfig404(): void {
+  nock(GITHUB_API)
+    .get("/repos/acme/widgets/contents/kody.config.json")
+    .reply(404);
+}
+
+function sessionPath(sessionId: string): string {
+  return `/repos/acme/kody-state/contents/widgets%2Fsessions%2F${sessionId}.jsonl`;
+}
 
 function makeRequest(body: unknown): NextRequest {
   return new NextRequest("https://dash.test/api/kody/chat/interactive/append", {
@@ -49,27 +67,17 @@ function captureAppendedTurn(sessionId: string): Promise<{
 }> {
   return new Promise((resolve) => {
     nock(GITHUB_API)
-      .get(
-        new RegExp(
-          `/repos/acme/widgets/contents/\\.kody.*sessions.*${sessionId}\\.jsonl`,
-        ),
-      )
-      .query(true)
+      .get(sessionPath(sessionId))
       .reply(404)
-      .put(
-        new RegExp(
-          `/repos/acme/widgets/contents/\\.kody.*sessions.*${sessionId}\\.jsonl`,
-        ),
-        (payload: { content: string }) => {
-          const decoded = Buffer.from(payload.content, "base64").toString(
-            "utf-8",
-          );
-          const lines = decoded.split("\n").filter(Boolean);
-          const last = JSON.parse(lines[lines.length - 1]);
-          resolve(last);
-          return true;
-        },
-      )
+      .put(sessionPath(sessionId), (payload: { content: string }) => {
+        const decoded = Buffer.from(payload.content, "base64").toString(
+          "utf-8",
+        );
+        const lines = decoded.split("\n").filter(Boolean);
+        const last = JSON.parse(lines[lines.length - 1]);
+        resolve(last);
+        return true;
+      })
       .reply(201, { content: { sha: "newsha" } });
   });
 }
@@ -82,6 +90,10 @@ beforeAll(() => {
 afterAll(() => {
   nock.enableNetConnect();
   globalThis.fetch = REAL_FETCH;
+});
+
+beforeEach(() => {
+  mockRepoConfig404();
 });
 
 afterEach(() => {

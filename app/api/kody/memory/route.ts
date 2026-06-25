@@ -2,7 +2,7 @@
  * @fileType api-endpoint
  * @domain kody
  * @pattern memory-api
- * @ai-summary Memory API — GET lists `.kody/memory/<id>.md` files, POST
+ * @ai-summary Memory API — GET lists `memory/<id>.md` state-repo files, POST
  *   creates one. The index file is rebuilt by the storage helper after writes.
  */
 /* eslint-disable @typescript-eslint/no-explicit-any */

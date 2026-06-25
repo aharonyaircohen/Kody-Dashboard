@@ -3,7 +3,7 @@
  * @domain kody
  * @pattern context-frontmatter
  * @ai-summary YAML frontmatter parser/serializer for context-entry files
- *   (`.kody/context/<slug>.md`). The single recognized field is `agent:` —
+ *   (`context/<slug>.md` in the state repo). The single recognized field is `agent:` —
  *   the list of agent-member slugs that own the entry. Each consumer loads
  *   the context attached to *its* agent:
  *     - the in-process kody chat loads context attached to the built-in chat
@@ -21,7 +21,7 @@
  *   frontmatter-less file defaults to `[kody]` (legacy = chat-only).
  */
 
-/** Slug of the built-in chat agent — the agentIdentity the in-process kody chat runs as. Constant, not a `.kody/agents/*.md` file. */
+/** Slug of the built-in chat agent — the agentIdentity the in-process kody chat runs as. Constant, not a persisted `agents/*.md` file. */
 export const KODY_CHAT_AGENT = "kody";
 
 /** Slug of the QAn agent the engine's QA/ui-review preflight runs as. */

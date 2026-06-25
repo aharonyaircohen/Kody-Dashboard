@@ -1,7 +1,7 @@
 /**
  * @fileoverview Real-system e2e — exercises the full pipeline:
  *   dashboard UI → /api/kody/chat/trigger → GitHub Actions (kody.yml) →
- *   @kody-ade/kody-engine kody chat → LLM → events committed back →
+ *   @kody-ade/kody-engine kody chat → LLM → events persisted →
  *   SSE stream → UI render.
  *
  * @testFramework playwright
@@ -99,29 +99,27 @@ test.describe("Real chat flow @real", () => {
     const sessionId = triggerBody.taskId;
     expect(sessionId, "UI must send a taskId to /chat/trigger").toBeTruthy();
 
-    // Phase 1 — engine-side ground truth: poll the target repo's events
-    // file via GitHub API. If this fails, the server pipeline is broken
-    // (dispatch / workflow / kody / commit).
+    // Phase 1 — engine-side ground truth: poll the dashboard event API. If
+    // this fails, the server pipeline is broken (dispatch / workflow / kody /
+    // state-repo write).
     const { owner, repo } = parseRepo(TEST_REPO);
-    const eventsPath = `.kody/events/${sessionId}.jsonl`;
     const deadline = Date.now() + 150_000;
 
     let markerFound = false;
     while (Date.now() < deadline) {
       const res = await fetch(
-        `https://api.github.com/repos/${owner}/${repo}/contents/${encodeURIComponent(eventsPath)}?ref=main`,
+        `${BASE_URL}/api/kody/events/poll?taskId=${encodeURIComponent(sessionId!)}&since=0`,
         {
           headers: {
-            accept: "application/vnd.github.v3+json",
-            authorization: `token ${TEST_TOKEN}`,
+            "x-kody-token": TEST_TOKEN,
+            "x-kody-owner": owner,
+            "x-kody-repo": repo,
           },
         },
       );
       if (res.status === 200) {
-        const data = (await res.json()) as { content?: string };
-        const body = data.content
-          ? Buffer.from(data.content, "base64").toString("utf-8")
-          : "";
+        const data = (await res.json()) as { lines?: string[] };
+        const body = (data.lines ?? []).join("\n");
         if (new RegExp(`pong\\s+${marker}`, "i").test(body)) {
           markerFound = true;
           break;

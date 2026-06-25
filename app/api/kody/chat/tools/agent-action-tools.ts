@@ -3,7 +3,7 @@
  * @domain agentActions
  * @pattern chat-tools
  * @ai-summary In-process chat tools that let Kody build and manage custom
- *   agentActions (`.kody/agent-actions/<slug>/`) by conversation — list, read,
+ *   agentActions (`agent-actions/<slug>/` in the state repo) by conversation — list, read,
  *   create/update, delete. Writes commit the whole folder atomically
  *   under the acting user's token. Mirrors the memory-tools shape; reads
  *   rely on the module-level GitHub context the chat route sets, writes
@@ -78,7 +78,7 @@ export function createAgentActionTools(ctx: Ctx) {
     }),
 
     list_agentActions: tool({
-      description: `List the custom agentAction implementations in ${repoRef} stored at .kody/agent-actions/<slug>/. AgentResponsibilities own public @kody action names. Returns slug, description, and landing (opens a PR vs comments).`,
+      description: `List the custom agentAction implementations in ${repoRef} stored at state repo agent-actions/<slug>/. AgentResponsibilities own public @kody action names. Returns slug, description, and landing (opens a PR vs comments).`,
       inputSchema: z.object({}),
       execute: async () => {
         try {
@@ -108,7 +108,7 @@ export function createAgentActionTools(ctx: Ctx) {
     }),
 
     create_or_update_agentAction: tool({
-      description: `Create or update a custom agentAction in ${repoRef}. Kody can use this tool to create one. Before calling it, call read_agentAction_creation_guide and follow that guide. Commits .kody/agent-actions/<slug>/ (profile.json + prompt.md + any skills/scripts) as one commit. \`landing\` "pr" opens a pull request; "comment" posts a comment. Skills install via the names you give; each skill body is its SKILL.md. Shell scripts run as preflight steps.`,
+      description: `Create or update a custom agentAction in ${repoRef}. Kody can use this tool to create one. Before calling it, call read_agentAction_creation_guide and follow that guide. Commits state repo agent-actions/<slug>/ (profile.json + prompt.md + any skills/scripts) as one commit. \`landing\` "pr" opens a pull request; "comment" posts a comment. Skills install via the names you give; each skill body is its SKILL.md. Shell scripts run as preflight steps.`,
       inputSchema: z.object({
         slug: z.string().min(1).max(64),
         describe: z.string().default(""),
@@ -181,7 +181,7 @@ export function createAgentActionTools(ctx: Ctx) {
     }),
 
     delete_agentAction: tool({
-      description: `Delete a custom agentAction from ${repoRef} (removes the whole .kody/agent-actions/<slug>/ folder in one commit).`,
+      description: `Delete a custom agentAction from ${repoRef} (removes the whole state repo agent-actions/<slug>/ folder in one commit).`,
       inputSchema: z.object({
         slug: z.string().min(1).max(64),
       }),

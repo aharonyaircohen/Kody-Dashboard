@@ -227,7 +227,7 @@ const DUTY_SCHEMA = z
   .max(64)
   .optional()
   .describe(
-    "Which Kody agentResponsibility to run. Defaults to `classify`. The agentResponsibility folder must exist under `.kody/agent-responsibilities/<slug>/`.",
+    "Which Kody agentResponsibility to run. Defaults to `classify`. The agentResponsibility folder must exist under `agent-responsibilities/<slug>/` in the state repo.",
   );
 
 const NOTES_SCHEMA = z

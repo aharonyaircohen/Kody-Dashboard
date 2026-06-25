@@ -6,11 +6,10 @@
  * Line-based terminal bridge backed by GitHub Actions and repo files.
  */
 import { randomUUID } from "node:crypto";
-import { Buffer } from "node:buffer";
 import type { Octokit } from "@octokit/rest";
-import { writeGitHubFileWithRetry } from "@dashboard/lib/github-contents-write";
 import type { NextRequest } from "next/server";
 import { getUserOctokit } from "@dashboard/lib/auth";
+import { readStateText, writeStateText } from "@dashboard/lib/state-repo";
 import {
   getLocalSandbox,
   saveLocalSandboxSnapshot,
@@ -30,8 +29,8 @@ interface GitHubRepoAuth {
   repo: string;
 }
 
-const BRANCH = "main";
-const TERMINAL_DIR = ".kody/terminal";
+const WORKFLOW_REF = "main";
+const TERMINAL_DIR = "terminal";
 const SANDBOX_ID_RE = /^sandbox-[0-9a-f-]{36}$/i;
 
 function terminalPath(sessionId: string, file: string): string {
@@ -43,31 +42,8 @@ async function getFile(
   auth: GitHubRepoAuth,
   path: string,
 ): Promise<{ sha?: string; text: string }> {
-  try {
-    const res = await octokit.repos.getContent({
-      owner: auth.owner,
-      repo: auth.repo,
-      path,
-      ref: BRANCH,
-    });
-    if (!Array.isArray(res.data) && res.data.type === "file") {
-      return {
-        sha: res.data.sha,
-        text: Buffer.from(res.data.content ?? "", "base64").toString("utf8"),
-      };
-    }
-  } catch (err) {
-    if (
-      typeof err === "object" &&
-      err !== null &&
-      "status" in err &&
-      err.status === 404
-    ) {
-      return { text: "" };
-    }
-    throw err;
-  }
-  return { text: "" };
+  const file = await readStateText(octokit, auth.owner, auth.repo, path);
+  return file ? { sha: file.sha, text: file.content } : { text: "" };
 }
 
 async function writeFile(
@@ -78,13 +54,13 @@ async function writeFile(
   message: string,
 ): Promise<void> {
   const existing = await getFile(octokit, auth, path);
-  await writeGitHubFileWithRetry(octokit, {
+  await writeStateText({
+    octokit,
     owner: auth.owner,
     repo: auth.repo,
     path,
-    branch: BRANCH,
     message,
-    content: Buffer.from(text, "utf8").toString("base64"),
+    content: text,
     ...(existing.sha ? { sha: existing.sha } : {}),
   });
 }
@@ -149,7 +125,7 @@ export async function startGitHubActionsTerminalSession(
     owner: auth.owner,
     repo: auth.repo,
     workflow_id: "kody-terminal.yml",
-    ref: BRANCH,
+    ref: WORKFLOW_REF,
     inputs: {
       terminalSessionId: sessionId,
       sandboxId: input.sandboxId,

@@ -4,7 +4,7 @@
  * @pattern agent-api
  * @ai-summary Agent detail API — GET reads a single agent file, PATCH
  *   updates the title/body, DELETE removes the file. Backed by
- *   `.kody/agents/<slug>.md` via the GitHub contents API. Duplicated
+ *   `agents/<slug>.md` in the state repo. Duplicated
  *   from the agentResponsibilities detail API.
  */
 /* eslint-disable @typescript-eslint/no-explicit-any */

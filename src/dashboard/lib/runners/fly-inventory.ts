@@ -16,6 +16,7 @@
 import {
   listAppsByPrefix,
   listMachines,
+  type MachineInfo,
   type FlyPreviewConfig,
 } from "@dashboard/lib/previews/fly-previews";
 
@@ -119,6 +120,35 @@ function isRunning(state: string): boolean {
   return state !== "suspended" && state !== "stopped" && state !== "destroyed";
 }
 
+export function rowsForFlyApp(
+  app: string,
+  machines: MachineInfo[],
+  now: number = Date.now(),
+  override?: { feature?: FlyFeature; label?: string },
+): FlyMachineRow[] {
+  const classified = classifyApp(app);
+  const feature = override?.feature ?? classified.feature;
+  const label = override?.label ?? classified.label;
+  return machines.map<FlyMachineRow>((m) => {
+    const created = m.createdAt ? Date.parse(m.createdAt) : NaN;
+    return {
+      feature,
+      app,
+      machineId: m.id,
+      name: m.name,
+      state: m.state,
+      region: m.region,
+      label,
+      sizeLabel: sizeLabel(m.guest),
+      guest: m.guest,
+      createdAt: m.createdAt,
+      ageDays: Number.isFinite(created)
+        ? Math.floor((now - created) / MS_PER_DAY)
+        : undefined,
+    };
+  });
+}
+
 /**
  * List + classify every kody-managed Fly machine the token can see. Apps that
  * error during machine listing are skipped (best-effort) rather than failing
@@ -143,24 +173,7 @@ export async function listFlyInventory(
     const { feature, label } = classifyApp(app);
     try {
       const machines = await listMachines(app, cfg);
-      return machines.map<FlyMachineRow>((m) => {
-        const created = m.createdAt ? Date.parse(m.createdAt) : NaN;
-        return {
-          feature,
-          app,
-          machineId: m.id,
-          name: m.name,
-          state: m.state,
-          region: m.region,
-          label,
-          sizeLabel: sizeLabel(m.guest),
-          guest: m.guest,
-          createdAt: m.createdAt,
-          ageDays: Number.isFinite(created)
-            ? Math.floor((now - created) / MS_PER_DAY)
-            : undefined,
-        };
-      });
+      return rowsForFlyApp(app, machines, now, { feature, label });
     } catch {
       return [] as FlyMachineRow[];
     }

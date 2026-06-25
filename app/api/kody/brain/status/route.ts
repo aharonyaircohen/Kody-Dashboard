@@ -28,6 +28,10 @@ import { NextRequest, NextResponse } from "next/server";
 
 import { requireKodyAuth } from "@dashboard/lib/auth";
 import { readBrainApp } from "@dashboard/lib/brain/store";
+import {
+  clearGitHubContext,
+  setGitHubContext,
+} from "@dashboard/lib/github-client";
 import { logger } from "@dashboard/lib/logger";
 import { brainStatus } from "@dashboard/lib/runners/brain-fly";
 import { resolveFlyContext } from "@dashboard/lib/runners/fly-context";
@@ -47,25 +51,33 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ state: "off", stored: null });
   }
 
-  // Read the stored record first so the live-status call targets the
-  // actual app name (which may carry a `-2`/`-3` suffix from an earlier
-  // auto-rename when the default slug was taken).
-  let storedAppName: string | undefined;
-  let storedRecord: Awaited<ReturnType<typeof readBrainApp>> = null;
-  try {
-    storedRecord = await readBrainApp(
-      ctx.context.account,
-      ctx.context.githubToken,
-    );
-    storedAppName = storedRecord?.appName;
-  } catch (err) {
-    logger.warn(
-      { err, owner: ctx.context.owner },
-      "brain status: stored record read failed (non-fatal)",
-    );
-  }
+  setGitHubContext(
+    ctx.context.owner,
+    ctx.context.repo,
+    ctx.context.githubToken,
+    ctx.context.storeRepoUrl,
+    ctx.context.storeRef,
+  );
 
   try {
+    // Read the stored record first so the live-status call targets the
+    // actual app name (which may carry a `-2`/`-3` suffix from an earlier
+    // auto-rename when the default slug was taken).
+    let storedAppName: string | undefined;
+    let storedRecord: Awaited<ReturnType<typeof readBrainApp>> = null;
+    try {
+      storedRecord = await readBrainApp(
+        ctx.context.account,
+        ctx.context.githubToken,
+      );
+      storedAppName = storedRecord?.appName;
+    } catch (err) {
+      logger.warn(
+        { err, owner: ctx.context.owner },
+        "brain status: stored record read failed (non-fatal)",
+      );
+    }
+
     const result = await brainStatus({
       flyToken: ctx.context.flyToken,
       account: ctx.context.account,
@@ -76,5 +88,7 @@ export async function GET(req: NextRequest) {
     const message = err instanceof Error ? err.message : String(err);
     logger.error({ err, owner: ctx.context.owner }, "brain status failed");
     return NextResponse.json({ error: message }, { status: 502 });
+  } finally {
+    clearGitHubContext();
   }
 }

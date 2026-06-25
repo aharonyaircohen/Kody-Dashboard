@@ -64,8 +64,8 @@ export interface TickFrontmatter {
    */
   disabled?: boolean;
   /**
-   * Slug of the agent (agentIdentity) under `.kody/agents/<agent>.md` that
-   * executes this agentResponsibility in legacy markdown metadata. Folder-backed agentResponsibilities store
+   * Slug of the agent (agentIdentity) under `agents/<agent>.md` in the state repo
+   * that executes this agentResponsibility in legacy markdown metadata. Folder-backed agentResponsibilities store
    * the same value in `profile.json.agent`.
    */
   agent?: string;

@@ -14,6 +14,10 @@ import { NextRequest, NextResponse } from "next/server";
 
 import { requireKodyAuth } from "@dashboard/lib/auth";
 import { readBrainApp, writeBrainApp } from "@dashboard/lib/brain/store";
+import {
+  clearGitHubContext,
+  setGitHubContext,
+} from "@dashboard/lib/github-client";
 import { logger } from "@dashboard/lib/logger";
 import {
   brainAppName,
@@ -34,6 +38,13 @@ function brainPerfFrom(
 ): PerfTier | undefined {
   const raw = req.headers.get("x-kody-brain-perf");
   return raw === "low" || raw === "medium" || raw === "high" ? raw : fallback;
+}
+
+function brainSuspendOnIdleFrom(req: NextRequest): boolean | undefined {
+  const raw = req.headers.get("x-kody-brain-suspension");
+  if (raw === "never") return false;
+  if (raw === "auto") return true;
+  return undefined;
 }
 
 function parseAppNameOverride(body: unknown): string | undefined {
@@ -68,19 +79,27 @@ export async function POST(req: NextRequest) {
     );
   }
 
-  const body = (await req.json().catch(() => ({}))) as unknown;
-  const override = parseAppNameOverride(body);
-  let appName = override;
-
-  if (!appName) {
-    const stored = await readBrainApp(
-      ctx.context.account,
-      ctx.context.githubToken,
-    ).catch(() => null);
-    appName = stored?.appName ?? brainAppName(ctx.context.account);
-  }
+  setGitHubContext(
+    ctx.context.owner,
+    ctx.context.repo,
+    ctx.context.githubToken,
+    ctx.context.storeRepoUrl,
+    ctx.context.storeRef,
+  );
 
   try {
+    const body = (await req.json().catch(() => ({}))) as unknown;
+    const override = parseAppNameOverride(body);
+    let appName = override;
+
+    if (!appName) {
+      const stored = await readBrainApp(
+        ctx.context.account,
+        ctx.context.githubToken,
+      ).catch(() => null);
+      appName = stored?.appName ?? brainAppName(ctx.context.account);
+    }
+
     const result = await provisionBrain({
       flyToken: ctx.context.flyToken,
       account: ctx.context.account,
@@ -88,6 +107,7 @@ export async function POST(req: NextRequest) {
       githubToken: ctx.context.githubToken,
       allSecrets: ctx.context.allSecrets,
       perfTier: brainPerfFrom(req, ctx.context.perfTier),
+      suspendOnIdle: brainSuspendOnIdleFrom(req),
       appNameOverride: appName,
     });
 
@@ -121,5 +141,7 @@ export async function POST(req: NextRequest) {
       { error: message },
       { status: 502, headers: NO_STORE_HEADERS },
     );
+  } finally {
+    clearGitHubContext();
   }
 }

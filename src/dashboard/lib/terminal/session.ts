@@ -54,11 +54,24 @@ export function findTerminalTargetMachine(
   );
 }
 
+export function resolveTerminalTargetMachine(
+  inventory: FlyInventory,
+  input: { app: string; machineId: string },
+): FlyMachineRow | null {
+  const exact = findTerminalTargetMachine(inventory, input);
+  if (exact) return exact;
+
+  const brainMachinesForApp = inventory.machines.filter(
+    (m) => m.app === input.app && m.feature === "brain",
+  );
+  return brainMachinesForApp.length === 1 ? brainMachinesForApp[0] : null;
+}
+
 export function selectTerminalTarget(
   inventory: FlyInventory,
   input: { app: string; machineId: string },
 ): TerminalTargetResult | TerminalTargetFailure {
-  const machine = findTerminalTargetMachine(inventory, input);
+  const machine = resolveTerminalTargetMachine(inventory, input);
   if (!machine) return { ok: false, error: "machine_not_found" };
   if (!isTerminalFeatureAllowed(machine.feature)) {
     return { ok: false, error: "machine_not_terminal_capable" };

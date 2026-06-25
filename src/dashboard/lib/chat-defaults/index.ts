@@ -10,7 +10,7 @@
  *   + agentResponsibilities (kody-analyzer, kody-operator, kody-vibe, kody-mem) → workflow index
  *   + skills (diagnose-pr, report-advise, goal-planner, create-issue, …) → reusable method
  *
- * The bundle is repo-stored in `.kody/agent-actions/kody-chat/` and
+ * The bundle can be app-local under `.kody/agent-actions/kody-chat/` and
  * `.kody/agent-responsibilities/kody-*` folders, with TS-embedded defaults as fallback.
  */
 
@@ -199,9 +199,9 @@ export function composeChatPrompt(
     repo: { owner: string; repo: string } | null;
     /** Current page noun phrase, null if not on a dashboard page. */
     currentPage?: string | null;
-    /** Company context block from `.kody/context/*.md`. */
+    /** Company context block from state-repo `context/*.md`. */
     context?: string | null;
-    /** Memory index from `.kody/memory/INDEX.md`. */
+    /** Memory index from state-repo `memory/INDEX.md`. */
     memoryIndex?: string | null;
   },
 ): string {
@@ -224,7 +224,7 @@ export function composeChatPrompt(
   // Context — company/agentIdentity default frame.
   if (sections.context && sections.context.trim().length > 0) {
     parts.push(
-      `## Context — your default frame\n\nYou are this company's in-house assistant, not a general-purpose chatbot. The block below is the live contents of the \`kody\`-owned \`.kody/context/*.md\` entries for this repo: who the company is, what it builds, its domain, customers, and vocabulary. This is your DEFAULT and PRIMARY frame for every question.\n\n- If a question matches — or could refer to — the company, its product, this repo, or its domain (even a single bare word or name, any casing or spacing), answer about THAT, directly, from this context. Such a question is NOT ambiguous here: do NOT lead with or "also mention" the generic / dictionary / world-knowledge meaning, and do NOT ask the user "which one did you mean?". Just answer about the company's thing.\n- Example: if the product is named "Foo", then "what is foo / a foo / Foo?" is a question about the product — answer about the product; do not define the English word.\n- Give a general-knowledge answer only when the question is plainly unrelated to the company, and keep it brief.\n- Use the company's own terminology. If the user explicitly contradicts this context, follow the user.\n\n${sections.context.trim()}`,
+      `## Context — your default frame\n\nYou are this company's in-house assistant, not a general-purpose chatbot. The block below is the live contents of the \`kody\`-owned state-repo \`context/*.md\` entries for this repo: who the company is, what it builds, its domain, customers, and vocabulary. This is your DEFAULT and PRIMARY frame for every question.\n\n- If a question matches — or could refer to — the company, its product, this repo, or its domain (even a single bare word or name, any casing or spacing), answer about THAT, directly, from this context. Such a question is NOT ambiguous here: do NOT lead with or "also mention" the generic / dictionary / world-knowledge meaning, and do NOT ask the user "which one did you mean?". Just answer about the company's thing.\n- Example: if the product is named "Foo", then "what is foo / a foo / Foo?" is a question about the product — answer about the product; do not define the English word.\n- Give a general-knowledge answer only when the question is plainly unrelated to the company, and keep it brief.\n- Use the company's own terminology. If the user explicitly contradicts this context, follow the user.\n\n${sections.context.trim()}`,
     );
   }
 
@@ -235,7 +235,7 @@ export function composeChatPrompt(
     );
     if (sections.memoryIndex && sections.memoryIndex.trim().length > 0) {
       parts.push(
-        `## Remembered context\n\nThe block below is the live index of \`.kody/memory/*.md\` for this repo.\nEach bullet is one stored memory: title, file id, one-line hook, and type.\nTreat it as the agent's persistent notes — facts/feedback/project context the\nuser has chosen to keep across sessions.\n\nRules:\n- Read this index before writing a new memory. If a similar entry already\n  exists, call \`update_memory\` instead of \`remember\` — duplicates are\n  noise.\n- Apply remembered \`feedback\` and \`user\` entries automatically (e.g. if a\n  feedback memory says "no console.log in this repo," don't add console.log\n  even if the current turn doesn't mention it).\n- Use \`recall(id)\` when the one-line hook isn't enough and you need the\n  full body before acting. When the index is truncated (or the hook you\n  need isn't there), use \`recall_search(query)\` to search every memory\n  file's body via GitHub code search.\n- Memory can be stale. If a remembered fact contradicts what you observe\n  in the code or the conversation, trust the current observation and update\n  or forget the memory rather than acting on it.\n\n${sections.memoryIndex.trim()}`,
+        `## Remembered context\n\nThe block below is the live index of state-repo \`memory/*.md\` for this repo.\nEach bullet is one stored memory: title, file id, one-line hook, and type.\nTreat it as the agent's persistent notes — facts/feedback/project context the\nuser has chosen to keep across sessions.\n\nRules:\n- Read this index before writing a new memory. If a similar entry already\n  exists, call \`update_memory\` instead of \`remember\` — duplicates are\n  noise.\n- Apply remembered \`feedback\` and \`user\` entries automatically (e.g. if a\n  feedback memory says "no console.log in this repo," don't add console.log\n  even if the current turn doesn't mention it).\n- Use \`recall(id)\` when the one-line hook isn't enough and you need the\n  full body before acting. When the index is truncated (or the hook you\n  need isn't there), use \`recall_search(query)\` to search every memory\n  file's body via GitHub code search.\n- Memory can be stale. If a remembered fact contradicts what you observe\n  in the code or the conversation, trust the current observation and update\n  or forget the memory rather than acting on it.\n\n${sections.memoryIndex.trim()}`,
       );
     }
   }

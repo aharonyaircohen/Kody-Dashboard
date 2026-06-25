@@ -2,12 +2,12 @@
  * @fileType util
  * @domain kody
  * @pattern commands-files
- * @ai-summary Read/write command files under `.kody/commands/<slug>.md`
- *   via the GitHub contents API. Same shape as `agentResponsibilities-files.ts`:
+ * @ai-summary Read/write consumer command files under `commands/<slug>.md`
+ *   in the configured Kody state repo. Same shape as `agentResponsibilities-files.ts`:
  *   filename is the slug, frontmatter holds description/argument-hint,
  *   body is the command template that gets substituted with $ARGUMENTS.
  *
- *   A sentinel file `.kody/commands/.disable-builtins` (any content)
+ *   A sentinel file `commands/.disable-builtins` (any content)
  *   suppresses every built-in command for the repo without requiring
  *   per-slug overrides.
  */
@@ -19,7 +19,14 @@ import {
   getRepo,
   invalidateCommandsCache,
 } from "../github-client";
-import { writeGitHubFileWithRetry } from "@dashboard/lib/github-contents-write";
+import {
+  deleteStateFile,
+  listStateDirectory,
+  readStateText,
+  resolveStateRepo,
+  stateRepoPath,
+  writeStateText,
+} from "../state-repo";
 import {
   joinFrontmatter,
   splitFrontmatter,
@@ -51,7 +58,8 @@ export interface CommandFile {
   htmlUrl: string;
 }
 
-const COMMANDS_DIR = ".kody/commands";
+const COMMANDS_DIR = "commands";
+const STORE_COMMANDS_DIR = ".kody/commands";
 const DISABLE_BUILTINS_FILE = ".disable-builtins";
 
 function slugFromName(name: string): string | null {
@@ -66,28 +74,16 @@ export function isValidSlug(slug: string): boolean {
   return /^[a-z0-9][a-z0-9_-]{0,63}$/.test(slug);
 }
 
-function buildHtmlUrl(slug: string, branch: string | null): string {
-  const ref = branch ?? "HEAD";
-  return `https://github.com/${getOwner()}/${getRepo()}/blob/${ref}/${COMMANDS_DIR}/${slug}.md`;
-}
-
-async function getDefaultBranch(octokit: Octokit): Promise<string> {
-  const { data } = await octokit.repos.get({
-    owner: getOwner(),
-    repo: getRepo(),
-  });
-  return data.default_branch;
-}
-
 async function fetchLastCommitDate(
   octokit: Octokit,
   filePath: string,
 ): Promise<string> {
   try {
+    const target = await resolveStateRepo(octokit, getOwner(), getRepo());
     const { data } = await octokit.repos.listCommits({
-      owner: getOwner(),
-      repo: getRepo(),
-      path: filePath,
+      owner: target.owner,
+      repo: target.repo,
+      path: stateRepoPath(target, filePath),
       per_page: 1,
     });
     return (
@@ -109,7 +105,7 @@ function parseCommandMarkdown(raw: string): {
 }
 
 /**
- * List every command file under `.kody/commands/`. Returns `[]` if the
+ * List every command file under `commands/` in the state repo. Returns `[]` if the
  * directory does not exist. Also returns a flag indicating whether the
  * repo has opted out of built-in commands.
  */
@@ -118,23 +114,12 @@ export async function listRepoCommandFiles(): Promise<{
   builtinsDisabled: boolean;
 }> {
   const octokit = getOctokit();
-  const branch = await getDefaultBranch(octokit).catch(() => null);
-
-  let entries: Array<{ name: string; sha: string; type: string }> = [];
-  try {
-    const { data } = await octokit.repos.getContent({
-      owner: getOwner(),
-      repo: getRepo(),
-      path: COMMANDS_DIR,
-    });
-    if (!Array.isArray(data)) return { commands: [], builtinsDisabled: false };
-    entries = data as Array<{ name: string; sha: string; type: string }>;
-  } catch (error: unknown) {
-    if ((error as { status?: number })?.status === 404) {
-      return { commands: [], builtinsDisabled: false };
-    }
-    throw error;
-  }
+  const { entries } = await listStateDirectory(
+    octokit,
+    getOwner(),
+    getRepo(),
+    COMMANDS_DIR,
+  );
 
   const builtinsDisabled = entries.some(
     (e) => e.type === "file" && e.name === DISABLE_BUILTINS_FILE,
@@ -142,23 +127,23 @@ export async function listRepoCommandFiles(): Promise<{
 
   const slugs = entries
     .filter((e) => e.type === "file")
-    .map((e) => ({ slug: slugFromName(e.name), sha: e.sha, name: e.name }))
+    .map((e) => ({ slug: slugFromName(e.name), name: e.name }))
     .filter(
-      (e): e is { slug: string; sha: string; name: string } => e.slug !== null,
+      (e): e is { slug: string; name: string } => e.slug !== null,
     );
 
   const files = await Promise.all(
-    slugs.map(async ({ slug, sha, name }) => {
+    slugs.map(async ({ slug, name }) => {
       try {
         const filePath = `${COMMANDS_DIR}/${name}`;
-        const { data } = await octokit.repos.getContent({
-          owner: getOwner(),
-          repo: getRepo(),
-          path: filePath,
-        });
-        if (Array.isArray(data) || !("content" in data) || !data.content)
-          return null;
-        const raw = Buffer.from(data.content, "base64").toString("utf-8");
+        const file = await readStateText(
+          octokit,
+          getOwner(),
+          getRepo(),
+          filePath,
+        );
+        if (!file) return null;
+        const raw = file.content;
         const { frontmatter, body } = parseCommandMarkdown(raw);
         const updatedAt = await fetchLastCommitDate(octokit, filePath);
         return {
@@ -167,9 +152,9 @@ export async function listRepoCommandFiles(): Promise<{
           argumentHint: frontmatter.argumentHint ?? "",
           body,
           source: "repo" as const,
-          sha,
+          sha: file.sha,
           updatedAt,
-          htmlUrl: buildHtmlUrl(slug, branch),
+          htmlUrl: file.htmlUrl ?? "",
         } satisfies CommandFile;
       } catch {
         return null;
@@ -190,18 +175,12 @@ export async function readCommandFile(
 ): Promise<CommandFile | null> {
   if (!isValidSlug(slug)) return null;
   const octokit = octokitOverride ?? getOctokit();
-  const branch = await getDefaultBranch(octokit).catch(() => null);
   const filePath = `${COMMANDS_DIR}/${slug}.md`;
 
   try {
-    const { data } = await octokit.repos.getContent({
-      owner: getOwner(),
-      repo: getRepo(),
-      path: filePath,
-    });
-    if (Array.isArray(data) || !("content" in data) || !data.content)
-      return null;
-    const raw = Buffer.from(data.content, "base64").toString("utf-8");
+    const file = await readStateText(octokit, getOwner(), getRepo(), filePath);
+    if (!file) return null;
+    const raw = file.content;
     const { frontmatter, body } = parseCommandMarkdown(raw);
     const updatedAt = await fetchLastCommitDate(octokit, filePath);
     return {
@@ -210,9 +189,9 @@ export async function readCommandFile(
       argumentHint: frontmatter.argumentHint ?? "",
       body,
       source: "repo",
-      sha: data.sha,
+      sha: file.sha,
       updatedAt,
-      htmlUrl: buildHtmlUrl(slug, branch),
+      htmlUrl: file.htmlUrl ?? "",
     };
   } catch (error: unknown) {
     if ((error as { status?: number })?.status === 404) return null;
@@ -246,7 +225,10 @@ export async function readStoreCommandFile(
 ): Promise<CommandFile | null> {
   if (!isValidSlug(slug)) return null;
   const octokit = octokitOverride ?? getOctokit();
-  const raw = await readCompanyStoreText(octokit, `${COMMANDS_DIR}/${slug}.md`);
+  const raw = await readCompanyStoreText(
+    octokit,
+    `${STORE_COMMANDS_DIR}/${slug}.md`,
+  );
   if (raw === null) return null;
   const { frontmatter, body } = parseCommandMarkdown(raw);
   const updatedAt = await companyStoreUpdatedAt(octokit, "commands", slug);
@@ -258,7 +240,7 @@ export async function readStoreCommandFile(
     source: "store",
     sha: "",
     updatedAt: updatedAt === "1970-01-01T00:00:00.000Z" ? "" : updatedAt,
-    htmlUrl: buildCompanyStoreBlobUrl(`${COMMANDS_DIR}/${slug}.md`),
+    htmlUrl: buildCompanyStoreBlobUrl(`${STORE_COMMANDS_DIR}/${slug}.md`),
   };
 }
 
@@ -307,12 +289,13 @@ export async function writeCommandFile(
     opts.message ??
     `${opts.sha ? "chore" : "feat"}(commands): ${opts.sha ? "update" : "add"} ${opts.slug}`;
 
-  await writeGitHubFileWithRetry(opts.octokit, {
+  await writeStateText({
+    octokit: opts.octokit,
     owner: getOwner(),
     repo: getRepo(),
     path: filePath,
     message,
-    content: Buffer.from(content, "utf-8").toString("base64"),
+    content,
     sha: opts.sha,
   });
 
@@ -338,7 +321,8 @@ export async function deleteCommandFile(
   const existing = await readCommandFile(slug);
   if (!existing) return;
   const filePath = `${COMMANDS_DIR}/${slug}.md`;
-  await octokit.repos.deleteFile({
+  await deleteStateFile({
+    octokit,
     owner: getOwner(),
     repo: getRepo(),
     path: filePath,

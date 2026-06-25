@@ -3,8 +3,8 @@
  * @domain kody
  * @pattern activity-feed-api
  * @ai-summary GET /api/kody/activity/feed — the on-demand "Feed" tab of the
- *   Activity page. Reads the engine's per-session event files
- *   (`.kody/events/*.jsonl`) so chat + engine-step events finally show up,
+ *   Activity page. Reads the engine's per-session event files from the state
+ *   repo (`events/*.jsonl`) so chat + engine-step events finally show up,
  *   which run-only Activity can't see. Unlike `/api/kody/activity` this is
  *   NOT polled — the client fetches it only when the Feed tab is opened —
  *   and it goes through `readEventLogCached` (60s cache + in-flight dedup +

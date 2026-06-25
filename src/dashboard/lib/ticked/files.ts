@@ -428,7 +428,7 @@ function effectiveAction(
   slug: string,
   frontmatter: TickFrontmatter,
 ): string | null {
-  return frontmatter.action ?? (dir === ".kody/agent-responsibilities" ? slug : null);
+  return frontmatter.action ?? (stateDirPath(dir) === "agent-responsibilities" ? slug : null);
 }
 
 function effectiveAgentAction(frontmatter: TickFrontmatter): string | null {
@@ -453,7 +453,7 @@ function legacyAgentActions(frontmatter: TickFrontmatter): string[] {
  */
 export function createTickedFiles(config: TickedFilesConfig): TickedFilesApi {
   const { dir, commitScope, invalidateCache } = config;
-  if (dir === ".kody/agent-responsibilities") {
+  if (stateDirPath(dir) === "agent-responsibilities") {
     throw new Error(
       "createTickedFiles: agentResponsibilities are folder-backed; use agentResponsibilities-files.ts",
     );
@@ -497,7 +497,7 @@ export function createTickedFiles(config: TickedFilesConfig): TickedFilesApi {
         .filter((s) => s.length > 0),
     );
     const activityByAgentResponsibility =
-      dir === ".kody/agent-responsibilities"
+      stateDirPath(dir) === "agent-responsibilities"
         ? await fetchRecentAgentResponsibilityActivity()
         : new Map<string, CompanyActivityRecord>();
 
@@ -607,7 +607,7 @@ capabilityKind: null,
           ),
           fetchStateLastCommitDate(octokit, tickStatePath(dir, slug)),
           fetchTickState(octokit, dir, slug),
-          dir === ".kody/agent-responsibilities"
+          stateDirPath(dir) === "agent-responsibilities"
             ? fetchRecentAgentResponsibilityActivity()
             : Promise.resolve(new Map<string, CompanyActivityRecord>()),
         ]);

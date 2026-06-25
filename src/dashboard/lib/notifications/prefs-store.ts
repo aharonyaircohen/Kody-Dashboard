@@ -8,9 +8,9 @@
  *   so unchanged reads are a free 304. Writes use CAS (fetch SHA → write with
  *   SHA → retry on conflict).
  *
- *   This is the reusable `.kody/` JSON file-store helper the issue requests.
- *   It generalizes to any key → `.kody/<dir>/<key>.json` path, with the state
- *   branch ref and ETag caching built in.
+ *   This is the reusable state-repo JSON file-store helper. It generalizes to
+ *   any key → `<dir>/<key>.json` path, with the state repo ref and ETag caching
+ *   built in.
  */
 import "server-only";
 import { getOwner, getRepo, getOctokit } from "../github-client";

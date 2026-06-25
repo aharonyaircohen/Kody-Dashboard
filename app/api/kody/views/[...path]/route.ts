@@ -2,8 +2,8 @@
  * @fileType api-endpoint
  * @domain preview
  * @pattern repo-backed-static-view-server
- * @ai-summary Serves static resources stored in connected consumer repo
- * under `.kody/views/<view-id>/...`.
+ * @ai-summary Serves static resources stored in the configured Kody state repo
+ * under `views/<view-id>/...`.
  */
 import { NextRequest, NextResponse } from "next/server";
 import { getRequestAuth } from "@dashboard/lib/auth";

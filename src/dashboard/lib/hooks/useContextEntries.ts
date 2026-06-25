@@ -3,8 +3,8 @@
  * @domain kody
  * @pattern context-control-hooks
  * @ai-summary React Query hooks for the Context page.
- *   Backed by `.kody/context/<slug>.md` files in the connected repo via
- *   the contents API. Each entry carries a `agent:` list of agent-member
+ *   Backed by `context/<slug>.md` files in the state repo via the API.
+ *   Each entry carries a `agent:` list of agent-member
  *   slugs that own it, deciding which consumers load it. Mirrors useAgents.ts.
  *   (Named `useContextEntries`, not `useContext`, to avoid colliding with
  *   React's `useContext`.)

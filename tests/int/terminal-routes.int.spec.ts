@@ -42,6 +42,13 @@ const inventory = vi.hoisted(() => ({
   })),
 }));
 
+const inventoryServer = vi.hoisted(() => ({
+  appendSavedBrainMachineToInventory: vi.fn(
+    async (_req: unknown, _inv: { machines: Array<Record<string, unknown>> }) =>
+      false,
+  ),
+}));
+
 const flyPreview = vi.hoisted(() => ({
   startMachine: vi.fn(async () => {}),
 }));
@@ -75,6 +82,7 @@ const token = vi.hoisted(() => ({
 vi.mock("@dashboard/lib/auth", () => auth);
 vi.mock("@dashboard/lib/previews/config", () => previews);
 vi.mock("@dashboard/lib/runners/fly-inventory", () => inventory);
+vi.mock("@dashboard/lib/runners/fly-inventory-server", () => inventoryServer);
 vi.mock("@dashboard/lib/previews/fly-previews", () => flyPreview);
 vi.mock("@dashboard/lib/terminal/bridge-fly", () => bridge);
 vi.mock("@dashboard/lib/terminal/terminal-token", () => token);
@@ -115,6 +123,7 @@ beforeEach(() => {
     orgSlug: "personal",
     defaultRegion: "fra",
   });
+  inventoryServer.appendSavedBrainMachineToInventory.mockResolvedValue(false);
   token.mintTerminalBridgeToken.mockReturnValue("opaque-token");
 });
 
@@ -185,6 +194,52 @@ describe("POST /api/kody/terminal/session", () => {
       error: "machine_not_terminal_capable",
     });
     expect(bridge.ensureTerminalBridge).not.toHaveBeenCalled();
+  });
+
+  it("uses the saved Brain fallback before selecting the terminal target", async () => {
+    inventory.listFlyInventory.mockResolvedValueOnce({
+      running: 0,
+      total: 0,
+      machines: [],
+    });
+    inventoryServer.appendSavedBrainMachineToInventory.mockImplementationOnce(
+      async (
+        _req: unknown,
+        inv: { machines: Array<Record<string, unknown>> },
+      ) => {
+        inv.machines.push({
+          feature: "brain",
+          app: "local-2",
+          machineId: "brain-current",
+          state: "started",
+          region: "fra",
+          label: "local-2",
+          sizeLabel: "perf 1x",
+        });
+        return true;
+      },
+    );
+
+    const res = await sessionPOST(
+      makeSessionReq({
+        app: "local-2",
+        machineId: "brain-stale",
+        chatSessionId: "chat-1",
+      }),
+    );
+
+    expect(res.status).toBe(200);
+    expect(await res.json()).toMatchObject({
+      ok: true,
+      app: "local-2",
+      machineId: "brain-current",
+    });
+    expect(token.mintTerminalBridgeToken).toHaveBeenCalledWith(
+      expect.objectContaining({
+        app: "local-2",
+        machineId: "brain-current",
+      }),
+    );
   });
 });
 

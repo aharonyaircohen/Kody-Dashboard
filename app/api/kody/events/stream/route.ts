@@ -6,7 +6,7 @@
  * GET /api/kody/events/stream?taskId=xxx
  *
  * Server-Sent Events endpoint for real-time chat streaming.
- * Polls the session event file (`.kody/events/{sessionId}.jsonl`) via GitHub API.
+ * Polls the session event file (`events/{sessionId}.jsonl`) via GitHub API.
  *
  * Events are streamed in SSE format: `data: {json}\n\n`
  *
@@ -22,6 +22,7 @@ import {
 import { createUserOctokit } from "@dashboard/lib/github-client";
 import { subscribe } from "@dashboard/lib/chat-event-bus";
 import { logger } from "@dashboard/lib/logger";
+import { readStateText } from "@dashboard/lib/state-repo";
 
 // ─── Rate-limit tuning ─────────────────────────────────────────────────────────
 // 15s base poll (was 3s) — pushes are the real freshness path; this is fallback.
@@ -100,40 +101,25 @@ function getDefaultBranch(): string {
 }
 
 function sessionEventFilePath(sessionId: string): string {
-  return `.kody/events/${sessionId}.jsonl`;
+  return `events/${sessionId}.jsonl`;
 }
 
 async function readEventFile(
   octokit: Awaited<ReturnType<typeof createUserOctokit>>,
   owner: string,
   repo: string,
-  branch: string,
+  _branch: string,
   sessionId: string,
 ): Promise<{ lines: string[]; exists: boolean }> {
   const path = sessionEventFilePath(sessionId);
   const cached = etagCache.get(sessionId);
   try {
-    const response = await octokit.rest.repos.getContent({
-      owner,
-      repo,
-      path,
-      ref: branch,
+    const file = await readStateText(octokit, owner, repo, path, {
       headers: cached?.etag ? { "If-None-Match": cached.etag } : undefined,
     });
-    const { data, headers } = response;
-    const h = headers as Record<string, string> | undefined;
-    const newEtag = h?.etag;
-    const remaining = h?.["x-ratelimit-remaining"];
-    if (remaining !== undefined && Number(remaining) < 500) {
-      logger.warn(
-        { remaining, sessionId, resource: h?.["x-ratelimit-resource"] },
-        "github rate-limit low",
-      );
-    }
-    if ("content" in data && data.content) {
-      const content = Buffer.from(data.content, "base64").toString("utf-8");
-      const lines = content.trim().split("\n").filter(Boolean);
-      if (newEtag) etagCache.set(sessionId, { etag: newEtag, lines });
+    if (file) {
+      const lines = file.content.trim().split("\n").filter(Boolean);
+      if (file.etag) etagCache.set(sessionId, { etag: file.etag, lines });
       return { lines, exists: true };
     }
   } catch (err: unknown) {

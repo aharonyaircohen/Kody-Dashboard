@@ -2,8 +2,8 @@
  * @fileType utility
  * @domain kody
  * @pattern memory-files
- * @ai-summary Memory file storage — read/write `.kody/memory/<id>.md` and
- *   `.kody/memory/INDEX.md` via the GitHub contents API. Mirrors the agentResponsibilities-
+ * @ai-summary Memory file storage — read/write `memory/<id>.md` and
+ *   `memory/INDEX.md` in the configured Kody state repo. Mirrors the agentResponsibilities-
  *   files pattern: filename is identity, body is markdown, frontmatter
  *   carries metadata (name, description, type, created). The INDEX file
  *   is a one-line-per-entry pointer file injected into the chat system
@@ -217,7 +217,7 @@ async function fetchLastCommitDate(
 // ---------- List / Read ----------
 
 /**
- * List every memory file under `.kody/memory/`, excluding INDEX.md.
+ * List every memory file under `memory/` in the state repo, excluding INDEX.md.
  * Returns `[]` if the directory does not exist (fresh repo).
  */
 export async function listMemoryFiles(): Promise<MemoryFile[]> {
@@ -310,7 +310,7 @@ export async function readMemoryFile(id: string): Promise<MemoryFile | null> {
 // ---------- Index ----------
 
 /**
- * Read `.kody/memory/INDEX.md`. Returns the raw markdown body (no
+ * Read `memory/INDEX.md` from the state repo. Returns the raw markdown body (no
  * frontmatter — the index is plain markdown), or `null` if missing.
  * The system-prompt builder injects this verbatim under a
  * `## Remembered context` heading.

@@ -3,7 +3,7 @@
  * @domain variables
  * @pattern variable-resolver
  * @ai-summary High-level helper for runtime code that needs a non-secret
- *   config value. Reads the per-repo .kody/variables.json first; falls
+ *   config value. Reads state-repo `variables.json` first; falls
  *   through to process.env so existing env-based deploys keep working
  *   while we migrate config off env vars.
  */

@@ -2,7 +2,7 @@
  * @fileType util
  * @domain preview
  * @pattern chat-tools
- * @ai-summary Chat tools for saved preview macros (`.kody/macros.json`):
+ * @ai-summary Chat tools for saved preview macros (`macros.json` in the state repo):
  *   list, read (full steps), rename, delete. Recording a NEW macro stays a
  *   browser action (the extension captures clicks) — chat can't record, but
  *   it can manage what's saved and replay one by issuing its steps via
@@ -32,7 +32,7 @@ export function createMacroTools(ctx: Ctx) {
 
   return {
     list_macros: tool({
-      description: `List the saved preview macros for ${repoRef} (.kody/macros.json). Returns each macro's id, name, and step count. A macro is a recorded click-through the user can replay in the preview.`,
+      description: `List the saved preview macros for ${repoRef} (state repo macros.json). Returns each macro's id, name, and step count. A macro is a recorded click-through the user can replay in the preview.`,
       inputSchema: z.object({}),
       execute: async () => {
         try {

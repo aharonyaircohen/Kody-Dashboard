@@ -11,7 +11,8 @@
  * Why this lives in its own module: the existing trigger route does
  * dispatch-per-turn and assumes one workflow run = one reply. Interactive
  * mode breaks that — start() dispatches once, then append() writes to the
- * session file via the Contents API without triggering anything new.
+ * session file in the configured Kody state repo without triggering anything
+ * new.
  *
  * Auth model is the same inline HMAC token as one-shot chat — see
  * chat-token.ts. The runner verifies the token on ingest POSTs so we
@@ -19,10 +20,9 @@
  */
 
 import type { Octokit } from "@octokit/rest";
-import { writeGitHubFileWithRetry } from "@dashboard/lib/github-contents-write";
-import { Buffer } from "buffer";
+import { readStateText, writeStateText } from "@dashboard/lib/state-repo";
 
-const SESSION_DIR = ".kody/sessions";
+const SESSION_DIR = "sessions";
 const DEFAULT_BRANCH = "main";
 
 /** Meta line written as the first JSONL row. The engine reads it via readMeta. */
@@ -108,14 +108,14 @@ export async function writeSessionMeta(
     // moved, so a stale sha would just collide again.
     const sha = await getFileSha(octokit, owner, repo, path, branch);
     try {
-      await writeGitHubFileWithRetry(octokit, {
+      await writeStateText({
+        octokit,
         owner,
         repo,
         path,
         message: `chat: start interactive session ${sessionId}`,
-        content: Buffer.from(content).toString("base64"),
+        content,
         ...(sha ? { sha } : {}),
-        branch,
         maxAttempts: 1,
       });
       return;
@@ -163,14 +163,14 @@ export async function appendUserTurn(
       })}\n`;
 
     try {
-      await writeGitHubFileWithRetry(octokit, {
+      await writeStateText({
+        octokit,
         owner,
         repo,
         path,
         message: `chat: append turn for ${sessionId}`,
-        content: Buffer.from(newContent).toString("base64"),
+        content: newContent,
         sha: existing.sha,
-        branch,
         maxAttempts: 1,
       });
       return { turnCount: countTurnLines(newContent) };
@@ -197,18 +197,10 @@ async function getFileSha(
   owner: string,
   repo: string,
   path: string,
-  branch: string,
+  _branch: string,
 ): Promise<string | null> {
   try {
-    const res = await octokit.repos.getContent({
-      owner,
-      repo,
-      path,
-      ref: branch,
-    });
-    if ("sha" in res.data && typeof res.data.sha === "string")
-      return res.data.sha;
-    return null;
+    return (await readStateText(octokit, owner, repo, path))?.sha ?? null;
   } catch (err: unknown) {
     const e = err as { status?: number };
     if (e.status === 404) return null;
@@ -221,22 +213,12 @@ async function readSessionFile(
   owner: string,
   repo: string,
   path: string,
-  branch: string,
+  _branch: string,
 ): Promise<{ content: string; sha: string | undefined }> {
   try {
-    const res = await octokit.repos.getContent({
-      owner,
-      repo,
-      path,
-      ref: branch,
-    });
-    if (Array.isArray(res.data))
-      throw new Error("session path is a directory, not a file");
-    if (!("content" in res.data) || !("sha" in res.data)) {
-      throw new Error("unexpected getContent response shape");
-    }
-    const decoded = Buffer.from(res.data.content, "base64").toString("utf-8");
-    return { content: decoded, sha: res.data.sha };
+    const file = await readStateText(octokit, owner, repo, path);
+    if (!file) return { content: "", sha: undefined };
+    return { content: file.content, sha: file.sha };
   } catch (err: unknown) {
     const e = err as { status?: number };
     if (e.status === 404) return { content: "", sha: undefined };
