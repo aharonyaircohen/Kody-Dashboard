@@ -71,7 +71,10 @@ export async function POST(req: NextRequest) {
     }
     if (!resolveJobProfile(job)) {
       return NextResponse.json(
-        { error: "no_agentResponsibility", message: "Pick a agentResponsibility to run." },
+        {
+          error: "no_agentResponsibility",
+          message: "Pick a agentResponsibility to run.",
+        },
         { status: 400 },
       );
     }
@@ -89,7 +92,10 @@ export async function POST(req: NextRequest) {
         { status: 401 },
       );
     }
-    const agentResponsibility = await readAgentResponsibilityFile(job.agentResponsibility!, userOctokit);
+    const agentResponsibility = await readAgentResponsibilityFile(
+      job.agentResponsibility!,
+      userOctokit,
+    );
     if (!agentResponsibility) {
       return NextResponse.json(
         {

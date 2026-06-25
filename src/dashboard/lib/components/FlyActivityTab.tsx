@@ -139,8 +139,8 @@ export function FlyActivityTab({
       <div className="flex items-center gap-3">
         <p className="text-xs text-white/50">
           Computed from snapshots on the{" "}
-          <span className="font-mono">state repo</span> (last 14 days).
-          Opening this tab records one — history fills in over time.
+          <span className="font-mono">state repo</span> (last 14 days). Opening
+          this tab records one — history fills in over time.
           {snapshots !== null ? ` ${snapshots} snapshots so far.` : ""}
         </p>
         <Button

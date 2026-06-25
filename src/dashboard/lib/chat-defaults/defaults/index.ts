@@ -11,7 +11,11 @@
  * is testable without wiring the repo read.
  */
 
-export type { AgentActionEntry, AgentResponsibilityEntry, SkillEntry } from "./types";
+export type {
+  AgentActionEntry,
+  AgentResponsibilityEntry,
+  SkillEntry,
+} from "./types";
 export { DEFAULT_EXECUTABLE } from "./agent-action";
 export {
   DEFAULT_DUTIES,

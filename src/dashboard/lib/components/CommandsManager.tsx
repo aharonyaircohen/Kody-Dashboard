@@ -294,10 +294,9 @@ function CommandsManagerInner() {
               <p className="text-xs text-white/40 max-w-md mx-auto">
                 Commands appear as <code className="text-white/55">/slash</code>{" "}
                 entries in chat. Stored at{" "}
-                <code className="text-white/55">
-                  commands/&lt;slug&gt;.md
-                </code>{" "}
-                in the state repo so they&apos;re git-tracked and team-shareable.
+                <code className="text-white/55">commands/&lt;slug&gt;.md</code>{" "}
+                in the state repo so they&apos;re git-tracked and
+                team-shareable.
               </p>
             </CardContent>
           </Card>
@@ -395,8 +394,8 @@ function CommandsManagerInner() {
         <p className="text-[11px] text-white/30 pt-4 flex items-center gap-1.5">
           <FileText className="w-3 h-3" />
           Built-ins ship with the dashboard. Editing one saves a same-slug copy
-          to <code className="text-white/50 mx-1">commands/</code> in the
-          state repo, which then takes over the slot.
+          to <code className="text-white/50 mx-1">commands/</code> in the state
+          repo, which then takes over the slot.
         </p>
       </div>
 

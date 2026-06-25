@@ -655,9 +655,7 @@ export function BrainFlyCard({
           {flyTokenConfigured && (
             <div className="space-y-1.5">
               <div className="flex items-center gap-2">
-                <span className="text-xs text-white/70">
-                  Brain suspension
-                </span>
+                <span className="text-xs text-white/70">Brain suspension</span>
                 <SimpleTooltip
                   content="Whether Fly may auto-suspend the Brain machine when it is idle."
                   side="right"

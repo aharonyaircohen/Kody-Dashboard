@@ -60,7 +60,8 @@ export function useTrustDecisions(): UseTrustDecisionsResult {
 
   return {
     verdictFor: (agentResponsibility, taskNumber, action, sinceIso) => {
-      const v = decided[trustDecisionKey(agentResponsibility, taskNumber, action)];
+      const v =
+        decided[trustDecisionKey(agentResponsibility, taskNumber, action)];
       if (!v) return null;
       if (sinceIso) {
         const since = Date.parse(sinceIso);

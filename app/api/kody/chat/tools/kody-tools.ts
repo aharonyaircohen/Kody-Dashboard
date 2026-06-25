@@ -35,7 +35,10 @@ import {
   invalidateIssueCache,
   invalidatePRCache,
 } from "@dashboard/lib/github-client";
-import { isValidSlug, readAgentResponsibilityFile } from "@dashboard/lib/agent-responsibilities-files";
+import {
+  isValidSlug,
+  readAgentResponsibilityFile,
+} from "@dashboard/lib/agent-responsibilities-files";
 
 interface Ctx {
   octokit: Octokit;
@@ -74,13 +77,19 @@ async function resolveAgentResponsibilityAction(
         "Refusing to dispatch: agentResponsibility must be lowercase letters, digits, dashes, or underscores.",
     };
   }
-  const agentResponsibility = await readAgentResponsibilityFile(slug, ctx.octokit);
+  const agentResponsibility = await readAgentResponsibilityFile(
+    slug,
+    ctx.octokit,
+  );
   if (!agentResponsibility) {
     return {
       error: `Refusing to dispatch: agentResponsibility "${slug}" was not found.`,
     };
   }
-  return { slug: agentResponsibility.slug, action: agentResponsibility.action ?? agentResponsibility.slug };
+  return {
+    slug: agentResponsibility.slug,
+    action: agentResponsibility.action ?? agentResponsibility.slug,
+  };
 }
 
 async function dispatchOnPr(
@@ -90,7 +99,10 @@ async function dispatchOnPr(
   notes: string | undefined,
 ): Promise<DispatchResult | DispatchError> {
   const { octokit, owner, repo } = ctx;
-  const agentResponsibilityAction = await resolveAgentResponsibilityAction(ctx, command);
+  const agentResponsibilityAction = await resolveAgentResponsibilityAction(
+    ctx,
+    command,
+  );
   if ("error" in agentResponsibilityAction) return agentResponsibilityAction;
   const commentBody = notes?.trim()
     ? `@kody ${agentResponsibilityAction.action}\n\n${notes.trim()}`
@@ -124,7 +136,12 @@ async function dispatchOnPr(
     invalidateIssueCache(prNumber);
 
     logger.info(
-      { owner, repo, number: prNumber, agentResponsibility: agentResponsibilityAction.slug },
+      {
+        owner,
+        repo,
+        number: prNumber,
+        agentResponsibility: agentResponsibilityAction.slug,
+      },
       "kody-dispatch: posted trigger comment",
     );
 
@@ -156,7 +173,10 @@ async function dispatchOnIssue(
   notes: string | undefined,
 ): Promise<DispatchResult | DispatchError> {
   const { octokit, owner, repo } = ctx;
-  const agentResponsibilityAction = await resolveAgentResponsibilityAction(ctx, agentResponsibility);
+  const agentResponsibilityAction = await resolveAgentResponsibilityAction(
+    ctx,
+    agentResponsibility,
+  );
   if ("error" in agentResponsibilityAction) return agentResponsibilityAction;
   const header = `@kody ${agentResponsibilityAction.action}`;
   const commentBody = notes?.trim() ? `${header}\n\n${notes.trim()}` : header;
@@ -185,7 +205,12 @@ async function dispatchOnIssue(
     invalidateIssueCache(issueNumber);
 
     logger.info(
-      { owner, repo, number: issueNumber, agentResponsibility: agentResponsibilityAction.slug },
+      {
+        owner,
+        repo,
+        number: issueNumber,
+        agentResponsibility: agentResponsibilityAction.slug,
+      },
       "kody-dispatch: posted issue trigger",
     );
 
@@ -198,7 +223,13 @@ async function dispatchOnIssue(
     };
   } catch (err) {
     logger.warn(
-      { err, owner, repo, number: issueNumber, agentResponsibility: agentResponsibilityAction.slug },
+      {
+        err,
+        owner,
+        repo,
+        number: issueNumber,
+        agentResponsibility: agentResponsibilityAction.slug,
+      },
       "kody-dispatch (issue) failed",
     );
     return {

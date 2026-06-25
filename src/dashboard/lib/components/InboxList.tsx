@@ -327,7 +327,12 @@ function Row({
   // this fresh one. Without the gate every re-post of a sync/fix-ci rec
   // shows pre-stamped Dismissed once any past rec for that PR was dismissed.
   const ctoVerdict = cto
-    ? verdictFor(cto.agentResponsibility, cto.taskNumber, cto.action, entry.sentAt)
+    ? verdictFor(
+        cto.agentResponsibility,
+        cto.taskNumber,
+        cto.action,
+        entry.sentAt,
+      )
     : null;
   return (
     <li

@@ -16,7 +16,10 @@ import {
   getUserOctokit,
   getRequestAuth,
 } from "@dashboard/lib/auth";
-import { isValidSlug, readResolvedAgentResponsibilityFile } from "@dashboard/lib/agent-responsibilities-files";
+import {
+  isValidSlug,
+  readResolvedAgentResponsibilityFile,
+} from "@dashboard/lib/agent-responsibilities-files";
 import {
   setGitHubContext,
   clearGitHubContext,
@@ -77,7 +80,10 @@ export async function POST(
   }
 
   try {
-    const agentResponsibility = await readResolvedAgentResponsibilityFile(slug, octokit);
+    const agentResponsibility = await readResolvedAgentResponsibilityFile(
+      slug,
+      octokit,
+    );
     if (!agentResponsibility) {
       return NextResponse.json({ error: "not_found" }, { status: 404 });
     }

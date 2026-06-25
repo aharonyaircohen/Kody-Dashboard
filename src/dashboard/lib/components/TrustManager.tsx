@@ -117,7 +117,11 @@ function AgentResponsibilityRow({
           <Button
             variant="ghost"
             size="sm"
-            disabled={busy || (!agentResponsibility.hasHistory && agentResponsibility.mode === "ask")}
+            disabled={
+              busy ||
+              (!agentResponsibility.hasHistory &&
+                agentResponsibility.mode === "ask")
+            }
             title={`Reset trust for ${agentResponsibility.agentResponsibility}`}
             onClick={() => {
               if (
@@ -195,11 +199,12 @@ export function TrustManager() {
             Trust
           </h1>
           <p className="text-body-sm text-muted-foreground">
-            Every agentResponsibility starts in <strong>Ask</strong> mode and needs your
-            approval before it acts. After {TRUST_GRADUATION_THRESHOLD} clean
-            approvals it graduates to <strong>Auto</strong> and the engine runs
-            it on its own; one reject sends it back to Ask. Grant or revoke Auto
-            for any agentResponsibility here.
+            Every agentResponsibility starts in <strong>Ask</strong> mode and
+            needs your approval before it acts. After{" "}
+            {TRUST_GRADUATION_THRESHOLD} clean approvals it graduates to{" "}
+            <strong>Auto</strong> and the engine runs it on its own; one reject
+            sends it back to Ask. Grant or revoke Auto for any
+            agentResponsibility here.
           </p>
         </header>
 
@@ -225,7 +230,12 @@ export function TrustManager() {
               key={g.agentResponsibility}
               agentResponsibility={g}
               busy={isMutating}
-              onOp={(op) => void setTrust({ agentResponsibility: g.agentResponsibility, op })}
+              onOp={(op) =>
+                void setTrust({
+                  agentResponsibility: g.agentResponsibility,
+                  op,
+                })
+              }
             />
           ))
         )}

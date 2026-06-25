@@ -267,7 +267,9 @@ export function serializeProfile(profile: Record<string, unknown>): string {
 }
 
 /** The landing implied by a parsed profile object. */
-export function landingOf(profile: Record<string, unknown>): AgentActionLanding {
+export function landingOf(
+  profile: Record<string, unknown>,
+): AgentActionLanding {
   return profile.lifecycle === "pr-branch" ? "pr" : "comment";
 }
 

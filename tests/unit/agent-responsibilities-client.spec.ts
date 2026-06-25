@@ -9,12 +9,12 @@ describe("agentResponsibilities client", () => {
   });
 
   it("scopes agentResponsibility list query keys by repo", () => {
-    expect(agentResponsibilityQueryKeys.list({ owner: "A-Guy-educ", repo: "A-Guy" })).toEqual([
-      "kody-agentResponsibilities",
-      "A-Guy-educ",
-      "A-Guy",
-    ]);
-    expect(agentResponsibilityQueryKeys.list({ owner: "other", repo: "repo" })).not.toEqual(
+    expect(
+      agentResponsibilityQueryKeys.list({ owner: "A-Guy-educ", repo: "A-Guy" }),
+    ).toEqual(["kody-agentResponsibilities", "A-Guy-educ", "A-Guy"]);
+    expect(
+      agentResponsibilityQueryKeys.list({ owner: "other", repo: "repo" }),
+    ).not.toEqual(
       agentResponsibilityQueryKeys.list({ owner: "A-Guy-educ", repo: "A-Guy" }),
     );
   });

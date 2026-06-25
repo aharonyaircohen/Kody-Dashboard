@@ -495,18 +495,18 @@ function CatalogDetail({
                   <a href={item.htmlUrl} target="_blank" rel="noreferrer">
                     <ExternalLink className="h-4 w-4" />
                     Open
-                </a>
-              </Button>
-            ) : null}
-          </div>
+                  </a>
+                </Button>
+              ) : null}
+            </div>
           </header>
 
           {item.description ? (
-              <p className="max-w-3xl text-sm leading-6 text-white/70">
-                {item.description}
-              </p>
-            ) : null}
-          </div>
+            <p className="max-w-3xl text-sm leading-6 text-white/70">
+              {item.description}
+            </p>
+          ) : null}
+        </div>
       </div>
 
       <div className="mx-auto max-w-4xl space-y-3 p-4 md:p-8">
@@ -517,13 +517,14 @@ function CatalogDetail({
         {item.agentAction ? (
           <InfoRow label="Agent action" value={item.agentAction} />
         ) : null}
-              {item.capabilityKind ? (
-                <InfoRow label="Kind" value={item.capabilityKind} />
-              ) : null}
-              {(item.kind === "agentGoal" || item.kind === "agentLoop") && item.schedule ? (
-                <InfoRow label="Schedule" value={item.schedule} />
-              ) : null}
-            </div>
+        {item.capabilityKind ? (
+          <InfoRow label="Kind" value={item.capabilityKind} />
+        ) : null}
+        {(item.kind === "agentGoal" || item.kind === "agentLoop") &&
+        item.schedule ? (
+          <InfoRow label="Schedule" value={item.schedule} />
+        ) : null}
+      </div>
     </article>
   );
 }

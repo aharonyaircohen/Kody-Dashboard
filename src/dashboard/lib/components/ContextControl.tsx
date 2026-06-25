@@ -790,10 +790,10 @@ function CreateEntryDialog({
         <DialogHeader>
           <DialogTitle>New context entry</DialogTitle>
           <DialogDescription>
-            Stored at context/&lt;slug&gt;.md in the state repo. The slug is the entry name
-            Kody sees (e.g. company-profile, mission, products); the body is
-            plain markdown. Agent decides which consumers load it — leave all
-            unchecked to keep the entry unassigned.
+            Stored at context/&lt;slug&gt;.md in the state repo. The slug is the
+            entry name Kody sees (e.g. company-profile, mission, products); the
+            body is plain markdown. Agent decides which consumers load it —
+            leave all unchecked to keep the entry unassigned.
           </DialogDescription>
         </DialogHeader>
 

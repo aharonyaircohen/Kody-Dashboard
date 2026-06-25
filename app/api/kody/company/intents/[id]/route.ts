@@ -97,7 +97,10 @@ const patchSchema = z.object({
 
 function mapGithubError(error: any, fallback: string, status = 500) {
   if (error?.status === 401) {
-    return NextResponse.json({ error: "github_token_expired" }, { status: 401 });
+    return NextResponse.json(
+      { error: "github_token_expired" },
+      { status: 401 },
+    );
   }
   if (error?.status === 403 || error?.message?.includes("rate limit")) {
     return NextResponse.json(
@@ -169,7 +172,9 @@ async function readRecord(
       id,
       path: file.path,
       intent,
-      decisions: decisions ? parseCompanyIntentDecisionLog(decisions.content) : [],
+      decisions: decisions
+        ? parseCompanyIntentDecisionLog(decisions.content)
+        : [],
       managerHealth: await managerHealth(octokit, intent, owner, repo),
     },
   };
@@ -182,10 +187,13 @@ async function managerHealth(
   repo: string,
 ): Promise<CompanyIntentManagerHealth> {
   const [loop, responsibility] = await Promise.all([
-    readManagedGoalFile(intent.manager.loop, octokit, owner, repo).catch(() => null),
-    readResolvedAgentResponsibilityFile(intent.manager.responsibility, octokit).catch(
+    readManagedGoalFile(intent.manager.loop, octokit, owner, repo).catch(
       () => null,
     ),
+    readResolvedAgentResponsibilityFile(
+      intent.manager.responsibility,
+      octokit,
+    ).catch(() => null),
   ]);
   const storeLoop = loop
     ? null
@@ -198,7 +206,9 @@ async function managerHealth(
       exists: Boolean(loop || storeLoop),
       state: loop?.state.state ?? storeLoop?.state.state,
       updatedAt:
-        typeof loop?.state.updatedAt === "string" ? loop.state.updatedAt : undefined,
+        typeof loop?.state.updatedAt === "string"
+          ? loop.state.updatedAt
+          : undefined,
     },
     responsibility: {
       id: intent.manager.responsibility,

@@ -28,31 +28,46 @@ describe("KodyChat assistant bubble markdown contract", () => {
     expect(KODY_CHAT_SOURCE).toMatch(
       /import\s*\{\s*parseAssistantContent\s*\}\s*from\s*["']\.\.\/chat\/tool-call-strip["']/,
     );
-    expect(KODY_CHAT_SOURCE).toMatch(/parseAssistantContent\(\s*msg\.content\s*\)/);
-    expect(KODY_CHAT_SOURCE).toMatch(/const\s+\{\s*reasoning,\s*answer\s*\}\s*=\s*parsedAssistant/);
+    expect(KODY_CHAT_SOURCE).toMatch(
+      /parseAssistantContent\(\s*msg\.content\s*\)/,
+    );
+    expect(KODY_CHAT_SOURCE).toMatch(
+      /const\s+\{\s*reasoning,\s*answer\s*\}\s*=\s*parsedAssistant/,
+    );
   });
 
   it("delegates assistant markdown rendering to MarkdownPreview", () => {
     expect(KODY_CHAT_SOURCE).toMatch(
       /import\s*\{\s*MarkdownPreview\s*\}\s*from\s*["']\.\/MarkdownPreview["']/,
     );
-    expect(KODY_CHAT_SOURCE).toMatch(/<MarkdownPreview[\s\S]*?content=\{answer\}/);
+    expect(KODY_CHAT_SOURCE).toMatch(
+      /<MarkdownPreview[\s\S]*?content=\{answer\}/,
+    );
   });
 
   it("keeps bare-url linking and safe external links in MarkdownPreview", () => {
-    expect(MARKDOWN_PREVIEW_SOURCE).toMatch(/import\s+remarkGfm\s+from\s+["']remark-gfm["']/);
+    expect(MARKDOWN_PREVIEW_SOURCE).toMatch(
+      /import\s+remarkGfm\s+from\s+["']remark-gfm["']/,
+    );
     expect(MARKDOWN_PREVIEW_SOURCE).toMatch(
       /<ReactMarkdown[\s\S]*?remarkPlugins=\{?\[\s*remarkGfm\s*\]/,
     );
 
     const anchorStart = MARKDOWN_PREVIEW_SOURCE.indexOf("a: ({ href");
-    const anchorEnd = MARKDOWN_PREVIEW_SOURCE.indexOf("blockquote:", anchorStart);
+    const anchorEnd = MARKDOWN_PREVIEW_SOURCE.indexOf(
+      "blockquote:",
+      anchorStart,
+    );
     const anchorComponent =
       anchorStart >= 0 && anchorEnd > anchorStart
         ? MARKDOWN_PREVIEW_SOURCE.slice(anchorStart, anchorEnd)
         : "";
     expect(anchorComponent).not.toBe("");
-    expect(anchorComponent).toContain('target={isHashLink ? undefined : "_blank"}');
-    expect(anchorComponent).toContain('rel={isHashLink ? undefined : "noopener noreferrer"}');
+    expect(anchorComponent).toContain(
+      'target={isHashLink ? undefined : "_blank"}',
+    );
+    expect(anchorComponent).toContain(
+      'rel={isHashLink ? undefined : "noopener noreferrer"}',
+    );
   });
 });

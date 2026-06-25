@@ -50,7 +50,8 @@ export function ctoFeedKey(
   const taskNumber = issueNumberFromUrl(entry.url);
   if (taskNumber === null) return null;
   return {
-    agentResponsibility: entry.ctoAgentResponsibility ?? entry.ctoAgent ?? DEFAULT_AGENT_SLUG,
+    agentResponsibility:
+      entry.ctoAgentResponsibility ?? entry.ctoAgent ?? DEFAULT_AGENT_SLUG,
     taskNumber,
     action: entry.ctoAction,
   };
@@ -71,7 +72,10 @@ function isPending(
 ): boolean {
   const key = ctoFeedKey(entry);
   if (!key) return false;
-  const v = decided[trustDecisionKey(key.agentResponsibility, key.taskNumber, key.action)];
+  const v =
+    decided[
+      trustDecisionKey(key.agentResponsibility, key.taskNumber, key.action)
+    ];
   if (!v) return true;
   const sent = Date.parse(entry.sentAt);
   const at = Date.parse(v.at);
@@ -96,7 +100,10 @@ export function countPendingByAgentResponsibility(
     if (!isPending(e, decided)) continue;
     const key = ctoFeedKey(e);
     if (!key) continue;
-    counts.set(key.agentResponsibility, (counts.get(key.agentResponsibility) ?? 0) + 1);
+    counts.set(
+      key.agentResponsibility,
+      (counts.get(key.agentResponsibility) ?? 0) + 1,
+    );
   }
   return counts;
 }

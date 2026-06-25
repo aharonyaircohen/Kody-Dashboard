@@ -113,7 +113,9 @@ describe("activity run logs", () => {
     })}\n`;
     const zip = makeStoredZip(".kody/agent-runs/123/events.jsonl", jsonl);
 
-    expect(extractZipEntryText(zip, ".kody/agent-runs/123/events.jsonl")).toBe(jsonl);
+    expect(extractZipEntryText(zip, ".kody/agent-runs/123/events.jsonl")).toBe(
+      jsonl,
+    );
     const parsed = parseKodyRunLogZip(zip, 123);
 
     expect(parsed?.events).toHaveLength(1);

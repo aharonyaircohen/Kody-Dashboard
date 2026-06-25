@@ -511,7 +511,10 @@ describe("applyCompanyBundle", () => {
       skipped: 0,
       failed: 0,
     });
-    expect(result.agentResponsibilities).toMatchObject({ created: 1, skipped: 0 });
+    expect(result.agentResponsibilities).toMatchObject({
+      created: 1,
+      skipped: 0,
+    });
     expect(result.commands).toMatchObject({ created: 1 });
     expect(result.contexts).toMatchObject({ created: 1 });
     expect(result.instructions).toBe("created");
@@ -579,7 +582,9 @@ describe("applyCompanyBundle", () => {
 
   it("updates existing artifacts in overwrite mode (passes sha)", async () => {
     h.readAgentFile.mockResolvedValue({ sha: "agent-sha" });
-    h.readAgentResponsibilityFile.mockResolvedValue({ sha: "agentResponsibility-sha" });
+    h.readAgentResponsibilityFile.mockResolvedValue({
+      sha: "agentResponsibility-sha",
+    });
     h.readCommandFile.mockResolvedValue({ sha: "command-sha" });
     h.readContextFile.mockResolvedValue({ sha: "ctx-sha" });
     h.readInstructionsFile.mockResolvedValue({ sha: "instr-sha" });

@@ -61,7 +61,10 @@ describe("extractTouchedReportSlugs", () => {
       commits: [
         {
           added: ["widgets/reports/security-audit.md"],
-          modified: ["widgets/reports/agent-responsibility-call.md", "README.md"],
+          modified: [
+            "widgets/reports/agent-responsibility-call.md",
+            "README.md",
+          ],
         },
         { modified: ["widgets/reports/agent-responsibility-call.md"] },
       ],

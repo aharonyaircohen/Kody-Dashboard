@@ -38,10 +38,7 @@ import { useAutonomousActivity } from "../hooks/useAutonomousActivity";
 import { cn, formatDuration } from "../utils";
 import type { ActivityRun } from "../activity/types";
 import type { ActionLogEntry } from "../activity/action-log";
-import type {
-  KodyRunLogsRun,
-  KodyRunTimelineItem,
-} from "../activity/run-logs";
+import type { KodyRunLogsRun, KodyRunTimelineItem } from "../activity/run-logs";
 import type {
   FeedEvent,
   FeedSession,
@@ -363,8 +360,7 @@ function SessionCard({ s }: { s: FeedSession }) {
 function timelineTone(item: KodyRunTimelineItem): string {
   if (item.category === "failure") return "bg-rose-500/15 text-rose-200/90";
   if (item.category === "stage") return "bg-sky-500/15 text-sky-200/85";
-  if (item.category === "preflight")
-    return "bg-amber-500/15 text-amber-200/85";
+  if (item.category === "preflight") return "bg-amber-500/15 text-amber-200/85";
   if (item.category === "postflight")
     return "bg-emerald-500/15 text-emerald-200/85";
   return "bg-white/[0.06] text-white/65";
@@ -487,7 +483,11 @@ function RunLogsView({ active }: { active: boolean }) {
 
       <div className="mb-3 grid grid-cols-3 gap-3">
         <StatCard label="Runs" value={data?.total ?? "—"} />
-        <StatCard label="Artifacts" value={data?.available ?? "—"} tone="good" />
+        <StatCard
+          label="Artifacts"
+          value={data?.available ?? "—"}
+          tone="good"
+        />
         <StatCard label="Fallbacks" value={data?.missing ?? "—"} />
       </div>
 
@@ -601,10 +601,10 @@ function FeedView({ active }: { active: boolean }) {
       )}
       <p className="mt-6 text-[10px] text-white/30">
         One row per chat/run session, grouped from the engine&apos;s per-session
-        event files in the state repo (events/*.jsonl). Expand a session for its events;
-        expand an event for the exact time and raw payload (copyable). Loads
-        only when this tab is open (60s server cache, recent sessions only),
-        never polled — no steady-state GitHub API budget.
+        event files in the state repo (events/*.jsonl). Expand a session for its
+        events; expand an event for the exact time and raw payload (copyable).
+        Loads only when this tab is open (60s server cache, recent sessions
+        only), never polled — no steady-state GitHub API budget.
       </p>
     </div>
   );
@@ -633,7 +633,13 @@ function AutoView({ active }: { active: boolean }) {
     const q = query.trim().toLowerCase();
     if (q)
       all = all.filter((r) =>
-        [r.action, r.agent ?? "", r.staffTitle ?? "", r.agentResponsibility, r.trigger]
+        [
+          r.action,
+          r.agent ?? "",
+          r.staffTitle ?? "",
+          r.agentResponsibility,
+          r.trigger,
+        ]
           .join(" ")
           .toLowerCase()
           .includes(q),
@@ -682,8 +688,8 @@ function AutoView({ active }: { active: boolean }) {
         </p>
       ) : records.length === 0 ? (
         <p className="text-xs text-white/40 italic py-6 text-center">
-          No autonomous activity yet — appears once a agentResponsibility runs on the updated
-          engine.
+          No autonomous activity yet — appears once a agentResponsibility runs
+          on the updated engine.
         </p>
       ) : (
         <ul className="space-y-1.5">
@@ -744,8 +750,9 @@ function AutoView({ active }: { active: boolean }) {
       )}
       <p className="mt-6 text-[10px] text-white/30">
         Company activity — each line is one action the engine took: which agent
-        member ran which agentResponsibility, why (schedule / manual), and the result. Written
-        by the engine; the Log tab shows dashboard actions instead.
+        member ran which agentResponsibility, why (schedule / manual), and the
+        result. Written by the engine; the Log tab shows dashboard actions
+        instead.
       </p>
     </div>
   );
@@ -895,11 +902,11 @@ function LogView({ active }: { active: boolean }) {
         </ul>
       )}
       <p className="mt-6 text-[10px] text-white/30">
-        Dashboard actions (agentResponsibility runs/edits, task actions, vault writes,
-        agent/prompt/goal changes) attributed to the verified GitHub user who
-        made them. Persisted durably in the repo&apos;s audit-log issue (newest{" "}
-        {150} kept) and merged with this instance&apos;s in-memory ring —
-        survives redeploys and is shared across instances.
+        Dashboard actions (agentResponsibility runs/edits, task actions, vault
+        writes, agent/prompt/goal changes) attributed to the verified GitHub
+        user who made them. Persisted durably in the repo&apos;s audit-log issue
+        (newest {150} kept) and merged with this instance&apos;s in-memory ring
+        — survives redeploys and is shared across instances.
       </p>
     </div>
   );
@@ -990,36 +997,36 @@ export function ActivityPage() {
       <div className="mb-4 flex items-center gap-1">
         {(["log", "auto", "runs", "runLogs", "feed"] as ActivityTab[]).map(
           (t) => (
-          <button
-            key={t}
-            type="button"
-            onClick={() => setTab(t)}
-            className={cn(
-              "inline-flex items-center gap-1.5 rounded-md px-3 py-1.5 text-xs font-medium transition-colors",
-              tab === t
-                ? "bg-white/[0.08] text-white"
-                : "text-white/50 hover:text-white hover:bg-white/[0.04]",
-            )}
-          >
-            {t === "runs" ? (
-              <ActivityIcon className="w-3.5 h-3.5" />
-            ) : t === "auto" ? (
-              <Bot className="w-3.5 h-3.5" />
-            ) : t === "runLogs" ? (
-              <Clock className="w-3.5 h-3.5" />
-            ) : (
-              <ScrollText className="w-3.5 h-3.5" />
-            )}
-            {t === "log"
-              ? "Log"
-              : t === "auto"
-                ? "Auto"
-                : t === "runs"
-                  ? "Runs"
-                  : t === "runLogs"
-                    ? "Run Logs"
-                  : "Feed"}
-          </button>
+            <button
+              key={t}
+              type="button"
+              onClick={() => setTab(t)}
+              className={cn(
+                "inline-flex items-center gap-1.5 rounded-md px-3 py-1.5 text-xs font-medium transition-colors",
+                tab === t
+                  ? "bg-white/[0.08] text-white"
+                  : "text-white/50 hover:text-white hover:bg-white/[0.04]",
+              )}
+            >
+              {t === "runs" ? (
+                <ActivityIcon className="w-3.5 h-3.5" />
+              ) : t === "auto" ? (
+                <Bot className="w-3.5 h-3.5" />
+              ) : t === "runLogs" ? (
+                <Clock className="w-3.5 h-3.5" />
+              ) : (
+                <ScrollText className="w-3.5 h-3.5" />
+              )}
+              {t === "log"
+                ? "Log"
+                : t === "auto"
+                  ? "Auto"
+                  : t === "runs"
+                    ? "Runs"
+                    : t === "runLogs"
+                      ? "Run Logs"
+                      : "Feed"}
+            </button>
           ),
         )}
       </div>

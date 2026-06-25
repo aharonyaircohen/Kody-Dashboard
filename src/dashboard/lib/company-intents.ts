@@ -284,11 +284,7 @@ function normalizeReleasePolicy(
   return {
     cadence: enumField(input.cadence, ["manual", "1d", "1w"]),
     qaDepth: enumField(input.qaDepth, ["light", "standard", "strict"]),
-    blockerLevel: enumField(input.blockerLevel, [
-      "low",
-      "standard",
-      "strict",
-    ]),
+    blockerLevel: enumField(input.blockerLevel, ["low", "standard", "strict"]),
     approval: enumField(input.approval, [
       "none",
       "before-production",

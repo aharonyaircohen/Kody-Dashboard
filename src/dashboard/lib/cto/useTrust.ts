@@ -42,7 +42,10 @@ export interface UseTrustResult {
   /** Refresh trust stats and the agentResponsibility roster used to label them. */
   refetch: () => Promise<void>;
   /** Apply one whole-agentResponsibility trust override; resolves once the write lands. */
-  setTrust: (input: { agentResponsibility: string; op: TrustOp }) => Promise<void>;
+  setTrust: (input: {
+    agentResponsibility: string;
+    op: TrustOp;
+  }) => Promise<void>;
   /** True while a `setTrust` mutation is in flight. */
   isMutating: boolean;
 }
@@ -86,7 +89,9 @@ export function useTrust(): UseTrustResult {
       agentResponsibilities: trustQuery.data.agentResponsibilities,
       log: trustQuery.data.log,
     };
-    const agentResponsibilityLinks = (agentResponsibilitiesQuery.data ?? []).map((d) => ({
+    const agentResponsibilityLinks = (
+      agentResponsibilitiesQuery.data ?? []
+    ).map((d) => ({
       slug: d.slug,
       agent: d.agent,
     }));
@@ -100,7 +105,10 @@ export function useTrust(): UseTrustResult {
     isFetching: trustQuery.isFetching || agentResponsibilitiesQuery.isFetching,
     error: (trustQuery.error as Error | null) ?? null,
     refetch: async () => {
-      await Promise.all([trustQuery.refetch(), agentResponsibilitiesQuery.refetch()]);
+      await Promise.all([
+        trustQuery.refetch(),
+        agentResponsibilitiesQuery.refetch(),
+      ]);
     },
     setTrust: async (input) => {
       await mutation.mutateAsync(input);

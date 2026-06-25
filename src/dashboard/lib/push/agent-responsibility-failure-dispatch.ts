@@ -50,7 +50,9 @@ interface PushCommit {
 /** True when this `push` event touched the Kody state repo and touched a
  *  Company Activity day-file (the only thing we care about). Exported for
  *  unit tests. */
-export function touchedActivityRepos(payload: Record<string, unknown>): string[] {
+export function touchedActivityRepos(
+  payload: Record<string, unknown>,
+): string[] {
   const commits = Array.isArray(payload.commits)
     ? (payload.commits as PushCommit[])
     : [];
@@ -153,7 +155,9 @@ export async function dispatchAgentResponsibilityFailures(
     const touchedRepos = touchedActivityRepos(payload);
     if (touchedRepos.length === 0) return;
 
-    const repository = payload.repository as Record<string, unknown> | undefined;
+    const repository = payload.repository as
+      | Record<string, unknown>
+      | undefined;
     const stateRepoFullName =
       typeof repository?.full_name === "string" ? repository.full_name : "";
     const [owner] = stateRepoFullName.split("/");
@@ -171,10 +175,17 @@ export async function dispatchAgentResponsibilityFailures(
       }
       const token = bg.token;
 
-      const operators = await readOperators(createUserOctokit(token), owner, repo);
+      const operators = await readOperators(
+        createUserOctokit(token),
+        owner,
+        repo,
+      );
       if (operators.length === 0) {
         logger.info(
-          { event: "agentResponsibility_failure_no_operators", repo: repoFullName },
+          {
+            event: "agentResponsibility_failure_no_operators",
+            repo: repoFullName,
+          },
           "AgentResponsibility failed but no operators configured — nothing route",
         );
         continue;
@@ -200,7 +211,10 @@ export async function dispatchAgentResponsibilityFailures(
             operators: operators.length,
             repo: repoFullName,
           },
-          "AgentResponsibility-failure inbox: +" + added + " entr" + (added === 1 ? "y" : "ies"),
+          "AgentResponsibility-failure inbox: +" +
+            added +
+            " entr" +
+            (added === 1 ? "y" : "ies"),
         );
       } finally {
         clearGitHubContext();

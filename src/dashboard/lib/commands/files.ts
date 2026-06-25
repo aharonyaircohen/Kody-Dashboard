@@ -128,9 +128,7 @@ export async function listRepoCommandFiles(): Promise<{
   const slugs = entries
     .filter((e) => e.type === "file")
     .map((e) => ({ slug: slugFromName(e.name), name: e.name }))
-    .filter(
-      (e): e is { slug: string; name: string } => e.slug !== null,
-    );
+    .filter((e): e is { slug: string; name: string } => e.slug !== null);
 
   const files = await Promise.all(
     slugs.map(async ({ slug, name }) => {

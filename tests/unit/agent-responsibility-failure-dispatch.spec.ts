@@ -90,7 +90,9 @@ describe("touchesActivityLog", () => {
   it("matches a state-repo push that adds an activity day-file", () => {
     expect(
       touchesActivityLog(
-        pushEvent("refs/heads/kody-state", ["widgets/activity/2026-05-23.jsonl"]),
+        pushEvent("refs/heads/kody-state", [
+          "widgets/activity/2026-05-23.jsonl",
+        ]),
       ),
     ).toBe(true);
   });
@@ -99,7 +101,9 @@ describe("touchesActivityLog", () => {
     expect(
       touchesActivityLog({
         ref: "refs/heads/kody-state",
-        commits: [{ added: [], modified: ["widgets/activity/2026-05-23.jsonl"] }],
+        commits: [
+          { added: [], modified: ["widgets/activity/2026-05-23.jsonl"] },
+        ],
       }),
     ).toBe(true);
   });
@@ -127,7 +131,10 @@ describe("touchesActivityLog", () => {
 
 describe("buildEntries", () => {
   it("emits one entry per (operator × failure) with a deterministic id", () => {
-    const failure = rec({ agentResponsibility: "d1", ts: "2026-05-23T00:00:00.000Z" });
+    const failure = rec({
+      agentResponsibility: "d1",
+      ts: "2026-05-23T00:00:00.000Z",
+    });
     const entries = buildEntries(
       "acme",
       "widgets",
@@ -176,13 +183,17 @@ describe("buildEntries", () => {
       ["alice"],
       [rec({ outcomeKind: "out_of_turns" })],
     );
-    expect(entries[0].title).toBe("AgentResponsibility stopped early: Verify changelog");
+    expect(entries[0].title).toBe(
+      "AgentResponsibility stopped early: Verify changelog",
+    );
     expect(entries[0].snippet).toBe("QA Engineer — agent hit its turn limit");
   });
 
   it("keeps the generic 'failed' wording for older records (no kind)", () => {
     const entries = buildEntries("acme", "widgets", ["alice"], [rec()]);
-    expect(entries[0].title).toBe("AgentResponsibility failed: Verify changelog");
+    expect(entries[0].title).toBe(
+      "AgentResponsibility failed: Verify changelog",
+    );
     expect(entries[0].snippet).toBe("QA Engineer — run failed");
   });
 
@@ -203,7 +214,9 @@ describe("buildEntries", () => {
 
 describe("dispatchAgentResponsibilityFailures", () => {
   it("ignores non-push events", async () => {
-    await dispatchAgentResponsibilityFailures("issue_comment", { action: "created" });
+    await dispatchAgentResponsibilityFailures("issue_comment", {
+      action: "created",
+    });
     expect(h.resolveVaultGithubToken).not.toHaveBeenCalled();
     expect(h.appendInboxFeed).not.toHaveBeenCalled();
   });

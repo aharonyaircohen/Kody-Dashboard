@@ -297,8 +297,13 @@ test.describe("Vibe — LIVE full flow against production", () => {
       `/repos/${owner}/${repo}/pulls/${prNumber}/files?per_page=100`,
     )) as PrFile[];
 
-    const leakedStateFiles = files.filter((f) => f.filename.startsWith(".kody/"));
-    expect(leakedStateFiles, "PR must not contain consumer .kody state files").toEqual([]);
+    const leakedStateFiles = files.filter((f) =>
+      f.filename.startsWith(".kody/"),
+    );
+    expect(
+      leakedStateFiles,
+      "PR must not contain consumer .kody state files",
+    ).toEqual([]);
 
     const srcChange = files.find(
       (f) => f.filename === "src/app/(frontend)/page.tsx",
@@ -389,8 +394,13 @@ test.describe("Vibe — LIVE full flow against production", () => {
       const filesAfterFollowup = (await ghFetch(
         `/repos/${owner}/${repo}/pulls/${prNumber}/files?per_page=100`,
       )) as PrFile[];
-      const leakedAfter = filesAfterFollowup.filter((f) => f.filename.startsWith(".kody/"));
-      expect(leakedAfter, "follow-up PR must not contain consumer .kody state files").toEqual([]);
+      const leakedAfter = filesAfterFollowup.filter((f) =>
+        f.filename.startsWith(".kody/"),
+      );
+      expect(
+        leakedAfter,
+        "follow-up PR must not contain consumer .kody state files",
+      ).toEqual([]);
     }
 
     // ── 11. Merge the PR via the dashboard's approve endpoint. ─────────

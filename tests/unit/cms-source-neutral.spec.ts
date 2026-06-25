@@ -10,7 +10,9 @@ function readRepoFile(path: string): string {
 
 describe("CMS source-neutral boundaries", () => {
   it("keeps the Mongo schema generator free of app-specific defaults", () => {
-    const source = readRepoFile("scripts/cms-adapters/mongodb/generate-schema.mjs");
+    const source = readRepoFile(
+      "scripts/cms-adapters/mongodb/generate-schema.mjs",
+    );
 
     expect(source).not.toContain("COMMON_RELATIONS");
     expect(source).not.toContain("payload-jobs");

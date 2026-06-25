@@ -60,7 +60,9 @@ function touchedReportKey(report: TouchedReport): string {
   return report.repo + "/" + report.slug;
 }
 
-function extractTouchedReports(payload: Record<string, unknown>): TouchedReport[] {
+function extractTouchedReports(
+  payload: Record<string, unknown>,
+): TouchedReport[] {
   const commits = Array.isArray(payload.commits)
     ? (payload.commits as PushCommit[])
     : [];
@@ -84,7 +86,9 @@ function extractTouchedReports(payload: Record<string, unknown>): TouchedReport[
 export function extractTouchedReportSlugs(
   payload: Record<string, unknown>,
 ): string[] {
-  return [...new Set(extractTouchedReports(payload).map((report) => report.slug))];
+  return [
+    ...new Set(extractTouchedReports(payload).map((report) => report.slug)),
+  ];
 }
 
 /** True when the push targets the branch where generated reports live. */
@@ -221,7 +225,9 @@ export async function dispatchReportPushes(
     const reports = extractTouchedReports(payload);
     if (reports.length === 0) return;
 
-    const repository = payload.repository as Record<string, unknown> | undefined;
+    const repository = payload.repository as
+      | Record<string, unknown>
+      | undefined;
     const stateRepoFullName =
       typeof repository?.full_name === "string" ? repository.full_name : "";
     const [owner, stateRepo] = stateRepoFullName.split("/");
@@ -279,7 +285,9 @@ export async function dispatchReportPushes(
               repo: consumerRepoFullName,
               candidates: repoReports.length,
             },
-            "Report push skipped: " + repoReports.length + " report(s) re-saved with only timestamp change",
+            "Report push skipped: " +
+              repoReports.length +
+              " report(s) re-saved with only timestamp change",
           );
           continue;
         }
@@ -288,7 +296,10 @@ export async function dispatchReportPushes(
         const subscriptions = ref.manifest.subscriptions;
         if (subscriptions.length === 0) {
           logger.info(
-            { event: "report_push_no_subscriptions", repo: consumerRepoFullName },
+            {
+              event: "report_push_no_subscriptions",
+              repo: consumerRepoFullName,
+            },
             "Report push had no subscriptions",
           );
           continue;

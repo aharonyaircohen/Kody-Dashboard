@@ -96,29 +96,29 @@ Do not put metadata frontmatter in `agent-responsibility.md`. Metadata belongs i
 
 ## Profile fields
 
-| Field         | Meaning                                                                                          |
-| ------------- | ------------------------------------------------------------------------------------------------ |
-| `name`        | AgentResponsibility slug. Must match the folder name.                                                           |
-| `describe`    | Human-readable title shown in the dashboard.                                                     |
-| `action`      | Public action token. `@kody <action>` runs this agentResponsibility. Usually the agentResponsibility slug.                     |
-| `agentAction`  | Optional implementation agentAction slug. Use this for the one agentAction that performs the work. |
-| `every`       | Optional cadence: `manual`, `1h`, `1d`, `7d`, etc.                                               |
-| `agent`      | Agent identity slug that performs the agentResponsibility. A agentResponsibility without an agent should not auto-run.          |
-| `reviewer`    | Optional agent identity slug responsible for reviewing or handling the agentResponsibility output.               |
-| `mentions`    | Optional GitHub logins to notify, without `@`.                                                   |
-| `agentActions` | Multi-run agentAction list. Prefer singular `agentAction` for normal agentResponsibilities.                       |
-| `tools`       | Optional agentResponsibility tool names exposed to the tick agent.                                             |
-| `tickScript`  | Optional deterministic script path for a scripted agentResponsibility agent.                                   |
-| `readsFrom`   | Context, report, or agentResponsibility slugs this agentResponsibility reads.                                                  |
-| `writesTo`    | Report or context slugs this agentResponsibility writes.                                                        |
-| `disabled`    | `true` pauses autonomous scheduling.                                                             |
+| Field          | Meaning                                                                                                                |
+| -------------- | ---------------------------------------------------------------------------------------------------------------------- |
+| `name`         | AgentResponsibility slug. Must match the folder name.                                                                  |
+| `describe`     | Human-readable title shown in the dashboard.                                                                           |
+| `action`       | Public action token. `@kody <action>` runs this agentResponsibility. Usually the agentResponsibility slug.             |
+| `agentAction`  | Optional implementation agentAction slug. Use this for the one agentAction that performs the work.                     |
+| `every`        | Optional cadence: `manual`, `1h`, `1d`, `7d`, etc.                                                                     |
+| `agent`        | Agent identity slug that performs the agentResponsibility. A agentResponsibility without an agent should not auto-run. |
+| `reviewer`     | Optional agent identity slug responsible for reviewing or handling the agentResponsibility output.                     |
+| `mentions`     | Optional GitHub logins to notify, without `@`.                                                                         |
+| `agentActions` | Multi-run agentAction list. Prefer singular `agentAction` for normal agentResponsibilities.                            |
+| `tools`        | Optional agentResponsibility tool names exposed to the tick agent.                                                     |
+| `tickScript`   | Optional deterministic script path for a scripted agentResponsibility agent.                                           |
+| `readsFrom`    | Context, report, or agentResponsibility slugs this agentResponsibility reads.                                          |
+| `writesTo`     | Report or context slugs this agentResponsibility writes.                                                               |
+| `disabled`     | `true` pauses autonomous scheduling.                                                                                   |
 
 ## Output choice
 
 The dashboard creation form has two output choices:
 
-| Choice   | Meaning                                                                    |
-| -------- | -------------------------------------------------------------------------- |
+| Choice   | Meaning                                                                                   |
+| -------- | ----------------------------------------------------------------------------------------- |
 | `Run`    | The agentResponsibility runs work and does not promise a generated report.                |
 | `Report` | The agentResponsibility refreshes one `.kody/reports/<slug>.md` file and sets `writesTo`. |
 

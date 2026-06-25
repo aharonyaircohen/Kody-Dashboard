@@ -32,29 +32,38 @@ describe("KodyJob agentResponsibility dispatch boundary", () => {
     expect(() =>
       validateKodyJob({ agentAction: "run", flavor: "instant" }),
     ).toThrow(/agentResponsibility/);
-    expect(validateKodyJob({ agentResponsibility: "health", flavor: "scheduled" }).agentResponsibility).toBe(
-      "health",
-    );
+    expect(
+      validateKodyJob({ agentResponsibility: "health", flavor: "scheduled" })
+        .agentResponsibility,
+    ).toBe("health");
   });
 
   it('rejects an unknown flavor (engine accepts only "instant" | "scheduled")', () => {
-    expect(() => validateKodyJob({ agentResponsibility: "run", flavor: "whenever" })).toThrow(
-      /flavor/,
-    );
+    expect(() =>
+      validateKodyJob({ agentResponsibility: "run", flavor: "whenever" }),
+    ).toThrow(/flavor/);
   });
 
   it("rejects invalid agentResponsibility slugs", () => {
     expect(() =>
-      validateKodyJob({ agentResponsibility: "Feature Work", flavor: "instant" }),
+      validateKodyJob({
+        agentResponsibility: "Feature Work",
+        flavor: "instant",
+      }),
     ).toThrow(/agentResponsibility slug/);
   });
 
   it("defaults cliArgs to an object and rejects a non-object cliArgs", () => {
-    expect(validateKodyJob({ agentResponsibility: "run", flavor: "instant" }).cliArgs).toEqual(
-      {},
-    );
+    expect(
+      validateKodyJob({ agentResponsibility: "run", flavor: "instant" })
+        .cliArgs,
+    ).toEqual({});
     expect(() =>
-      validateKodyJob({ agentResponsibility: "run", flavor: "instant", cliArgs: 5 }),
+      validateKodyJob({
+        agentResponsibility: "run",
+        flavor: "instant",
+        cliArgs: 5,
+      }),
     ).toThrow(/cliArgs/);
   });
 

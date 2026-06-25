@@ -119,8 +119,13 @@ describe("splitFrontmatter", () => {
       "api-worker",
       "ui-worker",
     ]);
-    expect(frontmatter.agentResponsibilityTools).toEqual(["list_prs_to_repair", "sync_pr"]);
-    expect(frontmatter.tickScript).toBe(".kody/scripts/check-agentResponsibility.sh");
+    expect(frontmatter.agentResponsibilityTools).toEqual([
+      "list_prs_to_repair",
+      "sync_pr",
+    ]);
+    expect(frontmatter.tickScript).toBe(
+      ".kody/scripts/check-agentResponsibility.sh",
+    );
     expect(frontmatter.readsFrom).toEqual(["company-graph", "reports"]);
     expect(frontmatter.writesTo).toEqual(["ci-health-graph"]);
   });
@@ -156,8 +161,7 @@ describe("joinFrontmatter", () => {
       "---\nagent: bot\nreviewer: qa\n---\n\nbody",
     );
     expect(
-      splitFrontmatter("---\nagent: bot\nreviewer: @qa\n---\nbody")
-        .frontmatter,
+      splitFrontmatter("---\nagent: bot\nreviewer: @qa\n---\nbody").frontmatter,
     ).toMatchObject({ agent: "bot", reviewer: "qa" });
   });
 
@@ -234,7 +238,12 @@ describe("joinFrontmatter", () => {
   it("omits empty new agentResponsibility arrays and null tick scripts", () => {
     expect(
       joinFrontmatter(
-        { every: "1h", agentActions: [], agentResponsibilityTools: [], tickScript: null },
+        {
+          every: "1h",
+          agentActions: [],
+          agentResponsibilityTools: [],
+          tickScript: null,
+        },
         "body",
       ),
     ).toBe("---\nevery: 1h\n---\n\nbody");

@@ -21,7 +21,11 @@ import { logger } from "@dashboard/lib/logger";
 import { invalidateIssueCache } from "@dashboard/lib/github-client";
 import { readGoalsManifestFresh } from "@dashboard/lib/goals-server";
 import { GOAL_LABEL_PREFIX, type Goal } from "@dashboard/lib/goals";
-import { listStateDirectory, readStateText, writeStateText } from "@dashboard/lib/state-repo";
+import {
+  listStateDirectory,
+  readStateText,
+  writeStateText,
+} from "@dashboard/lib/state-repo";
 import {
   buildManagedGoalState,
   isManagedGoalState,
@@ -45,9 +49,15 @@ async function readManagedGoalFile(
   repo: string,
   goalId: string,
 ): Promise<{ raw: string; sha: string } | null> {
-  const file = await readStateText(octokit, owner, repo, managedGoalPath(goalId), {
-    headers: { "If-None-Match": "" },
-  });
+  const file = await readStateText(
+    octokit,
+    owner,
+    repo,
+    managedGoalPath(goalId),
+    {
+      headers: { "If-None-Match": "" },
+    },
+  );
   return file ? { raw: file.content, sha: file.sha } : null;
 }
 
@@ -417,7 +427,7 @@ export function createGoalTools(ctx: Ctx) {
           const goal = resolveGoal(manifest.goals, goalNumber, goalId);
           if (!goal) {
             return {
-            error: "Mission not found. Call list_goals to see missions.",
+              error: "Mission not found. Call list_goals to see missions.",
             };
           }
           const label = `${GOAL_LABEL_PREFIX}${goal.id}`;
@@ -430,7 +440,7 @@ export function createGoalTools(ctx: Ctx) {
           invalidateIssueCache(taskNumber);
           return {
             ok: true,
-          message: `Attached #${taskNumber} to mission "${goal.name}".`,
+            message: `Attached #${taskNumber} to mission "${goal.name}".`,
             taskLabel: label,
           };
         } catch (err) {
@@ -472,7 +482,7 @@ export function createGoalTools(ctx: Ctx) {
           const goal = resolveGoal(manifest.goals, goalNumber, goalId);
           if (!goal) {
             return {
-            error: "Mission not found. Call list_goals to see missions.",
+              error: "Mission not found. Call list_goals to see missions.",
             };
           }
           const label = `${GOAL_LABEL_PREFIX}${goal.id}`;
@@ -491,7 +501,7 @@ export function createGoalTools(ctx: Ctx) {
           invalidateIssueCache(taskNumber);
           return {
             ok: true,
-          message: `Detached #${taskNumber} from mission "${goal.name}".`,
+            message: `Detached #${taskNumber} from mission "${goal.name}".`,
           };
         } catch (err) {
           logger.warn(

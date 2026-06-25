@@ -473,15 +473,17 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
     // engine's activity-log commit to the state repo (a `push` event), so
     // a silent cron failure surfaces without any engine change. Awaited for
     // the same serverless reason as the mention feed write above.
-    await dispatchAgentResponsibilityFailures(eventType, obj).catch((err: unknown) => {
-      logger.error(
-        {
-          event: "agentResponsibility_failure_dispatch_crashed",
-          error: err instanceof Error ? err.message : String(err),
-        },
-        "dispatchAgentResponsibilityFailures threw — should have been caught internally",
-      );
-    });
+    await dispatchAgentResponsibilityFailures(eventType, obj).catch(
+      (err: unknown) => {
+        logger.error(
+          {
+            event: "agentResponsibility_failure_dispatch_crashed",
+            error: err instanceof Error ? err.message : String(err),
+          },
+          "dispatchAgentResponsibilityFailures threw — should have been caught internally",
+        );
+      },
+    );
     // New report committed to <repo>/reports/<slug>.md in the state repo →
     // broadcast browser banner to every subscribed device for the repo, so a
     // report landing feels like an inbox/mention ping. Awaited for the same

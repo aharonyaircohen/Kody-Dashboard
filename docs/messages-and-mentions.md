@@ -253,7 +253,7 @@ why it needed no new dispatch code at all.
 | [`mention-dispatch.ts`](../src/dashboard/lib/push/mention-dispatch.ts)             | `dispatchMentionPushes` orchestrator                     |
 | [`source-event.ts`](../src/dashboard/lib/notifications/source-event.ts)            | Shared webhook → `SourceEvent` normalizer                |
 | [`recipients.ts`](../src/dashboard/lib/notifications/recipients.ts)                | `extractMentions` + `resolveRecipients`                  |
-| [`agent-mention-dispatch.ts`](../src/dashboard/lib/push/agent-mention-dispatch.ts) | `@slug` → one-shot `agent-ask` tick                     |
+| [`agent-mention-dispatch.ts`](../src/dashboard/lib/push/agent-mention-dispatch.ts) | `@slug` → one-shot `agent-ask` tick                      |
 | [`agent-mentions.ts`](../src/dashboard/lib/mentions/agent-mentions.ts)             | Extract known agent slugs from a body                    |
 
 ## Related docs

@@ -128,9 +128,9 @@ export function KodyHeader({
       {/* Mobile cluster — chat opener (the rail is desktop-only) +
           page-specific extras (e.g. issue picker) + hamburger. */}
       <div className="flex md:hidden items-center gap-1">
-          {auth && pathname !== "/chat" && (
-            <Button
-              variant="ghost"
+        {auth && pathname !== "/chat" && (
+          <Button
+            variant="ghost"
             size="sm"
             aria-label="Open chat"
             title="Chat"

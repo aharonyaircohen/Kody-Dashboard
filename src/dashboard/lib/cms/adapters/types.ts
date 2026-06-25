@@ -28,7 +28,10 @@ export interface CmsAdapterContext {
 
 export interface CmsAdapter {
   name: string;
-  list: (context: CmsAdapterContext, query: CmsListQuery) => Promise<CmsListResult>;
+  list: (
+    context: CmsAdapterContext,
+    query: CmsListQuery,
+  ) => Promise<CmsListResult>;
   listByIds: (
     context: CmsAdapterContext,
     ids: string[],

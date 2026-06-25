@@ -10,7 +10,10 @@ vi.mock("@dashboard/lib/github-client", () => ({
 
 vi.mock("@dashboard/lib/state-repo", () => ({
   deleteStateFile: vi.fn(),
-  listStateDirectory: vi.fn(async () => ({ entries: [], targetPath: "repo/agent-responsibilities" })),
+  listStateDirectory: vi.fn(async () => ({
+    entries: [],
+    targetPath: "repo/agent-responsibilities",
+  })),
   readStateText: vi.fn(async () => null),
   resolveStateRepo: vi.fn(async () => ({
     owner: "owner",
@@ -80,28 +83,32 @@ describe("listAgentResponsibilityFiles", () => {
   });
 
   it("updates existing profile.json with its own sha", async () => {
-    readStateTextMock.mockImplementation(async (_octokit, _owner, _repo, path) => {
-      if (path === "agent-responsibilities/ci-health/profile.json") {
-        return {
-          path,
-          content: JSON.stringify({
-            name: "ci-health",
-            action: "ci-health",
-            agentAction: "ci-check",
-          }),
-          sha: "profile-sha",
-        };
-      }
-      if (path === "agent-responsibilities/ci-health/agent-responsibility.md") {
-        return {
-          path,
-          content: "# CI Health\n\nCheck PR CI health.\n",
-          sha: "body-sha",
-          htmlUrl: "https://github.example/body",
-        };
-      }
-      return null;
-    });
+    readStateTextMock.mockImplementation(
+      async (_octokit, _owner, _repo, path) => {
+        if (path === "agent-responsibilities/ci-health/profile.json") {
+          return {
+            path,
+            content: JSON.stringify({
+              name: "ci-health",
+              action: "ci-health",
+              agentAction: "ci-check",
+            }),
+            sha: "profile-sha",
+          };
+        }
+        if (
+          path === "agent-responsibilities/ci-health/agent-responsibility.md"
+        ) {
+          return {
+            path,
+            content: "# CI Health\n\nCheck PR CI health.\n",
+            sha: "body-sha",
+            htmlUrl: "https://github.example/body",
+          };
+        }
+        return null;
+      },
+    );
     writeStateTextMock.mockResolvedValue({ sha: "updated-sha" });
 
     await writeAgentResponsibilityFile({

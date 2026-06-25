@@ -73,7 +73,9 @@ vi.mock("@dashboard/lib/cto/recommendation", () => ({
   parseCtoAgentResponsibility: () => null,
 }));
 vi.mock("@dashboard/lib/cto/trust-store", () => ({
-  readTrust: vi.fn().mockResolvedValue({ version: 1, agentResponsibilities: {}, log: [] }),
+  readTrust: vi
+    .fn()
+    .mockResolvedValue({ version: 1, agentResponsibilities: {}, log: [] }),
 }));
 vi.mock("@dashboard/lib/cto/trust-state", () => ({
   latestTrustDecisions: () => ({}),

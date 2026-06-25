@@ -125,7 +125,10 @@ describe("countPendingCtoRecs / countPendingByAgentResponsibility", () => {
       rec(3, "fix", "qa"),
       plainMention(4),
     ];
-    const byAgentResponsibility = countPendingByAgentResponsibility(entries, NO_DECISIONS);
+    const byAgentResponsibility = countPendingByAgentResponsibility(
+      entries,
+      NO_DECISIONS,
+    );
     expect(byAgentResponsibility.get("cto")).toBe(2);
     expect(byAgentResponsibility.get("qa")).toBe(1);
   });
@@ -210,8 +213,13 @@ describe("applyCtoBackpressure", () => {
       incoming,
       NO_DECISIONS,
     );
-    expect(admitted.map((e) => ctoFeedKey(e)?.agentResponsibility)).toEqual(["qa", "qa"]);
-    expect(withheld.map((e) => ctoFeedKey(e)?.agentResponsibility)).toEqual(["cto"]);
+    expect(admitted.map((e) => ctoFeedKey(e)?.agentResponsibility)).toEqual([
+      "qa",
+      "qa",
+    ]);
+    expect(withheld.map((e) => ctoFeedKey(e)?.agentResponsibility)).toEqual([
+      "cto",
+    ]);
   });
 
   it("frees a slot once the operator decides — the queue drains", () => {

@@ -235,7 +235,10 @@ export function parseKodyRunLogZip(
   zip: Buffer,
   runId: number | string,
 ): ParsedKodyRunLog | null {
-  const jsonl = extractZipEntryText(zip, `.kody/agent-runs/${runId}/events.jsonl`);
+  const jsonl = extractZipEntryText(
+    zip,
+    `.kody/agent-runs/${runId}/events.jsonl`,
+  );
   if (jsonl == null) return null;
   const events = parseKodyRunEventsJsonl(jsonl);
   return {

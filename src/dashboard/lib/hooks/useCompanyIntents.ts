@@ -48,7 +48,10 @@ export function useCompanyIntents() {
     refetchInterval: 30_000,
     refetchIntervalInBackground: false,
     retry: (failureCount, error) => {
-      if (error instanceof NoTokenError || error instanceof SessionExpiredError) {
+      if (
+        error instanceof NoTokenError ||
+        error instanceof SessionExpiredError
+      ) {
         return false;
       }
       return failureCount < 2;
@@ -79,7 +82,10 @@ export function useUpdateCompanyIntent() {
   return useMutation<
     CompanyIntentRecord,
     Error,
-    { id: string; data: Partial<CompanyIntentInput> & { status?: CompanyIntentStatus } }
+    {
+      id: string;
+      data: Partial<CompanyIntentInput> & { status?: CompanyIntentStatus };
+    }
   >({
     mutationFn: ({ id, data }) => kodyApi.companyIntents.update(id, data),
     onSuccess: (updated) => {
@@ -99,7 +105,13 @@ export function useUpdateCompanyIntent() {
 export function useRunCompanyIntent() {
   const queryClient = useQueryClient();
   return useMutation<
-    { ok: true; workflowId: string; ref: string; action: string; intentId: string },
+    {
+      ok: true;
+      workflowId: string;
+      ref: string;
+      action: string;
+      intentId: string;
+    },
     Error,
     string
   >({

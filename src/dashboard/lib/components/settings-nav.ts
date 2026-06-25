@@ -241,7 +241,8 @@ export const SETTINGS_NAV_SECTIONS: readonly SettingsNavSection[] = [
         label: "Intents",
         icon: Compass,
         exact: true,
-        description: "CTO guidance for company goals, loops, and responsibilities.",
+        description:
+          "CTO guidance for company goals, loops, and responsibilities.",
         tint: "text-cyan-300 bg-cyan-500/10",
       },
       {
