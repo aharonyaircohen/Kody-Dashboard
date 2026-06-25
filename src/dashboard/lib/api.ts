@@ -23,6 +23,7 @@ import type {
   CompanyIntentRecord,
   CompanyIntentStatus,
 } from "./company-intents";
+import type { ScheduleEvery } from "./ticked/frontmatter";
 
 const API_BASE = "/api/kody";
 
@@ -964,8 +965,8 @@ export interface AgentResponsibility {
   lastOutcome: "completed" | "failed" | null;
   /** Wall-clock of the most recent tick (ms) — `data.lastDurationMs`, or null. */
   lastDurationMs: number | null;
-  /** Legacy compatibility only. Responsibilities no longer own cadence. */
-  schedule: null;
+  /** Cadence between autonomous runs; null means every scheduler wake. */
+  schedule: ScheduleEvery | null;
   capabilityKind: AgentResponsibilityCapabilityKind | null;
   /**
    * Mirrors `disabled: true` in `profile.json`. When `true` the engine
@@ -1034,6 +1035,7 @@ export const agentResponsibilitiesApi = {
     slug?: string;
     title: string;
     body: string;
+    schedule?: ScheduleEvery | null;
     capabilityKind?: AgentResponsibilityCapabilityKind | null;
     disabled?: boolean;
     agent?: string | null;
@@ -1064,6 +1066,7 @@ export const agentResponsibilitiesApi = {
     data: {
       title?: string;
       body?: string;
+      schedule?: ScheduleEvery | null;
       capabilityKind?: AgentResponsibilityCapabilityKind | null;
       disabled?: boolean;
       agent?: string | null;

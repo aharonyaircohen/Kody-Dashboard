@@ -20,6 +20,7 @@ import {
   afterAll,
   afterEach,
   beforeAll,
+  beforeEach,
   describe,
   expect,
   it,
@@ -49,6 +50,16 @@ import { POST as startPOST } from "../../app/api/kody/chat/interactive/start/rou
 const GITHUB_API = "https://api.github.com";
 const REAL_FETCH = globalThis.fetch;
 
+function mockRepoConfig404(): void {
+  nock(GITHUB_API)
+    .get("/repos/acme/widgets/contents/kody.config.json")
+    .reply(404);
+}
+
+function sessionPath(sessionId: string): string {
+  return `/repos/acme/kody-state/contents/widgets%2Fsessions%2F${sessionId}.jsonl`;
+}
+
 function makeRequest(body: unknown): NextRequest {
   return new NextRequest("https://dash.test/api/kody/chat/interactive/start", {
     method: "POST",
@@ -65,18 +76,9 @@ function makeRequest(body: unknown): NextRequest {
 /** Mock the session-meta write (GET 404 → PUT 201). */
 function nockSessionWrite(sessionId: string): void {
   nock(GITHUB_API)
-    .get(
-      new RegExp(
-        `/repos/acme/widgets/contents/\\.kody.*sessions.*${sessionId}\\.jsonl`,
-      ),
-    )
-    .query(true)
+    .get(sessionPath(sessionId))
     .reply(404)
-    .put(
-      new RegExp(
-        `/repos/acme/widgets/contents/\\.kody.*sessions.*${sessionId}\\.jsonl`,
-      ),
-    )
+    .put(sessionPath(sessionId))
     .reply(201, { content: { sha: "newsha" } });
 }
 
@@ -100,6 +102,10 @@ beforeAll(() => {
 afterAll(() => {
   nock.enableNetConnect();
   globalThis.fetch = REAL_FETCH;
+});
+
+beforeEach(() => {
+  mockRepoConfig404();
 });
 
 afterEach(() => {

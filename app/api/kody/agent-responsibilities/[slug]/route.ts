@@ -80,6 +80,10 @@ export async function GET(
 const updateAgentResponsibilitySchema = z.object({
   title: z.string().min(1).optional(),
   body: z.string().optional(),
+  schedule: z
+    .enum(["15m", "30m", "1h", "2h", "6h", "12h", "1d", "3d", "7d", "manual"])
+    .nullable()
+    .optional(),
   disabled: z.boolean().optional(),
   capabilityKind: z.enum(["observe", "act", "verify"]).nullable().optional(),
   agent: z.string().min(1).nullable().optional(),
@@ -178,9 +182,10 @@ export async function PATCH(
 
     const payload = await req.json();
     const {
-    title,
-    body,
-    disabled,
+      title,
+      body,
+      schedule,
+      disabled,
       capabilityKind,
       agent,
       reviewer,
@@ -253,10 +258,11 @@ export async function PATCH(
 
     const agentResponsibility = await writeAgentResponsibilityFile({
       octokit: userOctokit,
-    slug,
-    title: title ?? existing.title,
-    body: body ?? existing.body,
-    disabled: disabled === undefined ? existing.disabled : disabled,
+      slug,
+      title: title ?? existing.title,
+      body: body ?? existing.body,
+      schedule: schedule === undefined ? existing.schedule : schedule,
+      disabled: disabled === undefined ? existing.disabled : disabled,
       capabilityKind:
         capabilityKind === undefined ? existing.capabilityKind : capabilityKind,
       agent: nextAgent,

@@ -22,13 +22,31 @@
  * (meta-only) and passes once start writes the turn atomically.
  */
 
-import { afterAll, afterEach, beforeAll, describe, expect, it } from "vitest";
+import {
+  afterAll,
+  afterEach,
+  beforeAll,
+  beforeEach,
+  describe,
+  expect,
+  it,
+} from "vitest";
 import nock from "nock";
 import { NextRequest } from "next/server";
 import { POST as startPOST } from "../../app/api/kody/chat/interactive/start/route";
 
 const GITHUB_API = "https://api.github.com";
 const REAL_FETCH = globalThis.fetch;
+
+function mockRepoConfig404(): void {
+  nock(GITHUB_API)
+    .get("/repos/acme/widgets/contents/kody.config.json")
+    .reply(404);
+}
+
+function sessionPath(sessionId: string): string {
+  return `/repos/acme/kody-state/contents/widgets%2Fsessions%2F${sessionId}.jsonl`;
+}
 
 function makeRequest(body: unknown): NextRequest {
   return new NextRequest("https://dash.test/api/kody/chat/interactive/start", {
@@ -47,22 +65,12 @@ function makeRequest(body: unknown): NextRequest {
 function captureSessionWrite(sessionId: string): Promise<string> {
   return new Promise((resolve) => {
     nock(GITHUB_API)
-      .get(
-        new RegExp(
-          `/repos/acme/widgets/contents/\\.kody.*sessions.*${sessionId}\\.jsonl`,
-        ),
-      )
-      .query(true)
+      .get(sessionPath(sessionId))
       .reply(404)
-      .put(
-        new RegExp(
-          `/repos/acme/widgets/contents/\\.kody.*sessions.*${sessionId}\\.jsonl`,
-        ),
-        (payload: { content: string }) => {
-          resolve(Buffer.from(payload.content, "base64").toString("utf-8"));
-          return true;
-        },
-      )
+      .put(sessionPath(sessionId), (payload: { content: string }) => {
+        resolve(Buffer.from(payload.content, "base64").toString("utf-8"));
+        return true;
+      })
       .reply(201, { content: { sha: "newsha" } });
     // The workflow dispatch that follows the session write.
     nock(GITHUB_API)
@@ -79,6 +87,10 @@ beforeAll(() => {
 afterAll(() => {
   nock.enableNetConnect();
   globalThis.fetch = REAL_FETCH;
+});
+
+beforeEach(() => {
+  mockRepoConfig404();
 });
 
 afterEach(() => {

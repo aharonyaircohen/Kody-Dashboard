@@ -13,7 +13,10 @@
  */
 
 import type { Octokit } from "@octokit/rest";
-import { readAgentResponsibilityFile, writeAgentResponsibilityFile } from "../agent-responsibilities-files";
+import {
+  readAgentResponsibilityFile,
+  writeAgentResponsibilityFile,
+} from "../agent-responsibilities-files";
 import { readAgentFile, writeAgentFile } from "../agent-files";
 import { readCommandFile, writeCommandFile } from "../commands/files";
 import { readContextFile, writeContextFile } from "../context/files";
@@ -89,6 +92,7 @@ async function importTickCollection(
         slug: entry.slug,
         title: entry.title,
         body: entry.body,
+        schedule: entry.schedule,
         disabled: entry.disabled,
         agent: entry.agent,
         reviewer: entry.reviewer,
@@ -239,7 +243,12 @@ async function importGoals(
 
   for (const entry of entries) {
     try {
-      const existing = await readManagedGoalFile(entry.id, octokit, owner, repo);
+      const existing = await readManagedGoalFile(
+        entry.id,
+        octokit,
+        owner,
+        repo,
+      );
       if (existing && mode === "skip") {
         counts.skipped++;
         continue;

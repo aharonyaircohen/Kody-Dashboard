@@ -42,6 +42,18 @@ interface AgentResponsibilityInput {
   title?: string;
   slug?: string;
   action?: string;
+  schedule?:
+    | "15m"
+    | "30m"
+    | "1h"
+    | "2h"
+    | "6h"
+    | "12h"
+    | "1d"
+    | "3d"
+    | "7d"
+    | "manual"
+    | null;
   agentAction?: string;
   agentActions?: string[];
   agent?: string;
@@ -68,7 +80,10 @@ function bullets(items: string[]): string {
 
 async function readAgentResponsibilityGuide(): Promise<string> {
   try {
-    return await readFile(path.join(process.cwd(), "docs/agent-responsibilities.md"), "utf8");
+    return await readFile(
+      path.join(process.cwd(), "docs/agent-responsibilities.md"),
+      "utf8",
+    );
   } catch {
     return [
       "# Kody agentResponsibilities",
@@ -170,6 +185,13 @@ export const createOrUpdateKodyAgentResponsibilityInputSchema = z.object({
     .describe(
       "Public @kody action name. Omit to preserve the existing action on update, " +
         "or to default to the slug on create.",
+    ),
+  schedule: z
+    .enum(["15m", "30m", "1h", "2h", "6h", "12h", "1d", "3d", "7d", "manual"])
+    .nullable()
+    .optional()
+    .describe(
+      "Optional autonomous cadence for this agentResponsibility. Omit to preserve on update; null means every scheduler wake.",
     ),
   agentAction: z
     .string()
@@ -297,6 +319,7 @@ export function createAgentResponsibilityTools(ctx: Ctx) {
         "the existing body is preserved.\n\n" +
         "KEY FIELDS:\n" +
         "- `agent` — agentIdentity slug; matches engine's `config.agent`.\n" +
+        "- `schedule` — optional autonomous cadence; omit on update to preserve it.\n" +
         "- `agentActions` — array of agentAction slugs for multi-run agentResponsibilities. `agentAction` is the " +
         "singular convenience alias; prefer the array for >1.\n" +
         "- reports — if this responsibility should create reports, point it at a report agentAction; do not add report settings or report paths to the responsibility.\n" +
@@ -339,8 +362,7 @@ export function createAgentResponsibilityTools(ctx: Ctx) {
             if (missing.length > 0) {
               return {
                 error: "missing_required_fields",
-                message:
-                  `Cannot create agentResponsibility: missing required field(s): ${missing.join(", ")}.`,
+                message: `Cannot create agentResponsibility: missing required field(s): ${missing.join(", ")}.`,
               };
             }
 
@@ -389,6 +411,7 @@ export function createAgentResponsibilityTools(ctx: Ctx) {
               slug,
               title: input.title!,
               body,
+              schedule: input.schedule,
               agent: createAgent!,
               reviewer: input.reviewer?.trim().replace(/^@/, "") || null,
               action,
@@ -417,8 +440,7 @@ export function createAgentResponsibilityTools(ctx: Ctx) {
               slug: agentResponsibility.slug,
               title: agentResponsibility.title,
               htmlUrl: agentResponsibility.htmlUrl,
-              note:
-              "AgentResponsibility folder committed. Add it to a goal or loop to run it.",
+              note: "AgentResponsibility folder committed. Add it to a goal or loop to run it.",
             };
           }
 
@@ -430,6 +452,10 @@ export function createAgentResponsibilityTools(ctx: Ctx) {
           const nextTitle = input.title ?? existing.title;
           const agentProvided = input.agent;
           const nextAgent = agentProvided ?? existing.agent;
+          const nextSchedule =
+            input.schedule === null
+              ? null
+              : (input.schedule ?? existing.schedule ?? undefined);
           const nextReviewer =
             input.reviewer !== undefined
               ? input.reviewer?.trim().replace(/^@/, "") || null
@@ -491,6 +517,11 @@ export function createAgentResponsibilityTools(ctx: Ctx) {
           if (agentProvided !== undefined && agentProvided !== existing.agent)
             changedFields.push("agent");
           if (
+            input.schedule !== undefined &&
+            input.schedule !== existing.schedule
+          )
+            changedFields.push("schedule");
+          if (
             input.reviewer !== undefined &&
             input.reviewer !== existing.reviewer
           )
@@ -517,6 +548,7 @@ export function createAgentResponsibilityTools(ctx: Ctx) {
             slug,
             title: nextTitle,
             body: nextBody,
+            schedule: nextSchedule,
             disabled: nextDisabled,
             agent: nextAgent,
             reviewer: nextReviewer,
