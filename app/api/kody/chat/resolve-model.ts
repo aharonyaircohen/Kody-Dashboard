@@ -17,6 +17,7 @@ import { createOpenAICompatible } from "@ai-sdk/openai-compatible";
 import { getRequestAuth, getUserOctokit } from "@dashboard/lib/auth";
 import { getEngineConfig } from "@dashboard/lib/engine/config";
 import { getSecret } from "@dashboard/lib/vault/get-secret";
+import { supportsVision } from "@dashboard/lib/chat/vision-support";
 import { loadChatModels } from "@dashboard/lib/variables/load-chat-models";
 import {
   PROVIDER_PRESETS,
@@ -30,6 +31,10 @@ export type ResolvedChatModel = {
   model: LanguageModel;
   resolvedModel: ChatModel;
   apiKey: string;
+};
+
+export type ResolveChatModelOptions = {
+  preferVision?: boolean;
 };
 
 const ENGINE_PROVIDER_ALIASES: Record<string, ProviderPreset> = {
@@ -102,6 +107,50 @@ async function loadEngineFallbackModel(
   );
 }
 
+function modelSupportsVision(model: ChatModel): boolean {
+  return supportsVision(model.id) || supportsVision(model.modelName);
+}
+
+function isMiniMaxM2Model(model: ChatModel): boolean {
+  const spec = `${model.id} ${model.label} ${model.modelName}`.toLowerCase();
+  return /(?:^|[/:_\s-])(?:minimax[-_])?m2(?:[._-]|$)/.test(spec);
+}
+
+function isMiniMaxModel(model: ChatModel): boolean {
+  const spec = `${model.id} ${model.label} ${model.modelName}`.toLowerCase();
+  return spec.includes("minimax");
+}
+
+function pickVisionModel(
+  model: ChatModel,
+  availableModels: ChatModel[],
+): ChatModel {
+  if (!isMiniMaxM2Model(model)) return model;
+
+  const configuredMiniMaxVisionModels = availableModels.filter(
+    (candidate) =>
+      candidate.enabled !== false &&
+      isMiniMaxModel(candidate) &&
+      modelSupportsVision(candidate),
+  );
+  const configured =
+    configuredMiniMaxVisionModels.find(
+      (candidate) => candidate.apiKeySecret === model.apiKeySecret,
+    ) ?? configuredMiniMaxVisionModels[0];
+  if (configured) return configured;
+
+  return {
+    ...model,
+    id: model.id.startsWith("engine:")
+      ? "engine:minimax/MiniMax-M3"
+      : "minimax/MiniMax-M3",
+    label: "MiniMax-M3 (image turns)",
+    modelName: "MiniMax-M3",
+    default: false,
+    engineDefault: false,
+  };
+}
+
 /**
  * Resolve a chat model from the request, or return a 409 `NextResponse`
  * describing what's missing (same error envelope the chat route returns,
@@ -113,13 +162,14 @@ async function loadEngineFallbackModel(
 export async function resolveChatModel(
   req: NextRequest,
   modelId?: string,
+  options: ResolveChatModelOptions = {},
 ): Promise<ResolvedChatModel | { error: NextResponse }> {
   const availableModels = await loadChatModels(req);
-  const resolvedModel =
+  const selectedModel =
     pickModelById(availableModels, modelId) ??
     pickDefaultModel(availableModels) ??
     (await loadEngineFallbackModel(req));
-  if (!resolvedModel) {
+  if (!selectedModel) {
     return {
       error: NextResponse.json(
         {
@@ -132,6 +182,9 @@ export async function resolveChatModel(
       ),
     };
   }
+  const resolvedModel = options.preferVision
+    ? pickVisionModel(selectedModel, availableModels)
+    : selectedModel;
 
   const apiKey = await getSecret(resolvedModel.apiKeySecret, { req });
   if (!apiKey) {

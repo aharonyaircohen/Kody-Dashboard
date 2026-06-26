@@ -92,6 +92,7 @@ import {
   formatFileSize,
   getFileIcon,
 } from "./kody-chat-helpers";
+import { formatAttachmentForTextBackend } from "../chat/attachment-text";
 import {
   chatToMessage,
   messageToChat,
@@ -353,9 +354,7 @@ export function KodyChat({
   const selectedTask: KodyTask | null =
     context?.kind === "task" ? context.task : null;
   const selectedCapability =
-    context?.kind === "capability"
-      ? context.capability
-      : null;
+    context?.kind === "capability" ? context.capability : null;
   // Goal-planner mode: chat scoped to a Goal, used for the "Plan this goal"
   // workflow (Pass 1 list-in-chat → user approves → Pass 2 create issues).
   const plannerGoal = context?.kind === "goal-planner" ? context.goal : null;
@@ -1724,8 +1723,7 @@ export function KodyChat({
   const isTaskMode = !!selectedTask;
   const isCapabilityMode = !!selectedCapability;
   const isPlannerMode = !!plannerGoal && !!plannerSessionId;
-  const isGlobalMode =
-    !isTaskMode && !isCapabilityMode && !isPlannerMode;
+  const isGlobalMode = !isTaskMode && !isCapabilityMode && !isPlannerMode;
 
   useEffect(() => {
     if (railFullscreen && isGlobalMode) {
@@ -1737,8 +1735,7 @@ export function KodyChat({
   // owns a single `messages` list per active session; the page/scope
   // (task, capability, planner, report) flows through the per-turn system
   // prompt, not a separate message store.
-  const capabilitySlug: string | null =
-    selectedCapability?.slug ?? null;
+  const capabilitySlug: string | null = selectedCapability?.slug ?? null;
   const messages: Message[] = sessionHook.messages.map(chatToMessage);
 
   const setMessages = useCallback(
@@ -2398,9 +2395,7 @@ export function KodyChat({
   useEffect(() => {
     const sid =
       selectedTask?.id ??
-      (capabilitySlug != null
-        ? `capability-${capabilitySlug}`
-        : null) ??
+      (capabilitySlug != null ? `capability-${capabilitySlug}` : null) ??
       null;
     if (!sid) {
       return () => {
@@ -2433,12 +2428,7 @@ export function KodyChat({
       document.removeEventListener("visibilitychange", handleVisibility);
       close();
     };
-  }, [
-    selectedTask?.id,
-    capabilitySlug,
-    connectSSE,
-    activeSessionIdForReset,
-  ]);
+  }, [selectedTask?.id, capabilitySlug, connectSSE, activeSessionIdForReset]);
 
   // Unified thread: the global session store (useChatSessions) owns the
   // message list. Per-page scope (task / capability / planner / report) flows
@@ -2705,10 +2695,15 @@ export function KodyChat({
       const displayContent = options.displayContent ?? messageContent;
 
       // Preview page context is appended INVISIBLY: the model sees it on the
-      // wire, but the chat UI still shows the user's clean message. Without
-      // this split the message bubble would balloon with the DOM outline on
-      // every send (the prior behavior the user pushed back on).
-      const previewContext = await collectPreviewContextRef.current();
+      // wire, but the chat UI still shows the user's clean message. Image
+      // turns are different: the screenshot is the evidence, and hidden DOM
+      // text can pull vision models toward a stale/wrong page description.
+      const imageTurnHasVisualEvidence = currentAttachments.some((a) =>
+        a.mimeType.startsWith("image/"),
+      );
+      const previewContext = imageTurnHasVisualEvidence
+        ? null
+        : await collectPreviewContextRef.current();
       const wireContent = previewContext
         ? `${messageContent}\n\n${previewContext}`
         : messageContent;
@@ -2787,8 +2782,7 @@ export function KodyChat({
       // splitting user/assistant across two sessions.
       const resolveSessionId = (): string => {
         if (selectedTask) return selectedTask.id;
-        if (capabilitySlug != null)
-          return `capability-${capabilitySlug}`;
+        if (capabilitySlug != null) return `capability-${capabilitySlug}`;
         return uiSessionId;
       };
 
@@ -4051,19 +4045,20 @@ export function KodyChat({
 
       // ─── Kody engine backend: async via GH Actions workflow ───
       const sessionId = resolveSessionId();
-      // The engine's trigger workflow expects plain string content. To keep
-      // attachment info available on the workflow side without breaking the
-      // schema, inline a compact descriptor + base64 into the user turn the
-      // same way the previous behavior did.
+      // The engine's trigger workflow expects plain string content. Keep small
+      // attachments inline, but omit oversized raw data so screenshots do not
+      // blow the model context window before the runner starts.
       const engineUserContent =
         currentAttachments.length > 0
           ? currentAttachments
               .map((a) => {
-                const sizeStr = formatFileSize(a.size);
-                if (a.mimeType.startsWith("image/")) {
-                  return `[Image: ${a.name} (${sizeStr})]\n${a.data}`;
-                }
-                return `[File: ${a.name} (${a.mimeType}, ${sizeStr})]\n${a.data}`;
+                return formatAttachmentForTextBackend({
+                  kind: a.mimeType.startsWith("image/") ? "image" : "file",
+                  name: a.name,
+                  mimeType: a.mimeType,
+                  sizeLabel: formatFileSize(a.size),
+                  data: a.data,
+                });
               })
               .join("\n\n") + (wireContent ? `\n\n${wireContent}` : "")
           : wireContent;
@@ -5706,9 +5701,8 @@ export function KodyChat({
                     Chat about `{selectedCapability.slug}`
                   </p>
                   <p className="text-sm mt-1 max-w-sm mx-auto">
-                    Ask anything about this capability&apos;s intent,
-                    scope, or rules. Each capability has its own
-                    thread.
+                    Ask anything about this capability&apos;s intent, scope, or
+                    rules. Each capability has its own thread.
                   </p>
                 </>
               ) : isPlannerMode && plannerGoal ? (

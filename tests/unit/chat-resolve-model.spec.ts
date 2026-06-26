@@ -90,6 +90,186 @@ describe("resolveChatModel", () => {
     });
   });
 
+  it("keeps MiniMax M2.7 for ordinary text turns", async () => {
+    vi.mocked(loadChatModels).mockResolvedValue([
+      {
+        id: "minimax/MiniMax-M2.7-highspeed",
+        label: "MiniMax M2.7 Highspeed",
+        provider: "minimax",
+        protocol: "openai",
+        baseURL: "https://api.minimax.io/v1",
+        modelName: "MiniMax-M2.7-highspeed",
+        apiKeySecret: "MINIMAX_API_KEY",
+        enabled: true,
+        default: true,
+      },
+    ]);
+
+    const result = await resolveChatModel(
+      request(),
+      "minimax/MiniMax-M2.7-highspeed",
+      { preferVision: false },
+    );
+
+    expect("error" in result).toBe(false);
+    if ("error" in result) return;
+    expect(result.resolvedModel.modelName).toBe("MiniMax-M2.7-highspeed");
+    expect(result.model).toMatchObject({ modelName: "MiniMax-M2.7-highspeed" });
+  });
+
+  it("uses MiniMax M3 for image turns when MiniMax M2.7 is selected", async () => {
+    vi.mocked(loadChatModels).mockResolvedValue([
+      {
+        id: "minimax/MiniMax-M2.7-highspeed",
+        label: "MiniMax M2.7 Highspeed",
+        provider: "minimax",
+        protocol: "openai",
+        baseURL: "https://api.minimax.io/v1",
+        modelName: "MiniMax-M2.7-highspeed",
+        apiKeySecret: "MINIMAX_API_KEY",
+        enabled: true,
+        default: true,
+      },
+    ]);
+
+    const result = await resolveChatModel(
+      request(),
+      "minimax/MiniMax-M2.7-highspeed",
+      { preferVision: true },
+    );
+
+    expect("error" in result).toBe(false);
+    if ("error" in result) return;
+    expect(result.resolvedModel).toMatchObject({
+      id: "minimax/MiniMax-M3",
+      provider: "minimax",
+      modelName: "MiniMax-M3",
+      apiKeySecret: "MINIMAX_API_KEY",
+    });
+    expect(result.model).toMatchObject({ modelName: "MiniMax-M3" });
+  });
+
+  it("uses MiniMax M3 for image turns when the MiniMax entry is a custom endpoint", async () => {
+    vi.mocked(loadChatModels).mockResolvedValue([
+      {
+        id: "minimax/MiniMax-M2.7-highspeed",
+        label: "MiniMax",
+        provider: "custom",
+        protocol: "openai",
+        baseURL: "https://api.minimax.io/v1",
+        modelName: "MiniMax-M2.7-highspeed",
+        apiKeySecret: "MINIMAX_API_KEY",
+        enabled: true,
+        default: true,
+      },
+    ]);
+
+    const result = await resolveChatModel(
+      request(),
+      "minimax/MiniMax-M2.7-highspeed",
+      { preferVision: true },
+    );
+
+    expect("error" in result).toBe(false);
+    if ("error" in result) return;
+    expect(result.resolvedModel).toMatchObject({
+      id: "minimax/MiniMax-M3",
+      provider: "custom",
+      baseURL: "https://api.minimax.io/v1",
+      modelName: "MiniMax-M3",
+      apiKeySecret: "MINIMAX_API_KEY",
+    });
+    expect(createOpenAICompatible).toHaveBeenCalledWith({
+      name: "custom",
+      apiKey: "provider-key",
+      baseURL: "https://api.minimax.io/v1",
+    });
+  });
+
+  it("prefers a configured MiniMax vision sibling for image turns", async () => {
+    vi.mocked(loadChatModels).mockResolvedValue([
+      {
+        id: "minimax/MiniMax-M2.7-highspeed",
+        label: "MiniMax M2.7 Highspeed",
+        provider: "minimax",
+        protocol: "openai",
+        baseURL: "https://api.minimax.io/v1",
+        modelName: "MiniMax-M2.7-highspeed",
+        apiKeySecret: "MINIMAX_API_KEY",
+        enabled: true,
+        default: true,
+      },
+      {
+        id: "minimax/MiniMax-M3",
+        label: "MiniMax M3",
+        provider: "minimax",
+        protocol: "openai",
+        baseURL: "https://api.minimax.io/v1",
+        modelName: "MiniMax-M3",
+        apiKeySecret: "MINIMAX_M3_API_KEY",
+        enabled: true,
+      },
+    ]);
+
+    const result = await resolveChatModel(
+      request(),
+      "minimax/MiniMax-M2.7-highspeed",
+      { preferVision: true },
+    );
+
+    expect("error" in result).toBe(false);
+    if ("error" in result) return;
+    expect(result.resolvedModel).toMatchObject({
+      id: "minimax/MiniMax-M3",
+      modelName: "MiniMax-M3",
+      apiKeySecret: "MINIMAX_M3_API_KEY",
+    });
+    expect(getSecret).toHaveBeenCalledWith("MINIMAX_M3_API_KEY", {
+      req: expect.any(NextRequest),
+    });
+  });
+
+  it("prefers a configured custom MiniMax M3 sibling for image turns", async () => {
+    vi.mocked(loadChatModels).mockResolvedValue([
+      {
+        id: "minimax/MiniMax-M2.7-highspeed",
+        label: "MiniMax",
+        provider: "custom",
+        protocol: "openai",
+        baseURL: "https://api.minimax.io/v1",
+        modelName: "MiniMax-M2.7-highspeed",
+        apiKeySecret: "MINIMAX_API_KEY",
+        enabled: true,
+        default: true,
+      },
+      {
+        id: "minimax/MiniMax-M3",
+        label: "MiniMax M3",
+        provider: "custom",
+        protocol: "openai",
+        baseURL: "https://api.minimax.io/v1",
+        modelName: "MiniMax-M3",
+        apiKeySecret: "MINIMAX_API_KEY",
+        enabled: true,
+      },
+    ]);
+
+    const result = await resolveChatModel(
+      request(),
+      "minimax/MiniMax-M2.7-highspeed",
+      { preferVision: true },
+    );
+
+    expect("error" in result).toBe(false);
+    if ("error" in result) return;
+    expect(result.resolvedModel).toMatchObject({
+      id: "minimax/MiniMax-M3",
+      provider: "custom",
+      modelName: "MiniMax-M3",
+      apiKeySecret: "MINIMAX_API_KEY",
+    });
+  });
+
   it("still returns no_models_configured when no configured or engine model exists", async () => {
     vi.mocked(getEngineConfig).mockResolvedValue({
       sha: "abc123",

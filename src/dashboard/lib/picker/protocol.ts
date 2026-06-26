@@ -272,6 +272,7 @@ export type PickerExtMessage =
   | {
       source: typeof PICKER_EXT_SOURCE;
       type: "recording";
+      requestId?: string;
       steps: RecordedStep[];
       url: string;
     }

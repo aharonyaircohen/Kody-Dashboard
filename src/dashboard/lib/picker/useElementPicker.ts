@@ -24,22 +24,24 @@ import {
   type PreviewActResult,
   type RecordedStep,
 } from "./protocol";
+import { prepareScreenshotDataUrl, type ScreenshotClip } from "./screenshot";
+import {
+  hasRecordedSteps,
+  pickRecordingResult,
+  type RecordingResult,
+} from "./recording";
 
 interface UseElementPickerOptions {
   /** Fired once per click, after the picker auto-disarms. */
   onSelect: (element: PickedElement) => void;
 }
 
-/** A clip rectangle (CSS pixels, viewport-relative) to crop a screenshot to. */
-export interface ScreenshotClip {
-  x: number;
-  y: number;
-  width: number;
-  height: number;
-}
-
 /** Result of a screenshot attempt — a data URL, or the reason it failed. */
-export type ScreenshotResult = { dataUrl?: string; error?: string };
+export type ScreenshotResult = {
+  dataUrl?: string;
+  mimeType?: string;
+  error?: string;
+};
 
 interface ElementPicker {
   /** True once the extension's bridge answers (installed + on this page). */
@@ -57,7 +59,7 @@ interface ElementPicker {
   collectLogs: () => Promise<LogEntry[]>;
   /** Pull the failed requests buffered from the preview frame(s). */
   collectNetwork: () => Promise<NetworkEntry[]>;
-  /** Capture the visible tab as a PNG data URL, optionally cropped to `clip`. */
+  /** Capture the visible tab as a bounded image data URL, cropped to `clip`. */
   captureScreenshot: (clip?: ScreenshotClip) => Promise<ScreenshotResult>;
   /** Snapshot the preview's load performance + slowest resources. */
   collectPerf: () => Promise<PerfReport | null>;
@@ -94,43 +96,15 @@ type PageMessageType =
   | "record-stop"
   | "screenshot";
 
-function postToExtension(type: PageMessageType): void {
+function postToExtension(
+  type: PageMessageType,
+  extra: Record<string, unknown> = {},
+): void {
   if (typeof window === "undefined") return;
   window.postMessage(
-    { source: PICKER_PAGE_SOURCE, type },
+    { source: PICKER_PAGE_SOURCE, type, ...extra },
     window.location.origin,
   );
-}
-
-/** Crop a PNG data URL to a CSS-pixel rect (scaled by devicePixelRatio). */
-async function cropDataUrl(
-  dataUrl: string,
-  clip: ScreenshotClip,
-): Promise<string> {
-  const img = await new Promise<HTMLImageElement>((resolve, reject) => {
-    const el = new Image();
-    el.onload = () => resolve(el);
-    el.onerror = reject;
-    el.src = dataUrl;
-  });
-  const dpr = window.devicePixelRatio || 1;
-  const canvas = document.createElement("canvas");
-  canvas.width = Math.max(1, Math.round(clip.width * dpr));
-  canvas.height = Math.max(1, Math.round(clip.height * dpr));
-  const ctx = canvas.getContext("2d");
-  if (!ctx) return dataUrl;
-  ctx.drawImage(
-    img,
-    clip.x * dpr,
-    clip.y * dpr,
-    clip.width * dpr,
-    clip.height * dpr,
-    0,
-    0,
-    canvas.width,
-    canvas.height,
-  );
-  return canvas.toDataURL("image/png");
 }
 
 export function useElementPicker(opts: UseElementPickerOptions): ElementPicker {
@@ -249,13 +223,16 @@ export function useElementPicker(opts: UseElementPickerOptions): ElementPicker {
             return;
           }
           try {
+            const screenshot = await prepareScreenshotDataUrl(
+              data.dataUrl,
+              clip,
+            );
             resolve({
-              dataUrl: clip
-                ? await cropDataUrl(data.dataUrl, clip)
-                : data.dataUrl,
+              dataUrl: screenshot.dataUrl,
+              mimeType: screenshot.mimeType,
             });
           } catch {
-            resolve({ dataUrl: data.dataUrl });
+            resolve({ dataUrl: data.dataUrl, mimeType: "image/png" });
           }
         };
         window.addEventListener("message", handler);
@@ -377,22 +354,35 @@ export function useElementPicker(opts: UseElementPickerOptions): ElementPicker {
   const stopRecording = useCallback(
     (): Promise<{ steps: RecordedStep[]; url: string } | null> =>
       new Promise((resolve) => {
-        const handler = (event: MessageEvent) => {
+        const requestId = `${Date.now()}-${Math.random().toString(36).slice(2)}`;
+        let best: RecordingResult | null = null;
+        let settled = false;
+        let timer: ReturnType<typeof setTimeout> | null = null;
+        let handler: (event: MessageEvent) => void = () => {};
+        const settle = (result: RecordingResult | null) => {
+          if (settled) return;
+          settled = true;
+          window.removeEventListener("message", handler);
+          if (timer) clearTimeout(timer);
+          setRecording(false);
+          resolve(hasRecordedSteps(result) ? result : null);
+        };
+        handler = (event: MessageEvent) => {
           if (event.source !== window) return;
           const data = event.data as PickerExtMessage | undefined;
           if (!data || data.source !== PICKER_EXT_SOURCE) return;
           if (data.type !== "recording") return;
-          window.removeEventListener("message", handler);
-          clearTimeout(timer);
-          setRecording(false);
-          resolve({ steps: data.steps, url: data.url });
+          if (data.requestId && data.requestId !== requestId) return;
+          best = pickRecordingResult(best, {
+            steps: data.steps,
+            url: data.url,
+          });
+          if (data.steps.length > 0) settle(best);
         };
         window.addEventListener("message", handler);
-        postToExtension("record-stop");
-        const timer = setTimeout(() => {
-          window.removeEventListener("message", handler);
-          setRecording(false);
-          resolve(null);
+        postToExtension("record-stop", { requestId });
+        timer = setTimeout(() => {
+          settle(best);
         }, 1500);
       }),
     [],

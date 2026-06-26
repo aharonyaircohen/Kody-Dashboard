@@ -27,6 +27,7 @@ import {
 } from "lucide-react";
 import { cn } from "../utils";
 import { useElementPicker } from "./useElementPicker";
+import { extensionForMimeType, getDataUrlMimeType } from "./screenshot";
 import {
   formatLogs,
   formatNetwork,
@@ -262,18 +263,19 @@ export function PreviewInspector({
       const clip = rect
         ? { x: rect.x, y: rect.y, width: rect.width, height: rect.height }
         : undefined;
-      const { dataUrl, error } = await picker.captureScreenshot(clip);
+      const { dataUrl, mimeType, error } = await picker.captureScreenshot(clip);
       if (!dataUrl) {
         toast.error(
           `Couldn't capture a screenshot: ${error ?? "unknown error"}`,
         );
         return;
       }
+      const attachmentMimeType = mimeType ?? getDataUrlMimeType(dataUrl);
       onAttachment({
         id: newId(),
-        name: `preview-${Date.now()}.png`,
+        name: `preview-${Date.now()}.${extensionForMimeType(attachmentMimeType)}`,
         dataUrl,
-        mimeType: "image/png",
+        mimeType: attachmentMimeType,
       });
       toast.success("Added preview screenshot to chat");
     } finally {

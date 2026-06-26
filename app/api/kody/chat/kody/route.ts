@@ -48,6 +48,7 @@ import {
 import { getSecret } from "@dashboard/lib/vault/get-secret";
 import { resolveChatModel } from "../resolve-model";
 import { supportsVision } from "@dashboard/lib/chat/vision-support";
+import { formatAttachmentForTextBackend } from "@dashboard/lib/chat/attachment-text";
 import {
   buildSystemPrompt,
   type GoalContext,
@@ -294,18 +295,13 @@ function trimToRecent(messages: ModelMessage[]): ModelMessage[] {
   return firstUserIdx <= 0 ? trimmed : trimmed.slice(firstUserIdx);
 }
 
-/** Rebuild a `data:` URL from raw base64 + media type for inlining. */
-function toDataUrl(data: string, mediaType?: string): string {
-  if (!mediaType || data.startsWith("data:")) return data;
-  return `data:${mediaType};base64,${data}`;
-}
-
 /**
  * Collapse multimodal user turns into plain text for a text-only model.
  * A model with no vision (e.g. MiniMax) either rejects an image part or
- * silently drops it; inlining the image data URL into the text keeps the
- * attachment on the one channel every model reads. Vision models skip this
- * and keep real image parts. Assistant/system turns are already strings.
+ * silently drops it. Keep small attachments inline, but omit oversized raw
+ * data so screenshots do not explode the provider context window. Vision
+ * models skip this and keep real image parts. Assistant/system turns are
+ * already strings.
  */
 function inlineImagePartsForTextModel(
   messages: ModelMessage[],
@@ -317,12 +313,24 @@ function inlineImagePartsForTextModel(
         if (p.type === "text") return p.text;
         if (p.type === "image") {
           const img = typeof p.image === "string" ? p.image : "";
-          return img ? `[Image]\n${toDataUrl(img, p.mediaType)}` : "";
+          return img
+            ? formatAttachmentForTextBackend({
+                kind: "image",
+                data: img,
+                mimeType: p.mediaType,
+              })
+            : "";
         }
         if (p.type === "file") {
           const data = typeof p.data === "string" ? p.data : "";
-          const label = p.filename ? `[File: ${p.filename}]` : "[File]";
-          return data ? `${label}\n${toDataUrl(data, p.mediaType)}` : "";
+          return data
+            ? formatAttachmentForTextBackend({
+                kind: "file",
+                data,
+                mimeType: p.mediaType,
+                name: p.filename,
+              })
+            : "";
         }
         return "";
       })
@@ -330,6 +338,14 @@ function inlineImagePartsForTextModel(
       .join("\n\n");
     return { ...m, content: text } as ModelMessage;
   });
+}
+
+function messagesHaveImageParts(messages: ModelMessage[]): boolean {
+  return messages.some(
+    (m) =>
+      Array.isArray(m.content) &&
+      m.content.some((part) => part.type === "image"),
+  );
 }
 
 function normalizeMessages(raw: IncomingMessage[]): ModelMessage[] {
@@ -507,6 +523,7 @@ export async function POST(req: NextRequest) {
   }
   const messages = trimToRecent(allMessages);
   const trimmedCount = allMessages.length - messages.length;
+  const hasImageParts = messagesHaveImageParts(messages);
 
   // Resolve the model from the user-managed list in state repo variables.json.
   // The client can override per-request via `body.model`, but it must
@@ -517,7 +534,9 @@ export async function POST(req: NextRequest) {
   // Model resolution (list → pick → key → SDK) is shared with the title
   // route via resolveChatModel so the two can't drift. Voice mode does
   // not affect model selection; it's a per-turn prompt overlay only.
-  const resolution = await resolveChatModel(req, body.model);
+  const resolution = await resolveChatModel(req, body.model, {
+    preferVision: hasImageParts,
+  });
   if ("error" in resolution) return resolution.error;
   const { model, resolvedModel } = resolution;
   const modelId = resolvedModel.id;
@@ -955,6 +974,13 @@ export async function POST(req: NextRequest) {
   // The agent's brain and tools are untouched — the user picks the brain
   // in the dropdown; only the output shape changes.
   const systemPrompt = applyVoiceOverlay(promptWithSpeakerOverride, voiceMode);
+  const groundedSystemPrompt = hasImageParts
+    ? `${systemPrompt}
+
+## Image input rule
+
+This turn includes an image from the user. For questions about what is visible in the image, answer from the attached image itself. Do not substitute current page context, task context, memory, or prior turns when they conflict with the image. If the image is unreadable or unavailable, say that instead of guessing.`
+    : systemPrompt;
 
   // Build a tool-name → description map from the merged tool set. Every
   // tool in this repo calls `tool({ description, inputSchema, execute })`
@@ -1018,7 +1044,7 @@ export async function POST(req: NextRequest) {
     armHeartbeat(60_000);
     const result = streamText({
       model,
-      system: systemPrompt,
+      system: groundedSystemPrompt,
       messages: modelMessages,
       tools,
       // Optimized for deep analysis: see DEFAULT_MAX_STEPS for the cap

@@ -147,7 +147,11 @@
     }
 
     // Test recorder — buffers user actions (click/fill) while recording.
+    // Persisted in sessionStorage so a click that navigates/reloads the preview
+    // does not throw away the steps captured before navigation.
+    const REC_STATE_KEY = "__kody_recording_state_v1";
     let recording = false;
+    let recStartUrl = window.location.href;
     const recSteps = [];
 
     // Coalesce count pushes so a chatty app doesn't flood the bridge.
@@ -287,8 +291,9 @@
         chrome.runtime
           .sendMessage({
             kind: "recording",
+            requestId: msg.requestId,
             steps: recSteps.slice(),
-            url: window.location.href,
+            url: recStartUrl || window.location.href,
           })
           .catch(() => {});
         stopRecording();
@@ -346,9 +351,14 @@
     // Records user actions (without blocking them) so one click-through becomes
     // a Playwright test. `change` (not keystroke) captures fills on commit.
     function startRecording() {
-      if (recording) return;
+      if (recording) {
+        document.removeEventListener("click", onRecClick, true);
+        document.removeEventListener("change", onRecChange, true);
+      }
       recording = true;
+      recStartUrl = window.location.href;
       recSteps.length = 0;
+      persistRecording();
       document.addEventListener("click", onRecClick, true);
       document.addEventListener("change", onRecChange, true);
       pushRecCount();
@@ -358,6 +368,7 @@
       recording = false;
       document.removeEventListener("click", onRecClick, true);
       document.removeEventListener("change", onRecChange, true);
+      persistRecording();
     }
 
     function onRecClick(e) {
@@ -368,6 +379,7 @@
         selector: buildSelector(el),
         text: (el.textContent || "").trim().replace(/\s+/g, " ").slice(0, 80),
       });
+      persistRecording();
       pushRecCount();
     }
 
@@ -388,6 +400,7 @@
         selector: buildSelector(el),
         value: masked ? "********" : String(el.value).slice(0, 200),
       });
+      persistRecording();
       pushRecCount();
     }
 
@@ -396,6 +409,56 @@
         .sendMessage({ kind: "rec-count", count: recSteps.length })
         .catch(() => {});
     }
+
+    function persistRecording() {
+      try {
+        if (!recording) {
+          sessionStorage.removeItem(REC_STATE_KEY);
+          return;
+        }
+        sessionStorage.setItem(
+          REC_STATE_KEY,
+          JSON.stringify({
+            recording: true,
+            url: recStartUrl,
+            steps: recSteps.slice(),
+          }),
+        );
+      } catch (e) {
+        /* private mode / blocked storage — recording still works in memory */
+      }
+    }
+
+    function restoreRecording() {
+      var raw = null;
+      try {
+        raw = sessionStorage.getItem(REC_STATE_KEY);
+      } catch (e) {
+        return;
+      }
+      if (!raw) return;
+      var saved = null;
+      try {
+        saved = JSON.parse(raw);
+      } catch (e) {
+        return;
+      }
+      if (!saved || saved.recording !== true || !Array.isArray(saved.steps)) {
+        return;
+      }
+      recording = true;
+      recStartUrl =
+        typeof saved.url === "string" ? saved.url : window.location.href;
+      recSteps.length = 0;
+      saved.steps.forEach(function (step) {
+        recSteps.push(step);
+      });
+      document.addEventListener("click", onRecClick, true);
+      document.addEventListener("change", onRecChange, true);
+      pushRecCount();
+    }
+
+    restoreRecording();
 
     // -- chat-driven actions ---------------------------------------------------
     // Executes a single action requested by chat. Returns { ok, error }.
