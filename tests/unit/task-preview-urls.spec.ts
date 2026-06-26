@@ -86,6 +86,58 @@ describe("buildPreviewUrlByPrNumber", () => {
     expect(urls.get(335)).toBe("https://kp-866cab-523991-pr-335.fly.dev");
   });
 
+  it("signs ready Fly URLs when a signer is provided", async () => {
+    lifecycle.getPreview.mockResolvedValue({
+      appName: "kp-866cab-523991-pr-335",
+      state: "running",
+      url: "https://kp-866cab-523991-pr-335.fly.dev",
+      region: "fra",
+    });
+    const signFlyPreviewUrl = vi.fn(({ url, pr: prNumber }) => {
+      return `${url}?kp=ticket-${prNumber}`;
+    });
+
+    const urls = await buildPreviewUrlByPrNumber({
+      openPRs: [pr(335, "sha-335")],
+      deploymentPreviewUrls: new Map(),
+      flyPreviewConfig: flyConfig,
+      repo: "A-Guy-educ/A-Guy-Web",
+      signFlyPreviewUrl,
+    });
+
+    expect(signFlyPreviewUrl).toHaveBeenCalledWith({
+      repo: "A-Guy-educ/A-Guy-Web",
+      pr: 335,
+      url: "https://kp-866cab-523991-pr-335.fly.dev",
+    });
+    expect(urls.get(335)).toBe(
+      "https://kp-866cab-523991-pr-335.fly.dev?kp=ticket-335",
+    );
+  });
+
+  it("falls back to deployment previews when Fly signing fails", async () => {
+    lifecycle.getPreview.mockResolvedValue({
+      appName: "kp-866cab-523991-pr-335",
+      state: "running",
+      url: "https://kp-866cab-523991-pr-335.fly.dev",
+      region: "fra",
+    });
+
+    const urls = await buildPreviewUrlByPrNumber({
+      openPRs: [pr(335, "sha-335")],
+      deploymentPreviewUrls: new Map([
+        ["sha-335", "https://a-guy-web-git-pr-335.vercel.app"],
+      ]),
+      flyPreviewConfig: flyConfig,
+      repo: "A-Guy-educ/A-Guy-Web",
+      signFlyPreviewUrl: () => {
+        throw new Error("missing master key");
+      },
+    });
+
+    expect(urls.get(335)).toBe("https://a-guy-web-git-pr-335.vercel.app");
+  });
+
   it("falls back to deployment previews when Fly lookup fails", async () => {
     lifecycle.getPreview.mockRejectedValue(new Error("fly api unavailable"));
 

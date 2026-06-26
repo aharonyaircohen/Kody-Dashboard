@@ -22,17 +22,37 @@ function isFlyPreviewUrl(url: string | null): boolean {
   }
 }
 
+export function isSignedPreviewUrl(url: string | null): boolean {
+  if (!url) return false;
+  try {
+    const parsed = new URL(url);
+    return (
+      !parsed.hostname.endsWith(".fly.dev") || parsed.searchParams.has("kp")
+    );
+  } catch {
+    return false;
+  }
+}
+
+export function safePreviewUrl(url: string | null | undefined): string | null {
+  if (!url) return null;
+  return isSignedPreviewUrl(url) ? url : null;
+}
+
 export function usePreviewUrl(
   sha: string | undefined,
   pr?: number,
   initialUrl?: string | null,
 ) {
+  const initialPreviewUrl = safePreviewUrl(initialUrl);
+
   const query = useQuery({
     queryKey: ["preview-url", sha, pr],
-    queryFn: () => prsApi.preview(sha!, pr),
+    queryFn: async () => safePreviewUrl(await prsApi.preview(sha!, pr)),
     enabled: !!getStoredAuth() && !!sha,
     // Show the link the tasks list already knew about while we confirm it.
-    placeholderData: initialUrl ?? undefined,
+    // Protected Fly previews must already include a dashboard-minted ticket.
+    placeholderData: initialPreviewUrl ?? undefined,
     // Once we have a URL it will not change for this commit. While it is null
     // (still building), keep checking so it appears on its own.
     refetchInterval: (q) => (q.state.data ? false : BUILDING_POLL_MS),
@@ -40,7 +60,7 @@ export function usePreviewUrl(
     staleTime: 15_000,
   });
 
-  const url = query.data ?? initialUrl ?? null;
+  const url = query.data ?? initialPreviewUrl ?? null;
   const inFlightWakeKeyRef = useRef<string | null>(null);
   const createAttemptKeyRef = useRef<string | null>(null);
   const wakePreview = useCallback(async (): Promise<void> => {
