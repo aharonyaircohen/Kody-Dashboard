@@ -4,9 +4,9 @@
  * @pattern company-export
  * @ai-summary Build a portable Company bundle from the connected repo.
  *   Reads the company-level artifact types (agent, agentResponsibilities, commands,
- *   agentActions, instructions) via their existing file helpers and maps each to the
- *   repo-agnostic shape in `types.ts` — dropping sha/html_url/commit and
- *   tick timestamps, which are meaningless in another repo. Runs inside
+ *   context, capabilities, legacy agentActions, managed goals, instructions) via their existing file helpers
+ *   and maps each to the repo-agnostic shape in `types.ts` — dropping
+ *   sha/html_url/commit and tick timestamps, which are meaningless in another repo. Runs inside
  *   an established GitHub context (see the API route).
  */
 
@@ -20,6 +20,10 @@ import {
   listAgentActionFiles,
   readAgentActionFolderFiles,
 } from "../agent-actions";
+import {
+  listCapabilityFiles,
+  readCapabilityFolderFiles,
+} from "../capabilities";
 import { listManagedGoalFiles } from "../managed-goals-files";
 import { getEngineConfig } from "../engine/config";
 import {
@@ -85,6 +89,18 @@ async function buildAgentActionEntries(): Promise<CompanyAgentActionEntry[]> {
   return entries.filter((e): e is NonNullable<typeof e> => e !== null);
 }
 
+/** Read every capability folder into portable path→content maps. */
+async function buildCapabilityEntries(): Promise<CompanyAgentActionEntry[]> {
+  const summaries = await listCapabilityFiles();
+  const entries = await Promise.all(
+    summaries.map(async (s) => {
+      const files = await readCapabilityFolderFiles(s.slug);
+      return files ? { slug: s.slug, files } : null;
+    }),
+  );
+  return entries.filter((e): e is NonNullable<typeof e> => e !== null);
+}
+
 async function buildGoalEntries(): Promise<CompanyGoalEntry[]> {
   const goals = await listManagedGoalFiles();
   return goals.map((goal) => ({ id: goal.id, state: goal.state }));
@@ -125,7 +141,7 @@ async function buildConfigBundle(): Promise<CompanyConfigBundle | null> {
 
 /**
  * Read every company-level artifact from the connected repo and assemble
- * the portable bundle. The four reads are independent — fan them out.
+ * the portable bundle. The reads are independent — fan them out.
  * Only repo-defined commands are exported (built-ins ship with the
  * dashboard, so re-importing them would be redundant).
  */
@@ -135,6 +151,7 @@ export async function buildCompanyBundle(): Promise<CompanyBundle> {
     agentResponsibilities,
     contexts,
     commandsResult,
+    capabilities,
     agentActions,
     goals,
     instructions,
@@ -144,6 +161,7 @@ export async function buildCompanyBundle(): Promise<CompanyBundle> {
     listAgentResponsibilityFiles(),
     listContextFiles(),
     listRepoCommandFiles(),
+    buildCapabilityEntries(),
     buildAgentActionEntries(),
     buildGoalEntries(),
     readInstructionsFile(),
@@ -160,6 +178,7 @@ export async function buildCompanyBundle(): Promise<CompanyBundle> {
     commands: commandsResult.commands
       .filter((p) => p.source === "repo")
       .map(toCommandEntry),
+    capabilities,
     agentActions,
     goals,
     instructions: instructions?.body?.trim() ? instructions.body : null,

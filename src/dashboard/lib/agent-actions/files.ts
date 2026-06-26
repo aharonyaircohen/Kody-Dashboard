@@ -48,6 +48,33 @@ export { isValidSlug } from "./profile";
  * writes go through this single home.
  */
 const EXECUTABLES_DIR = "agent-actions";
+const CAPABILITIES_DIR = "capabilities";
+const AGENT_ACTION_BODY_FILE = "prompt.md";
+const CAPABILITY_BODY_FILE = "capability.md";
+
+interface AgentActionStorage {
+  dir: typeof EXECUTABLES_DIR | typeof CAPABILITIES_DIR;
+  bodyFile: typeof AGENT_ACTION_BODY_FILE | typeof CAPABILITY_BODY_FILE;
+  storeKind: "agent-actions" | "capabilities";
+  commitScope: "agentAction" | "capability";
+  conceptName: "agentAction" | "capability";
+}
+
+const AGENT_ACTION_STORAGE: AgentActionStorage = {
+  dir: EXECUTABLES_DIR,
+  bodyFile: AGENT_ACTION_BODY_FILE,
+  storeKind: "agent-actions",
+  commitScope: "agentAction",
+  conceptName: "agentAction",
+};
+
+const CAPABILITY_STORAGE: AgentActionStorage = {
+  dir: CAPABILITIES_DIR,
+  bodyFile: CAPABILITY_BODY_FILE,
+  storeKind: "capabilities",
+  commitScope: "capability",
+  conceptName: "capability",
+};
 
 export interface AgentActionSkill {
   /** Skill folder name under `skills/`. */
@@ -117,9 +144,10 @@ function buildHtmlUrl(
   target: StateRepoTarget,
   slug: string,
   branch: string | null,
+  storage: AgentActionStorage = AGENT_ACTION_STORAGE,
 ): string {
   const ref = branch ?? "HEAD";
-  return `https://github.com/${target.owner}/${target.repo}/tree/${ref}/${stateRepoPath(target, `${EXECUTABLES_DIR}/${slug}`)}`;
+  return `https://github.com/${target.owner}/${target.repo}/tree/${ref}/${stateRepoPath(target, `${storage.dir}/${slug}`)}`;
 }
 
 async function fetchLastCommitDate(
@@ -205,12 +233,13 @@ async function listAgentActionFolders(
   octokit: Octokit,
   target: StateRepoTarget,
   branch: string | null,
+  storage: AgentActionStorage = AGENT_ACTION_STORAGE,
 ): Promise<AgentActionSummary[]> {
   const { entries } = await listStateDirectory(
     octokit,
     getOwner(),
     getRepo(),
-    EXECUTABLES_DIR,
+    storage.dir,
   );
 
   const slugs = entries
@@ -219,7 +248,7 @@ async function listAgentActionFolders(
 
   const summaries = await Promise.all(
     slugs.map(async (slug): Promise<AgentActionSummary | null> => {
-      const profilePath = `${EXECUTABLES_DIR}/${slug}/profile.json`;
+      const profilePath = `${storage.dir}/${slug}/profile.json`;
       const raw = await readFileText(octokit, profilePath).catch(() => null);
       if (raw === null) return null; // folder without a profile.json — skip
       const profile = parseProfileJson(raw);
@@ -248,7 +277,7 @@ async function listAgentActionFolders(
         capabilityKind,
         landing,
         updatedAt: null,
-        htmlUrl: buildHtmlUrl(target, slug, branch),
+        htmlUrl: buildHtmlUrl(target, slug, branch, storage),
         agent,
         every,
       };
@@ -267,6 +296,14 @@ export async function listLocalAgentActionFiles(): Promise<
   return listAgentActionFolders(octokit, target, branch);
 }
 
+export async function listLocalCapabilityFiles(): Promise<
+  AgentActionSummary[]
+> {
+  const octokit = getOctokit();
+  const { target, branch } = await getStateRepoContext(octokit);
+  return listAgentActionFolders(octokit, target, branch, CAPABILITY_STORAGE);
+}
+
 export async function listAgentActionFiles(): Promise<AgentActionSummary[]> {
   const octokit = getOctokit();
   const { target, branch } = await getStateRepoContext(octokit);
@@ -279,19 +316,38 @@ export async function listAgentActionFiles(): Promise<AgentActionSummary[]> {
   return mergeAssetsBySlug(local, store);
 }
 
+export async function listCapabilityFiles(): Promise<AgentActionSummary[]> {
+  const octokit = getOctokit();
+  const { target, branch } = await getStateRepoContext(octokit);
+
+  const local = await listAgentActionFolders(
+    octokit,
+    target,
+    branch,
+    CAPABILITY_STORAGE,
+  );
+  const store = await listStoreAgentActionFiles(
+    octokit,
+    new Set(local.map((e) => e.slug)),
+    CAPABILITY_STORAGE,
+  );
+  return mergeAssetsBySlug(local, store);
+}
+
 async function listStoreAgentActionFiles(
   octokit: Octokit,
   localSlugs: Set<string>,
+  storage: AgentActionStorage = AGENT_ACTION_STORAGE,
 ): Promise<AgentActionSummary[]> {
   const slugs = await listCompanyStoreAssetSlugs(
     octokit,
-    "agent-actions",
+    storage.storeKind,
     isValidSlug,
   );
   const summaries = await Promise.all(
     slugs
       .filter((slug) => !localSlugs.has(slug))
-      .map((slug) => readStoreAgentActionSummary(slug, octokit)),
+      .map((slug) => readStoreAgentActionSummary(slug, octokit, storage)),
   );
   return summaries.filter((s): s is AgentActionSummary => s !== null);
 }
@@ -299,10 +355,11 @@ async function listStoreAgentActionFiles(
 async function readStoreAgentActionSummary(
   slug: string,
   octokit: Octokit,
+  storage: AgentActionStorage = AGENT_ACTION_STORAGE,
 ): Promise<AgentActionSummary | null> {
   const profileRaw = await readCompanyStoreText(
     octokit,
-    `.kody/agent-actions/${slug}/profile.json`,
+    `.kody/${storage.storeKind}/${slug}/profile.json`,
   );
   if (!profileRaw) return null;
   const profile = parseProfileJson(profileRaw);
@@ -310,7 +367,7 @@ async function readStoreAgentActionSummary(
   return summaryFromProfile(
     slug,
     profile,
-    buildCompanyStoreHtmlUrl("agent-actions", slug),
+    buildCompanyStoreHtmlUrl(storage.storeKind, slug),
     {
       source: "store",
       readOnly: true,
@@ -327,16 +384,30 @@ export async function readResolvedAgentActionFile(
   return readStoreAgentActionFile(slug, octokitOverride ?? getOctokit());
 }
 
+export async function readResolvedCapabilityFile(
+  slug: string,
+  octokitOverride?: Octokit,
+): Promise<AgentActionDetail | null> {
+  const local = await readCapabilityFile(slug, octokitOverride);
+  if (local) return local;
+  return readStoreAgentActionFile(
+    slug,
+    octokitOverride ?? getOctokit(),
+    CAPABILITY_STORAGE,
+  );
+}
+
 /** Read a single agentAction folder into the full editable detail. */
 export async function readAgentActionFile(
   slug: string,
   octokitOverride?: Octokit,
+  storage: AgentActionStorage = AGENT_ACTION_STORAGE,
 ): Promise<AgentActionDetail | null> {
   if (!isValidSlug(slug)) return null;
   const octokit = octokitOverride ?? getOctokit();
   const { target, branch } = await getStateRepoContext(octokit);
 
-  const base = `${EXECUTABLES_DIR}/${slug}`;
+  const base = `${storage.dir}/${slug}`;
   const profileRaw = await readFileText(octokit, `${base}/profile.json`);
   if (profileRaw === null) return null;
 
@@ -350,7 +421,7 @@ export async function readAgentActionFile(
   // The stored prompt.md ends with the managed output-format contract;
   // strip it so the editor shows only the user-authored instructions.
   const prompt = stripContract(
-    (await readFileText(octokit, `${base}/prompt.md`)) ?? "",
+    (await readFileText(octokit, `${base}/${storage.bodyFile}`)) ?? "",
   );
 
   // Enumerate the folder once to find `*.sh` files and the skills/ subdir.
@@ -378,7 +449,7 @@ export async function readAgentActionFile(
     capabilityKind: fields.capabilityKind,
     landing: fields.landing,
     updatedAt: await fetchLastCommitDate(octokit, `${base}/profile.json`),
-    htmlUrl: buildHtmlUrl(target, slug, branch),
+    htmlUrl: buildHtmlUrl(target, slug, branch, storage),
     agent,
     prompt,
     model: fields.model,
@@ -391,12 +462,20 @@ export async function readAgentActionFile(
   };
 }
 
+export async function readCapabilityFile(
+  slug: string,
+  octokitOverride?: Octokit,
+): Promise<AgentActionDetail | null> {
+  return readAgentActionFile(slug, octokitOverride, CAPABILITY_STORAGE);
+}
+
 async function readStoreAgentActionFile(
   slug: string,
   octokit: Octokit,
+  storage: AgentActionStorage = AGENT_ACTION_STORAGE,
 ): Promise<AgentActionDetail | null> {
   if (!isValidSlug(slug)) return null;
-  const base = `.kody/agent-actions/${slug}`;
+  const base = `.kody/${storage.storeKind}/${slug}`;
   const profileRaw = await readCompanyStoreText(
     octokit,
     `${base}/profile.json`,
@@ -405,7 +484,7 @@ async function readStoreAgentActionFile(
   const profile = parseProfileJson(profileRaw);
   if (!profile) return null;
   const prompt = stripContract(
-    (await readCompanyStoreText(octokit, `${base}/prompt.md`)) ?? "",
+    (await readCompanyStoreText(octokit, `${base}/${storage.bodyFile}`)) ?? "",
   );
   const entries = await listCompanyStoreDirectorySafe(octokit, base);
   const shellScripts = await Promise.all(
@@ -429,7 +508,7 @@ async function readStoreAgentActionFile(
   const summary = summaryFromProfile(
     slug,
     profile,
-    buildCompanyStoreHtmlUrl("agent-actions", slug),
+    buildCompanyStoreHtmlUrl(storage.storeKind, slug),
     {
       source: "store",
       readOnly: true,
@@ -551,17 +630,25 @@ async function readFolderFilesRecursive(
 export async function readAgentActionFolderFiles(
   slug: string,
   octokitOverride?: Octokit,
+  storage: AgentActionStorage = AGENT_ACTION_STORAGE,
 ): Promise<Record<string, string> | null> {
   if (!isValidSlug(slug)) return null;
   const octokit = octokitOverride ?? getOctokit();
   const files: Record<string, string> = {};
   const exists = await readFolderFilesRecursive(
     octokit,
-    `${EXECUTABLES_DIR}/${slug}`,
+    `${storage.dir}/${slug}`,
     "",
     files,
   );
   return exists ? files : null;
+}
+
+export async function readCapabilityFolderFiles(
+  slug: string,
+  octokitOverride?: Octokit,
+): Promise<Record<string, string> | null> {
+  return readAgentActionFolderFiles(slug, octokitOverride, CAPABILITY_STORAGE);
 }
 
 // ────────────────────────────────────────────────────────────────────────────
@@ -580,8 +667,6 @@ async function commitChanges(
   changes: TreeChange[],
   message: string,
 ): Promise<void> {
-  const owner = getOwner();
-  const repo = getRepo();
   const { target, branch } = await getStateRepoContext(octokit);
 
   const { data: ref } = await octokit.git.getRef({
@@ -662,11 +747,12 @@ export interface WriteAgentActionOptions {
  */
 export async function writeAgentActionFile(
   opts: WriteAgentActionOptions,
+  storage: AgentActionStorage = AGENT_ACTION_STORAGE,
 ): Promise<AgentActionDetail> {
   const { fields } = opts;
   if (!isValidSlug(fields.slug)) {
     throw new Error(
-      `Invalid agentAction slug: "${fields.slug}". Use lowercase letters, digits, dashes, underscores.`,
+      `Invalid ${storage.conceptName} slug: "${fields.slug}". Use lowercase letters, digits, dashes, underscores.`,
     );
   }
   // Keep claudeCode.skills and the shell preflight steps in sync with the
@@ -682,11 +768,11 @@ export async function writeAgentActionFile(
   // All agentActions live under the agentAction home. `isUpdate` covers the
   // create-vs-update diff at the commit-message level; the file paths
   // are identical for both.
-  const base = `${EXECUTABLES_DIR}/${fields.slug}`;
+  const base = `${storage.dir}/${fields.slug}`;
   const changes: TreeChange[] = [
     { path: `${base}/profile.json`, content: profileJson },
     {
-      path: `${base}/prompt.md`,
+      path: `${base}/${storage.bodyFile}`,
       // Append the managed output-format contract so the marker block is the
       // agent's final instruction (it ignores a system-prompt-only contract).
       content: ensureTrailingNewline(
@@ -717,31 +803,46 @@ export async function writeAgentActionFile(
   await commitChanges(
     opts.octokit,
     changes,
-    `${opts.isUpdate ? "chore" : "feat"}(agentAction): ${verb} ${fields.slug}`,
+    `${opts.isUpdate ? "chore" : "feat"}(${storage.commitScope}): ${verb} ${fields.slug}`,
   );
 
-  const refreshed = await readAgentActionFile(fields.slug, opts.octokit);
+  const refreshed = await readAgentActionFile(
+    fields.slug,
+    opts.octokit,
+    storage,
+  );
   if (!refreshed) {
     throw new Error(
-      "writeAgentActionFile: folder was written but could not be re-read",
+      `writeAgentActionFile: ${storage.conceptName} folder was written but could not be re-read`,
     );
   }
   return refreshed;
 }
 
+export async function writeCapabilityFile(
+  opts: WriteAgentActionOptions,
+): Promise<AgentActionDetail> {
+  return writeAgentActionFile(opts, CAPABILITY_STORAGE);
+}
+
 /** Write an agentAction folder exactly from a path→content map. */
 export async function writeAgentActionFolderFiles(
   opts: WriteAgentActionFolderFilesOptions,
+  storage: AgentActionStorage = AGENT_ACTION_STORAGE,
 ): Promise<void> {
   if (!isValidSlug(opts.slug)) {
-    throw new Error(`Invalid agentAction slug: "${opts.slug}".`);
+    throw new Error(`Invalid ${storage.conceptName} slug: "${opts.slug}".`);
   }
 
-  const base = `${EXECUTABLES_DIR}/${opts.slug}`;
+  const base = `${storage.dir}/${opts.slug}`;
   const nextPaths = Object.keys(opts.files).sort();
   for (const path of nextPaths) assertSafeAgentActionPath(path);
 
-  const existing = await readAgentActionFolderFiles(opts.slug, opts.octokit);
+  const existing = await readAgentActionFolderFiles(
+    opts.slug,
+    opts.octokit,
+    storage,
+  );
   const existingPaths = existing ? Object.keys(existing) : [];
   const nextPathSet = new Set(nextPaths);
 
@@ -759,30 +860,48 @@ export async function writeAgentActionFolderFiles(
   await commitChanges(
     opts.octokit,
     changes,
-    `${opts.isUpdate ? "chore" : "feat"}(agentAction): ${verb} ${opts.slug}`,
+    `${opts.isUpdate ? "chore" : "feat"}(${storage.commitScope}): ${verb} ${opts.slug}`,
   );
+}
+
+export async function writeCapabilityFolderFiles(
+  opts: WriteAgentActionFolderFilesOptions,
+): Promise<void> {
+  return writeAgentActionFolderFiles(opts, CAPABILITY_STORAGE);
 }
 
 /** Delete an agentAction folder (every file under it) in one commit. */
 export async function deleteAgentActionFile(
   octokit: Octokit,
   slug: string,
+  storage: AgentActionStorage = AGENT_ACTION_STORAGE,
 ): Promise<void> {
   if (!isValidSlug(slug)) {
-    throw new Error(`Invalid agentAction slug: "${slug}".`);
+    throw new Error(`Invalid ${storage.conceptName} slug: "${slug}".`);
   }
-  const existing = await readAgentActionFile(slug, octokit);
+  const existing = await readAgentActionFile(slug, octokit, storage);
   if (!existing) return;
-  const base = `${EXECUTABLES_DIR}/${slug}`;
+  const base = `${storage.dir}/${slug}`;
   const changes: TreeChange[] = [
     { path: `${base}/profile.json`, content: null },
-    { path: `${base}/prompt.md`, content: null },
+    { path: `${base}/${storage.bodyFile}`, content: null },
   ];
   for (const s of existing.shellScripts)
     changes.push({ path: `${base}/${s.name}`, content: null });
   for (const s of existing.skills)
     changes.push({ path: `${base}/skills/${s.name}/SKILL.md`, content: null });
-  await commitChanges(octokit, changes, `chore(agentAction): remove ${slug}`);
+  await commitChanges(
+    octokit,
+    changes,
+    `chore(${storage.commitScope}): remove ${slug}`,
+  );
+}
+
+export async function deleteCapabilityFile(
+  octokit: Octokit,
+  slug: string,
+): Promise<void> {
+  return deleteAgentActionFile(octokit, slug, CAPABILITY_STORAGE);
 }
 
 function ensureTrailingNewline(text: string): string {

@@ -68,6 +68,7 @@ beforeEach(() => {
       agentActions: { default: "run" },
       github: { owner: "acme", repo: "widgets" },
       company: {
+        activeCapabilities: ["fix-ci"],
         activeAgentResponsibilities: ["release"],
         activeGoals: ["web-release"],
       },
@@ -81,6 +82,7 @@ describe("PATCH /api/kody/company/config store activation", () => {
     const res = await PATCH(
       patchReq({
         activeAgents: ["cto"],
+        activeCapabilities: ["fix-ci", "review"],
         activeAgentActions: ["run"],
         activeAgentResponsibilities: ["release"],
         activeGoals: ["web-release", { template: "weekly-check", every: "1w" }],
@@ -95,6 +97,7 @@ describe("PATCH /api/kody/company/config store activation", () => {
     expect(calls).toHaveLength(1);
     const patch = calls[0]![3];
     expect(patch.activeAgents).toEqual(["cto"]);
+    expect(patch.activeCapabilities).toEqual(["fix-ci", "review"]);
     expect(patch.activeAgentActions).toEqual(["run"]);
     expect(patch.activeAgentResponsibilities).toEqual(["release"]);
     expect(patch.activeGoals).toEqual([
@@ -133,6 +136,22 @@ describe("PATCH /api/kody/company/config store activation", () => {
     >;
     expect(calls).toHaveLength(1);
     expect(calls[0]![3].activeAgentActions).toEqual(["run"]);
+  });
+
+  it("accepts active capabilities without requiring another config field", async () => {
+    const res = await PATCH(
+      patchReq({
+        activeCapabilities: ["fix-ci"],
+        actorLogin: "alice",
+      }),
+    );
+
+    expect(res.status).toBe(200);
+    const calls = engineConfig.writeConfigPatch.mock.calls as unknown as Array<
+      [unknown, unknown, unknown, Record<string, unknown>]
+    >;
+    expect(calls).toHaveLength(1);
+    expect(calls[0]![3].activeCapabilities).toEqual(["fix-ci"]);
   });
 
   it("rejects invalid active store reference slugs", async () => {

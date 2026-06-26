@@ -46,6 +46,10 @@ export async function GET(req: NextRequest) {
       aliases: config.aliases ?? {},
       allowedAssociations: config.access?.allowedAssociations ?? [],
       activeAgents: config.company?.activeAgents ?? [],
+      activeCapabilities:
+        config.company?.activeCapabilities ??
+        config.company?.activeAgentActions ??
+        [],
       activeAgentActions: config.company?.activeAgentActions ?? [],
       activeAgentResponsibilities:
         config.company?.activeAgentResponsibilities ?? [],
@@ -140,6 +144,7 @@ const PatchSchema = z
       .nullable()
       .optional(),
     activeAgents: z.array(slugSchema).max(200).nullable().optional(),
+    activeCapabilities: z.array(slugSchema).max(200).nullable().optional(),
     activeAgentActions: z.array(slugSchema).max(200).nullable().optional(),
     activeCommands: z.array(slugSchema).max(200).nullable().optional(),
     activeGoals: z.array(activeGoalSchema).max(200).nullable().optional(),
@@ -167,6 +172,7 @@ const PatchSchema = z
       b.aliases !== undefined ||
       b.allowedAssociations !== undefined ||
       b.activeAgents !== undefined ||
+      b.activeCapabilities !== undefined ||
       b.activeAgentActions !== undefined ||
       b.activeAgentResponsibilities !== undefined ||
       b.activeCommands !== undefined ||
@@ -217,6 +223,7 @@ export async function PATCH(req: NextRequest) {
     activeAgentResponsibilities,
     activeCommands,
     activeAgents,
+    activeCapabilities,
     activeAgentActions,
     activeGoals,
     state,
@@ -241,6 +248,7 @@ export async function PATCH(req: NextRequest) {
         aliases,
         allowedAssociations,
         activeAgents,
+        activeCapabilities,
         activeAgentActions,
         activeAgentResponsibilities,
         activeCommands,
@@ -261,6 +269,10 @@ export async function PATCH(req: NextRequest) {
       aliases: config.aliases ?? {},
       allowedAssociations: config.access?.allowedAssociations ?? [],
       activeAgents: config.company?.activeAgents ?? [],
+      activeCapabilities:
+        config.company?.activeCapabilities ??
+        config.company?.activeAgentActions ??
+        [],
       activeAgentActions: config.company?.activeAgentActions ?? [],
       activeAgentResponsibilities:
         config.company?.activeAgentResponsibilities ?? [],

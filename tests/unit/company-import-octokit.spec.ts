@@ -203,6 +203,7 @@ const bundle = {
   ],
   contexts: [],
   commands: [{ slug: "review", description: "d", argumentHint: "", body: "B" }],
+  capabilities: [],
   agentActions: [],
   goals: [],
   instructions: "Be terse.",

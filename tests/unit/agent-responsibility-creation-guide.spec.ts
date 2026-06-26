@@ -19,7 +19,12 @@ const TICKED_FILES_SOURCE = readFileSync(
 
 describe("agentResponsibility creation guide wiring", () => {
   it("documents the user-facing agentResponsibility contract", () => {
-    expect(DUTY_GUIDE).toContain("A **agentResponsibility** is recurring work");
+    expect(DUTY_GUIDE).toContain(
+      "A **Capability** is how the agency can produce a result.",
+    );
+    expect(DUTY_GUIDE).toContain(
+      "legacy storage name for a capability contract is **agentResponsibility**",
+    );
     expect(DUTY_GUIDE).toContain("`create_or_update_agent_responsibility`");
     expect(DUTY_GUIDE).toContain("`agent`");
     expect(DUTY_GUIDE).toContain("`reviewer`");

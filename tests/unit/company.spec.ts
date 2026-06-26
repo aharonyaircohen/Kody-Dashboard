@@ -44,6 +44,12 @@ const h = vi.hoisted(() => ({
   ),
   writeAgentActionFolderFiles: vi.fn(),
   fieldsFromProfile: vi.fn(() => ({})),
+  // capabilities
+  listCapabilityFiles: vi.fn(async () => [] as Array<Record<string, unknown>>),
+  readCapabilityFolderFiles: vi.fn(
+    async () => null as Record<string, string> | null,
+  ),
+  writeCapabilityFolderFiles: vi.fn(),
   // managed-goals-files
   listManagedGoalFiles: vi.fn(
     async () =>
@@ -95,6 +101,11 @@ vi.mock("@dashboard/lib/agent-actions", () => ({
   readAgentActionFolderFiles: h.readAgentActionFolderFiles,
   writeAgentActionFolderFiles: h.writeAgentActionFolderFiles,
   fieldsFromProfile: h.fieldsFromProfile,
+}));
+vi.mock("@dashboard/lib/capabilities", () => ({
+  listCapabilityFiles: h.listCapabilityFiles,
+  readCapabilityFolderFiles: h.readCapabilityFolderFiles,
+  writeCapabilityFolderFiles: h.writeCapabilityFolderFiles,
 }));
 vi.mock("@dashboard/lib/managed-goals-files", () => ({
   listManagedGoalFiles: h.listManagedGoalFiles,
@@ -183,6 +194,7 @@ describe("companyBundleSchema", () => {
     agentResponsibilities: [],
     contexts: [],
     commands: [],
+    capabilities: [],
     agentActions: [],
     goals: [],
     instructions: null,
@@ -195,6 +207,7 @@ describe("companyBundleSchema", () => {
     expect(parsed.agentResponsibilities).toEqual([]);
     expect(parsed.contexts).toEqual([]);
     expect(parsed.commands).toEqual([]);
+    expect(parsed.capabilities).toEqual([]);
     expect(parsed.goals).toEqual([]);
     expect(parsed.instructions).toBeNull();
   });
@@ -430,6 +443,38 @@ describe("buildCompanyBundle", () => {
       },
     ]);
   });
+
+  it("exports capability folders recursively", async () => {
+    h.listAgentFiles.mockResolvedValue([]);
+    h.listAgentResponsibilityFiles.mockResolvedValue([]);
+    h.listContextFiles.mockResolvedValue([]);
+    h.listRepoCommandFiles.mockResolvedValue({
+      commands: [],
+      builtinsDisabled: false,
+    });
+    h.readInstructionsFile.mockResolvedValue(null);
+    h.listCapabilityFiles.mockResolvedValue([
+      { slug: "repo-graph", describe: "", landing: "comment" },
+    ]);
+    h.readCapabilityFolderFiles.mockResolvedValue({
+      "profile.json": '{"name":"repo-graph"}\n',
+      "capability.md": "# Instructions\n",
+      "skills/repo-graph/SKILL.md": "# Skill\n",
+    });
+
+    const bundle = await buildCompanyBundle();
+
+    expect(bundle.capabilities).toEqual([
+      {
+        slug: "repo-graph",
+        files: {
+          "profile.json": '{"name":"repo-graph"}\n',
+          "capability.md": "# Instructions\n",
+          "skills/repo-graph/SKILL.md": "# Skill\n",
+        },
+      },
+    ]);
+  });
 });
 
 describe("applyCompanyBundle", () => {
@@ -485,6 +530,7 @@ describe("applyCompanyBundle", () => {
         agent: ["*"],
       },
     ],
+    capabilities: [],
     agentActions: [],
     goals: [],
     instructions: "Be terse.",
@@ -669,5 +715,40 @@ describe("applyCompanyBundle", () => {
       isUpdate: false,
     });
     expect(h.writeAgentActionFile).not.toHaveBeenCalled();
+  });
+
+  it("imports capability folders exactly, including nested dependencies", async () => {
+    const files = {
+      "profile.json": '{"name":"repo-graph"}\n',
+      "capability.md": "# Instructions\n",
+      "skills/repo-graph/SKILL.md": "# Skill\n",
+    };
+    h.readCapabilityFolderFiles.mockResolvedValue(null);
+    h.writeCapabilityFolderFiles.mockResolvedValue(undefined);
+
+    const result = await applyCompanyBundle(
+      octokit,
+      {
+        ...bundle,
+        agent: [],
+        agentResponsibilities: [],
+        contexts: [],
+        commands: [],
+        capabilities: [{ slug: "repo-graph", files }],
+        agentActions: [],
+        goals: [],
+        instructions: null,
+      },
+      "skip",
+    );
+
+    expect(result.capabilities).toMatchObject({ created: 1, failed: 0 });
+    expect(h.writeCapabilityFolderFiles).toHaveBeenCalledWith({
+      octokit,
+      slug: "repo-graph",
+      files,
+      isUpdate: false,
+    });
+    expect(h.writeAgentActionFolderFiles).not.toHaveBeenCalled();
   });
 });

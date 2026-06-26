@@ -3,8 +3,9 @@
  * @domain kody
  * @pattern company-import
  * @ai-summary Apply a portable Company bundle to the connected repo.
- *   Writes agent, agentResponsibilities, and commands via their existing file helpers,
- *   plus the single instructions file. On a slug/file that already
+ *   Writes agent, agentResponsibilities, Context, commands, capabilities, legacy agentActions,
+ *   managed goals, and the single instructions file via their existing helpers.
+ *   On a slug/file that already
  *   exists, `mode` decides: "skip" (default, non-destructive) leaves the
  *   target untouched; "overwrite" replaces it. Returns a structured
  *   per-collection tally so the UI can report created/updated/skipped/
@@ -28,6 +29,10 @@ import {
   readAgentActionFolderFiles,
   writeAgentActionFolderFiles,
 } from "../agent-actions";
+import {
+  readCapabilityFolderFiles,
+  writeCapabilityFolderFiles,
+} from "../capabilities";
 import {
   readManagedGoalFile,
   writeManagedGoalFile,
@@ -225,6 +230,48 @@ async function importAgentActions(
 }
 
 /**
+ * Import capabilities. Each entry is a folder (a path→content map); write the
+ * whole folder exactly so nested scripts, templates, and helper files survive.
+ */
+async function importCapabilities(
+  octokit: Octokit,
+  entries: CompanyAgentActionEntry[],
+  mode: CompanyImportMode,
+  notes: string[],
+): Promise<CompanyImportCounts> {
+  const counts = emptyCounts();
+  for (const entry of entries) {
+    try {
+      const profileJson = entry.files["profile.json"];
+      if (!profileJson) {
+        counts.failed++;
+        notes.push(`capability "${entry.slug}" failed: missing profile.json`);
+        continue;
+      }
+      const existing = await readCapabilityFolderFiles(entry.slug, octokit);
+      if (existing && mode === "skip") {
+        counts.skipped++;
+        continue;
+      }
+
+      await writeCapabilityFolderFiles({
+        octokit,
+        slug: entry.slug,
+        files: entry.files,
+        isUpdate: !!existing,
+      });
+      if (existing) counts.updated++;
+      else counts.created++;
+    } catch (err) {
+      counts.failed++;
+      const msg = err instanceof Error ? err.message : String(err);
+      notes.push(`capability "${entry.slug}" failed: ${msg}`);
+    }
+  }
+  return counts;
+}
+
+/**
  * Apply the portable engine-config slice to kody.config.json in one commit.
  * In `overwrite` mode every present field is written; in `skip` mode a field
  * is only written when the target doesn't already have it (so an import never
@@ -369,6 +416,12 @@ export async function applyCompanyBundle(
   );
   const contexts = await importContexts(octokit, bundle.contexts, mode, notes);
   const commands = await importCommands(octokit, bundle.commands, mode, notes);
+  const capabilities = await importCapabilities(
+    octokit,
+    bundle.capabilities,
+    mode,
+    notes,
+  );
   const agentActions = await importAgentActions(
     octokit,
     bundle.agentActions,
@@ -407,6 +460,7 @@ export async function applyCompanyBundle(
     agentResponsibilities,
     contexts,
     commands,
+    capabilities,
     agentActions,
     goals,
     instructions,

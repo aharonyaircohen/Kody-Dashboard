@@ -85,6 +85,7 @@ function baseConfig() {
       agentActions: { default: "run" },
       company: {
         activeAgents: [],
+        activeCapabilities: [],
         activeAgentActions: [],
         activeAgentResponsibilities: [],
         activeCommands: [],
@@ -114,8 +115,11 @@ describe("store catalog import route", () => {
         kind === "commands" ? ["factory"] : ["atlas-agent"],
     );
     companyStore.listCompanyStoreAssetSlugs.mockImplementation(
-      async (_octokit: unknown, kind: string) =>
-        kind === "agent-actions" ? ["ship-feature"] : ["release-watch"],
+      async (_octokit: unknown, kind: string) => {
+        if (kind === "agent-actions") return ["ship-feature"];
+        if (kind === "capabilities") return ["ship-feature"];
+        return ["release-watch"];
+      },
     );
     managedGoals.listCompanyStoreGoalTemplateFiles.mockResolvedValue([
       {
@@ -161,12 +165,44 @@ describe("store catalog import route", () => {
       "widgets",
       {
         activeAgents: ["atlas-agent"],
+        activeCapabilities: undefined,
         activeAgentActions: undefined,
         activeAgentResponsibilities: undefined,
         activeCommands: undefined,
         activeGoals: undefined,
       },
       "chore(kody): add store agent atlas-agent",
+    );
+    expect(octokit.repos.getContent).not.toHaveBeenCalled();
+    expect(octokit.git.createTree).not.toHaveBeenCalled();
+  });
+
+  it("adds a store capability by config reference without copying files", async () => {
+    const octokit = makeOctokit();
+    auth.getUserOctokit.mockResolvedValue(octokit);
+
+    const res = await POST(req({ kind: "capability", slug: "ship-feature" }));
+
+    expect(res.status).toBe(200);
+    await expect(res.json()).resolves.toMatchObject({
+      kind: "capability",
+      slug: "ship-feature",
+      imported: true,
+      path: "company.activeCapabilities",
+    });
+    expect(engineConfig.writeConfigPatch).toHaveBeenCalledWith(
+      octokit,
+      "acme",
+      "widgets",
+      {
+        activeAgents: undefined,
+        activeCapabilities: ["ship-feature"],
+        activeAgentActions: undefined,
+        activeAgentResponsibilities: undefined,
+        activeCommands: undefined,
+        activeGoals: undefined,
+      },
+      "chore(kody): add store capability ship-feature",
     );
     expect(octokit.repos.getContent).not.toHaveBeenCalled();
     expect(octokit.git.createTree).not.toHaveBeenCalled();
@@ -197,6 +233,7 @@ describe("store catalog import route", () => {
       "widgets",
       {
         activeAgents: ["atlas-agent"],
+        activeCapabilities: undefined,
         activeAgentActions: ["ship-feature"],
         activeAgentResponsibilities: ["release-watch"],
         activeCommands: undefined,
@@ -211,6 +248,7 @@ describe("store catalog import route", () => {
       "widgets",
       {
         activeAgents: ["atlas-agent"],
+        activeCapabilities: undefined,
         activeAgentActions: ["ship-feature"],
         activeAgentResponsibilities: ["release-watch"],
         activeCommands: undefined,
@@ -225,6 +263,7 @@ describe("store catalog import route", () => {
       "widgets",
       {
         activeAgents: ["atlas-agent"],
+        activeCapabilities: undefined,
         activeAgentActions: ["ship-feature"],
         activeAgentResponsibilities: ["release-watch"],
         activeCommands: undefined,
@@ -239,6 +278,7 @@ describe("store catalog import route", () => {
       "widgets",
       {
         activeAgents: undefined,
+        activeCapabilities: undefined,
         activeAgentActions: undefined,
         activeAgentResponsibilities: undefined,
         activeCommands: ["factory"],
@@ -293,6 +333,7 @@ describe("store catalog import route", () => {
       "widgets",
       {
         activeAgents: undefined,
+        activeCapabilities: undefined,
         activeAgentActions: [
           "release-prepare",
           "release-merge",
@@ -388,6 +429,7 @@ describe("store catalog import route", () => {
       "widgets",
       {
         activeAgents: ["atlas-agent"],
+        activeCapabilities: undefined,
         activeAgentActions: ["ship-feature"],
         activeAgentResponsibilities: ["release-watch"],
         activeCommands: undefined,

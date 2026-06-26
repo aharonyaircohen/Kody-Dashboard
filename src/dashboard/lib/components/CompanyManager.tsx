@@ -3,10 +3,10 @@
  * @domain kody
  * @pattern company-manager
  * @ai-summary Import/export a "Company" — the portable operating manual of
- *   an org (agent, agentResponsibilities, commands, instructions). Export downloads a JSON
- *   bundle from the connected repo; Import uploads one and writes it back,
- *   with skip/overwrite collision handling. A separate card runs the
- *   one-time legacy `.kody/jobs|agents` → `agentResponsibilities|agent` folder migration.
+ *   an org (agent, agentResponsibilities, Context, commands, capabilities,
+ *   legacy agentActions, managed goals, instructions, and config). Export downloads a JSON
+ *   bundle from the connected repo; Import uploads one and writes it back
+ *   with skip/overwrite collision handling.
  */
 "use client";
 
@@ -80,12 +80,13 @@ function CompanyManagerInner() {
         bundle.agentResponsibilities.length +
         bundle.contexts.length +
         bundle.commands.length +
+        bundle.capabilities.length +
         bundle.agentActions.length +
         bundle.goals.length +
         (bundle.instructions ? 1 : 0) +
         (bundle.config ? 1 : 0);
       toast.success(
-        `Exported ${bundle.agent.length} agent, ${bundle.agentResponsibilities.length} agentResponsibilities, ${bundle.goals.length} agentGoals/agent-loops, ${bundle.contexts.length} contexts, ${bundle.commands.length} commands, ${bundle.agentActions.length} agentActions${
+        `Exported ${bundle.agent.length} agent, ${bundle.agentResponsibilities.length} agentResponsibilities, ${bundle.goals.length} agentGoals/agent-loops, ${bundle.contexts.length} contexts, ${bundle.commands.length} commands, ${bundle.capabilities.length} capabilities, ${bundle.agentActions.length} legacy agentActions${
           bundle.instructions ? ", instructions" : ""
         }${bundle.config ? ", config" : ""} (${total} items)`,
       );
@@ -114,6 +115,7 @@ function CompanyManagerInner() {
         result.agentResponsibilities.failed +
         result.contexts.failed +
         result.commands.failed +
+        result.capabilities.failed +
         result.agentActions.failed +
         result.goals.failed;
       if (failed > 0) {
@@ -145,6 +147,7 @@ function CompanyManagerInner() {
           <span className="text-white/80">agentGoals/agent-loops</span>,{" "}
           <span className="text-white/80">context</span>,{" "}
           <span className="text-white/80">commands</span>,{" "}
+          <span className="text-white/80">capabilities</span>,{" "}
           <span className="text-white/80">instructions</span>, and portable{" "}
           <span className="text-white/80">config</span> (quality commands,
           aliases, access gate, model routing). Export it from one repo and
@@ -164,7 +167,7 @@ function CompanyManagerInner() {
               <p className="text-xs text-white/50 mt-1">
                 Download a JSON bundle of this repo&apos;s agent, agentResponsibilities,
                 agentGoals/agent-loops, context, repo-defined commands,
-                agentActions, and instructions.
+                capabilities, legacy agentActions, and instructions.
               </p>
             </div>
             <Button size="sm" onClick={handleExport} disabled={exporting}>
@@ -245,6 +248,7 @@ function CompanyManagerInner() {
                 <p>{countLine("AgentResponsibilities", lastImport.agentResponsibilities)}</p>
                 <p>{countLine("Contexts", lastImport.contexts)}</p>
                 <p>{countLine("Commands", lastImport.commands)}</p>
+                <p>{countLine("Capabilities", lastImport.capabilities)}</p>
                 <p>{countLine("AgentActions", lastImport.agentActions)}</p>
                 <p>{countLine("AgentGoals/AgentLoops", lastImport.goals)}</p>
                 <p>Instructions: {lastImport.instructions}</p>
@@ -268,7 +272,7 @@ function CompanyManagerInner() {
           <Included icon={Target} label="AgentGoals/AgentLoops" />
           <Included icon={BookOpenText} label="Context" />
           <Included icon={Bot} label="Commands" />
-          <Included icon={Boxes} label="AgentActions" />
+          <Included icon={Boxes} label="Capabilities" />
           <Included icon={ScrollText} label="Instructions" />
           <Included icon={SlidersHorizontal} label="Config" />
         </div>

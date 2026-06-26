@@ -1,8 +1,11 @@
-# Kody agentResponsibilities
+# Kody capability contracts
 
-A **agentResponsibility** is recurring work Kody can schedule, display, and run.
+A **Capability** is how the agency can produce a result. The canonical storage
+is now `.kody/capabilities/<slug>/profile.json` plus `capability.md`. The
+legacy storage name for a capability contract is **agentResponsibility**. For
+the canonical model, see [`concepts/company-model.md`](concepts/company-model.md).
 
-A agentResponsibility is stored as one folder:
+Legacy capability contracts are stored as one agentResponsibility folder:
 
 ```text
 .kody/agent-responsibilities/<slug>/
@@ -15,23 +18,29 @@ Kody chat can create one too. It must first read this guide, then use the
 agentResponsibility and patching an existing one (omit a field to preserve it; pass `body`
 to replace the markdown).
 
-## What a agentResponsibility owns
+New UI/API work should create capabilities, not agentResponsibilities. The
+engine still reads agentResponsibilities as a fallback while old repos migrate.
 
-A agentResponsibility owns:
+## What a capability contract owns
+
+A capability contract owns:
 
 - **Action name**: the public `@kody <action>` token that runs this agentResponsibility.
-- **Purpose**: why the work exists and what outcome it maintains.
-- **Cadence**: how often the scheduler may run it.
+- **Kind**: `observe`, `act`, or `verify`.
+- **Purpose**: what reusable ability it provides.
+- **Cadence**: when this capability may run, if it is scheduled.
 - **Agent**: which agent identity should run it.
 - **Reviewer**: which agent identity should treat the output after it exists.
 - **Output**: whether the agentResponsibility only runs, or writes a report.
 - **Safety rules**: what it may and may not do.
 - **AgentAction link**: the implementation agentAction, when the agentResponsibility needs one.
 
-A agentResponsibility does **not** own:
+A capability contract does **not** own:
 
 - A long agent identity prompt. Put that in `.kody/agents/<slug>.md`.
 - A reusable action implementation. Put that in `.kody/agent-actions/<slug>/`.
+- A company reason or priority. Put that in Intent.
+- Long-term progress. Put that in Goal.
 - A long step-by-step runbook. Put reusable method in agentAction skills.
 - Bash, Python, or API recipes. Put deterministic work in agentAction-owned
   scripts, or method details in agentAction skills.
@@ -56,6 +65,7 @@ Use this shape:
   "describe": "Broken link report",
   "action": "broken-links",
   "agentAction": "broken-link-report",
+  "capabilityKind": "observe",
   "every": "1d",
   "agent": "qa",
   "reviewer": "cto",
@@ -102,6 +112,7 @@ Do not put metadata frontmatter in `agent-responsibility.md`. Metadata belongs i
 | `describe`    | Human-readable title shown in the dashboard.                                                     |
 | `action`      | Public action token. `@kody <action>` runs this agentResponsibility. Usually the agentResponsibility slug.                     |
 | `agentAction`  | Optional implementation agentAction slug. Use this for the one agentAction that performs the work. |
+| `capabilityKind` | Capability kind: `observe`, `act`, or `verify`. |
 | `every`       | Optional cadence: `manual`, `1h`, `1d`, `7d`, etc.                                               |
 | `agent`      | Agent identity slug that performs the agentResponsibility. A agentResponsibility without an agent should not auto-run.          |
 | `reviewer`    | Optional agent identity slug responsible for reviewing or handling the agentResponsibility output.               |
@@ -167,20 +178,23 @@ Examples:
 - Do not edit source files.
 - Only update `.kody/reports/<slug>.md`.
 
-## Choosing between agentResponsibility, agentAction, and agent
+## Choosing between capability, agentAction, and agent
 
-Use a **agentResponsibility** when the work is recurring or public as an `@kody <action>`.
+Use a **Capability** when the agency needs a reusable ability, especially one
+that is recurring or public as an `@kody <action>`. Store it as a
+agentResponsibility folder until the storage name changes.
 
-Use an **agentAction** when you are defining implementation that a agentResponsibility action
+Use an **agentAction** when you are defining implementation that a capability
 can run, such as a deterministic graph refresh or an agent workflow.
 
 Use **agent** when you are defining who performs the work.
 
 ## Creation checklist
 
-Before creating a agentResponsibility, Kody should know:
+Before creating a capability contract, Kody should know:
 
 - What should happen.
+- Whether it is `observe`, `act`, or `verify`.
 - Which public action runs it. Usually this should match the slug.
 - How often it should happen.
 - Which agent is the agent.

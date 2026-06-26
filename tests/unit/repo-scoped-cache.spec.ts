@@ -62,6 +62,7 @@ describe("repo-scoped dashboard caches", () => {
     ]);
     expect(agentActionQueryKeys.list(scope)).toEqual([
       "kody-agentActions",
+      "agent-actions",
       "A-Guy-educ",
       "A-Guy",
     ]);

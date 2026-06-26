@@ -37,6 +37,7 @@ export const revalidate = 0;
 
 type ImportKind =
   | "agent"
+  | "capability"
   | "agentAction"
   | "agentResponsibility"
   | "agentGoal"
@@ -45,6 +46,7 @@ type ImportKind =
 
 type ActiveConfigField =
   | "activeAgents"
+  | "activeCapabilities"
   | "activeAgentActions"
   | "activeAgentResponsibilities"
   | "activeCommands"
@@ -58,6 +60,7 @@ type ImportResult = {
 
 type ActivationPlan = {
   activeAgents: string[];
+  activeCapabilities: string[];
   activeAgentActions: string[];
   activeAgentResponsibilities: string[];
   activeCommands: string[];
@@ -67,6 +70,7 @@ type ActivationPlan = {
 const importSchema = z.object({
   kind: z.enum([
     "agent",
+    "capability",
     "agentAction",
     "agentResponsibility",
     "agentGoal",
@@ -79,6 +83,7 @@ const importSchema = z.object({
 function validSlug(kind: ImportKind, slug: string): boolean {
   switch (kind) {
     case "agent":
+    case "capability":
     case "agentAction":
     case "agentResponsibility":
     case "agentGoal":
@@ -90,6 +95,7 @@ function validSlug(kind: ImportKind, slug: string): boolean {
 
 function configFieldFor(kind: ImportKind): ActiveConfigField {
   if (kind === "agent") return "activeAgents";
+  if (kind === "capability") return "activeCapabilities";
   if (kind === "agentAction") return "activeAgentActions";
   if (kind === "agentResponsibility") return "activeAgentResponsibilities";
   if (kind === "command") return "activeCommands";
@@ -138,6 +144,7 @@ function hasGoal(
 function emptyActivationPlan(): ActivationPlan {
   return {
     activeAgents: [],
+    activeCapabilities: [],
     activeAgentActions: [],
     activeAgentResponsibilities: [],
     activeCommands: [],
@@ -178,6 +185,13 @@ async function assertStoreItemExists(
       octokit,
       "agent-actions",
       (candidate) => validSlug("agentAction", candidate),
+    );
+    if (slugs.includes(slug)) return;
+  } else if (kind === "capability") {
+    const slugs = await listCompanyStoreAssetSlugs(
+      octokit,
+      "capabilities",
+      (candidate) => validSlug("capability", candidate),
     );
     if (slugs.includes(slug)) return;
   } else if (kind === "agentResponsibility") {
@@ -259,6 +273,11 @@ async function activationPlanFor(
     return plan;
   }
 
+  if (kind === "capability") {
+    addPlanSlug(plan, "activeCapabilities", slug);
+    return plan;
+  }
+
   if (kind === "agentResponsibility") {
     await addResponsibilityDependencies(octokit, plan, slug);
     return plan;
@@ -304,6 +323,14 @@ async function addStoreReference({
     plan.activeAgents.length > 0
       ? addSlugs(config.company?.activeAgents, plan.activeAgents)
       : undefined;
+  const nextActiveCapabilities =
+    plan.activeCapabilities.length > 0
+      ? addSlugs(
+          config.company?.activeCapabilities ??
+            config.company?.activeAgentActions,
+          plan.activeCapabilities,
+        )
+      : undefined;
   const nextActiveAgentActions =
     plan.activeAgentActions.length > 0
       ? addSlugs(config.company?.activeAgentActions, plan.activeAgentActions)
@@ -332,6 +359,15 @@ async function addStoreReference({
       nextActiveAgents &&
       !sameStringList(config.company?.activeAgents, nextActiveAgents)
         ? nextActiveAgents
+        : undefined,
+    activeCapabilities:
+      nextActiveCapabilities &&
+      !sameStringList(
+        config.company?.activeCapabilities ??
+          config.company?.activeAgentActions,
+        nextActiveCapabilities,
+      )
+        ? nextActiveCapabilities
         : undefined,
     activeAgentActions:
       nextActiveAgentActions &&

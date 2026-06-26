@@ -134,29 +134,54 @@ interface AgentActionDetail extends AgentActionSummary {
 export interface AgentActionQueryScope {
   owner?: string | null;
   repo?: string | null;
+  resource?: "agent-actions" | "capabilities";
 }
 
 function agentActionQueryScopeFromAuth(
   auth: { owner?: string | null; repo?: string | null } | null | undefined,
+  resource: AgentActionQueryScope["resource"] = "agent-actions",
 ): AgentActionQueryScope {
   return {
     owner: auth?.owner ?? null,
     repo: auth?.repo ?? null,
+    resource,
   };
 }
 
 export const agentActionQueryKeys = {
   all: ["kody-agentActions"] as const,
   list: (scope: AgentActionQueryScope = {}) =>
-    ["kody-agentActions", scope.owner ?? null, scope.repo ?? null] as const,
+    [
+      "kody-agentActions",
+      scope.resource ?? "agent-actions",
+      scope.owner ?? null,
+      scope.repo ?? null,
+    ] as const,
   detail: (slug: string | null, scope: AgentActionQueryScope = {}) =>
     [
       "kody-agentAction",
+      scope.resource ?? "agent-actions",
       scope.owner ?? null,
       scope.repo ?? null,
       slug,
     ] as const,
 };
+
+function agentActionResourceForBasePath(
+  basePath: string,
+): AgentActionQueryScope["resource"] {
+  return basePath === "/capabilities" || basePath.startsWith("/capabilities/")
+    ? "capabilities"
+    : "agent-actions";
+}
+
+function agentActionApiBaseForResource(
+  resource: AgentActionQueryScope["resource"],
+): string {
+  return resource === "capabilities"
+    ? "/api/kody/capabilities"
+    : "/api/kody/agent-actions";
+}
 
 function formatRelative(iso: string): string {
   if (!iso) return "";
@@ -177,8 +202,9 @@ function formatRelative(iso: string): string {
 
 async function listApi(
   headers: Record<string, string>,
+  apiBase: string,
 ): Promise<{ agentActions: AgentActionSummary[] }> {
-  const res = await fetch("/api/kody/agent-actions", {
+  const res = await fetch(apiBase, {
     headers,
     cache: "no-store",
   });
@@ -197,14 +223,12 @@ async function listApi(
 async function readApi(
   headers: Record<string, string>,
   slug: string,
+  apiBase: string,
 ): Promise<AgentActionDetail> {
-  const res = await fetch(
-    `/api/kody/agent-actions/${encodeURIComponent(slug)}`,
-    {
-      headers,
-      cache: "no-store",
-    },
-  );
+  const res = await fetch(`${apiBase}/${encodeURIComponent(slug)}`, {
+    headers,
+    cache: "no-store",
+  });
   const json = (await res.json().catch(() => ({}))) as {
     agentAction?: AgentActionDetail;
     error?: string;
@@ -235,12 +259,13 @@ async function saveApi(
   headers: Record<string, string>,
   payload: SavePayload,
   actorLogin?: string,
+  apiBase = "/api/kody/agent-actions",
 ): Promise<void> {
   const { slug, isUpdate, prompt, ...rest } = payload;
   const body = { ...rest, instructions: prompt, actorLogin };
   const url = isUpdate
-    ? `/api/kody/agent-actions/${encodeURIComponent(slug)}`
-    : "/api/kody/agent-actions";
+    ? `${apiBase}/${encodeURIComponent(slug)}`
+    : apiBase;
   const res = await fetch(url, {
     method: isUpdate ? "PATCH" : "POST",
     headers,
@@ -257,14 +282,12 @@ async function saveApi(
 async function deleteApi(
   headers: Record<string, string>,
   slug: string,
+  apiBase: string,
 ): Promise<void> {
-  const res = await fetch(
-    `/api/kody/agent-actions/${encodeURIComponent(slug)}`,
-    {
-      method: "DELETE",
-      headers,
-    },
-  );
+  const res = await fetch(`${apiBase}/${encodeURIComponent(slug)}`, {
+    method: "DELETE",
+    headers,
+  });
   const json = (await res.json().catch(() => ({}))) as {
     error?: string;
     message?: string;
@@ -325,19 +348,22 @@ function AgentActionEditorPageInner({
     ...buildAuthHeaders(auth),
   };
   const actorLogin = auth?.user.login;
-  const queryScope = agentActionQueryScopeFromAuth(auth);
+  const resource = agentActionResourceForBasePath(basePath);
+  const apiBase = agentActionApiBaseForResource(resource);
+  const queryScope = agentActionQueryScopeFromAuth(auth, resource);
   const listQueryKey = agentActionQueryKeys.list(queryScope);
 
   const { data } = useQuery({
     queryKey: listQueryKey,
-    queryFn: () => listApi(headers),
+    queryFn: () => listApi(headers, apiBase),
     enabled: !!auth,
     staleTime: 30_000,
   });
   const existingSlugs = new Set((data?.agentActions ?? []).map((e) => e.slug));
 
   const save = useMutation({
-    mutationFn: (payload: SavePayload) => saveApi(headers, payload, actorLogin),
+    mutationFn: (payload: SavePayload) =>
+      saveApi(headers, payload, actorLogin, apiBase),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: agentActionQueryKeys.all });
       queryClient.invalidateQueries({ queryKey: listQueryKey });
@@ -359,6 +385,7 @@ function AgentActionEditorPageInner({
       <AgentActionEditor
         slug={slug}
         headers={headers}
+        apiBase={apiBase}
         queryScope={queryScope}
         existingSlugs={existingSlugs}
         saving={save.isPending}
@@ -386,20 +413,22 @@ function AgentActionsManagerInner({
     ...buildAuthHeaders(auth),
   };
   const actorLogin = auth?.user.login;
-  const queryScope = agentActionQueryScopeFromAuth(auth);
+  const resource = agentActionResourceForBasePath(basePath);
+  const apiBase = agentActionApiBaseForResource(resource);
+  const queryScope = agentActionQueryScopeFromAuth(auth, resource);
   const listQueryKey = agentActionQueryKeys.list(queryScope);
   const queryClient = useQueryClient();
 
   const { data, isLoading, isFetching, error, refetch } = useQuery({
     queryKey: listQueryKey,
-    queryFn: () => listApi(headers),
+    queryFn: () => listApi(headers, apiBase),
     enabled: !!auth,
     staleTime: 30_000,
   });
   const agentActions = useMemo(() => data?.agentActions ?? [], [data]);
 
   const remove = useMutation({
-    mutationFn: (slug: string) => deleteApi(headers, slug),
+    mutationFn: (slug: string) => deleteApi(headers, slug, apiBase),
     onSuccess: (_result, slug) => {
       queryClient.invalidateQueries({ queryKey: agentActionQueryKeys.all });
       queryClient.invalidateQueries({ queryKey: listQueryKey });
@@ -473,13 +502,14 @@ function AgentActionsManagerInner({
   // selected slug and refetch on selection change.
   const selectedFull = useQuery({
     queryKey: agentActionQueryKeys.detail(selected?.slug ?? null, queryScope),
-    queryFn: () => readApi(headers, selected!.slug),
+    queryFn: () => readApi(headers, selected!.slug, apiBase),
     enabled: !!selected,
     staleTime: 30_000,
   });
 
   const save = useMutation({
-    mutationFn: (payload: SavePayload) => saveApi(headers, payload, actorLogin),
+    mutationFn: (payload: SavePayload) =>
+      saveApi(headers, payload, actorLogin, apiBase),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: agentActionQueryKeys.all });
       queryClient.invalidateQueries({ queryKey: listQueryKey });
@@ -544,6 +574,7 @@ function AgentActionsManagerInner({
               <AgentActionInlineEditor
                 slug={selected.slug}
                 headers={headers}
+                apiBase={apiBase}
                 queryScope={queryScope}
                 existingSlugs={existingSlugs}
                 saving={save.isPending}
@@ -588,7 +619,7 @@ function AgentActionsManagerInner({
           <EmptyState
             icon={<Sparkles />}
             title="No capabilities yet"
-            hint="A capability is stored as an agent-actions/<slug>/ profile for engine compatibility."
+            hint="A capability is stored as capabilities/<slug>/profile.json plus capability.md."
             action={
               <Button asChild size="sm" className="gap-1">
                 <Link href={`${basePath}/new`}>
@@ -1076,6 +1107,7 @@ function EmptyHint({ text }: { text: string }) {
 interface EditorProps {
   slug: string | null;
   headers: Record<string, string>;
+  apiBase: string;
   queryScope: AgentActionQueryScope;
   existingSlugs: Set<string>;
   saving: boolean;
@@ -1096,6 +1128,7 @@ Return the required final result.
 function AgentActionEditor({
   slug,
   headers,
+  apiBase,
   queryScope,
   existingSlugs,
   saving,
@@ -1106,7 +1139,7 @@ function AgentActionEditor({
   const isNew = slug === null;
   const detail = useQuery({
     queryKey: agentActionQueryKeys.detail(slug, queryScope),
-    queryFn: () => readApi(headers, slug as string),
+    queryFn: () => readApi(headers, slug as string, apiBase),
     enabled: !isNew,
   });
 
@@ -1140,6 +1173,7 @@ function AgentActionEditor({
 function AgentActionInlineEditor({
   slug,
   headers,
+  apiBase,
   queryScope,
   existingSlugs,
   saving,
@@ -1177,6 +1211,7 @@ function AgentActionInlineEditor({
         <AgentActionEditor
           slug={slug}
           headers={headers}
+          apiBase={apiBase}
           queryScope={queryScope}
           existingSlugs={existingSlugs}
           saving={saving}

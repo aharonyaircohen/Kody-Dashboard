@@ -4,9 +4,10 @@
  * @pattern company-bundle
  * @ai-summary Portable "Company" bundle — the repo-agnostic operating
  *   manual of an org: its agent (agent identities), agentResponsibilities (recurring work),
- *   context, commands (slash-command SOPs), and instructions (tone/behaviour).
+ *   context, commands (slash-command SOPs), capabilities, legacy agentActions, managed goals,
+ *   and instructions (tone/behaviour).
  *   Deliberately excludes repo-specific state (memory, secrets,
- *   variables, dashboard config, goals, inbox, notifications) — those
+ *   variables, dashboard config, generated activity, inbox, notifications) — those
  *   belong to the repo, not the company, and a company may span repos.
  *
  *   The bundle is a single JSON document the user exports from one repo
@@ -73,9 +74,9 @@ export interface CompanyContextEntry {
 }
 
 /**
- * A custom agentAction. Unlike the single-file concepts above, an agentAction
- * is a *folder*, so it ships as a path→content map of every file under
- * `agent-actions/<slug>/` in the state repo. Paths are relative to the folder.
+ * A custom capability/action folder. Unlike the single-file concepts above,
+ * these ship as a path→content map of every file under the state-repo folder.
+ * Paths are relative to the folder.
  */
 export interface CompanyAgentActionEntry {
   slug: string;
@@ -121,6 +122,8 @@ export interface CompanyBundle {
   agentResponsibilities: CompanyTickEntry[];
   contexts: CompanyContextEntry[];
   commands: CompanyCommandEntry[];
+  capabilities: CompanyAgentActionEntry[];
+  /** Legacy collection kept while older repos still carry `agent-actions/`. */
   agentActions: CompanyAgentActionEntry[];
   goals: CompanyGoalEntry[];
   /** Repo instructions body, or `null` when the source repo had none. */
@@ -159,6 +162,7 @@ export interface CompanyImportResult {
   agentResponsibilities: CompanyImportCounts;
   contexts: CompanyImportCounts;
   commands: CompanyImportCounts;
+  capabilities: CompanyImportCounts;
   agentActions: CompanyImportCounts;
   goals: CompanyImportCounts;
   instructions: CompanyInstructionsOutcome;
@@ -256,6 +260,7 @@ export const companyBundleSchema = z
      * older bundles still import their slash commands.
      */
     prompts: z.array(commandEntrySchema).optional(),
+    capabilities: z.array(agentActionEntrySchema).default([]),
     agentActions: z.array(agentActionEntrySchema).default([]),
     goals: z.array(goalEntrySchema).default([]),
     instructions: z.string().nullable().default(null),

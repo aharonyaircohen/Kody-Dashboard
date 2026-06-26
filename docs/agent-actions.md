@@ -1,19 +1,27 @@
-# Custom agentActions
+# Capabilities and legacy agentAction implementations
 
-A **custom agentAction** is an implementation unit stored as a folder in your
-repo: its own instructions, model, tools, skills, and shell preflight. AgentResponsibilities
-own the public `@kody <action>` names; a agentResponsibility can point at an agentAction with
-`agentAction: <slug>`. The dashboard writes a normal engine `profile.json` (the
-same shape the built-in `feature` and `fix` agentActions use) into
-`.kody/agent-actions/<slug>/`, and the engine resolves that folder **before** its
-own built-ins.
+A **Capability** is the public "how" in the agency model. The canonical
+Dashboard storage is now:
+
+```text
+.kody/capabilities/<slug>/
+  profile.json
+  capability.md
+```
+
+`profile.json` may be a full implementation profile, or it may be a thin
+contract that points to an implementation with `agentAction: <slug>`.
+`capability.md` is the human-owned instructions/contract body.
+
+Legacy `agent-actions/<slug>/prompt.md` folders still load for compatibility,
+but the `/capabilities` UI and API write the new `capabilities/` root.
+
+For the broader ownership rules, see
+[`concepts/company-model.md`](concepts/company-model.md).
 
 Everything is repo-stored and per-repo. There is no separate registry, no
-database row — the folder _is_ the agentAction, and the latest commit on the
-default branch is the source of truth. That's why three different surfaces
-(the [/agent-actions](#) page, chat tools, and the Company bundle) can all CRUD
-the same agentAction without coordinating: they all read and write the same
-files through the GitHub Git Data API.
+database row — the folder _is_ the capability, and the latest commit on the
+default branch is the source of truth.
 
 Kody chat can create or update one too: it should first read this guide, then
 use the `create_or_update_agentAction` tool.
@@ -22,24 +30,25 @@ use the `create_or_update_agentAction` tool.
 
 | Piece                     | What it is                                                                                                                                                                                                      | Where                                                                                                              |
 | ------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------ |
-| The agentAction **folder** | `.kody/agent-actions/<slug>/` — `profile.json` + `prompt.md` + optional `*.sh` preflight scripts + optional `skills/<name>/SKILL.md`. The engine reads this path first when a agentResponsibility lowers to that implementation. | the connected repo                                                                                                 |
+| The capability **folder** | `.kody/capabilities/<slug>/` — `profile.json` + `capability.md` + optional `*.sh` preflight scripts + optional `skills/<name>/SKILL.md`. The engine reads this path before legacy roots. | the connected repo                                                                                                 |
+| Legacy agentAction folder | `.kody/agent-actions/<slug>/` — old implementation root, still loaded while repos migrate. | the connected repo                                                                                                 |
 | **File layer**            | Reads/writes the whole folder atomically (one blob per file → one tree → one commit) via the Git Data API. For simple generated agentActions, reads strip the generated output contract and writes re-append it. | [`../src/dashboard/lib/agent-actions/files.ts`](../src/dashboard/lib/agent-actions/files.ts)                           |
 | **Profile helpers**       | Pure form-fields ↔ `profile.json` translation, slug validation, and engine-mirroring profile validation. No I/O.                                                                                                | [`../src/dashboard/lib/agent-actions/profile.ts`](../src/dashboard/lib/agent-actions/profile.ts)                       |
-| The **/agent-actions page** | CRUD UI: list, create, edit, validate, delete, import a skill, and wire scripts/tools. It does not own public action names.                                                                                     | [`../src/dashboard/lib/components/AgentActionsManager.tsx`](../src/dashboard/lib/components/AgentActionsManager.tsx) |
-| **Control API**           | `GET`/`POST` collection, `GET`/`PATCH`/`DELETE` one, plus `/import-skill` and `/analyze-tool` helpers.                                                                                                          | [`../app/api/kody/agent-actions/`](../app/api/kody/agent-actions/)                                                     |
+| The **/capabilities page** | CRUD UI: list, create, edit, validate, delete, import a skill, and wire scripts/tools.                                                                                     | [`../src/dashboard/lib/components/AgentActionsManager.tsx`](../src/dashboard/lib/components/AgentActionsManager.tsx) |
+| **Control API**           | `GET`/`POST` collection and `GET`/`PATCH`/`DELETE` one for capabilities. Tool import helpers remain under the legacy agent-actions API.                                                                                                          | [`../app/api/kody/capabilities/`](../app/api/kody/capabilities/)                                                     |
 | **Chat tools**            | In-process tools that let Kody build/manage agentActions by conversation — same file layer, same atomic commit.                                                                                                  | [`../app/api/kody/chat/tools/agentAction-tools.ts`](../app/api/kody/chat/tools/agentAction-tools.ts)                 |
 | **Company bundle**        | Export/import flattens each folder into a portable path→content map, so agentActions travel with the rest of a company profile.                                                                                  | [`../src/dashboard/lib/company/`](../src/dashboard/lib/company/)                                                   |
 
 ## What a folder contains
 
-Every agentAction is a folder, not a single file — which is why the file layer
+Every capability is a folder, not a single file — which is why the file layer
 commits it through the Git Data API (one tree, one commit) rather than the
 single-file `createOrUpdateFileContents` the commands/agent-responsibilities helpers use.
 
 | File                     | Purpose                                                                                                                                                                                   | Generated from                                |
 | ------------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------- |
 | `profile.json`           | The engine manifest — role, inputs, `claudeCode` (model/tools/skills/permission), lifecycle, preflight chain.                                                                             | the form fields (or a raw override you paste) |
-| `prompt.md`              | Engine storage for user-authored instructions. It should be glue plus runtime context; reusable method goes in skills. Simple generated agentActions also get a generated output contract. | the instructions field + the landing          |
+| `capability.md`          | Engine storage for user-authored instructions. It should be glue plus runtime context; reusable method goes in skills. Simple generated capabilities also get a generated output contract. | the instructions field + the landing          |
 | `skills/<name>/SKILL.md` | Each declared skill's body. Committed _into_ the folder — see [Skills](#skills).                                                                                                          | the skills list                               |
 | `*.sh`                   | Optional shell scripts run as preflight steps (setup work) before the agent.                                                                                                              | the shell-scripts list                        |
 
@@ -82,7 +91,7 @@ Use these rules:
 - `skills/<name>/SKILL.md` is reusable method or domain knowledge. Put rules, rubrics, definitions, and repeatable reasoning there.
 - `*.sh` files are deterministic agentAction-owned scripts. Put setup, parsing, API calls, report generation, and other mechanical work there.
 - The **Tools** tab means MCP tool servers, not local helper scripts. Use it for things like Playwright MCP or codegraph MCP.
-- AgentResponsibilities own public action names, cadence, agent assignment, purpose, and safety bounds. Do not put recurring-job policy in an agentAction.
+- Capability contracts own public action names, cadence, agent assignment, kind, purpose, and safety bounds. Do not put public agency policy in an agentAction.
 - Agents files own agent. Do not redescribe agent identity in an agentAction.
 
 Use `skipAgent` when the script does all the work:
@@ -202,7 +211,7 @@ a `buildSyntheticPlugin` preflight step whenever the skills list is non-empty
 (the built-in `probe-skill` declares it the same way). The file layer keeps
 `claudeCode.skills` in sync with the committed `skills/` folders automatically.
 
-## CRUD + agentResponsibility flow
+## CRUD + capability flow
 
 ```
 ┌────────────────────────────────────────────────────────────┐
@@ -221,8 +230,8 @@ a `buildSyntheticPlugin` preflight step whenever the skills list is non-empty
                    │  .kody/agent-actions/<slug>/ committed
                    ▼
    ┌──────────────────────────────────────────┐
-   │ AgentResponsibility action dispatches workflow          │
-   │ action → agentResponsibility → agentAction implementation │
+   │ Capability action dispatches workflow                  │
+   │ action → capability contract → agentAction implementation │
    └───────────────┬──────────────────────────┘
                    │ engine resolves agentAction slug against
                    │ .kody/agent-actions/ FIRST, then built-ins
@@ -234,9 +243,10 @@ a `buildSyntheticPlugin` preflight step whenever the skills list is non-empty
    └──────────────────────────────────────────┘
 ```
 
-Execution assignment is owned by **AgentResponsibilities** — a agentResponsibility binds public action, intent,
-agent, cadence, and the implementation agentAction it may run. The
-`/agent-actions` page is edit-only; run dispatch lives on the agentResponsibility.
+Execution assignment is owned by the **Capability contract** — currently stored
+as an agentResponsibility. It binds public action, kind, agent, cadence, and the
+implementation agentAction it may run. The `/agent-actions` page is edit-only;
+run dispatch lives on the capability contract.
 
 ## Writes need a signed-in user token
 

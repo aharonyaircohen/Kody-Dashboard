@@ -86,6 +86,7 @@ export interface KodyConfig {
   /** Store catalog items this repo explicitly enables. */
   company?: {
     activeAgents?: string[];
+    activeCapabilities?: string[];
     activeAgentActions?: string[];
     activeAgentResponsibilities?: string[];
     activeCommands?: string[];
@@ -646,6 +647,7 @@ function setCompanyField(
   next: Record<string, unknown>,
   key:
     | "activeAgents"
+    | "activeCapabilities"
     | "activeAgentActions"
     | "activeAgentResponsibilities"
     | "activeCommands"
@@ -735,6 +737,7 @@ export interface ConfigPatch {
   aliases?: Record<string, string> | null;
   allowedAssociations?: string[] | null;
   activeAgents?: string[] | null;
+  activeCapabilities?: string[] | null;
   activeAgentActions?: string[] | null;
   activeAgentResponsibilities?: string[] | null;
   activeCommands?: string[] | null;
@@ -818,6 +821,13 @@ export async function writeConfigPatch(
           ? cleanSlugList(patch.activeAgents)
           : [];
         setCompanyField(next, "activeAgents", list);
+      }
+
+      if (patch.activeCapabilities !== undefined) {
+        const list = patch.activeCapabilities
+          ? cleanSlugList(patch.activeCapabilities)
+          : [];
+        setCompanyField(next, "activeCapabilities", list);
       }
 
       if (patch.activeAgentActions !== undefined) {

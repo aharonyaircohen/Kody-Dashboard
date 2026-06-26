@@ -1,54 +1,57 @@
-# Agents & AgentResponsibilities
+# Agents And Capabilities
 
-The dashboard's autonomous-work model has three related concepts:
+The canonical agency model lives in [`company-model.md`](./company-model.md).
+This page explains the Dashboard authoring surface that implements it.
+
+Current storage has three related pieces:
 
 - **Agents** - `.kody/agents/<slug>.md`. A agent: who an actor is
-  (character, values, doctrine). No work, no schedule, no commands owned by a
-  recurring job. Edited on the `/agent` page.
-- **AgentResponsibilities** - `.kody/agent-responsibilities/<slug>/`. A scheduled job: why the work exists,
-  what outcome it maintains, how often it may run, and which agent agent runs
-  it. Edited on the `/agent-responsibilities` page.
-- **AgentActions** - `.kody/agent-actions/<slug>/`. The implementation a agentResponsibility can
-  run: instructions, skills, scripts, tool wiring, and output contract.
+  (character, values, doctrine). This is the canonical **who**.
+- **Capabilities** - `.kody/capabilities/<slug>/`. The canonical **how**:
+  public action name, capability kind, owner, cadence, safety, inputs, outputs,
+  tools/data/instructions, and execution binding.
+- **Legacy AgentResponsibilities / AgentActions** -
+  `.kody/agent-responsibilities/<slug>/` and `.kody/agent-actions/<slug>/`.
+  These are compatibility roots while older repos migrate.
 
-A agentResponsibility folder always contains:
+A capability folder always contains:
 
 ```text
-.kody/agent-responsibilities/<slug>/
+.kody/capabilities/<slug>/
   profile.json
-  agent-responsibility.md
+  capability.md
 ```
 
-`profile.json` is the machine-readable contract. `agent-responsibility.md` is the
-human-readable purpose and limits. The engine's scheduler enumerates agentResponsibility
-folders, reads `profile.json`, and ticks each due agentResponsibility.
+`profile.json` is the machine-readable contract and execution wiring.
+`capability.md` is the human-readable purpose and limits. The engine reads
+capabilities first, then falls back to legacy roots.
 
-## Why agent = identity, agentResponsibility = job
+## Why agent stays identity-only
 
 This split is load-bearing, not stylistic.
 
-The agent is injected ahead of the agentResponsibility at run time. Anything concrete in the
-agent - a task, a domain, a verb, an output format, a cadence - would silently
-apply to every agentResponsibility that names that agent member. A `cto.md` that said "review
+The agent is injected ahead of the capability at run time. Anything concrete in
+the agent - a task, a domain, a verb, an output format, a cadence - would silently
+apply to every capability that names that agent member. A `cto.md` that said "review
 open PRs" would drag PR-review framing into a `cto`-run security sweep.
 
 Keeping the agent to identity and values makes it composable. The same `cto`
 can run a security audit, a changelog check, or a dependency sweep because each
-agentResponsibility supplies its own job and the agent only supplies judgment and voice.
+capability supplies its own job and the agent only supplies judgment and voice.
 
-So:
+So in storage terms:
 
-|                         | Agents (agent)         | AgentResponsibility (job)                 | AgentAction (implementation)     |
+|                         | Agents (who)           | Capability (how) | Legacy roots |
 | ----------------------- | ----------------------- | -------------------------- | ------------------------------- |
-| Path                    | `.kody/agents/<slug>.md` | `.kody/agent-responsibilities/<slug>/`     | `.kody/agent-actions/<slug>/`     |
-| Answers                 | Who is acting?          | Why/what/how often?        | How is the work performed?      |
-| Owns the schedule?      | No                      | Yes, via `profile.json`    | No                              |
+| Path                    | `.kody/agents/<slug>.md` | `.kody/capabilities/<slug>/` | `.kody/agent-responsibilities/<slug>/`, `.kody/agent-actions/<slug>/` |
+| Answers                 | Who is acting?          | What capability is available? | How is the work performed?      |
+| Owns the schedule?      | No                      | Only the capability cadence, via `profile.json` | Compatibility only |
 | Owns the action name?   | No                      | Yes, `profile.json.action` | No                              |
-| Owns reusable method?   | No                      | No                         | Yes, via skills/scripts/prompts |
-| Names the agent member? | No                      | Yes, `profile.json.runner` | No                              |
-| Independently ticked?   | No                      | Yes                        | No, unless a agentResponsibility invokes it    |
+| Owns reusable method?   | No                      | Yes, through skills/scripts/prompts when needed | Compatibility only |
+| Names the agent member? | No                      | Yes, `profile.json.agent` or legacy `runner` | No                              |
+| Independently ticked?   | No                      | Yes                        | Only for legacy compatibility |
 
-## AgentResponsibility profile
+## Capability profile
 
 The profile is JSON, not markdown frontmatter:
 
@@ -58,8 +61,9 @@ The profile is JSON, not markdown frontmatter:
   "describe": "Security Audit",
   "action": "security-audit",
   "agentAction": "security-audit",
+  "capabilityKind": "observe",
   "every": "1d",
-  "runner": "kody",
+  "agent": "kody",
   "reviewer": "cto",
   "mentions": ["aguyaharonyair"],
   "writesTo": ["security-audit"]
@@ -68,23 +72,24 @@ The profile is JSON, not markdown frontmatter:
 
 Important fields:
 
-- `name` - agentResponsibility slug; should match the folder name.
+- `name` - capability slug; should match the folder name.
 - `describe` - human-readable dashboard title.
-- `action` - public `@kody <action>` command owned by this agentResponsibility.
-- `agentAction` - implementation agentAction for normal one-agentAction agentResponsibilities.
-- `agentActions` - optional multi-agentAction list.
+- `action` - public `@kody <action>` command owned by this capability.
+- `agentAction` - legacy implementation reference for older split storage.
+- `capabilityKind` - `observe`, `act`, or `verify`.
+- `agentActions` - optional legacy multi-implementation list.
 - `every` - cadence between auto-runs: `15m`, `30m`, `1h`, `2h`, `6h`, `12h`,
   `1d`, `3d`, `7d`, or `manual`.
 - `disabled` - `true` makes the scheduler skip autonomous execution.
-- `runner` - slug of the agent under `.kody/agents/<slug>.md` that performs
-  the agentResponsibility.
+- `agent` - slug of the agent under `.kody/agents/<slug>.md` that performs the
+  capability. Older profiles may still use `runner`.
 - `reviewer` - optional agent slug responsible for treating the output after
   the agentResponsibility produces it.
-- `mentions` - GitHub logins the agentResponsibility output should mention, without `@`.
-- `tools` - optional agentResponsibility tool names exposed to the runner.
-- `tickScript` - optional deterministic script path for a scripted agentResponsibility.
-- `readsFrom` / `writesTo` - context, report, or agentResponsibility slugs that form the
-  agentResponsibility's data contract.
+- `mentions` - GitHub logins the capability output should mention, without `@`.
+- `tools` - optional locked tool names exposed to the runner.
+- `tickScript` - optional deterministic script path for a scripted capability.
+- `readsFrom` / `writesTo` - context, report, or capability slugs that form the
+  capability's data contract.
 
 The dashboard create form asks for an output type:
 
@@ -92,58 +97,58 @@ The dashboard create form asks for an output type:
 - `Report` - one `reports/<slug>.md` file in the configured Kody state repo is the durable output, and the
   report slug is stored in `writesTo`.
 
-A agentResponsibility with no `runner` should not auto-run. A agentResponsibility pointing at a missing agent
-file is a hard error at tick time.
+A capability with no agent should not auto-run. A capability pointing at a
+missing agent file is a hard error at tick time.
 
-`runner` and `reviewer` are different agent roles: `runner` performs the agentResponsibility;
+`agent` and `reviewer` are different roles: `agent` performs the capability;
 `reviewer` owns the result after it exists.
 
-## AgentResponsibility body
+## Capability body
 
-`agent-responsibility.md` is markdown prose only. Do not add frontmatter.
+`capability.md` is markdown prose only. Do not add frontmatter. Legacy
+`agent-responsibility.md` files follow the same rule.
 
 Use the body for:
 
 - `# Title`
-- `## Job` - the purpose and outcome.
-- `## AgentAction` - which agentAction to run, if any.
+- `## Job` - the capability purpose and outcome.
+- `## Implementation` - which implementation to run, if any.
 - `## Output` - the expected report/context/result.
-- `## Allowed Commands` - usually just the agentAction, not shell recipes.
+- `## Allowed Commands` - usually just the capability action, not shell recipes.
 - `## Restrictions` - hard limits.
 
-Keep reusable runbooks in agentAction skills and deterministic shell/API work in
-agentAction-owned scripts. The agentResponsibility should remain readable to the user who is
-orchestrating the company.
+Keep reusable runbooks in skills and deterministic shell/API work in scripts.
+The capability should remain readable as the operator-facing contract.
 
 ## How a tick flows
 
 ```text
 engine cron
-  -> agentResponsibility scheduler
-     -> enumerate .kody/agent-responsibilities/<slug>/ folders
+  -> capability scheduler
+     -> enumerate .kody/capabilities/<slug>/ folders
      -> read profile.json
-     -> skip disabled/no-runner/not-due agentResponsibilities
-     -> run the due agentResponsibility action
-        -> load agent-responsibility.md
-        -> inject .kody/agents/<runner>.md agent
-        -> run linked agentAction when configured
+     -> skip disabled/no-agent/not-due capabilities
+     -> run the due capability action
+        -> load capability.md
+        -> inject .kody/agents/<agent>.md agent
+        -> run configured implementation
         -> write activity/state for the dashboard
 ```
 
 Key points:
 
-- The scheduler runs no agent. It only fans out due agentResponsibilities.
-- The skip gates are: `disabled: true`, missing `runner`, and `every` cadence not
+- The scheduler runs no agent. It only fans out due capabilities.
+- The skip gates are: `disabled: true`, missing `agent`, and `every` cadence not
   due yet.
 - `every: manual` never auto-fires; the dashboard "Run now" button still works.
-- Manual "Run now" bypasses the scheduler gate but the agentResponsibility still needs a valid
+- Manual "Run now" bypasses the scheduler gate but the capability still needs a valid
   agent member.
-- Cadence state is engine-owned and stored outside the agentResponsibility folder's authoring
+- Cadence state is engine-owned and stored outside the capability folder's authoring
   contract.
 
 ## State files
 
-Runtime state is not part of the agentResponsibility authoring surface. The engine writes it
+Runtime state is not part of the capability authoring surface. The engine writes it
 under the configured Kody state repo, and the dashboard reads it to render run status:
 
 - `lastTickAt` - last visible run time.
@@ -151,16 +156,16 @@ under the configured Kody state repo, and the dashboard reads it to render run s
 - `lastOutcome` - coarse result of the most recent tick.
 - `lastDurationMs` - wall-clock duration of the most recent tick.
 
-Users creating agentResponsibilities should not author state keys. State mechanics stay behind
+Users creating capabilities should not author state keys. State mechanics stay behind
 the engine and dashboard runtime contract.
 
 ## Editing and manual runs
 
 - `/agent` lists and edits personas. Agents create/update payloads take `slug`,
   `title`, and `body`.
-- `/agent-responsibilities` lists and edits agentResponsibility folders. The dashboard writes
-  `profile.json` and `agent-responsibility.md` together.
-- "Run now" dispatches the agentResponsibility action for one slug immediately.
+- `/capabilities` lists and edits capability folders. The dashboard writes
+  `profile.json` and `capability.md` together.
+- "Run now" dispatches the capability action for one slug immediately.
 - Slugs must match `^[a-z0-9][a-z0-9_-]{0,63}$`.
 
 ## A note on cron cadence
@@ -168,47 +173,46 @@ the engine and dashboard runtime contract.
 Three cadence concepts are in play:
 
 - The workflow wake controls how often the scheduler gets a chance to look.
-- `profile.json.every` controls how often a specific agentResponsibility may run.
+- `profile.json.every` controls how often a specific capability may run.
 - Dashboard relative-time labels mirror the scheduler wake only for display.
 
-So the wake is only the outer loop. The agentResponsibility's own `every` value is the
-important per-agentResponsibility throttle.
+So the wake is only the outer loop. The capability's own `every` value is the
+important per-capability throttle.
 
 ## File reference
 
 | File                                                                                         | Purpose                                 |
 | -------------------------------------------------------------------------------------------- | --------------------------------------- |
-| [`docs/agent-responsibilities.md`](../agent-responsibilities.md)                                                             | AgentResponsibility creation guide and folder contract |
+| [`docs/agent-responsibilities.md`](../agent-responsibilities.md)                                                             | Capability contract guide and legacy fallback notes |
 | [`src/dashboard/lib/agent-files.ts`](../../src/dashboard/lib/agent-files.ts)                 | Agents markdown store                    |
-| [`src/dashboard/lib/agent-responsibilities-files.ts`](../../src/dashboard/lib/agent-responsibilities-files.ts)               | Folder-backed agentResponsibility store                |
+| [`src/dashboard/lib/capabilities`](../../src/dashboard/lib/capabilities)               | Capability store exports                |
+| [`src/dashboard/lib/agent-responsibilities-files.ts`](../../src/dashboard/lib/agent-responsibilities-files.ts)               | Legacy fallback store                |
 | [`src/dashboard/lib/ticked/schedule.ts`](../../src/dashboard/lib/ticked/schedule.ts)         | Dashboard next-tick display math        |
 | [`app/api/kody/agent/route.ts`](../../app/api/kody/agent/route.ts)                           | Agents API                               |
-| [`app/api/kody/agent-responsibilities/route.ts`](../../app/api/kody/agent-responsibilities/route.ts)                         | AgentResponsibilities API                              |
+| [`app/api/kody/capabilities/route.ts`](../../app/api/kody/capabilities/route.ts)                         | Capabilities API                              |
 | [`.kody/agents/cto.md`](../../.kody/agents/cto.md)                                             | Example identity-only agent           |
-| [`.kody/agent-responsibilities/security-audit/agent-responsibility.md`](../../.kody/agent-responsibilities/security-audit/agent-responsibility.md)           | Example agentResponsibility body                       |
-| [`.kody/agent-responsibilities/security-audit/profile.json`](../../.kody/agent-responsibilities/security-audit/profile.json) | Example agentResponsibility profile                    |
 | `kody2/src/scripts/dispatchAgentResponsibilityFileTicks.ts` (engine)                                        | Scheduler fan-out                       |
-| `kody2/src/scripts/loadJobFromFile.ts` (engine)                                              | AgentResponsibility loader                             |
+| `kody2/src/scripts/loadJobFromFile.ts` (engine)                                              | Capability/legacy agentResponsibility loader                             |
 
 ## FAQ
 
-**Can a agent agent include the work it should do?**
+**Can a agent include the work it should do?**
 
-No. The agent is injected ahead of every agentResponsibility that names it, so concrete
-behavior would leak across agentResponsibilities. Put job intent in the agentResponsibility and reusable
-method in the agentAction.
+No. The agent is injected ahead of every capability that names it, so concrete
+behavior would leak across capabilities. Put the capability contract in the
+capability folder and reusable method in its skills/scripts.
 
-**What happens if a agentResponsibility's `runner` points at a deleted agent?**
+**What happens if a capability's `agent` points at a deleted agent?**
 
-It is a hard error at tick time. A agentResponsibility never runs without the executor
+It is a hard error at tick time. A capability never runs without the executor
 identity it declared.
 
-**Can a agentResponsibility have no schedule?**
+**Can a capability have no schedule?**
 
 Yes. With no `every` value it is eligible on every scheduler wake. Use
 `manual` for "Run now only", or a cadence token to throttle.
 
-**Does disabling a agentResponsibility stop "Run now"?**
+**Does disabling a capability stop "Run now"?**
 
 No. `disabled: true` only blocks autonomous execution. Manual "Run now" still
 fires.

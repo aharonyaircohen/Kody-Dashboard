@@ -2,7 +2,7 @@
  * @fileType page
  * @domain capabilities
  * @pattern capabilities-page
- * @ai-summary Create a new capability backed by legacy agent-actions storage.
+ * @ai-summary Create a new capability backed by state-repo capabilities storage.
  */
 import { AuthGuard } from "@dashboard/lib/auth-guard";
 import { AgentActionEditorPage } from "@dashboard/lib/components/AgentActionsManager";
