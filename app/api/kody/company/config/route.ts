@@ -48,6 +48,7 @@ export async function GET(req: NextRequest) {
       activeCapabilities: config.company?.activeCapabilities ?? [],
       activeCommands: config.company?.activeCommands ?? [],
       activeGoals: config.company?.activeGoals ?? [],
+      activeWorkflows: config.company?.activeWorkflows ?? [],
       state: config.state ?? null,
       defaultBranch: config.git?.defaultBranch ?? "",
       perExecutable: config.agent?.perExecutable ?? {},
@@ -135,6 +136,7 @@ const PatchSchema = z
     activeCapabilities: z.array(slugSchema).max(200).nullable().optional(),
     activeCommands: z.array(slugSchema).max(200).nullable().optional(),
     activeGoals: z.array(activeGoalSchema).max(200).nullable().optional(),
+    activeWorkflows: z.array(slugSchema).max(200).nullable().optional(),
     state: stateSchema.nullable().optional(),
     defaultBranch: z.string().max(255).nullable().optional(),
     // Executable slug → `provider/model` override. Bounded so a paste can't
@@ -162,6 +164,7 @@ const PatchSchema = z
       b.activeCapabilities !== undefined ||
       b.activeCommands !== undefined ||
       b.activeGoals !== undefined ||
+      b.activeWorkflows !== undefined ||
       b.state !== undefined ||
       b.defaultBranch !== undefined ||
       b.perExecutable !== undefined ||
@@ -209,6 +212,7 @@ export async function PATCH(req: NextRequest) {
     activeAgents,
     activeCapabilities,
     activeGoals,
+    activeWorkflows,
     state,
     defaultBranch,
     perExecutable,
@@ -234,6 +238,7 @@ export async function PATCH(req: NextRequest) {
         activeCapabilities,
         activeCommands,
         activeGoals,
+        activeWorkflows,
         state,
         defaultBranch,
         perExecutable,
@@ -253,6 +258,7 @@ export async function PATCH(req: NextRequest) {
       activeCapabilities: config.company?.activeCapabilities ?? [],
       activeCommands: config.company?.activeCommands ?? [],
       activeGoals: config.company?.activeGoals ?? [],
+      activeWorkflows: config.company?.activeWorkflows ?? [],
       state: config.state ?? null,
       defaultBranch: config.git?.defaultBranch ?? "",
       perExecutable: config.agent?.perExecutable ?? {},

@@ -11,24 +11,20 @@ import { expect, test, type Page } from "@playwright/test";
 
 type CatalogKind =
   | "agent"
-  | "executable"
   | "capability"
   | "agentGoal"
-  | "agentLoop";
+  | "agentLoop"
+  | "workflow"
+  | "command";
 
 interface CatalogItem {
   slug: string;
   title: string;
   description: string;
   kind: CatalogKind;
-  status: "active" | "not-active" | "customized";
-  active: boolean;
-  activatable: boolean;
-  source: "store" | "local";
   htmlUrl: string | null;
   action?: string | null;
   agent?: string | null;
-  executable?: string | null;
   schedule?: string | null;
 }
 
@@ -45,21 +41,12 @@ const auth = {
   loggedInAt: Date.now(),
 };
 
-const catalogSeeds: Array<Omit<CatalogItem, "active" | "status" | "source">> = [
+const catalogSeeds: CatalogItem[] = [
   {
     slug: "atlas-agent",
     title: "Atlas Agent",
     description: "Coordinates product delivery.",
     kind: "agent",
-    activatable: true,
-    htmlUrl: null,
-  },
-  {
-    slug: "ship-feature",
-    title: "Ship Feature",
-    description: "Implements a requested feature.",
-    kind: "executable",
-    activatable: true,
     htmlUrl: null,
   },
   {
@@ -67,17 +54,14 @@ const catalogSeeds: Array<Omit<CatalogItem, "active" | "status" | "source">> = [
     title: "Release Watch",
     description: "Keeps release work moving.",
     kind: "capability",
-    activatable: true,
     htmlUrl: null,
     agent: "atlas-agent",
-    executable: "ship-feature",
   },
   {
     slug: "weekly-quality",
     title: "Weekly Quality",
     description: "Maintains quality goals.",
     kind: "agentGoal",
-    activatable: true,
     htmlUrl: null,
   },
   {
@@ -85,9 +69,22 @@ const catalogSeeds: Array<Omit<CatalogItem, "active" | "status" | "source">> = [
     title: "Daily Triage",
     description: "Repeats triage on a schedule.",
     kind: "agentLoop",
-    activatable: true,
     htmlUrl: null,
     schedule: "1d",
+  },
+  {
+    slug: "release-workflow",
+    title: "Release Workflow",
+    description: "Runs release readiness capabilities in order.",
+    kind: "workflow",
+    htmlUrl: null,
+  },
+  {
+    slug: "factory",
+    title: "/factory",
+    description: "Draft factory changes.",
+    kind: "command",
+    htmlUrl: null,
   },
 ];
 
@@ -99,29 +96,12 @@ async function seedAuth(page: Page): Promise<void> {
 
 async function mockStoreCatalog(page: Page): Promise<unknown[]> {
   const imports: unknown[] = [];
-  const imported = new Set<string>();
-  const items = (): CatalogItem[] =>
-    catalogSeeds.map((item) => {
-      const key = `${item.kind}:${item.slug}`;
-      const isImported = imported.has(key);
-      return {
-        ...item,
-        active: isImported,
-        status: isImported ? "active" : "not-active",
-        source: "store",
-      };
-    });
-
   await page.route("**/api/kody/store-catalog", async (route) => {
     await route.fulfill({
       status: 200,
       contentType: "application/json",
       body: JSON.stringify({
-        items: items(),
-        activeAgents: [],
-        activeExecutables: [],
-        activeCapabilities: [],
-        activeGoals: [],
+        items: catalogSeeds,
       }),
     });
   });
@@ -132,7 +112,6 @@ async function mockStoreCatalog(page: Page): Promise<unknown[]> {
       slug: string;
     };
     imports.push(body);
-    imported.add(`${body.kind}:${body.slug}`);
     await route.fulfill({
       status: 200,
       contentType: "application/json",
@@ -147,6 +126,12 @@ async function mockStoreCatalog(page: Page): Promise<unknown[]> {
   });
 
   return imports;
+}
+
+async function expectNeutralCatalog(page: Page): Promise<void> {
+  await expect(
+    page.getByText(/^(Active|Not active|Customized|Available)$/),
+  ).toHaveCount(0);
 }
 
 async function mockIdentity(page: Page): Promise<void> {
@@ -181,11 +166,15 @@ async function addCatalogItem(
   page: Page,
   item: { kind: CatalogKind; slug: string },
 ): Promise<void> {
-  await page.getByTestId(`store-catalog-row-${item.kind}-${item.slug}`).click();
+  await page.goto(`/store-catalog/${item.kind}/${item.slug}`, {
+    waitUntil: "domcontentloaded",
+  });
+
   const button = page.getByTestId(
     `store-catalog-import-${item.kind}-${item.slug}`,
   );
   await expect(button).toContainText("Add from Store");
+  await expectNeutralCatalog(page);
   await Promise.all([
     page.waitForResponse(
       (response) =>
@@ -194,8 +183,8 @@ async function addCatalogItem(
     ),
     button.click(),
   ]);
-  await expect(page.getByText("Active").first()).toBeVisible();
-  await expect(button).toBeHidden();
+  await expect(button).toContainText("Add from Store");
+  await expectNeutralCatalog(page);
 }
 
 test.describe("Store Catalog add", () => {
@@ -210,10 +199,11 @@ test.describe("Store Catalog add", () => {
 
     expect(imports).toEqual([
       { kind: "agent", slug: "atlas-agent" },
-      { kind: "executable", slug: "ship-feature" },
       { kind: "capability", slug: "release-watch" },
       { kind: "agentGoal", slug: "weekly-quality" },
       { kind: "agentLoop", slug: "daily-triage" },
+      { kind: "workflow", slug: "release-workflow" },
+      { kind: "command", slug: "factory" },
     ]);
   });
 });

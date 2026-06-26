@@ -20,6 +20,9 @@ export interface WorkflowDefinitionRecord {
   path: string;
   workflow: WorkflowDefinition;
   updatedAt?: string;
+  source?: "local" | "store";
+  readOnly?: boolean;
+  htmlUrl?: string | null;
 }
 
 export interface CreateWorkflowDefinitionInput {

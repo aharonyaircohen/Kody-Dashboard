@@ -28,6 +28,10 @@ const managedGoals = vi.hoisted(() => ({
   listCompanyStoreGoalTemplateFiles: vi.fn(),
 }));
 
+const workflowDefinitions = vi.hoisted(() => ({
+  listCompanyStoreWorkflowDefinitionFiles: vi.fn(),
+}));
+
 const capabilities = vi.hoisted(() => ({
   readResolvedCapabilityFile: vi.fn(),
 }));
@@ -60,6 +64,11 @@ vi.mock("@dashboard/lib/managed-goals-files", () => ({
     managedGoals.listCompanyStoreGoalTemplateFiles,
 }));
 
+vi.mock("@dashboard/lib/workflow-definition-files", () => ({
+  listCompanyStoreWorkflowDefinitionFiles:
+    workflowDefinitions.listCompanyStoreWorkflowDefinitionFiles,
+}));
+
 vi.mock("@dashboard/lib/capabilities", () => ({
   readResolvedCapabilityFile: capabilities.readResolvedCapabilityFile,
 }));
@@ -87,6 +96,7 @@ function baseConfig() {
         activeCapabilities: [],
         activeCommands: [],
         activeGoals: [],
+        activeWorkflows: [],
       },
     },
     sha: "config-sha",
@@ -135,6 +145,16 @@ describe("store catalog import route", () => {
         state: { capabilities: ["release-watch"] },
       },
     ]);
+    workflowDefinitions.listCompanyStoreWorkflowDefinitionFiles.mockResolvedValue(
+      [
+        {
+          id: "release-workflow",
+          workflow: {
+            capabilities: ["release-watch"],
+          },
+        },
+      ],
+    );
     capabilities.readResolvedCapabilityFile.mockImplementation(
       async (slug: string) =>
         ["ship-feature", "release-watch"].includes(slug)
@@ -170,6 +190,7 @@ describe("store catalog import route", () => {
         activeCapabilities: undefined,
         activeCommands: undefined,
         activeGoals: undefined,
+        activeWorkflows: undefined,
       },
       "chore(kody): add store agent atlas-agent",
     );
@@ -199,6 +220,7 @@ describe("store catalog import route", () => {
         activeCapabilities: ["ship-feature"],
         activeCommands: undefined,
         activeGoals: undefined,
+        activeWorkflows: undefined,
       },
       "chore(kody): add store capability ship-feature",
     );
@@ -224,6 +246,7 @@ describe("store catalog import route", () => {
         activeCapabilities: ["release-watch"],
         activeCommands: undefined,
         activeGoals: ["weekly-quality"],
+        activeWorkflows: undefined,
       },
       "chore(kody): add store agentGoal weekly-quality",
     );
@@ -237,6 +260,7 @@ describe("store catalog import route", () => {
         activeCapabilities: ["release-watch"],
         activeCommands: undefined,
         activeGoals: ["daily-triage"],
+        activeWorkflows: undefined,
       },
       "chore(kody): add store agentLoop daily-triage",
     );
@@ -250,8 +274,37 @@ describe("store catalog import route", () => {
         activeCapabilities: undefined,
         activeCommands: ["factory"],
         activeGoals: undefined,
+        activeWorkflows: undefined,
       },
       "chore(kody): add store command factory",
+    );
+  });
+
+  it("adds a store workflow link and its capability dependencies", async () => {
+    const octokit = makeOctokit();
+    auth.getUserOctokit.mockResolvedValue(octokit);
+
+    const res = await POST(req({ kind: "workflow", slug: "release-workflow" }));
+
+    expect(res.status).toBe(200);
+    await expect(res.json()).resolves.toMatchObject({
+      kind: "workflow",
+      slug: "release-workflow",
+      imported: true,
+      path: "company.activeWorkflows",
+    });
+    expect(engineConfig.writeConfigPatch).toHaveBeenCalledWith(
+      octokit,
+      "acme",
+      "widgets",
+      {
+        activeAgents: ["atlas-agent"],
+        activeCapabilities: ["release-watch"],
+        activeCommands: undefined,
+        activeGoals: undefined,
+        activeWorkflows: ["release-workflow"],
+      },
+      "chore(kody): add store workflow release-workflow",
     );
   });
 
@@ -305,6 +358,7 @@ describe("store catalog import route", () => {
         ],
         activeCommands: undefined,
         activeGoals: ["web-release"],
+        activeWorkflows: undefined,
       },
       "chore(kody): add store agentGoal web-release",
     );
@@ -344,6 +398,7 @@ describe("store catalog import route", () => {
           activeAgents: ["atlas-agent"],
           activeCapabilities: ["release-watch"],
           activeGoals: [{ template: "weekly-quality", every: "1w" }],
+          activeWorkflows: [],
         },
       },
       sha: "config-sha",
@@ -390,6 +445,7 @@ describe("store catalog import route", () => {
         activeCapabilities: ["release-watch"],
         activeCommands: undefined,
         activeGoals: undefined,
+        activeWorkflows: undefined,
       },
       "chore(kody): add store agentGoal weekly-quality",
     );

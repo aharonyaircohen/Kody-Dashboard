@@ -13,14 +13,14 @@ import { getStoreRef, getStoreRepoUrl } from "../github-client";
 export type StoreAssetKind =
   | "capabilities"
   | "executables"
-  | "capabilities"
+  | "workflows"
   | "commands"
   | "agent"
   | "agents";
 type StoreManifestKind =
   | "capabilities"
   | "executables"
-  | "capabilities"
+  | "workflows"
   | "commands"
   | "agent";
 export type AssetSource = "local" | "store";

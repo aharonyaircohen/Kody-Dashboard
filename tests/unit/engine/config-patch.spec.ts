@@ -161,6 +161,7 @@ describe("writeConfigPatch — store activation", () => {
     await writeConfigPatch(octokit, "o", "r", {
       activeAgents: ["cto", "cto", "qa"],
       activeCapabilities: ["run", "run", "fix-ci"],
+      activeWorkflows: ["release-readiness", "release-readiness"],
       activeGoals: [
         "web-release",
         {
@@ -177,6 +178,7 @@ describe("writeConfigPatch — store activation", () => {
       ownerNote: "keep",
       activeAgents: ["cto", "qa"],
       activeCapabilities: ["run", "fix-ci"],
+      activeWorkflows: ["release-readiness"],
       activeGoals: [
         "web-release",
         {
@@ -198,6 +200,7 @@ describe("writeConfigPatch — store activation", () => {
         ownerNote: "keep",
         activeAgents: ["cto"],
         activeCapabilities: ["run"],
+        activeWorkflows: ["release-readiness"],
         activeGoals: ["web-release"],
       },
     });
@@ -205,6 +208,7 @@ describe("writeConfigPatch — store activation", () => {
     await writeConfigPatch(octokit, "o", "r", {
       activeAgents: null,
       activeCapabilities: null,
+      activeWorkflows: null,
       activeGoals: null,
     });
 

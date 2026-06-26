@@ -31,16 +31,17 @@ always targets the default branch.
 The engine reads a handful of top-level keys. The dashboard splits editing
 across three pages by concern — /config owns the repo-wide behavior fields:
 
-| Field                                       | What it controls                                                                                                          | Edited on                      |
-| ------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------- | ------------------------------ |
+| Field                                       | What it controls                                                                                                                | Edited on                      |
+| ------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------- | ------------------------------ |
 | `github.operators`                          | GitHub logins recommendation capabilities @-mention so their comment routes into the dashboard inbox. Empty = nobody is tagged. | **/config** → Operators card   |
-| `quality.{typecheck,lint,format,testUnit}`  | Commands the engine runs to verify the code it produces. Blank/absent = skip that check.                                  | **/config** → Quality commands |
-| `access.allowedAssociations`                | GitHub author associations allowed to trigger `@kody` (OWNER/MEMBER/…). Empty = engine default (team only).               | **/config** → Access gate      |
-| `git.defaultBranch`                         | Base branch new work branches off and targets. Blank = engine default (`main`).                                           | **/config** → Default branch   |
-| `aliases`                                   | Word → subcommand map, e.g. `{ "build": "run" }` lets `@kody build` dispatch `run`.                                       | **/config** → Comment aliases  |
-| `agent.model`                               | The `provider/model` the engine runs. **The only key the engine reads for its model.**                                    | /models (synced on save)       |
-| `agent.perExecutable`                       | Legacy config field for per-capability model overrides, e.g. `{ "research": "anthropic/claude-opus-4-7" }`.                | /models                        |
-| `defaultExecutable` / `defaultPrExecutable` | Legacy config fields for the bare `@kody` capability action on an issue / PR (engine defaults: `classify` / `fix`).       | /config                        |
+| `quality.{typecheck,lint,format,testUnit}`  | Commands the engine runs to verify the code it produces. Blank/absent = skip that check.                                        | **/config** → Quality commands |
+| `access.allowedAssociations`                | GitHub author associations allowed to trigger `@kody` (OWNER/MEMBER/…). Empty = engine default (team only).                     | **/config** → Access gate      |
+| `git.defaultBranch`                         | Base branch new work branches off and targets. Blank = engine default (`main`).                                                 | **/config** → Default branch   |
+| `aliases`                                   | Word → subcommand map, e.g. `{ "build": "run" }` lets `@kody build` dispatch `run`.                                             | **/config** → Comment aliases  |
+| `agent.model`                               | The `provider/model` the engine runs. **The only key the engine reads for its model.**                                          | /models (synced on save)       |
+| `agent.perExecutable`                       | Legacy config field for per-capability model overrides, e.g. `{ "research": "anthropic/claude-opus-4-7" }`.                     | /models                        |
+| `defaultExecutable` / `defaultPrExecutable` | Legacy config fields for the bare `@kody` capability action on an issue / PR (engine defaults: `classify` / `fix`).             | /config                        |
+| `company.activeWorkflows`                   | Store workflow slugs linked into this repo. Removing a Store workflow clears this link, not the Store asset.                    | /workflows and /store-catalog  |
 
 ## The Operators card — inbox routing
 

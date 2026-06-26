@@ -15,6 +15,12 @@ import {
   writeStateText,
 } from "./state-repo";
 import {
+  buildCompanyStoreHtmlUrl,
+  listCompanyStoreDirectorySafe,
+  readCompanyStoreText,
+} from "./company-store/assets";
+import {
+  isWorkflowDefinitionId,
   normalizeWorkflowDefinition,
   workflowDefinitionPath,
   type WorkflowDefinition,
@@ -35,6 +41,7 @@ export async function readWorkflowDefinitionFile(
   workflow: WorkflowDefinition;
   sha: string;
   path: string;
+  htmlUrl?: string;
 } | null> {
   const path = workflowDefinitionPath(id);
   const file = await readStateText(octokit, owner, repo, path, {
@@ -49,7 +56,7 @@ export async function readWorkflowDefinitionFile(
   }
   const workflow = normalizeWorkflowDefinition(parsed);
   if (!workflow) return null;
-  return { workflow, sha: file.sha, path };
+  return { workflow, sha: file.sha, path, htmlUrl: file.htmlUrl };
 }
 
 async function listWorkflowDefinitionDirs(
@@ -89,10 +96,59 @@ export async function listWorkflowDefinitionFiles(
       path: file.path,
       workflow: file.workflow,
       updatedAt: file.workflow.updatedAt,
+      source: "local",
+      readOnly: false,
+      htmlUrl: file.htmlUrl ?? null,
     });
   }
 
   return workflows.sort((a, b) => a.id.localeCompare(b.id));
+}
+
+export async function readCompanyStoreWorkflowDefinitionFile(
+  id: string,
+  octokit: Octokit = getOctokit(),
+): Promise<WorkflowDefinitionRecord | null> {
+  if (!isWorkflowDefinitionId(id)) return null;
+  const path = `.kody/workflows/${id}/workflow.json`;
+  const raw = await readCompanyStoreText(octokit, path);
+  if (!raw) return null;
+
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(raw);
+  } catch {
+    return null;
+  }
+  const workflow = normalizeWorkflowDefinition(parsed);
+  if (!workflow) return null;
+  return {
+    id,
+    path,
+    workflow,
+    updatedAt: workflow.updatedAt,
+    source: "store",
+    readOnly: true,
+    htmlUrl: buildCompanyStoreHtmlUrl("workflows", id),
+  };
+}
+
+export async function listCompanyStoreWorkflowDefinitionFiles(
+  octokit: Octokit = getOctokit(),
+): Promise<WorkflowDefinitionRecord[]> {
+  const dirs = await listCompanyStoreDirectorySafe(octokit, ".kody/workflows");
+  const workflows = await Promise.all(
+    dirs
+      .filter(
+        (entry) => entry.type === "dir" && isWorkflowDefinitionId(entry.name),
+      )
+      .map((entry) =>
+        readCompanyStoreWorkflowDefinitionFile(entry.name, octokit),
+      ),
+  );
+  return workflows
+    .filter((workflow): workflow is WorkflowDefinitionRecord => !!workflow)
+    .sort((a, b) => a.id.localeCompare(b.id));
 }
 
 export async function writeWorkflowDefinitionFile({

@@ -2410,6 +2410,7 @@ export interface EngineEditableConfig {
         facts?: Record<string, unknown>;
       }
   >;
+  activeWorkflows?: string[];
   state: {
     repo?: string;
     path?: string;

@@ -20,12 +20,14 @@ import {
   clearGitHubContext,
   setGitHubContext,
 } from "@dashboard/lib/github-client";
+import { getEngineConfig, type KodyConfig } from "@dashboard/lib/engine/config";
 import {
   buildWorkflowDefinition,
   slugifyWorkflowDefinitionId,
   workflowDefinitionPath,
 } from "@dashboard/lib/workflow-definitions";
 import {
+  listCompanyStoreWorkflowDefinitionFiles,
   listWorkflowDefinitionFiles,
   readWorkflowDefinitionFile,
   writeWorkflowDefinitionFile,
@@ -41,7 +43,10 @@ const workflowPayloadSchema = z.object({
 
 function mapGithubError(error: any, fallback: string, status = 500) {
   if (error?.status === 401) {
-    return NextResponse.json({ error: "github_token_expired" }, { status: 401 });
+    return NextResponse.json(
+      { error: "github_token_expired" },
+      { status: 401 },
+    );
   }
   if (error?.status === 403 || error?.message?.includes("rate limit")) {
     return NextResponse.json(
@@ -55,6 +60,13 @@ function mapGithubError(error: any, fallback: string, status = 500) {
   );
 }
 
+function activeWorkflowSlugs(config: KodyConfig): string[] {
+  return (config.company?.activeWorkflows ?? []).filter(
+    (slug): slug is string =>
+      typeof slug === "string" && slug.trim().length > 0,
+  );
+}
+
 export async function GET(req: NextRequest) {
   const authResult = await requireKodyAuth(req);
   if (authResult instanceof NextResponse) return authResult;
@@ -64,17 +76,40 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ error: "no_repo_context" }, { status: 400 });
   }
 
-  setGitHubContext(headerAuth.owner, headerAuth.repo, headerAuth.token);
+  setGitHubContext(
+    headerAuth.owner,
+    headerAuth.repo,
+    headerAuth.token,
+    headerAuth.storeRepoUrl,
+    headerAuth.storeRef,
+  );
   try {
     const octokit = await getUserOctokit(req);
     if (!octokit) {
       return NextResponse.json({ error: "no_user_token" }, { status: 401 });
     }
 
-    const workflows = await listWorkflowDefinitionFiles(
+    const localWorkflows = await listWorkflowDefinitionFiles(
       octokit,
       headerAuth.owner,
       headerAuth.repo,
+    );
+    const { config } = await getEngineConfig(
+      octokit,
+      headerAuth.owner,
+      headerAuth.repo,
+    );
+    const activeWorkflowIds = new Set(activeWorkflowSlugs(config));
+    const localIds = new Set(localWorkflows.map((workflow) => workflow.id));
+    const storeWorkflows =
+      activeWorkflowIds.size > 0
+        ? (await listCompanyStoreWorkflowDefinitionFiles(octokit)).filter(
+            (workflow) =>
+              activeWorkflowIds.has(workflow.id) && !localIds.has(workflow.id),
+          )
+        : [];
+    const workflows = [...localWorkflows, ...storeWorkflows].sort((a, b) =>
+      a.id.localeCompare(b.id),
     );
     return NextResponse.json(
       { workflows },
@@ -96,7 +131,13 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "no_repo_context" }, { status: 400 });
   }
 
-  setGitHubContext(headerAuth.owner, headerAuth.repo, headerAuth.token);
+  setGitHubContext(
+    headerAuth.owner,
+    headerAuth.repo,
+    headerAuth.token,
+    headerAuth.storeRepoUrl,
+    headerAuth.storeRef,
+  );
   try {
     const payload = await req.json().catch(() => null);
     const parsed = workflowPayloadSchema.safeParse(payload);
@@ -119,7 +160,10 @@ export async function POST(req: NextRequest) {
       slugifyWorkflowDefinitionId(parsed.data.id ?? "") ||
       slugifyWorkflowDefinitionId(parsed.data.name);
     if (!id) {
-      return NextResponse.json({ error: "invalid_workflow_id" }, { status: 400 });
+      return NextResponse.json(
+        { error: "invalid_workflow_id" },
+        { status: 400 },
+      );
     }
     workflowDefinitionPath(id);
 

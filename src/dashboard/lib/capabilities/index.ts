@@ -31,6 +31,7 @@ export {
   deleteCapabilityFile,
   listCapabilityFiles,
   listLocalCapabilityFiles,
+  listStoreCapabilityFiles,
   readCapabilityFile,
   readCapabilityFolderFiles,
   readResolvedCapabilityFile,

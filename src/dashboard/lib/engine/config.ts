@@ -89,6 +89,7 @@ export interface KodyConfig {
     activeCapabilities?: string[];
     activeCommands?: string[];
     activeGoals?: ActiveGoalConfigEntry[];
+    activeWorkflows?: string[];
   };
   /** Git defaults the engine reads. `defaultBranch` is the base branch new
    * work branches off / targets (engine default: `main`). */
@@ -518,8 +519,7 @@ export async function writeDefaultExecutable(
   executable: string | null,
   commitMessage?: string,
 ): Promise<{ sha: string | null }> {
-  const key =
-    target === "issue" ? "defaultExecutable" : "defaultPrExecutable";
+  const key = target === "issue" ? "defaultExecutable" : "defaultPrExecutable";
   return mutateConfig(
     octokit,
     owner,
@@ -647,7 +647,8 @@ function setCompanyField(
     | "activeAgents"
     | "activeCapabilities"
     | "activeCommands"
-    | "activeGoals",
+    | "activeGoals"
+    | "activeWorkflows",
   value: string[] | ActiveGoalConfigEntry[],
 ): void {
   const prevCompany = companyRecordFrom(next.company);
@@ -736,6 +737,7 @@ export interface ConfigPatch {
   activeCapabilities?: string[] | null;
   activeCommands?: string[] | null;
   activeGoals?: ActiveGoalConfigEntry[] | null;
+  activeWorkflows?: string[] | null;
   state?: KodyStateConfig | null;
   defaultBranch?: string | null;
   perExecutable?: Record<string, string> | null;
@@ -838,6 +840,13 @@ export async function writeConfigPatch(
         setCompanyField(next, "activeGoals", list);
       }
 
+      if (patch.activeWorkflows !== undefined) {
+        const list = patch.activeWorkflows
+          ? cleanSlugList(patch.activeWorkflows)
+          : [];
+        setCompanyField(next, "activeWorkflows", list);
+      }
+
       if (patch.state !== undefined) {
         const cleaned = cleanStateConfig(patch.state);
         if (cleaned) next.state = cleaned;
@@ -876,10 +885,7 @@ export async function writeConfigPatch(
         }
       }
 
-      for (const key of [
-        "defaultExecutable",
-        "defaultPrExecutable",
-      ] as const) {
+      for (const key of ["defaultExecutable", "defaultPrExecutable"] as const) {
         if (patch[key] === undefined) continue;
         const val = patch[key]?.trim();
         if (val) next[key] = val;

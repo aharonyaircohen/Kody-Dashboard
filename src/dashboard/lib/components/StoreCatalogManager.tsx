@@ -13,8 +13,6 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import {
   ArrowLeft,
-  CheckCircle2,
-  CircleDot,
   ExternalLink,
   History,
   Layers,
@@ -25,6 +23,7 @@ import {
   Bot,
   Target,
   Users,
+  Workflow,
   type LucideIcon,
 } from "lucide-react";
 
@@ -41,29 +40,17 @@ type CatalogKind =
   | "agent"
   | "agentGoal"
   | "agentLoop"
+  | "workflow"
   | "capability"
   | "command";
 
 type CatalogItemKind = Exclude<CatalogKind, "all">;
-type CatalogStatus = "active" | "not-active" | "available" | "customized";
-
-interface ActiveGoalConfigObject {
-  template: string;
-  idPrefix?: string;
-  facts?: Record<string, unknown>;
-}
-
-type ActiveGoalConfigEntry = string | ActiveGoalConfigObject;
 
 interface StoreCatalogItem {
   slug: string;
   title: string;
   description: string;
   kind: CatalogItemKind;
-  status: CatalogStatus;
-  active: boolean;
-  activatable: boolean;
-  source: "store" | "local";
   htmlUrl: string | null;
   action?: string | null;
   agent?: string | null;
@@ -72,10 +59,6 @@ interface StoreCatalogItem {
 
 interface StoreCatalogResponse {
   items: StoreCatalogItem[];
-  activeAgents: string[];
-  activeCapabilities: string[];
-  activeCommands: string[];
-  activeGoals: ActiveGoalConfigEntry[];
 }
 
 const KIND_FILTERS: Array<{
@@ -87,6 +70,7 @@ const KIND_FILTERS: Array<{
   { id: "agent", label: "Agents", icon: Users },
   { id: "agentGoal", label: "Goals", icon: Target },
   { id: "agentLoop", label: "Loops", icon: History },
+  { id: "workflow", label: "Workflows", icon: Workflow },
   { id: "capability", label: "Capabilities", icon: Layers },
   { id: "command", label: "Commands", icon: Bot },
 ];
@@ -95,6 +79,7 @@ const KIND_LABEL: Record<CatalogItemKind, string> = {
   agent: "Agent",
   agentGoal: "Goal",
   agentLoop: "Loop",
+  workflow: "Workflow",
   capability: "Capability",
   command: "Command",
 };
@@ -105,7 +90,6 @@ function queryText(item: StoreCatalogItem): string {
     item.title,
     item.description,
     KIND_LABEL[item.kind],
-    item.status,
     item.action,
     item.agent,
   ]
@@ -122,26 +106,6 @@ function storeCatalogItemPath(item: StoreCatalogItem): string {
   return selectionPath("/store-catalog", item.kind, item.slug);
 }
 
-function statusLabel(item: StoreCatalogItem): string {
-  if (item.status === "customized") return "Customized";
-  if (item.status === "active") return "Active";
-  if (item.status === "not-active") return "Not active";
-  return "Available";
-}
-
-function statusClass(item: StoreCatalogItem): string {
-  if (item.status === "customized") {
-    return "border-violet-500/25 bg-violet-500/10 text-violet-200";
-  }
-  if (item.status === "active") {
-    return "border-emerald-500/25 bg-emerald-500/10 text-emerald-200";
-  }
-  if (item.status === "not-active") {
-    return "border-white/10 bg-white/[0.04] text-white/55";
-  }
-  return "border-sky-500/20 bg-sky-500/10 text-sky-200";
-}
-
 async function fetchCatalog(
   headers: Record<string, string>,
 ): Promise<StoreCatalogResponse> {
@@ -151,10 +115,6 @@ async function fetchCatalog(
   });
   const json = (await res.json().catch(() => ({}))) as {
     items?: StoreCatalogItem[];
-    activeAgents?: string[];
-    activeCapabilities?: string[];
-    activeCommands?: string[];
-    activeGoals?: ActiveGoalConfigEntry[];
     error?: string;
     message?: string;
   };
@@ -165,10 +125,6 @@ async function fetchCatalog(
 
   return {
     items: json.items ?? [],
-    activeAgents: json.activeAgents ?? [],
-    activeCapabilities: json.activeCapabilities ?? [],
-    activeCommands: json.activeCommands ?? [],
-    activeGoals: json.activeGoals ?? [],
   };
 }
 
@@ -214,6 +170,7 @@ async function invalidateOperationsQueries(
     queryClient.invalidateQueries({ queryKey: ["kody-agent"] }),
     queryClient.invalidateQueries({ queryKey: ["kody-capabilities"] }),
     queryClient.invalidateQueries({ queryKey: ["kody-managed-goals"] }),
+    queryClient.invalidateQueries({ queryKey: ["kody-workflow-definitions"] }),
   ]);
 }
 
@@ -259,17 +216,18 @@ export function StoreCatalogManager({
   );
 
   useEffect(() => {
+    if (catalog.isLoading || !catalog.data) return;
     if (filtered.length === 0) {
       if (selectedKey) router.replace("/store-catalog");
       return;
     }
     if (
-      !selectedKey ||
+      selectedKey &&
       !filtered.some((item) => storeCatalogItemKey(item) === selectedKey)
     ) {
-      router.replace(storeCatalogItemPath(filtered[0]!));
+      router.replace("/store-catalog");
     }
-  }, [filtered, router, selectedKey]);
+  }, [catalog.data, catalog.isLoading, filtered, router, selectedKey]);
 
   const selectCatalogItem = (item: StoreCatalogItem | null) => {
     router.push(item ? storeCatalogItemPath(item) : "/store-catalog");
@@ -278,10 +236,12 @@ export function StoreCatalogManager({
   const importMutation = useMutation({
     mutationFn: (item: StoreCatalogItem) =>
       addCatalogStoreReference(headers, item),
-    onSuccess: async () => {
+    onSuccess: async (result) => {
       await queryClient.invalidateQueries({ queryKey });
       await invalidateOperationsQueries(queryClient);
-      toast.success("Added from Store");
+      toast.success(
+        result.imported ? "Added from Store" : "No Store change needed",
+      );
     },
     onError: (error: Error) => {
       toast.error("Couldn't add store item", {
@@ -424,7 +384,6 @@ function CatalogRow({
       </div>
       <div className="mt-1 flex flex-wrap items-center gap-1.5 text-xs text-white/45">
         <span className="font-mono">{item.slug}</span>
-        <StatusPill item={item} />
       </div>
       {item.description ? (
         <p className="mt-1 truncate text-xs text-white/50">
@@ -448,7 +407,6 @@ function CatalogDetail({
 }) {
   const Icon =
     KIND_FILTERS.find((filter) => filter.id === item.kind)?.icon ?? Package;
-  const canImport = item.source === "store" && !item.active;
 
   return (
     <article className="min-h-full">
@@ -475,74 +433,54 @@ function CatalogDetail({
               <div className="flex flex-wrap items-center gap-2 text-xs text-white/50">
                 <span className="font-mono">{item.slug}</span>
                 <span>{KIND_LABEL[item.kind]}</span>
-                <StatusPill item={item} />
               </div>
             </div>
 
             <div className="flex flex-wrap items-center gap-2">
-              {canImport ? (
-                <Button
-                  size="sm"
-                  onClick={onImport}
-                  disabled={importing}
-                  data-testid={`store-catalog-import-${item.kind}-${item.slug}`}
-                  className="gap-1"
-                >
-                  {importing ? (
-                    <Loader2 className="h-4 w-4 animate-spin" />
-                  ) : (
-                    <Plus className="h-4 w-4" />
-                  )}
-                  {importing ? "Adding..." : "Add from Store"}
-                </Button>
-              ) : null}
+              <Button
+                size="sm"
+                onClick={onImport}
+                disabled={importing}
+                data-testid={`store-catalog-import-${item.kind}-${item.slug}`}
+                className="gap-1"
+              >
+                {importing ? (
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                ) : (
+                  <Plus className="h-4 w-4" />
+                )}
+                {importing ? "Adding..." : "Add from Store"}
+              </Button>
 
               {item.htmlUrl ? (
                 <Button asChild size="sm" variant="outline" className="gap-1">
                   <a href={item.htmlUrl} target="_blank" rel="noreferrer">
                     <ExternalLink className="h-4 w-4" />
                     Open
-                </a>
-              </Button>
-            ) : null}
-          </div>
+                  </a>
+                </Button>
+              ) : null}
+            </div>
           </header>
 
           {item.description ? (
-              <p className="max-w-3xl text-sm leading-6 text-white/70">
-                {item.description}
-              </p>
-            ) : null}
-          </div>
+            <p className="max-w-3xl text-sm leading-6 text-white/70">
+              {item.description}
+            </p>
+          ) : null}
+        </div>
       </div>
 
       <div className="mx-auto max-w-4xl space-y-3 p-4 md:p-8">
         <InfoRow label="Type" value={KIND_LABEL[item.kind]} />
-        <InfoRow label="Status" value={statusLabel(item)} />
         {item.action ? <InfoRow label="Action" value={item.action} /> : null}
         {item.agent ? <InfoRow label="Agent" value={item.agent} /> : null}
         {(item.kind === "agentGoal" || item.kind === "agentLoop") &&
         item.schedule ? (
           <InfoRow label="Schedule" value={item.schedule} />
         ) : null}
-            </div>
+      </div>
     </article>
-  );
-}
-
-function StatusPill({ item }: { item: StoreCatalogItem }) {
-  const Icon = item.status === "active" ? CheckCircle2 : CircleDot;
-
-  return (
-    <span
-      className={cn(
-        "inline-flex shrink-0 items-center gap-1 rounded border px-1.5 py-0.5 text-[10px] uppercase tracking-wide",
-        statusClass(item),
-      )}
-    >
-      <Icon className="h-3 w-3" />
-      {statusLabel(item)}
-    </span>
   );
 }
 

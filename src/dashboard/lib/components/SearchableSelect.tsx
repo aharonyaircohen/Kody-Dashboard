@@ -203,6 +203,8 @@ export function SearchableMultiSelect({
   selectedHeading = "Selected",
   selectedTone = "default",
   maxVisibleSelected = 6,
+  showSelectedSummary = true,
+  closeOnSelect = false,
 }: {
   id?: string;
   value: string[];
@@ -217,6 +219,8 @@ export function SearchableMultiSelect({
   selectedHeading?: string;
   selectedTone?: "default" | "info";
   maxVisibleSelected?: number;
+  showSelectedSummary?: boolean;
+  closeOnSelect?: boolean;
 }) {
   const rootRef = useRef<HTMLDivElement | null>(null);
   const inputRef = useRef<HTMLInputElement | null>(null);
@@ -282,6 +286,10 @@ export function SearchableMultiSelect({
         ? value.filter((item) => item !== optionValue)
         : [...value, optionValue].sort(),
     );
+    if (closeOnSelect) {
+      setOpen(false);
+      setQuery("");
+    }
   };
   const remove = (optionValue: string) => {
     onChange(value.filter((item) => item !== optionValue));
@@ -290,7 +298,7 @@ export function SearchableMultiSelect({
   return (
     <div
       ref={rootRef}
-      className="relative min-w-0"
+      className="relative w-full min-w-0 max-w-full"
       data-searchable-select-open={open ? "true" : undefined}
     >
       <Button
@@ -317,18 +325,18 @@ export function SearchableMultiSelect({
         <ChevronDown className="h-4 w-4 shrink-0 opacity-50" />
       </Button>
 
-      {selectedOptions.length ? (
+      {showSelectedSummary && selectedOptions.length ? (
         <div
           className={cn(
-            "mt-2 rounded-lg border px-3 py-2 text-xs text-muted-foreground",
+            "mt-2 min-w-0 max-w-full overflow-x-hidden rounded-lg border px-3 py-2 text-xs text-muted-foreground",
             selectedTone === "info"
               ? "border-sky-500/20 bg-sky-500/[0.06]"
               : "border-border/70 bg-muted/25",
           )}
           aria-label={selectedHeading}
         >
-          <div className="mb-2 flex items-center justify-between gap-3">
-            <p className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
+          <div className="mb-2 flex min-w-0 items-center justify-between gap-3">
+            <p className="min-w-0 truncate text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
               {selectedHeading}
             </p>
             {selectedOptions.length > 1 ? (
@@ -341,11 +349,11 @@ export function SearchableMultiSelect({
               </button>
             ) : null}
           </div>
-          <div className="flex flex-wrap gap-1.5">
+          <div className="flex min-w-0 flex-wrap gap-1.5">
             {visibleSelected.map((option) => (
               <span
                 key={option.value}
-                className="inline-flex max-w-[11rem] items-center gap-1 rounded-full border border-border/70 bg-background px-2 py-1 text-foreground sm:max-w-[14rem]"
+                className="inline-flex min-w-0 max-w-[11rem] items-center gap-1 rounded-full border border-border/70 bg-background px-2 py-1 text-foreground sm:max-w-[14rem]"
                 title={option.label}
               >
                 <span className="truncate">
@@ -372,7 +380,7 @@ export function SearchableMultiSelect({
 
       {open ? (
         <div
-          className="z-[80] mt-1 w-full min-w-0 overflow-hidden rounded-md border bg-popover text-popover-foreground shadow-elevation-3"
+          className="absolute left-0 right-0 top-full z-[80] mt-1 min-w-0 max-w-full overflow-hidden rounded-md border bg-popover text-popover-foreground shadow-elevation-3"
           data-searchable-multi-select-menu
         >
           <div className="relative border-b p-2">
@@ -392,7 +400,10 @@ export function SearchableMultiSelect({
               className="h-8 pl-8"
             />
           </div>
-          <div className="max-h-56 overflow-y-auto p-1" role="listbox">
+          <div
+            className="max-h-80 overflow-y-auto overflow-x-hidden p-1"
+            role="listbox"
+          >
             {filtered.length === 0 ? (
               <div className="px-2 py-2 text-sm text-muted-foreground">
                 {emptyLabel}
@@ -408,7 +419,7 @@ export function SearchableMultiSelect({
                     aria-selected={active}
                     disabled={option.disabled}
                     className={cn(
-                      "flex w-full items-start gap-2 rounded px-2 py-1.5 text-left text-sm outline-none hover:bg-accent hover:text-accent-foreground disabled:pointer-events-none disabled:opacity-50",
+                      "flex w-full min-w-0 max-w-full items-start gap-2 rounded px-2 py-1.5 text-left text-sm outline-none hover:bg-accent hover:text-accent-foreground disabled:pointer-events-none disabled:opacity-50",
                       active && "bg-accent/70",
                     )}
                     onClick={() => toggle(option.value)}
@@ -416,7 +427,7 @@ export function SearchableMultiSelect({
                     <span className="mt-0.5 flex h-4 w-4 shrink-0 items-center justify-center">
                       {active ? <Check className="h-4 w-4" /> : null}
                     </span>
-                    <span className="min-w-0">
+                    <span className="min-w-0 flex-1 overflow-hidden">
                       <span className="block truncate">{option.label}</span>
                       {option.description ? (
                         <span className="block truncate text-xs text-muted-foreground">

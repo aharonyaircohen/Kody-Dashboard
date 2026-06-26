@@ -32,6 +32,8 @@ import {
 import { readResolvedCapabilityFile } from "@dashboard/lib/capabilities";
 import { listCompanyStoreGoalTemplateFiles } from "@dashboard/lib/managed-goals-files";
 import type { ManagedGoalState } from "@dashboard/lib/managed-goals";
+import { isWorkflowDefinitionId } from "@dashboard/lib/workflow-definitions";
+import { listCompanyStoreWorkflowDefinitionFiles } from "@dashboard/lib/workflow-definition-files";
 
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
@@ -41,13 +43,15 @@ type ImportKind =
   | "capability"
   | "agentGoal"
   | "agentLoop"
+  | "workflow"
   | "command";
 
 type ActiveConfigField =
   | "activeAgents"
   | "activeCapabilities"
   | "activeCommands"
-  | "activeGoals";
+  | "activeGoals"
+  | "activeWorkflows";
 
 type ImportResult = {
   imported: boolean;
@@ -60,6 +64,7 @@ type ActivationPlan = {
   activeCapabilities: string[];
   activeCommands: string[];
   activeGoals: string[];
+  activeWorkflows: string[];
 };
 
 const importSchema = z.object({
@@ -68,6 +73,7 @@ const importSchema = z.object({
     "capability",
     "agentGoal",
     "agentLoop",
+    "workflow",
     "command",
   ]),
   slug: z.string().min(1).max(128),
@@ -81,6 +87,8 @@ function validSlug(kind: ImportKind, slug: string): boolean {
     case "agentLoop":
     case "command":
       return /^[a-z0-9][a-z0-9_-]{0,63}$/.test(slug);
+    case "workflow":
+      return isWorkflowDefinitionId(slug);
   }
 }
 
@@ -88,6 +96,7 @@ function configFieldFor(kind: ImportKind): ActiveConfigField {
   if (kind === "agent") return "activeAgents";
   if (kind === "capability") return "activeCapabilities";
   if (kind === "command") return "activeCommands";
+  if (kind === "workflow") return "activeWorkflows";
   return "activeGoals";
 }
 
@@ -136,6 +145,7 @@ function emptyActivationPlan(): ActivationPlan {
     activeCapabilities: [],
     activeCommands: [],
     activeGoals: [],
+    activeWorkflows: [],
   };
 }
 
@@ -181,6 +191,9 @@ async function assertStoreItemExists(
       (candidate) => validSlug("command", candidate),
     );
     if (slugs.includes(slug)) return;
+  } else if (kind === "workflow") {
+    const workflows = await listCompanyStoreWorkflowDefinitionFiles(octokit);
+    if (workflows.some((workflow) => workflow.id === slug)) return;
   } else {
     const goals = await listCompanyStoreGoalTemplateFiles(octokit);
     if (goals.some((goal) => goal.id === slug)) return;
@@ -247,6 +260,19 @@ async function activationPlanFor(
     return plan;
   }
 
+  if (kind === "workflow") {
+    addPlanSlug(plan, "activeWorkflows", slug);
+    const workflows = await listCompanyStoreWorkflowDefinitionFiles(octokit);
+    const workflow = workflows.find((item) => item.id === slug);
+    if (!workflow) throw dependencyNotFound(kind, slug);
+
+    for (const capabilitySlug of workflow.workflow.capabilities) {
+      await addCapabilityDependencies(octokit, plan, capabilitySlug);
+    }
+
+    return plan;
+  }
+
   addPlanSlug(plan, "activeGoals", slug);
   const goals = await listCompanyStoreGoalTemplateFiles(octokit);
   const goal = goals.find((item) => item.id === slug);
@@ -290,6 +316,10 @@ async function addStoreReference({
     plan.activeCommands.length > 0
       ? addSlugs(config.company?.activeCommands, plan.activeCommands)
       : undefined;
+  const nextActiveWorkflows =
+    plan.activeWorkflows.length > 0
+      ? addSlugs(config.company?.activeWorkflows, plan.activeWorkflows)
+      : undefined;
   const nextActiveGoals =
     plan.activeGoals.length > 0 &&
     plan.activeGoals.some(
@@ -306,13 +336,21 @@ async function addStoreReference({
         : undefined,
     activeCapabilities:
       nextActiveCapabilities &&
-      !sameStringList(config.company?.activeCapabilities, nextActiveCapabilities)
+      !sameStringList(
+        config.company?.activeCapabilities,
+        nextActiveCapabilities,
+      )
         ? nextActiveCapabilities
         : undefined,
     activeCommands:
       nextActiveCommands &&
       !sameStringList(config.company?.activeCommands, nextActiveCommands)
         ? nextActiveCommands
+        : undefined,
+    activeWorkflows:
+      nextActiveWorkflows &&
+      !sameStringList(config.company?.activeWorkflows, nextActiveWorkflows)
+        ? nextActiveWorkflows
         : undefined,
     activeGoals: nextActiveGoals,
   };

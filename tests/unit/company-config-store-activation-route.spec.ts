@@ -70,6 +70,7 @@ beforeEach(() => {
       company: {
         activeCapabilities: ["fix-ci"],
         activeGoals: ["web-release"],
+        activeWorkflows: ["release-readiness"],
       },
     },
     sha: "stored-sha",
@@ -83,6 +84,7 @@ describe("PATCH /api/kody/company/config store activation", () => {
         activeAgents: ["cto"],
         activeCapabilities: ["fix-ci", "review"],
         activeGoals: ["web-release", { template: "weekly-check", every: "1w" }],
+        activeWorkflows: ["release-readiness"],
         actorLogin: "alice",
       }),
     );
@@ -99,6 +101,7 @@ describe("PATCH /api/kody/company/config store activation", () => {
       "web-release",
       { template: "weekly-check", every: "1w" },
     ]);
+    expect(patch.activeWorkflows).toEqual(["release-readiness"]);
   });
 
   it("accepts active agents without requiring another config field", async () => {
@@ -131,6 +134,22 @@ describe("PATCH /api/kody/company/config store activation", () => {
     >;
     expect(calls).toHaveLength(1);
     expect(calls[0]![3].activeCapabilities).toEqual(["fix-ci"]);
+  });
+
+  it("accepts active workflows without requiring another config field", async () => {
+    const res = await PATCH(
+      patchReq({
+        activeWorkflows: ["release-readiness"],
+        actorLogin: "alice",
+      }),
+    );
+
+    expect(res.status).toBe(200);
+    const calls = engineConfig.writeConfigPatch.mock.calls as unknown as Array<
+      [unknown, unknown, unknown, Record<string, unknown>]
+    >;
+    expect(calls).toHaveLength(1);
+    expect(calls[0]![3].activeWorkflows).toEqual(["release-readiness"]);
   });
 
   it("rejects invalid active store reference slugs", async () => {

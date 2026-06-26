@@ -2,7 +2,7 @@
  * @fileType api-endpoint
  * @domain kody
  * @pattern store-catalog-api
- * @ai-summary Read-only store catalog for repo-level activation.
+ * @ai-summary Read-only neutral store catalog.
  */
 
 import { NextRequest, NextResponse } from "next/server";
@@ -15,26 +15,12 @@ import {
   setGitHubContext,
   clearGitHubContext,
 } from "@dashboard/lib/github-client";
-import {
-  listCompanyStoreAssetSlugs,
-  listCompanyStoreMarkdownAssetSlugs,
-} from "@dashboard/lib/company-store/assets";
-import {
-  listCapabilityFiles,
-  isValidSlug as isValidCapabilitySlug,
-} from "@dashboard/lib/capabilities";
-import {
-  listResolvedAgentFiles,
-  isValidSlug as isValidAgentSlug,
-} from "@dashboard/lib/agent-files";
-import {
-  listRepoCommandFiles,
-  listStoreCommandFiles,
-  isValidSlug as isValidCommandSlug,
-} from "@dashboard/lib/commands/files";
-import { getEngineConfig } from "@dashboard/lib/engine/config";
+import { listStoreCapabilityFiles } from "@dashboard/lib/capabilities";
+import { listStoreAgentFiles } from "@dashboard/lib/agent-files";
+import { listStoreCommandFiles } from "@dashboard/lib/commands/files";
 import { listCompanyStoreGoalTemplateFiles } from "@dashboard/lib/managed-goals-files";
 import { managedGoalModel } from "@dashboard/lib/managed-goals";
+import { listCompanyStoreWorkflowDefinitionFiles } from "@dashboard/lib/workflow-definition-files";
 
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
@@ -43,20 +29,15 @@ type CatalogKind =
   | "agent"
   | "agentGoal"
   | "agentLoop"
+  | "workflow"
   | "capability"
   | "command";
-
-type CatalogStatus = "active" | "not-active" | "available" | "customized";
 
 interface CatalogItem {
   slug: string;
   title: string;
   description: string;
   kind: CatalogKind;
-  status: CatalogStatus;
-  active: boolean;
-  activatable: boolean;
-  source: "store" | "local";
   htmlUrl: string | null;
   action?: string | null;
   agent?: string | null;
@@ -70,23 +51,6 @@ function firstText(value: string | null | undefined): string {
     .map((part) => part.trim())
     .find(Boolean);
   return text ?? "";
-}
-
-function goalActivationSlug(entry: unknown): string | null {
-  if (typeof entry === "string") return entry;
-  if (!entry || typeof entry !== "object" || Array.isArray(entry)) return null;
-  const template = (entry as { template?: unknown }).template;
-  return typeof template === "string" ? template : null;
-}
-
-function statusFor(opts: {
-  activatable: boolean;
-  active: boolean;
-  customized: boolean;
-}): CatalogStatus {
-  if (opts.customized) return "customized";
-  if (!opts.activatable) return "available";
-  return opts.active ? "active" : "not-active";
 }
 
 export async function GET(req: NextRequest) {
@@ -112,74 +76,23 @@ export async function GET(req: NextRequest) {
       return NextResponse.json({ error: "no_user_token" }, { status: 401 });
     }
 
-    const { config } = await getEngineConfig(
-      octokit,
-      headerAuth.owner,
-      headerAuth.repo,
-    );
-    const activeAgents = config.company?.activeAgents ?? [];
-    const activeCapabilities = config.company?.activeCapabilities ?? [];
-    const activeCommands = config.company?.activeCommands ?? [];
-    const activeGoals = config.company?.activeGoals ?? [];
-    const activeAgentSet = new Set(activeAgents);
-    const activeCapabilitySet = new Set(activeCapabilities);
-    const activeCommandSet = new Set(activeCommands);
-    const activeGoalSet = new Set(
-      activeGoals
-        .map(goalActivationSlug)
-        .filter((slug): slug is string => !!slug),
-    );
+    const [capabilities, agents, storeCommands, goalTemplates, storeWorkflows] =
+      await Promise.all([
+        listStoreCapabilityFiles(octokit),
+        listStoreAgentFiles(octokit),
+        listStoreCommandFiles(new Set(), octokit),
+        listCompanyStoreGoalTemplateFiles(octokit),
+        listCompanyStoreWorkflowDefinitionFiles(octokit),
+      ]);
 
-    const [
-      capabilityStoreSlugs,
-      agentStoreSlugs,
-      commandStoreSlugs,
-      capabilities,
-      agents,
-      repoCommandResult,
-      storeCommands,
-      goalTemplates,
-    ] = await Promise.all([
-      listCompanyStoreAssetSlugs(
-        octokit,
-        "capabilities",
-        isValidCapabilitySlug,
-      ),
-      listCompanyStoreMarkdownAssetSlugs(octokit, "agents", isValidAgentSlug),
-      listCompanyStoreMarkdownAssetSlugs(
-        octokit,
-        "commands",
-        isValidCommandSlug,
-      ),
-      listCapabilityFiles(),
-      listResolvedAgentFiles(),
-      listRepoCommandFiles(),
-      listStoreCommandFiles(),
-      listCompanyStoreGoalTemplateFiles(octokit),
-    ]);
-
-    const capabilityStoreSet = new Set(capabilityStoreSlugs);
-    const agentStoreSet = new Set(agentStoreSlugs);
-    const commandStoreSet = new Set(commandStoreSlugs);
-    const localCommandSlugs = new Set(
-      repoCommandResult.commands.map((command) => command.slug),
-    );
     const items: CatalogItem[] = [];
 
     for (const item of capabilities) {
-      const fromStore = item.source === "store";
-      const customized = !fromStore && capabilityStoreSet.has(item.slug);
-      if (!fromStore && !customized) continue;
-      const active = fromStore && activeCapabilitySet.has(item.slug);
       items.push({
         slug: item.slug,
         title: item.slug,
         description: item.describe,
         kind: "capability",
-        status: statusFor({ activatable: true, active, customized }),
-        active,
-        activatable: fromStore,
-        source: fromStore ? "store" : "local",
         htmlUrl: item.htmlUrl,
         agent: item.agent,
         schedule: item.every ?? null,
@@ -187,58 +100,27 @@ export async function GET(req: NextRequest) {
     }
 
     for (const item of agents) {
-      const fromStore = item.source === "store";
-      const customized = !fromStore && agentStoreSet.has(item.slug);
-      if (!fromStore && !customized) continue;
-      const active = fromStore && activeAgentSet.has(item.slug);
       items.push({
         slug: item.slug,
         title: item.title,
         description: firstText(item.body),
         kind: "agent",
-        status: statusFor({ activatable: true, active, customized }),
-        active,
-        activatable: fromStore,
-        source: fromStore ? "store" : "local",
-        htmlUrl: item.htmlUrl,
-      });
-    }
-
-    for (const item of repoCommandResult.commands) {
-      const customized = commandStoreSet.has(item.slug);
-      if (!customized) continue;
-      items.push({
-        slug: item.slug,
-        title: `/${item.slug}`,
-        description: item.description || firstText(item.body),
-        kind: "command",
-        status: statusFor({ activatable: true, active: false, customized }),
-        active: false,
-        activatable: false,
-        source: "local",
         htmlUrl: item.htmlUrl,
       });
     }
 
     for (const item of storeCommands) {
-      if (localCommandSlugs.has(item.slug)) continue;
-      const active = activeCommandSet.has(item.slug);
       items.push({
         slug: item.slug,
         title: `/${item.slug}`,
         description: item.description || firstText(item.body),
         kind: "command",
-        status: statusFor({ activatable: true, active, customized: false }),
-        active,
-        activatable: true,
-        source: "store",
         htmlUrl: item.htmlUrl,
       });
     }
 
     for (const item of goalTemplates) {
       const model = managedGoalModel(item);
-      const active = activeGoalSet.has(item.id);
       items.push({
         slug: item.id,
         title: item.state.destination.outcome || item.id,
@@ -249,12 +131,18 @@ export async function GET(req: NextRequest) {
           .filter(Boolean)
           .join(" - "),
         kind: model,
-        status: statusFor({ activatable: true, active, customized: false }),
-        active,
-        activatable: true,
-        source: "store",
         htmlUrl: null,
         schedule: item.state.schedule ?? null,
+      });
+    }
+
+    for (const item of storeWorkflows) {
+      items.push({
+        slug: item.id,
+        title: item.workflow.name || item.id,
+        description: item.workflow.instructions,
+        kind: "workflow",
+        htmlUrl: item.htmlUrl ?? null,
       });
     }
 
@@ -263,10 +151,6 @@ export async function GET(req: NextRequest) {
         items: items.sort((a, b) =>
           `${a.kind}:${a.slug}`.localeCompare(`${b.kind}:${b.slug}`),
         ),
-        activeAgents,
-        activeCapabilities,
-        activeCommands,
-        activeGoals,
       },
       { headers: { "Cache-Control": "no-store" } },
     );

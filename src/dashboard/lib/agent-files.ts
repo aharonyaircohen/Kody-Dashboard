@@ -57,9 +57,9 @@ export async function readResolvedAgentFile(
   return readStoreAgentFile(slug, octokitOverride ?? getOctokit());
 }
 
-async function listStoreAgentFiles(
+export async function listStoreAgentFiles(
   octokit: Octokit,
-  localSlugs: Set<string>,
+  localSlugs: Set<string> = new Set(),
 ): Promise<AgentFile[]> {
   const slugs = await listCompanyStoreMarkdownAssetSlugs(
     octokit,

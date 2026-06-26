@@ -254,9 +254,7 @@ async function listCapabilityFolders(
   return summaries.filter((s): s is CapabilitySummary => s !== null);
 }
 
-export async function listLocalCapabilityFiles(): Promise<
-  CapabilitySummary[]
-> {
+export async function listLocalCapabilityFiles(): Promise<CapabilitySummary[]> {
   const octokit = getOctokit();
   const { target, branch } = await getStateRepoContext(octokit);
   return listCapabilityFolders(octokit, target, branch);
@@ -266,11 +264,7 @@ export async function listCapabilityFiles(): Promise<CapabilitySummary[]> {
   const octokit = getOctokit();
   const { target, branch } = await getStateRepoContext(octokit);
 
-  const local = await listCapabilityFolders(
-    octokit,
-    target,
-    branch,
-  );
+  const local = await listCapabilityFolders(octokit, target, branch);
   const store = await listStoreCapabilityFiles(
     octokit,
     new Set(local.map((e) => e.slug)),
@@ -278,9 +272,9 @@ export async function listCapabilityFiles(): Promise<CapabilitySummary[]> {
   return mergeAssetsBySlug(local, store);
 }
 
-async function listStoreCapabilityFiles(
+export async function listStoreCapabilityFiles(
   octokit: Octokit,
-  localSlugs: Set<string>,
+  localSlugs: Set<string> = new Set(),
   storage: CapabilityStorage = CAPABILITY_STORAGE,
 ): Promise<CapabilitySummary[]> {
   const slugs = await listCompanyStoreAssetSlugs(
@@ -519,8 +513,10 @@ async function readSkills(
         return {
           name: entry.name,
           body:
-            (await readFileText(octokit, `${skillsPath}/${entry.name}/SKILL.md`)) ??
-            "",
+            (await readFileText(
+              octokit,
+              `${skillsPath}/${entry.name}/SKILL.md`,
+            )) ?? "",
         };
       }),
   );

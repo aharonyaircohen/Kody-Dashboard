@@ -13,6 +13,7 @@ import {
   ArrowDown,
   ArrowLeft,
   ArrowUp,
+  ExternalLink,
   FileText,
   Loader2,
   Pencil,
@@ -108,6 +109,10 @@ function workflowMatches(workflow: WorkflowDefinitionRecord, search: string) {
   return text.includes(q);
 }
 
+function isStoreWorkflow(workflow: WorkflowDefinitionRecord | null): boolean {
+  return workflow?.source === "store" || workflow?.readOnly === true;
+}
+
 export function WorkflowsManager({ selectedId }: WorkflowsManagerProps) {
   const router = useRouter();
   const [search, setSearch] = useState("");
@@ -127,9 +132,7 @@ export function WorkflowsManager({ selectedId }: WorkflowsManagerProps) {
   const { data: capabilities = [], isLoading: capabilitiesLoading } =
     useCapabilities();
   const createWorkflow = useCreateWorkflowDefinition();
-  const updateWorkflow = useUpdateWorkflowDefinition(
-    editingWorkflow?.id ?? "",
-  );
+  const updateWorkflow = useUpdateWorkflowDefinition(editingWorkflow?.id ?? "");
   const deleteWorkflow = useDeleteWorkflowDefinition();
 
   const filtered = useMemo(
@@ -141,7 +144,8 @@ export function WorkflowsManager({ selectedId }: WorkflowsManagerProps) {
     [selectedId, workflows],
   );
   const capabilityBySlug = useMemo(
-    () => new Map(capabilities.map((capability) => [capability.slug, capability])),
+    () =>
+      new Map(capabilities.map((capability) => [capability.slug, capability])),
     [capabilities],
   );
   const capabilityOptions = useMemo(
@@ -162,7 +166,10 @@ export function WorkflowsManager({ selectedId }: WorkflowsManagerProps) {
       if (selectedId) router.replace(BASE_PATH);
       return;
     }
-    if (!selectedId || !filtered.some((workflow) => workflow.id === selectedId)) {
+    if (
+      !selectedId ||
+      !filtered.some((workflow) => workflow.id === selectedId)
+    ) {
       router.replace(selectionPath(BASE_PATH, filtered[0]!.id));
     }
   }, [filtered, isLoading, router, selectedId]);
@@ -183,9 +190,7 @@ export function WorkflowsManager({ selectedId }: WorkflowsManagerProps) {
           workflows.length === 1 ? "workflow" : "workflows"
         }`}
         error={
-          error
-            ? `Failed to load workflows: ${(error as Error).message}`
-            : null
+          error ? `Failed to load workflows: ${(error as Error).message}` : null
         }
         search={search}
         onSearch={setSearch}
@@ -305,9 +310,17 @@ export function WorkflowsManager({ selectedId }: WorkflowsManagerProps) {
 
       <ConfirmDialog
         open={!!deletingWorkflow}
-        title={`Delete workflow ${deletingWorkflow?.id ?? ""}?`}
-        description="The workflow definition file will be removed from the state repo."
-        confirmLabel="Delete"
+        title={
+          isStoreWorkflow(deletingWorkflow)
+            ? `Remove Store workflow ${deletingWorkflow?.id ?? ""}?`
+            : `Delete workflow ${deletingWorkflow?.id ?? ""}?`
+        }
+        description={
+          isStoreWorkflow(deletingWorkflow)
+            ? "This repo will stop using the Store workflow. The Store workflow will not be deleted."
+            : "The workflow definition file will be removed from the state repo."
+        }
+        confirmLabel={isStoreWorkflow(deletingWorkflow) ? "Remove" : "Delete"}
         variant="destructive"
         onClose={() => setDeletingWorkflow(null)}
         onConfirm={() => {
@@ -348,6 +361,7 @@ function WorkflowRow({
             {workflow.id}
           </div>
         </div>
+        {isStoreWorkflow(workflow) ? <StoreWorkflowBadge /> : null}
         <span className="shrink-0 rounded border border-cyan-500/20 bg-cyan-500/10 px-2 py-0.5 text-xs text-cyan-700 dark:text-cyan-200">
           {workflow.workflow.capabilities.length}
         </span>
@@ -372,6 +386,7 @@ function WorkflowDetail({
   onEdit: () => void;
   onDelete: () => void;
 }) {
+  const storeBacked = isStoreWorkflow(workflow);
   return (
     <div className="mx-auto flex w-full max-w-5xl flex-col gap-5 px-4 py-5 md:px-6">
       <div className="flex flex-wrap items-start justify-between gap-3">
@@ -390,19 +405,44 @@ function WorkflowDetail({
             <h2 className="truncate text-xl font-semibold text-foreground">
               {workflow.workflow.name}
             </h2>
+            {storeBacked ? <StoreWorkflowBadge /> : null}
           </div>
-          <p className="mt-1 font-mono text-xs text-muted-foreground">
-            {workflow.id}
-          </p>
+          <div className="mt-1 flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
+            <span className="font-mono">{workflow.id}</span>
+            {workflow.htmlUrl ? (
+              <>
+                <span>·</span>
+                <a
+                  href={workflow.htmlUrl}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="inline-flex items-center gap-1 hover:text-foreground"
+                >
+                  <ExternalLink className="h-3 w-3" />
+                  GitHub
+                </a>
+              </>
+            ) : null}
+          </div>
         </div>
         <div className="flex items-center gap-2">
-          <Button variant="outline" size="sm" onClick={onEdit}>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={onEdit}
+            disabled={storeBacked}
+            title={
+              storeBacked
+                ? "Store workflows are read-only in this repo"
+                : "Edit workflow"
+            }
+          >
             <Pencil className="h-4 w-4" />
             Edit
           </Button>
           <Button variant="destructive" size="sm" onClick={onDelete}>
             <Trash2 className="h-4 w-4" />
-            Delete
+            {storeBacked ? "Remove" : "Delete"}
           </Button>
         </div>
       </div>
@@ -443,7 +483,8 @@ function WorkflowDetail({
                     {slug}
                   </div>
                   <p className="mt-1 line-clamp-2 text-xs leading-5 text-muted-foreground">
-                    {capability?.describe ?? "Capability not found in this repo."}
+                    {capability?.describe ??
+                      "Capability not found in this repo."}
                   </p>
                 </div>
               </div>
@@ -456,6 +497,14 @@ function WorkflowDetail({
         Updated {formatDate(workflow.workflow.updatedAt)}
       </div>
     </div>
+  );
+}
+
+function StoreWorkflowBadge() {
+  return (
+    <span className="shrink-0 rounded border border-cyan-500/20 bg-cyan-500/10 px-1.5 py-0.5 text-[10px] font-medium uppercase tracking-wide text-cyan-700 dark:text-cyan-200">
+      Store
+    </span>
   );
 }
 
@@ -510,7 +559,9 @@ function WorkflowDialog({
   const submit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     if (!canSave) {
-      toast.error("Name, instructions, and at least one capability are required");
+      toast.error(
+        "Name, instructions, and at least one capability are required",
+      );
       return;
     }
     await onSubmit({
@@ -522,13 +573,16 @@ function WorkflowDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-h-[92vh] overflow-y-auto sm:max-w-2xl">
+      <DialogContent className="max-h-[92vh] w-[calc(100vw-2rem)] min-w-0 max-w-[calc(100vw-2rem)] overflow-y-auto overflow-x-hidden sm:w-[42rem]">
         <DialogHeader>
           <DialogTitle>{title}</DialogTitle>
           <DialogDescription>{description}</DialogDescription>
         </DialogHeader>
-        <form className="space-y-5" onSubmit={submit}>
-          <div className="space-y-2">
+        <form
+          className="min-w-0 max-w-full space-y-5 overflow-x-hidden"
+          onSubmit={submit}
+        >
+          <div className="min-w-0 space-y-2">
             <Label htmlFor="workflow-name">Name</Label>
             <Input
               id="workflow-name"
@@ -541,7 +595,7 @@ function WorkflowDialog({
             />
           </div>
 
-          <div className="space-y-2">
+          <div className="min-w-0 space-y-2">
             <Label htmlFor="workflow-instructions">Instructions</Label>
             <Textarea
               id="workflow-instructions"
@@ -557,7 +611,7 @@ function WorkflowDialog({
             />
           </div>
 
-          <div className="space-y-2">
+          <div className="min-w-0 space-y-2">
             <Label>Capabilities</Label>
             <SearchableMultiSelect
               value={form.capabilities}
@@ -572,14 +626,16 @@ function WorkflowDialog({
                 }))
               }
               placeholder={
-                capabilitiesLoading ? "Loading capabilities..." : "Select capabilities"
+                capabilitiesLoading
+                  ? "Loading capabilities..."
+                  : "Select capabilities"
               }
               searchPlaceholder="Search capabilities..."
               emptyLabel="No capabilities found"
               selectedLabel="capabilities"
               selectedSingularLabel="capability"
-              selectedHeading="Selected capabilities"
-              selectedTone="info"
+              showSelectedSummary={false}
+              closeOnSelect
               disabled={capabilitiesLoading}
             />
           </div>
@@ -590,6 +646,12 @@ function WorkflowDialog({
               setForm((prev) => ({
                 ...prev,
                 capabilities: moveItem(prev.capabilities, index, direction),
+              }))
+            }
+            onRemove={(index) =>
+              setForm((prev) => ({
+                ...prev,
+                capabilities: prev.capabilities.filter((_, i) => i !== index),
               }))
             }
           />
@@ -616,9 +678,11 @@ function WorkflowDialog({
 function OrderedCapabilityQueue({
   capabilities,
   onMove,
+  onRemove,
 }: {
   capabilities: string[];
   onMove: (index: number, direction: -1 | 1) => void;
+  onRemove: (index: number) => void;
 }) {
   if (capabilities.length === 0) return null;
 
@@ -672,6 +736,17 @@ function OrderedCapabilityQueue({
                 title="Move down"
               >
                 <ArrowDown className="h-3.5 w-3.5" />
+              </Button>
+              <Button
+                type="button"
+                variant="ghost"
+                size="sm"
+                className="h-7 w-7 px-0 text-destructive hover:text-destructive"
+                onClick={() => onRemove(index)}
+                aria-label={`Remove ${slug}`}
+                title="Remove"
+              >
+                <Trash2 className="h-3.5 w-3.5" />
               </Button>
             </div>
           </div>
