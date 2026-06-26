@@ -154,7 +154,7 @@ function verifyAndGetSession(ticket: string, key: Buffer): boolean {
 function setSessionCookie(res: http.ServerResponse): void {
   res.setHeader(
     "Set-Cookie",
-    `${COOKIE_NAME}=1; HttpOnly; SameSite=None; Secure; Max-Age=${COOKIE_MAX_AGE}`,
+    `${COOKIE_NAME}=1; HttpOnly; SameSite=None; Secure; Partitioned; Max-Age=${COOKIE_MAX_AGE}`,
   );
 }
 

@@ -130,6 +130,7 @@ describe("preview doorman", () => {
 
     expect(res.status).toBe(302);
     expect(res.headers.get("set-cookie")).toContain("kody_preview_session=1");
+    expect(res.headers.get("set-cookie")).toContain("Partitioned");
     expect(res.headers.get("location")).toBe("/lesson?tab=one");
   });
 
@@ -159,6 +160,7 @@ describe("preview doorman", () => {
     });
 
     expect(res.status).toBe(302);
+    expect(res.headers.get("set-cookie")).toContain("Partitioned");
     expect(res.headers.get("location")).toBe("/");
   });
 });
