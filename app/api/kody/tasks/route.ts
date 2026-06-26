@@ -33,6 +33,7 @@ import {
 } from "@dashboard/lib/github-client";
 import { resolvePreviewConfigForOctokit } from "@dashboard/lib/previews/config";
 import { buildPreviewUrlByPrNumber } from "@dashboard/lib/tasks/preview-urls";
+import { mintPreviewTicket } from "@dashboard/lib/preview-token";
 import type { KodyTaskState } from "@dashboard/lib/kody-state";
 import type {
   KodyTask,
@@ -108,6 +109,13 @@ function getKodyAssigneeLogins(): string[] {
     .filter(Boolean);
 
   return configured.length > 0 ? configured : ["kody"];
+}
+
+function signedFlyPreviewUrl(flyUrl: string, repo: string, pr: number): string {
+  const { ticket } = mintPreviewTicket(repo, pr, 4 * 60 * 60);
+  const url = new URL(flyUrl);
+  url.searchParams.set("kp", ticket);
+  return url.toString();
 }
 
 export async function GET(req: NextRequest) {
@@ -270,11 +278,14 @@ export async function GET(req: NextRequest) {
     // Fly previews win only when the per-PR app actually has a ready URL.
     // Otherwise we fall back to deployment previews (Vercel) or leave the
     // task without a preview link, instead of publishing a DNS-dead Fly host.
+    const repoFullName = `${getOwner()}/${getRepo()}`;
     const previewByPrNumber = await buildPreviewUrlByPrNumber({
       openPRs,
       deploymentPreviewUrls: previewUrls,
       flyPreviewConfig: flyPreviewCfg,
-      repo: `${getOwner()}/${getRepo()}`,
+      repo: repoFullName,
+      signFlyPreviewUrl: ({ url, pr }) =>
+        signedFlyPreviewUrl(url, repoFullName, pr),
     });
 
     // First pass: match workflow runs once per issue (reused later in the

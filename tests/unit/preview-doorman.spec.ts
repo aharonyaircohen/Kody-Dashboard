@@ -129,7 +129,11 @@ describe("preview doorman", () => {
     );
 
     expect(res.status).toBe(302);
-    expect(res.headers.get("set-cookie")).toContain("kody_preview_session=1");
+    const cookie = res.headers.get("set-cookie") ?? "";
+    expect(cookie).toContain("kody_preview_session=1");
+    expect(cookie).toContain("SameSite=None");
+    expect(cookie).toContain("Secure");
+    expect(cookie).toContain("Partitioned");
     expect(res.headers.get("location")).toBe("/lesson?tab=one");
   });
 

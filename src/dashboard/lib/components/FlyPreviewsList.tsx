@@ -60,6 +60,19 @@ function previewUrl(app: string): string {
   return `https://${app}.fly.dev`;
 }
 
+function repoFromHeaders(headers: Record<string, string>): string | null {
+  const owner = headers["x-kody-owner"];
+  const repo = headers["x-kody-repo"];
+  return owner && repo ? `${owner}/${repo}` : null;
+}
+
+function prNumberFromLabel(label: string): number | null {
+  const match = label.match(/^PR #(\d+)$/);
+  if (!match) return null;
+  const pr = Number.parseInt(match[1]!, 10);
+  return Number.isFinite(pr) ? pr : null;
+}
+
 function previewKind(row: FlyMachineRow): string {
   if (/^PR #\d+$/.test(row.label)) return row.label;
   if (row.label === "static") return "Static";
@@ -169,13 +182,53 @@ export function FlyPreviewsList({
     [inventory],
   );
 
-  async function copyUrl(url: string) {
+  async function signedPreviewUrl(
+    row: FlyMachineRow,
+    url: string,
+    branchName?: string,
+  ): Promise<string> {
+    const repo = repoFromHeaders(headers);
+    if (!repo) return url;
+
+    const params = new URLSearchParams({ repo });
+    const pr = prNumberFromLabel(row.label);
+    if (pr) params.set("pr", String(pr));
+    else if (branchName) params.set("branch", branchName);
+    else return url;
+
+    const res = await fetch(`/api/kody/previews/ticket?${params}`, {
+      headers,
+    });
+    if (!res.ok) return url;
+    const body = (await res.json()) as { ticket?: string };
+    if (!body.ticket) return url;
+
+    const signed = new URL(url);
+    signed.searchParams.set("kp", body.ticket);
+    return signed.toString();
+  }
+
+  async function copyUrl(row: FlyMachineRow, url: string, branchName?: string) {
     try {
-      await navigator.clipboard.writeText(url);
+      await navigator.clipboard.writeText(
+        await signedPreviewUrl(row, url, branchName),
+      );
       toast.success("Preview URL copied");
     } catch {
       toast.error("Copy failed");
     }
+  }
+
+  async function openPreview(
+    row: FlyMachineRow,
+    url: string,
+    branchName?: string,
+  ) {
+    window.open(
+      await signedPreviewUrl(row, url, branchName),
+      "_blank",
+      "noreferrer",
+    );
   }
 
   return (
@@ -253,23 +306,23 @@ export function FlyPreviewsList({
                     <Button
                       size="sm"
                       variant="ghost"
-                      onClick={() => void copyUrl(url)}
+                      onClick={() => void copyUrl(row, url, branchName)}
                       className="h-7 w-7 p-0 text-muted-foreground hover:text-foreground"
                       title="Copy preview URL"
                       aria-label="Copy preview URL"
                     >
                       <Copy className="w-3 h-3" />
                     </Button>
-                    <a
-                      href={url}
-                      target="_blank"
-                      rel="noreferrer"
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      onClick={() => void openPreview(row, url, branchName)}
                       className="inline-flex h-7 w-7 items-center justify-center rounded-md text-sky-300 hover:text-sky-200"
                       title="Open preview"
                       aria-label="Open preview"
                     >
                       <ExternalLink className="w-3 h-3" />
-                    </a>
+                    </Button>
                   </div>
                 </div>
 

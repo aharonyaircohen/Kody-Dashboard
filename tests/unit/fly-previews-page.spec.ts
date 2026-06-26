@@ -61,8 +61,10 @@ describe("Fly Previews page", () => {
     expect(existsSync(PREVIEWS_LIST_PATH)).toBe(true);
     const source = readFileSync(PREVIEWS_LIST_PATH, "utf8");
     expect(source).toMatch(/\/api\/kody\/fly\/machines/);
+    expect(source).toMatch(/\/api\/kody\/previews\/ticket/);
     expect(source).toMatch(/feature === "preview"/);
     expect(source).toMatch(/previewUrl/);
+    expect(source).toMatch(/signedPreviewUrl/);
     expect(source).toMatch(/machineId/);
     expect(source).toMatch(/sizeLabel/);
     expect(source).toMatch(/region/);
@@ -71,6 +73,7 @@ describe("Fly Previews page", () => {
     expect(source).toMatch(/aria-label="Copy preview URL"/);
     expect(source).toMatch(/title="Open preview"/);
     expect(source).toMatch(/aria-label="Open preview"/);
+    expect(source).toMatch(/window\.open/);
     expect(source).toMatch(/flex-wrap/);
     expect(source).toMatch(/<ul/);
     expect(source).toMatch(/auto-fit/);

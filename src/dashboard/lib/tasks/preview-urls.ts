@@ -11,11 +11,18 @@ import type { GitHubPR } from "@dashboard/lib/types";
 
 type PreviewPr = Pick<GitHubPR, "number" | "head">;
 
+export interface SignFlyPreviewUrlInput {
+  repo: string;
+  pr: number;
+  url: string;
+}
+
 export interface BuildPreviewUrlByPrNumberInput {
   openPRs: PreviewPr[];
   deploymentPreviewUrls: Map<string, string>;
   flyPreviewConfig: FlyPreviewConfig | null;
   repo: string;
+  signFlyPreviewUrl?: (input: SignFlyPreviewUrlInput) => string | null;
 }
 
 async function getReadyFlyPreviewUrl(
@@ -36,6 +43,7 @@ export async function buildPreviewUrlByPrNumber({
   deploymentPreviewUrls,
   flyPreviewConfig,
   repo,
+  signFlyPreviewUrl,
 }: BuildPreviewUrlByPrNumberInput): Promise<Map<number, string>> {
   const entries = await Promise.all(
     openPRs.map(async (pr): Promise<[number, string] | null> => {
@@ -45,7 +53,16 @@ export async function buildPreviewUrlByPrNumber({
           pr.number,
           flyPreviewConfig,
         );
-        if (flyUrl) return [pr.number, flyUrl];
+        if (flyUrl) {
+          try {
+            const signedFlyUrl =
+              signFlyPreviewUrl?.({ repo, pr: pr.number, url: flyUrl }) ??
+              flyUrl;
+            if (signedFlyUrl) return [pr.number, signedFlyUrl];
+          } catch {
+            // Fall through to deployment preview. A raw doorman URL is not useful.
+          }
+        }
       }
 
       const deploymentUrl = deploymentPreviewUrls.get(pr.head.sha);
