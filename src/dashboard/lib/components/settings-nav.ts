@@ -11,7 +11,6 @@ import {
   Activity,
   Bell,
   Bot,
-  Boxes,
   Brain,
   Building2,
   CheckCircle2,
@@ -155,7 +154,7 @@ export const PRIMARY_NAV_ITEMS: readonly SettingsNavItem[] = [
     href: "/reports",
     label: "Reports",
     icon: FileText,
-    description: "Outputs from agentResponsibility runs.",
+    description: "Outputs from capability runs.",
     tint: "text-sky-300 bg-sky-500/10",
   },
   {
@@ -232,7 +231,7 @@ export const SETTINGS_NAV_SECTIONS: readonly SettingsNavSection[] = [
         label: "Agents",
         icon: Users,
         description:
-          "Agent identities that execute your agentResponsibilities.",
+          "Agent identities that execute your capabilities.",
         tint: "text-violet-300 bg-violet-500/10",
       },
 
@@ -249,8 +248,7 @@ export const SETTINGS_NAV_SECTIONS: readonly SettingsNavSection[] = [
         label: "Intents",
         icon: Compass,
         exact: true,
-        description:
-          "CTO guidance for company goals, loops, and responsibilities.",
+        description: "CTO guidance for company goals, loops, and capabilities.",
         tint: "text-cyan-300 bg-cyan-500/10",
       },
       {
@@ -262,17 +260,10 @@ export const SETTINGS_NAV_SECTIONS: readonly SettingsNavSection[] = [
         tint: "text-emerald-300 bg-emerald-500/10",
       },
       {
-        href: "/agent-responsibilities",
-        label: "Responsibilities",
-        icon: Layers,
-        exact: true,
-        description: "Run and edit recurring agentResponsibilities.",
-        tint: "text-amber-300 bg-amber-500/10",
-      },
-      {
         href: "/capabilities",
         label: "Capabilities",
-        icon: Boxes,
+        icon: Layers,
+        exact: true,
         description: "Manage reusable capabilities.",
         tint: "text-amber-300 bg-amber-500/10",
       },
@@ -351,7 +342,7 @@ export const SETTINGS_NAV_SECTIONS: readonly SettingsNavSection[] = [
         label: "Import / Export",
         icon: Building2,
         description:
-          "Move your agent, agentResponsibilities, prompts, and instructions between repos as a portable bundle.",
+          "Move your agents, capabilities, prompts, and instructions between repos as a portable bundle.",
         tint: "text-emerald-300 bg-emerald-500/10",
       },
     ],
@@ -512,7 +503,7 @@ export const MOBILE_NAV_SECTIONS: readonly SettingsNavSection[] = [
   ),
 ];
 
-/** Strip a query string off an href so "/reports" → "/agent-responsibilities". */
+/** Strip a query string off an href so "/reports?x=1" maps to "/reports". */
 function navPath(href: string): string {
   const q = href.indexOf("?");
   return q === -1 ? href : href.slice(0, q);

@@ -3,23 +3,19 @@
  * @domain kody
  * @pattern chat-defaults-bundle
  *
- * TS-embedded defaults for the Kody chat bundle. Re-exports the agentIdentity +
- * agentAction + agentResponsibilities + skills so consumers can `import { ... } from
- * "./defaults"`. Step 1 of the refactor: the chat composer's prompt is
- * sourced from these TS strings (verbatim copies of the previous
- * hardcoded `AGENT_KODY.systemPrompt` + mode blocks) so the structure
- * is testable without wiring the repo read.
+ * TS-embedded defaults for the Kody chat bundle. Re-exports the agent identity,
+ * chat capability, workflows, and skills so consumers can import one bundle.
  */
 
-export type { AgentActionEntry, AgentResponsibilityEntry, SkillEntry } from "./types";
-export { DEFAULT_EXECUTABLE } from "./agent-action";
+export type { ChatCapabilityEntry, ChatWorkflowEntry, SkillEntry } from "./types";
+export { DEFAULT_CHAT_CAPABILITY } from "./chat-capability";
 export {
-  DEFAULT_DUTIES,
-  DEFAULT_DUTY_KODY_ANALYZER,
-  DEFAULT_DUTY_KODY_OPERATOR,
-  DEFAULT_DUTY_KODY_VIBE,
-  DEFAULT_DUTY_KODY_MEM,
-} from "./agent-responsibilities";
+  DEFAULT_WORKFLOWS,
+  DEFAULT_WORKFLOW_KODY_ANALYZER,
+  DEFAULT_WORKFLOW_KODY_OPERATOR,
+  DEFAULT_WORKFLOW_KODY_VIBE,
+  DEFAULT_WORKFLOW_KODY_MEM,
+} from "./workflows";
 export {
   DEFAULT_SKILL_DIAGNOSE_PR,
   DEFAULT_SKILL_REPORT_ADVISE,

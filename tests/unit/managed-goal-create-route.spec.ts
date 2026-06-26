@@ -88,15 +88,13 @@ describe("POST /api/kody/goals/managed", () => {
       {
         stage: "review",
         evidence: "changeVerified",
-        agentResponsibility: "review",
-        agentAction: "review",
+        capability: "review",
         saveReport: true,
       },
       {
         stage: "implement",
         evidence: "changeImplemented",
-        agentResponsibility: "fix",
-        agentAction: "fix",
+        capability: "fix",
       },
     ];
 
@@ -106,7 +104,7 @@ describe("POST /api/kody/goals/managed", () => {
         schedule: "manual",
         outcome: "Goal creation works from the dashboard.",
         evidence: ["changeVerified", "changeImplemented"],
-        agentResponsibilities: ["review", "fix"],
+        capabilities: ["review", "fix"],
         route,
       }),
     );
@@ -146,7 +144,7 @@ describe("POST /api/kody/goals/managed", () => {
         outcome: "Keep codebase healthy report drift.",
         saveReport: true,
         evidence: [],
-        agentResponsibilities: ["code-health", "docs-health"],
+        capabilities: ["code-health", "docs-health"],
         route: [],
       }),
     );
@@ -166,7 +164,7 @@ describe("POST /api/kody/goals/managed", () => {
         outcome: "Keep codebase healthy report drift.",
         evidence: [],
       },
-      agentResponsibilities: ["code-health", "docs-health"],
+      capabilities: ["code-health", "docs-health"],
       route: [],
       facts: { goalType: "agentLoop" },
     });
@@ -196,7 +194,7 @@ describe("GET /api/kody/goals/managed", () => {
             outcome: "Ship web release.",
             evidence: ["releaseDone"],
           },
-          agentResponsibilities: ["release"],
+          capabilities: ["release"],
           route: [],
           facts: {},
           blockers: [],
@@ -216,7 +214,7 @@ describe("GET /api/kody/goals/managed", () => {
             outcome: "Keep codebase healthy.",
             evidence: ["healthChecked"],
           },
-          agentResponsibilities: ["code-health"],
+          capabilities: ["code-health"],
           route: [],
           facts: {},
           blockers: [],

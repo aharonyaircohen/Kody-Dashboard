@@ -65,11 +65,10 @@ beforeEach(() => {
   vi.clearAllMocks();
   engineConfig.getEngineConfig.mockResolvedValue({
     config: {
-      agentActions: { default: "run" },
+      executables: { default: "run" },
       github: { owner: "acme", repo: "widgets" },
       company: {
         activeCapabilities: ["fix-ci"],
-        activeAgentResponsibilities: ["release"],
         activeGoals: ["web-release"],
       },
     },
@@ -83,8 +82,6 @@ describe("PATCH /api/kody/company/config store activation", () => {
       patchReq({
         activeAgents: ["cto"],
         activeCapabilities: ["fix-ci", "review"],
-        activeAgentActions: ["run"],
-        activeAgentResponsibilities: ["release"],
         activeGoals: ["web-release", { template: "weekly-check", every: "1w" }],
         actorLogin: "alice",
       }),
@@ -98,8 +95,6 @@ describe("PATCH /api/kody/company/config store activation", () => {
     const patch = calls[0]![3];
     expect(patch.activeAgents).toEqual(["cto"]);
     expect(patch.activeCapabilities).toEqual(["fix-ci", "review"]);
-    expect(patch.activeAgentActions).toEqual(["run"]);
-    expect(patch.activeAgentResponsibilities).toEqual(["release"]);
     expect(patch.activeGoals).toEqual([
       "web-release",
       { template: "weekly-check", every: "1w" },
@@ -122,22 +117,6 @@ describe("PATCH /api/kody/company/config store activation", () => {
     expect(calls[0]![3].activeAgents).toEqual(["cto"]);
   });
 
-  it("accepts active agent actions without requiring another config field", async () => {
-    const res = await PATCH(
-      patchReq({
-        activeAgentActions: ["run"],
-        actorLogin: "alice",
-      }),
-    );
-
-    expect(res.status).toBe(200);
-    const calls = engineConfig.writeConfigPatch.mock.calls as unknown as Array<
-      [unknown, unknown, unknown, Record<string, unknown>]
-    >;
-    expect(calls).toHaveLength(1);
-    expect(calls[0]![3].activeAgentActions).toEqual(["run"]);
-  });
-
   it("accepts active capabilities without requiring another config field", async () => {
     const res = await PATCH(
       patchReq({
@@ -157,7 +136,7 @@ describe("PATCH /api/kody/company/config store activation", () => {
   it("rejects invalid active store reference slugs", async () => {
     const res = await PATCH(
       patchReq({
-        activeAgentResponsibilities: ["../release"],
+        activeCapabilities: ["../release"],
         actorLogin: "alice",
       }),
     );

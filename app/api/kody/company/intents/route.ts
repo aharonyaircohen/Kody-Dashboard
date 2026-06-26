@@ -24,7 +24,7 @@ import {
   listCompanyStoreGoalTemplateFiles,
   readManagedGoalFile,
 } from "@dashboard/lib/managed-goals-files";
-import { readResolvedAgentResponsibilityFile } from "@dashboard/lib/agent-responsibilities-files";
+import { readResolvedCapabilityFile } from "@dashboard/lib/capabilities";
 import {
   buildCompanyIntent,
   companyIntentDecisionsPath,
@@ -107,9 +107,9 @@ const intentPayloadSchema = z.object({
     .object({
       goals: stringListSchema,
       loops: stringListSchema,
-      responsibilities: stringListSchema,
+      capabilities: stringListSchema,
     })
-    .default({ goals: [], loops: [], responsibilities: [] }),
+    .default({ goals: [], loops: [], capabilities: [] }),
   manager: z
     .object({
       reviewEvery: z.enum(["1d", "1w"]).default("1d"),
@@ -157,7 +157,7 @@ function normalizeIntentInput(
     portfolio: {
       goals: data.portfolio.goals.filter(isCompanyIntentId),
       loops: data.portfolio.loops.filter(isCompanyIntentId),
-      responsibilities: data.portfolio.responsibilities.filter(isCompanyIntentId),
+      capabilities: data.portfolio.capabilities.filter(isCompanyIntentId),
     },
     manager: data.manager,
   };
@@ -170,9 +170,9 @@ async function managerHealth(
   repo: string,
 ): Promise<CompanyIntentManagerHealth | undefined> {
   if (!octokit) return undefined;
-  const [loop, responsibility] = await Promise.all([
+  const [loop, capability] = await Promise.all([
     readManagedGoalFile(intent.manager.loop, octokit, owner, repo).catch(() => null),
-    readResolvedAgentResponsibilityFile(intent.manager.responsibility, octokit).catch(
+    readResolvedCapabilityFile(intent.manager.capability, octokit).catch(
       () => null,
     ),
   ]);
@@ -189,15 +189,9 @@ async function managerHealth(
       updatedAt:
         typeof loop?.state.updatedAt === "string" ? loop.state.updatedAt : undefined,
     },
-    responsibility: {
-      id: intent.manager.responsibility,
-      exists: Boolean(responsibility),
-      disabled:
-        typeof responsibility?.disabled === "boolean"
-          ? responsibility.disabled
-          : undefined,
-      lastTickAt: responsibility?.lastTickAt ?? null,
-      nextEligibleAt: responsibility?.nextEligibleAt ?? null,
+    capability: {
+      id: intent.manager.capability,
+      exists: Boolean(capability),
     },
   };
 }

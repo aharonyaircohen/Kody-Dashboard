@@ -4,8 +4,7 @@
  * @pattern capabilities-index
  * @ai-summary Public surface for the capability feature. Capabilities are
  *   stored under state-repo `capabilities/<slug>/` with `profile.json` and
- *   `capability.md`; legacy agentActions remain exported from
- *   `@dashboard/lib/agent-actions`.
+ *   `capability.md`.
  */
 
 export {
@@ -25,12 +24,12 @@ export {
   slugFromName,
   stripContract,
   validateProfile,
-  type AgentActionFields,
-  type AgentActionLanding,
+  type CapabilityFields,
+  type CapabilityLanding,
   type CapabilityKind,
   type McpServerSpec,
   type PermissionMode,
-} from "../agent-actions/profile";
+} from "./profile";
 
 export {
   deleteCapabilityFile,
@@ -41,10 +40,10 @@ export {
   readResolvedCapabilityFile,
   writeCapabilityFile,
   writeCapabilityFolderFiles,
-  type AgentActionDetail,
-  type AgentActionShellScript,
-  type AgentActionSkill,
-  type AgentActionSummary,
-  type WriteAgentActionFolderFilesOptions,
-  type WriteAgentActionOptions,
-} from "../agent-actions/files";
+  type CapabilityDetail,
+  type CapabilityShellScript,
+  type CapabilitySkill,
+  type CapabilitySummary,
+  type WriteCapabilityFolderFilesOptions,
+  type WriteCapabilityOptions,
+} from "./files";

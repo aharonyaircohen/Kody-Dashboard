@@ -936,197 +936,44 @@ export const remoteApi = {
   },
 };
 
-// ============ AgentResponsibilities API ============
+// ============ Capabilities API ============
 
-export type AgentResponsibilityCapabilityKind = "observe" | "act" | "verify";
+export type CapabilityKind = "observe" | "act" | "verify";
 
-export interface AgentResponsibility {
-  /** AgentResponsibility folder name under state-repo `agent-responsibilities/`; stable identity. */
+export interface CapabilitySummary {
   slug: string;
-  title: string;
-  body: string;
-  /** Last commit timestamp affecting this file (ISO8601). */
-  updatedAt: string;
-  /**
-   * Last visible run time (ISO8601), from the old state file or newer activity
-   * log. `null` means the dashboard cannot see run proof.
-   */
-  lastTickAt: string | null;
-  /**
-   * UTC ISO timestamp at which this agentResponsibility will next be eligible to act —
-   * read from `data.nextEligibleISO` in the state JSON. `null` when
-   * unavailable, or its body doesn't yet emit the field.
-   */
-  nextEligibleAt: string | null;
-  /**
-   * Coarse result of the most recent tick, from state or activity. `null` when
-   * unknown or on an engine that predates the field.
-   */
-  lastOutcome: "completed" | "failed" | null;
-  /** Wall-clock of the most recent tick (ms) — `data.lastDurationMs`, or null. */
-  lastDurationMs: number | null;
-  /** Cadence between autonomous runs; null means every scheduler wake. */
-  schedule: ScheduleEvery | null;
-  capabilityKind: AgentResponsibilityCapabilityKind | null;
-  /**
-   * Mirrors `disabled: true` in `profile.json`. When `true` the engine
-   * runner dispatch skips disabled responsibilities; manual "Run now" still works.
-   */
-  disabled: boolean;
-  /** Slug agent (agentIdentity) executes agentResponsibility. `null` means none assigned. */
-  agent: string | null;
-  /** Agent slug responsible for reviewing this agentResponsibility's output. */
-  reviewer: string | null;
-  /** Public `@kody <action>` name owned by this agentResponsibility. */
-  action: string;
-  /**
-   * GitHub logins this agentResponsibility's output should `@`-mention, parsed from
-   * `profile.json.mentions`. Empty array when the key is absent.
-   */
-  mentions: string[];
-  /** Primary implementation agentAction for this agentResponsibility. */
-  agentAction: string | null;
-  /** Legacy/multi-run agentAction slugs assigned to this agentResponsibility. */
-  agentActions: string[];
-  /** Engine-facing agentResponsibility tool names from `profile.json.tools`. */
-  agentResponsibilityTools: string[];
-  /** Optional tick script path, or null when unset. */
-  tickScript: string | null;
-  /** Context/report/agentResponsibility slugs read by this agentResponsibility. */
-  readsFrom: string[];
-  /** Report/context slugs written by this agentResponsibility. */
-  writesTo: string[];
-  /** Convenience link to the file on github.com. */
-  htmlUrl: string;
-  /** Legacy folder-agentResponsibility flag; current agentAction files live under state-repo `agent-actions/`. */
-  folder?: boolean;
-  /** Runtime resolution source. Local repo assets win over store assets. */
+  describe?: string;
+  capabilityKind?: CapabilityKind | null;
+  agent?: string | null;
+  every?: ScheduleEvery | string | null;
   source?: "local" | "store";
-  /** Store-linked agentResponsibilities are visible and runnable, but not editable locally. */
   readOnly?: boolean;
 }
 
-export const agentResponsibilitiesApi = {
-  list: async (): Promise<AgentResponsibility[]> => {
-    const res = await fetch(`${API_BASE}/agent-responsibilities`, {
+export const capabilitiesApi = {
+  list: async (): Promise<CapabilitySummary[]> => {
+    const res = await fetch(`${API_BASE}/capabilities`, {
       headers: buildHeaders(),
       cache: "no-store",
     });
     const data = await handleResponse<{
-      agentResponsibilities: AgentResponsibility[];
+      capabilities: CapabilitySummary[];
     }>(res);
-    return data.agentResponsibilities;
+    return data.capabilities;
   },
 
-  get: async (slug: string): Promise<AgentResponsibility> => {
-    const res = await fetch(
-      `${API_BASE}/agent-responsibilities/${encodeURIComponent(slug)}`,
-      {
-        headers: buildHeaders(),
-      },
-    );
-    const data = await handleResponse<{
-      agentResponsibility: AgentResponsibility;
-    }>(res);
-    return data.agentResponsibility;
-  },
-
-  create: async (data: {
-    slug?: string;
-    title: string;
-    body: string;
-    schedule?: ScheduleEvery | null;
-    capabilityKind?: AgentResponsibilityCapabilityKind | null;
-    disabled?: boolean;
-    agent?: string | null;
-    reviewer?: string | null;
-    action?: string | null;
-    mentions?: string[];
-    agentAction?: string | null;
-    agentActions?: string[];
-    agentResponsibilityTools?: string[];
-    tickScript?: string | null;
-    readsFrom?: string[];
-    writesTo?: string[];
-    actorLogin?: string;
-  }): Promise<AgentResponsibility> => {
-    const res = await fetch(`${API_BASE}/agent-responsibilities`, {
-      method: "POST",
-      headers: buildHeaders(),
-      body: JSON.stringify(data),
-    });
-    const payload = await handleResponse<{
-      agentResponsibility: AgentResponsibility;
-    }>(res);
-    return payload.agentResponsibility;
-  },
-
-  update: async (
-    slug: string,
-    data: {
-      title?: string;
-      body?: string;
-      schedule?: ScheduleEvery | null;
-      capabilityKind?: AgentResponsibilityCapabilityKind | null;
-      disabled?: boolean;
-      agent?: string | null;
-      reviewer?: string | null;
-      action?: string | null;
-      mentions?: string[];
-      agentAction?: string | null;
-      agentActions?: string[];
-      agentResponsibilityTools?: string[];
-      tickScript?: string | null;
-      readsFrom?: string[];
-      writesTo?: string[];
-      actorLogin?: string;
-    },
-  ): Promise<AgentResponsibility> => {
-    const res = await fetch(
-      `${API_BASE}/agent-responsibilities/${encodeURIComponent(slug)}`,
-      {
-        method: "PATCH",
-        headers: buildHeaders(),
-        body: JSON.stringify(data),
-      },
-    );
-    const payload = await handleResponse<{
-      agentResponsibility: AgentResponsibility;
-    }>(res);
-    return payload.agentResponsibility;
-  },
-
-  remove: async (slug: string, actorLogin?: string): Promise<void> => {
-    const params = new URLSearchParams();
-    if (actorLogin) params.set("actorLogin", actorLogin);
-    const suffix = params.toString() ? `?${params}` : "";
-    const res = await fetch(
-      `${API_BASE}/agent-responsibilities/${encodeURIComponent(slug)}${suffix}`,
-      {
-        method: "DELETE",
-        headers: buildHeaders(),
-      },
-    );
-    await handleResponse<{ success: boolean }>(res);
-  },
-
-  /**
-   * Manually trigger a single agentResponsibility by workflow_dispatch. The workflow input is
-   * still named `agentAction` for GitHub Actions compatibility, but the value
-   * is the agentResponsibility-owned public action name.
-   */
   run: async (
-    agentResponsibility: { slug: string },
+    capability: { slug: string },
     opts?: { force?: boolean },
   ): Promise<{
     workflowId: string;
     ref: string;
     action: string;
-    agentResponsibility: string;
+    capability: string;
     force: boolean;
   }> => {
     const res = await fetch(
-      `${API_BASE}/agent-responsibilities/${encodeURIComponent(agentResponsibility.slug)}/run`,
+      `${API_BASE}/capabilities/${encodeURIComponent(capability.slug)}/run`,
       {
         method: "POST",
         headers: buildHeaders(),
@@ -1219,7 +1066,7 @@ export const staffApi = {
   },
 
   /**
-   * Send an ad-hoc message to an agent and run it like a one-shot agentResponsibility.
+   * Send an ad-hoc message to an agent and run it like a one-shot capability.
    * Posts an `@kody agent-ask` directive on the control issue; the engine
    * runs the agentIdentity stateless and replies on that issue. When `actorLogin`
    * is set, the reply @-mentions the requester so it lands in their inbox.
@@ -1526,7 +1373,7 @@ export interface Report {
   htmlUrl: string;
   /** Size in bytes. */
   size: number;
-  agentResponsibilitySlug: string | null;
+  capabilitySlug: string | null;
   reviewStatus: string | null;
   reviewArea: string | null;
   findingCount: number;
@@ -2103,14 +1950,14 @@ export const vibeApi = {
  * One-tap operator verdict on a CTO recommendation surfaced in the inbox.
  * `approve` runs the recommended action for dispatchable verbs
  * (`execute`/`fix`); non-dispatchable verbs are recorded only. Verdicts are
- * tallied in the agentResponsibility trust ledger that drives graduation.
+ * tallied in the capability trust ledger that drives graduation.
  */
 export const ctoApi = {
   decide: async (input: {
     /** Emitting agent slug; kept for display and legacy entries. */
     agent?: string;
-    /** Emitting agentResponsibility slug — the trust key (falls back to agent server-side). */
-    agentResponsibility?: string;
+    /** Emitting capability slug — the trust key (falls back to agent server-side). */
+    capability?: string;
     taskNumber: number;
     action?: import("./cto/recommendation").CtoAction;
     decision: "approve" | "reject" | "dismiss";
@@ -2121,7 +1968,7 @@ export const ctoApi = {
     ok: true;
     executed: boolean;
     agent: string;
-    agentResponsibility: string;
+    capability: string;
     action: string;
     decision: "approve" | "reject" | "dismiss";
     stats: {
@@ -2140,11 +1987,11 @@ export const ctoApi = {
   },
 
   /**
-   * Latest verdict per `${agentResponsibility}:${taskNumber}:${action}` from the trust
+   * Latest verdict per `${capability}:${taskNumber}:${action}` from the trust
    * ledger, carrying the timestamp it was recorded so the inbox can scope the
    * badge to recs that pre-date the decision (a dismiss on yesterday's
    * `sync` rec must not silently dismiss today's fresh one). Used by
-   * `verdictFor(agentResponsibility, taskNumber, action, sinceIso)`.
+   * `verdictFor(capability, taskNumber, action, sinceIso)`.
    */
   decisions: async (): Promise<{
     decided: Record<
@@ -2159,11 +2006,11 @@ export const ctoApi = {
   },
 
   /**
-   * Full per-AGENT_RESPONSIBILITY trust stats + recent decision log, for the /trust page.
-   * `agentResponsibilities[<slug>]` holds one whole-agentResponsibility stats block (no action dimension).
+   * Full per-capability trust stats + recent decision log, for the /trust page.
+   * `capabilities[<slug>]` holds one whole-capability stats block (no action dimension).
    */
   trust: async (): Promise<{
-    agentResponsibilities: Record<
+    capabilities: Record<
       string,
       {
         approvals: number;
@@ -2181,17 +2028,17 @@ export const ctoApi = {
   },
 
   /**
-   * Apply one operator override to a agentResponsibility's autonomy (whole agentResponsibility):
+   * Apply one operator override to a capability's autonomy (whole capability):
    * `reset` (wipe), `graduate` (force auto now), `degrade` (force ask).
    * Never posts an `@kody` command — it only rewrites trust state.
    */
   setTrust: async (input: {
-    agentResponsibility: string;
+    capability: string;
     op: import("./cto/trust-state").TrustOp;
     actorLogin?: string;
   }): Promise<{
     ok: true;
-    agentResponsibility: string;
+    capability: string;
     op: import("./cto/trust-state").TrustOp;
     stats: {
       approvals: number;
@@ -2246,7 +2093,7 @@ export const activityApi = {
     });
     return handleResponse(res);
   },
-  /** Company activity — engine-authored, attributed actions (agentResponsibility runs). */
+  /** Company activity — engine-authored, attributed actions (capability runs). */
   autonomous: async (): Promise<{
     records: import("./activity/company").CompanyActivityRecord[];
     total: number;
@@ -2391,7 +2238,7 @@ import type {
 } from "./company/types";
 
 export const companyApi = {
-  /** Export the connected repo's agent/agent-responsibilities/prompts/instructions bundle. */
+  /** Export the connected repo's agent/capabilities/prompts/instructions bundle. */
   export: async (): Promise<CompanyBundle> => {
     const res = await fetch(`${API_BASE}/company`, {
       headers: buildHeaders(),
@@ -2416,7 +2263,7 @@ export const companyApi = {
     return data.result;
   },
 
-  /** The operator list (`github.operators`) — who recommendation agentResponsibilities
+  /** The operator list (`github.operators`) — who recommendation capabilities
    * @-mention so their comments land in the inbox. */
   operators: {
     get: async (): Promise<string[]> => {
@@ -2467,7 +2314,7 @@ export const companyApi = {
 };
 
 /** The dashboard-editable slice of kody.config.json (see /engine).
- * `perAgentAction` (model routing) is edited on /models, the rest here. */
+ * `perExecutable` (model routing) is edited on /models, the rest here. */
 export interface EngineEditableConfig {
   quality: {
     typecheck?: string;
@@ -2478,8 +2325,7 @@ export interface EngineEditableConfig {
   aliases: Record<string, string>;
   allowedAssociations: string[];
   activeAgents?: string[];
-  activeAgentActions?: string[];
-  activeAgentResponsibilities?: string[];
+  activeCapabilities?: string[];
   activeCommands?: string[];
   activeGoals?: Array<
     | string
@@ -2495,7 +2341,7 @@ export interface EngineEditableConfig {
     path?: string;
   } | null;
   defaultBranch: string;
-  perAgentAction: Record<string, string>;
+  perExecutable: Record<string, string>;
   /** Thinking level for the engine (off|low|medium|high). Null = unset.
    * Loose string here — the route validates the canonical vocabulary
    * via Zod, so the client only needs the string channel. */
@@ -2508,9 +2354,9 @@ import type { KodyJob } from "./kody-job";
 
 export const jobsApi = {
   /**
-   * Run an INSTANT job — assembles to an `@kody <agentAction> [why]` dispatch on
-   * the job's target issue/PR. Scheduled jobs persist as a agentResponsibility instead (see
-   * `agentResponsibilitiesApi.create`), so this only accepts `flavor: "instant"`.
+   * Run an INSTANT job — assembles to an `@kody <executable> [why]` dispatch on
+   * the job's target issue/PR. Scheduled jobs persist as a capability instead (see
+   * `capabilitiesApi.create`), so this only accepts `flavor: "instant"`.
    */
   run: async (
     job: KodyJob,
@@ -2601,7 +2447,7 @@ export const kodyApi = {
   workflows: workflowsApi,
   ci: ciApi,
   remote: remoteApi,
-  agentResponsibilities: agentResponsibilitiesApi,
+  capabilities: capabilitiesApi,
   agent: staffApi,
   context: contextApi,
   todos: todosApi,

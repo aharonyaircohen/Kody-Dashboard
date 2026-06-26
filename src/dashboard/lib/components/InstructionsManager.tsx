@@ -417,7 +417,7 @@ function InstructionsManagerInner() {
               Read-only. <strong>Base</strong> is the static agent prompt your
               instructions are layered on top of. <strong>Full</strong> is what
               actually gets sent to the model on a neutral turn — base + repo
-              block + memory index + your instructions (no task / agentResponsibility / vibe /
+              block + memory index + your instructions (no task / capability / vibe /
               voice overlay; those only exist mid-chat).
             </DialogDescription>
           </DialogHeader>

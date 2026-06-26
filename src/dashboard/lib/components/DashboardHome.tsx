@@ -5,7 +5,7 @@
  * @ai-summary The operations overview rendered at `/` (the "Dashboard" view).
  *   An at-a-glance control panel built top-to-bottom around "what needs me,
  *   what's broken": an attention row (reports + failures), a task
- *   pulse, agentResponsibilities health, latest reports, and engine health. Every section
+ *   pulse, capabilities health, latest reports, and engine health. Every section
  *   rides a hook the rest of the dashboard already polls, so it adds no new
  *   GitHub load — it just composes existing caches into one screen. `/` used
  *   to redirect to /tasks; it now lands here, with Tasks/Vibe one click away
@@ -455,7 +455,7 @@ function LatestReports() {
         <p className="text-sm text-muted-foreground">Loading reports…</p>
       ) : reports.length === 0 ? (
         <Card className="p-4 text-sm text-muted-foreground">
-          No reports yet — agentResponsibility runs write them here.
+          No reports yet — capability runs write them here.
         </Card>
       ) : (
         <Card className="divide-y divide-white/[0.04] overflow-hidden">

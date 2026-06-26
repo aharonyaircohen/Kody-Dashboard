@@ -67,8 +67,7 @@ function mapGithubError(error: any, fallback: string, status = 500) {
 const routeStepSchema = z.object({
   stage: z.string().min(1).max(80),
   evidence: z.string().min(1).max(80),
-  agentResponsibility: z.string().min(1).max(80),
-  agentAction: z.string().min(1).max(80).optional(),
+  capability: z.string().min(1).max(80),
   saveReport: z.boolean().optional(),
   args: z.record(z.string(), z.unknown()).optional(),
 });
@@ -83,7 +82,7 @@ const preferredRunTimeSchema = z.object({
     .regex(/^[A-Za-z0-9_+./-]+$/),
 });
 const loopTargetSchema = z.object({
-  type: z.enum(["agentResponsibility", "goal"]),
+  type: z.enum(["capability", "goal"]),
   id: z.string().min(1).max(80),
 });
 
@@ -96,7 +95,7 @@ const createManagedGoalSchema = z.object({
   preferredRunTime: preferredRunTimeSchema.nullable().optional(),
   loopTarget: loopTargetSchema.optional(),
   saveReport: z.boolean().optional(),
-  agentResponsibilities: z.array(z.string().min(1).max(80)).optional(),
+  capabilities: z.array(z.string().min(1).max(80)).optional(),
   evidence: z.array(z.string().min(1).max(80)).default([]),
   route: z.array(routeStepSchema).default([]),
   actorLogin: z.string().optional(),

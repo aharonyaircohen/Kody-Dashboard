@@ -45,7 +45,7 @@ const entrySchema = z.object({
   ctoAction: z.string().max(40).optional(),
   ctoCommand: z.string().max(300).optional(),
   ctoAgent: z.string().max(40).optional(),
-  ctoAgentResponsibility: z.string().max(40).optional(),
+  ctoCapability: z.string().max(40).optional(),
 }) satisfies z.ZodType<InboxEntry>;
 
 const appendSchema = z.object({

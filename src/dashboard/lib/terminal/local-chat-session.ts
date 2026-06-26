@@ -193,7 +193,7 @@ function detachedTmuxSessionInfo(
   };
 }
 
-function ensureNodePtyHelperAgentAction(): void {
+function ensureNodePtyHelperExecutable(): void {
   if (process.platform !== "darwin" && process.platform !== "linux") return;
 
   try {
@@ -323,7 +323,7 @@ export async function startLocalTerminalSession(input: {
   }
 
   const pty = await import("node-pty");
-  ensureNodePtyHelperAgentAction();
+  ensureNodePtyHelperExecutable();
   const sandbox = input.sandboxId
     ? await getLocalSandbox(
         { owner: input.owner, repo: input.repo },

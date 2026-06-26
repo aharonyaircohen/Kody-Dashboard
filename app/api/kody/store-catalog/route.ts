@@ -20,13 +20,9 @@ import {
   listCompanyStoreMarkdownAssetSlugs,
 } from "@dashboard/lib/company-store/assets";
 import {
-  listAgentResponsibilityFiles,
-  isValidSlug as isValidAgentResponsibilitySlug,
-} from "@dashboard/lib/agent-responsibilities-files";
-import {
-  listAgentActionFiles,
-  isValidSlug as isValidAgentActionSlug,
-} from "@dashboard/lib/agent-actions";
+  listCapabilityFiles,
+  isValidSlug as isValidCapabilitySlug,
+} from "@dashboard/lib/capabilities";
 import {
   listResolvedAgentFiles,
   isValidSlug as isValidAgentSlug,
@@ -47,8 +43,7 @@ type CatalogKind =
   | "agent"
   | "agentGoal"
   | "agentLoop"
-  | "agentResponsibility"
-  | "agentAction"
+  | "capability"
   | "command";
 
 type CatalogStatus = "active" | "not-active" | "available" | "customized";
@@ -65,7 +60,6 @@ interface CatalogItem {
   htmlUrl: string | null;
   action?: string | null;
   agent?: string | null;
-  agentAction?: string | null;
   capabilityKind?: string | null;
   schedule?: string | null;
 }
@@ -125,14 +119,11 @@ export async function GET(req: NextRequest) {
       headerAuth.repo,
     );
     const activeAgents = config.company?.activeAgents ?? [];
-    const activeAgentActions = config.company?.activeAgentActions ?? [];
-    const activeAgentResponsibilities =
-      config.company?.activeAgentResponsibilities ?? [];
+    const activeCapabilities = config.company?.activeCapabilities ?? [];
     const activeCommands = config.company?.activeCommands ?? [];
     const activeGoals = config.company?.activeGoals ?? [];
     const activeAgentSet = new Set(activeAgents);
-    const activeAgentActionSet = new Set(activeAgentActions);
-    const activeAgentResponsibilitySet = new Set(activeAgentResponsibilities);
+    const activeCapabilitySet = new Set(activeCapabilities);
     const activeCommandSet = new Set(activeCommands);
     const activeGoalSet = new Set(
       activeGoals
@@ -141,12 +132,10 @@ export async function GET(req: NextRequest) {
     );
 
     const [
-      agentResponsibilityStoreSlugs,
-      agentActionStoreSlugs,
+      capabilityStoreSlugs,
       agentStoreSlugs,
       commandStoreSlugs,
-      agentResponsibilities,
-      agentActions,
+      capabilities,
       agents,
       repoCommandResult,
       storeCommands,
@@ -154,13 +143,8 @@ export async function GET(req: NextRequest) {
     ] = await Promise.all([
       listCompanyStoreAssetSlugs(
         octokit,
-        "agent-responsibilities",
-        isValidAgentResponsibilitySlug,
-      ),
-      listCompanyStoreAssetSlugs(
-        octokit,
-        "agent-actions",
-        isValidAgentActionSlug,
+        "capabilities",
+        isValidCapabilitySlug,
       ),
       listCompanyStoreMarkdownAssetSlugs(octokit, "agents", isValidAgentSlug),
       listCompanyStoreMarkdownAssetSlugs(
@@ -168,16 +152,14 @@ export async function GET(req: NextRequest) {
         "commands",
         isValidCommandSlug,
       ),
-      listAgentResponsibilityFiles(),
-      listAgentActionFiles(),
+      listCapabilityFiles(),
       listResolvedAgentFiles(),
       listRepoCommandFiles(),
       listStoreCommandFiles(),
       listCompanyStoreGoalTemplateFiles(octokit),
     ]);
 
-    const agentResponsibilityStoreSet = new Set(agentResponsibilityStoreSlugs);
-    const agentActionStoreSet = new Set(agentActionStoreSlugs);
+    const capabilityStoreSet = new Set(capabilityStoreSlugs);
     const agentStoreSet = new Set(agentStoreSlugs);
     const commandStoreSet = new Set(commandStoreSlugs);
     const localCommandSlugs = new Set(
@@ -185,45 +167,24 @@ export async function GET(req: NextRequest) {
     );
     const items: CatalogItem[] = [];
 
-    for (const item of agentResponsibilities) {
+    for (const item of capabilities) {
       const fromStore = item.source === "store";
-      const customized =
-        !fromStore && agentResponsibilityStoreSet.has(item.slug);
+      const customized = !fromStore && capabilityStoreSet.has(item.slug);
       if (!fromStore && !customized) continue;
-      const active = fromStore && activeAgentResponsibilitySet.has(item.slug);
-      items.push({
-        slug: item.slug,
-        title: item.title,
-        description: firstText(item.body),
-        kind: "agentResponsibility",
-        status: statusFor({ activatable: true, active, customized }),
-        active,
-        activatable: fromStore,
-        source: fromStore ? "store" : "local",
-        htmlUrl: item.htmlUrl,
-        action: item.action,
-        agent: item.agent,
-        agentAction: item.agentAction,
-        capabilityKind: item.capabilityKind,
-      });
-    }
-
-    for (const item of agentActions) {
-      const fromStore = item.source === "store";
-      const customized = !fromStore && agentActionStoreSet.has(item.slug);
-      if (!fromStore && !customized) continue;
-      const active = fromStore && activeAgentActionSet.has(item.slug);
+      const active = fromStore && activeCapabilitySet.has(item.slug);
       items.push({
         slug: item.slug,
         title: item.slug,
         description: item.describe,
-        kind: "agentAction",
+        kind: "capability",
         status: statusFor({ activatable: true, active, customized }),
         active,
         activatable: fromStore,
         source: fromStore ? "store" : "local",
         htmlUrl: item.htmlUrl,
         agent: item.agent,
+        capabilityKind: item.capabilityKind,
+        schedule: item.every ?? null,
       });
     }
 
@@ -305,8 +266,7 @@ export async function GET(req: NextRequest) {
           `${a.kind}:${a.slug}`.localeCompare(`${b.kind}:${b.slug}`),
         ),
         activeAgents,
-        activeAgentActions,
-        activeAgentResponsibilities,
+        activeCapabilities,
         activeCommands,
         activeGoals,
       },

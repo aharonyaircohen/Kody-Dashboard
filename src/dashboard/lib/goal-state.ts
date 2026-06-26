@@ -7,7 +7,7 @@
  *   tracks whether a goal is being actively driven by the engine. One file
  *   per goal at `<statePath>/goals/instances/<id>/state.json` keeps engine and dashboard
  *   writes from racing on the manifest, and matches the per-entity-file
- *   convention the engine uses for agentResponsibilities.
+ *   convention the engine uses for capabilities.
  */
 
 /**
@@ -99,7 +99,7 @@ export function makeInitialSimpleGoalState(
       outcome: `Tasks labelled goal:${goalId} are complete.`,
       evidence: [SIMPLE_COMPANY_GOAL_EVIDENCE],
     },
-    agentResponsibilities: [],
+    capabilities: [],
     route: [],
     stage: "waiting",
     facts: {

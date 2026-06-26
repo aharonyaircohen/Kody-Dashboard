@@ -38,15 +38,9 @@ function activeCapabilitySlugs(company: unknown): string[] {
   if (!company || typeof company !== "object") return [];
   const raw = company as {
     activeCapabilities?: unknown;
-    activeAgentActions?: unknown;
   };
   if (Array.isArray(raw.activeCapabilities)) {
     return raw.activeCapabilities.filter(
-      (entry): entry is string => typeof entry === "string",
-    );
-  }
-  if (Array.isArray(raw.activeAgentActions)) {
-    return raw.activeAgentActions.filter(
       (entry): entry is string => typeof entry === "string",
     );
   }
@@ -79,8 +73,8 @@ export async function GET(req: NextRequest) {
           headerAuth.repo,
         );
         defaults = {
-          issue: config.defaultAgentAction ?? null,
-          pr: config.defaultPrAgentAction ?? null,
+          issue: config.defaultExecutable ?? null,
+          pr: config.defaultPrExecutable ?? null,
         };
         for (const slug of activeCapabilitySlugs(config.company)) {
           activeCapabilities.add(slug);
@@ -91,7 +85,7 @@ export async function GET(req: NextRequest) {
       (item) => item.source !== "store" || activeCapabilities.has(item.slug),
     );
     return NextResponse.json(
-      { capabilities, agentActions: capabilities, defaults },
+      { capabilities, defaults },
       { headers: NO_STORE_HEADERS },
     );
   } catch (error: any) {
@@ -111,7 +105,6 @@ export async function GET(req: NextRequest) {
     return NextResponse.json(
       {
         capabilities: [],
-        agentActions: [],
         error: error?.message || "Failed to list capabilities",
       },
       { status: 500, headers: NO_STORE_HEADERS },
@@ -241,7 +234,7 @@ export async function POST(req: NextRequest) {
       detail: `created capability ${input.slug}`,
     });
 
-    return NextResponse.json({ capability, agentAction: capability });
+    return NextResponse.json({ capability });
   } catch (error: any) {
     console.error("[Capabilities] Error creating capability:", error);
     if (error instanceof z.ZodError) {

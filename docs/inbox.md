@@ -2,7 +2,7 @@
 
 The inbox is no longer a primary dashboard work surface and is not listed in
 the main navigation. Recommendations should be reviewed through
-[Reports](reports.md), where agentResponsibilities can publish findings plus optional
+[Reports](reports.md), where capabilities can publish findings plus optional
 suggested actions.
 
 This document remains only to describe the legacy notification plumbing that
@@ -19,7 +19,7 @@ The inbox code can still support mention-style notification delivery:
    follow-up.
 
 The old dashboard approval queue is no longer the recommended operator model.
-Do not design new agentResponsibility flows around Inbox Approve / Reject / Dismiss.
+Do not design new capability flows around Inbox Approve / Reject / Dismiss.
 
 ## What Replaced It
 
@@ -27,12 +27,12 @@ Reports now carry the reviewable output:
 
 - Findings live in `.kody/reports/<slug>.md`.
 - Optional `suggestedActions` render as buttons on the Reports page.
-- `dispatch` runs a named agentAction against a concrete issue/PR.
+- `dispatch` runs a named executable against a concrete issue/PR.
 - `create-task` opens the task dialog with report lineage.
 - `dismiss` hides one suggested action locally.
 
 There is no report-level trust ledger, approval streak, or hidden autonomy
-gate. If a agentResponsibility needs human judgement, it writes a report. If an agentAction is
+gate. If a capability needs human judgement, it writes a report. If an executable is
 allowed to act, it acts through its declared operation.
 
 ## Legacy Files

@@ -4,7 +4,7 @@
  * @pattern ai-sdk-tool
  * @ai-summary Memory tools for the kody-direct chat agent. Persist
  *   facts/feedback/project-context/references as `memory/<id>.md`
- *   files in the state repo. Mirrors the create_or_update_agent_responsibility tool: each
+ *   files in the state repo. Mirrors the create_or_update_capability tool: each
  *   write commits a markdown file via the GitHub contents API and rebuilds
  *   the sibling `INDEX.md` so the next chat turn can see the new entry.
  *

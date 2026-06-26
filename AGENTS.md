@@ -56,8 +56,8 @@ src/dashboard/
 
 Hard constraints:
 
-- **Engine**: runs the requested agentAction and reports success/failure.
-- **Preview agentAction/tool**: owns preview behavior and preview-provider details.
+- **Engine**: runs the requested executable and reports success/failure.
+- **Preview executable/tool**: owns preview behavior and preview-provider details.
 - **Task-leader/release policy**: decides whether a preview result is required for a given PR type.
 - **`.github/workflows/kody.yml`**: immutable launcher only; never change this file.
 

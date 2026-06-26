@@ -6,7 +6,7 @@
  *   kody.config.json fields that affect the whole repo: the operator list,
  *   quality verification commands, the `@kody` access gate, default branch,
  *   and comment aliases. Distinct from the Company page, which is only
- *   import/export of the portable bundle. Per-agentAction model routing lives
+ *   import/export of the portable bundle. Per-executable model routing lives
  *   on /models (it's a model concern).
  */
 "use client";

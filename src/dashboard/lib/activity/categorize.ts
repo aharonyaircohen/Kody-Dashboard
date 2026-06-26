@@ -13,15 +13,15 @@
  */
 
 export type ActivityCategory =
-  | "scheduled" // agent-responsibility-scheduler / memorize fan-out (event=schedule)
-  | "dispatch" // manual agentResponsibility/agents "Run now" via the kody:control issue
+  | "scheduled" // capability-scheduler / memorize fan-out (event=schedule)
+  | "dispatch" // manual capability/agents "Run now" via the kody:control issue
   | "command" // a user @kody command on a real issue/PR (event=issue_comment)
   | "manual" // workflow_dispatch
   | "other"; // push, etc.
 
 export const ACTIVITY_CATEGORY_LABELS: Record<ActivityCategory, string> = {
-  scheduled: "Scheduled (agentResponsibilities/agents)",
-  dispatch: "AgentResponsibility/agents dispatch",
+  scheduled: "Scheduled (capabilities/agents)",
+  dispatch: "Capability/agents dispatch",
   command: "@kody command",
   manual: "Manual dispatch",
   other: "Other",

@@ -3,7 +3,7 @@
  * @domain kody
  * @pattern triage-strip
  * @ai-summary Cross-tile triage list for the dashboard homepage. Pulls items
- *   from the same hooks the source cards already poll (CI, tasks, agentResponsibilities,
+ *   from the same hooks the source cards already poll (CI, tasks,
  *   engine health), ranks them by severity × age, and lets the operator
  *   dismiss with a 4-hour TTL so the strip doesn't get noisy.
  *
@@ -16,7 +16,6 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useKodyTasks } from "./index";
 import { useDefaultBranchCI } from "./useDefaultBranchCI";
-import { useAgentResponsibilities, useRunAgentResponsibility } from "./useAgentResponsibilities";
 import { useHealth } from "./useHealth";
 import { useRerunCIRun, useRetryTask } from "./useDashboardActions";
 import { useGitHubIdentity } from "./useGitHubIdentity";
@@ -107,12 +106,10 @@ export interface UseTriageStripResult {
 export function useTriageStrip(limit = 4): UseTriageStripResult {
   const { data: ci } = useDefaultBranchCI();
   const { data: tasks } = useKodyTasks();
-  const { data: agentResponsibilities } = useAgentResponsibilities();
   const { data: health } = useHealth();
   const { githubUser } = useGitHubIdentity();
   const rerunCI = useRerunCIRun();
   const retryTask = useRetryTask(githubUser?.login);
-  const runAgentResponsibility = useRunAgentResponsibility();
   const [dismissed, dismiss] = useDismissedState();
 
   const items = useMemo<TriageItem[]>(() => {
@@ -170,25 +167,6 @@ export function useTriageStrip(limit = 4): UseTriageStripResult {
       });
     }
 
-    // Failing agentResponsibilities — severity 2
-    for (const d of (agentResponsibilities ?? [])
-      .filter((d) => !d.disabled && d.lastOutcome === "failed")
-      .slice(0, 2)) {
-      out.push({
-        id: `agentResponsibility:${d.slug}`,
-        severity: 2,
-        title: `AgentResponsibility: ${d.title}`,
-        detail: d.agent ?? undefined,
-        href: "/agent-responsibilities",
-        occurredAt: d.lastTickAt ?? d.updatedAt,
-        action: {
-          label: "Re-run",
-          onClick: () => runAgentResponsibility.mutate({ slug: d.slug }),
-          pending: runAgentResponsibility.isPending,
-        },
-      });
-    }
-
     // Engine degraded signals — severity 2
     for (const s of health?.signals ?? []) {
       if (s.level !== "degraded") continue;
@@ -220,12 +198,10 @@ export function useTriageStrip(limit = 4): UseTriageStripResult {
   }, [
     ci,
     tasks,
-    agentResponsibilities,
     health,
     dismissed,
     rerunCI,
     retryTask,
-    runAgentResponsibility,
     limit,
   ]);
 

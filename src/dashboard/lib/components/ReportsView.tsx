@@ -4,7 +4,7 @@
  * @pattern reports-page
  * @ai-summary Reports view — list and read system reports under
  *   `reports/<slug>.md` in the configured Kody state repo. Read-only. Mobile-first responsive
- *   layout that mirrors AgentResponsibilityControl: master/detail with a back button on
+ *   layout that mirrors CapabilityControl: master/detail with a back button on
  *   small viewports.
  */
 "use client";
@@ -43,7 +43,7 @@ import { PageHeader } from "./PageShell";
 const DISMISSED_REPORT_ACTIONS_KEY = "kody.report-actions.dismissed";
 
 interface ReportsViewProps {
-  /** Render without the built-in PageHeader (e.g. when hosted in AgentResponsibilitiesPageTabs). */
+  /** Render without the built-in PageHeader (e.g. when hosted in CapabilitiesPageTabs). */
   embedded?: boolean;
   selectedSlug?: string | null;
 }
@@ -93,7 +93,7 @@ export function ReportsViewInner({
         r.title.toLowerCase().includes(q) ||
         r.body.toLowerCase().includes(q) ||
         (r.suggestedActions ?? []).some((a) =>
-          [a.label, a.reason ?? "", a.agentAction ?? "", a.title ?? ""]
+          [a.label, a.reason ?? "", a.capability ?? "", a.title ?? ""]
             .join(" ")
             .toLowerCase()
             .includes(q),
@@ -152,10 +152,10 @@ export function ReportsViewInner({
     report: Report,
     action: ReportSuggestedAction,
   ) => {
-    const agentResponsibility = action.agentAction;
+    const capability = action.capability;
     if (
       action.type !== "dispatch" ||
-      !agentResponsibility ||
+      !capability ||
       typeof action.target !== "number"
     ) {
       toast.error("This report action cannot be dispatched");
@@ -166,8 +166,7 @@ export function ReportsViewInner({
     try {
       await kodyApi.jobs.run(
         {
-          agentResponsibility,
-          agentAction: action.agentAction,
+          capability,
           target: action.target,
           flavor: "instant",
           cliArgs: {},
@@ -175,7 +174,7 @@ export function ReportsViewInner({
         },
         auth?.user?.login,
       );
-      toast.success(`Dispatched ${agentResponsibility} on #${action.target}`);
+      toast.success(`Dispatched ${capability} on #${action.target}`);
     } catch (err) {
       toast.error("Dispatch failed", {
         description: err instanceof Error ? err.message : "Unknown error",
@@ -625,9 +624,9 @@ function SuggestedActions({
                     {action.reason}
                   </p>
                 ) : null}
-                {action.type === "dispatch" && action.agentAction ? (
+                {action.type === "dispatch" && action.capability ? (
                   <p className="mt-1 font-mono text-[11px] text-white/45">
-                    {action.agentAction}
+                    {action.capability}
                     {typeof action.target === "number"
                       ? ` on #${action.target}`
                       : ""}
@@ -641,7 +640,7 @@ function SuggestedActions({
                     size="sm"
                     disabled={
                       running ||
-                      !action.agentAction ||
+                      !action.capability ||
                       typeof action.target !== "number"
                     }
                     onClick={() => onRun(action)}

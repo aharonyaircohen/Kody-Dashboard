@@ -39,7 +39,7 @@ import { logger } from "@dashboard/lib/logger";
 import { dispatchNotifications } from "@dashboard/lib/notifications-dispatch";
 import { dispatchMentionPushes } from "@dashboard/lib/push/mention-dispatch";
 import { dispatchAgentMentions } from "@dashboard/lib/push/agent-mention-dispatch";
-import { dispatchAgentResponsibilityFailures } from "@dashboard/lib/push/agent-responsibility-failure-dispatch";
+import { dispatchCapabilityFailures } from "@dashboard/lib/push/capability-failure-dispatch";
 import { dispatchReportPushes } from "@dashboard/lib/push/report-dispatch";
 import { applyVerdictFromComment } from "@dashboard/lib/ui-verify/apply-label";
 import {
@@ -486,18 +486,18 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
         "dispatchAgentMentions threw — should have been caught internally",
       );
     });
-    // Failed agentResponsibility run → inbox entry for every operator. Triggered by the
+    // Failed capability run → inbox entry for every operator. Triggered by the
     // engine's activity-log commit to the state repo (a `push` event), so
     // a silent cron failure surfaces without any engine change. Awaited for
     // the same serverless reason as the mention feed write above.
-    await dispatchAgentResponsibilityFailures(eventType, obj).catch(
+    await dispatchCapabilityFailures(eventType, obj).catch(
       (err: unknown) => {
         logger.error(
           {
-            event: "agentResponsibility_failure_dispatch_crashed",
+            event: "capability_failure_dispatch_crashed",
             error: err instanceof Error ? err.message : String(err),
           },
-          "dispatchAgentResponsibilityFailures threw — should have been caught internally",
+          "dispatchCapabilityFailures threw — should have been caught internally",
         );
       },
     );

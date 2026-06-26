@@ -5,7 +5,7 @@
  * @ai-summary Agent detail API — GET reads a single agent file, PATCH
  *   updates the title/body, DELETE removes the file. Backed by
  *   `agents/<slug>.md` in the state repo. Duplicated
- *   from the agentResponsibilities detail API.
+ *   from the capabilities detail API.
  */
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { NextRequest, NextResponse } from "next/server";

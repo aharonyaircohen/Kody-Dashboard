@@ -183,7 +183,7 @@ export async function GET(req: NextRequest) {
     const prsByIssueNumber = new Map<number, (typeof openPRs)[number]>();
     // Direct PR-number lookup, used by the kody-release-pr issue-body marker
     // (engine-written, durable across @kody fix on the PR side — see
-    // kody2/src/agent-actions/release-{prepare,deploy}/*.sh).
+    // kody2/src/executables/release-{prepare,deploy}/*.sh).
     const prByNumber = new Map<number, (typeof openPRs)[number]>();
     for (const pr of openPRs) prByNumber.set(pr.number, pr);
     for (const pr of openPRs) {

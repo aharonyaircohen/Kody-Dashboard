@@ -45,7 +45,7 @@ import {
   clearGitHubContext,
   clearCache,
   getCacheStats,
-  invalidateAgentResponsibilitiesCache,
+  invalidateCapabilitiesCache,
   invalidateStaffCache,
   invalidateCommandsCache,
   invalidateMemoryCache,
@@ -197,30 +197,30 @@ describe("invalidateIssueCache", () => {
   });
 });
 
-describe("invalidateAgentResponsibilitiesCache", () => {
+describe("invalidateCapabilitiesCache", () => {
   it("clears only the per-item cache when a slug is given", () => {
     // Seed both the per-item cache and the listing cache.
-    setCache("agentResponsibility:acme:widgets:my-slug", 60_000, { title: "agentResponsibility" });
-    setCache("agentResponsibilities:acme:widgets:{}", 60_000, [{ slug: "my-slug" }]);
+    setCache("capability:acme:widgets:my-slug", 60_000, { title: "capability" });
+    setCache("capabilities:acme:widgets:{}", 60_000, [{ slug: "my-slug" }]);
 
-    invalidateAgentResponsibilitiesCache("my-slug");
+    invalidateCapabilitiesCache("my-slug");
 
     // Per-item cache should be gone; listing cache should remain.
     const keys = getCacheStats().keys;
-    expect(keys.some((k) => k.startsWith("agentResponsibility:"))).toBe(false);
-    expect(keys.some((k) => k.startsWith("agentResponsibilities:"))).toBe(true);
+    expect(keys.some((k) => k.startsWith("capability:"))).toBe(false);
+    expect(keys.some((k) => k.startsWith("capabilities:"))).toBe(true);
   });
 
   it("clears only the listing cache when no slug is given", () => {
-    setCache("agentResponsibility:acme:widgets:my-slug", 60_000, { title: "agentResponsibility" });
-    setCache("agentResponsibilities:acme:widgets:{}", 60_000, [{ slug: "my-slug" }]);
+    setCache("capability:acme:widgets:my-slug", 60_000, { title: "capability" });
+    setCache("capabilities:acme:widgets:{}", 60_000, [{ slug: "my-slug" }]);
 
-    invalidateAgentResponsibilitiesCache();
+    invalidateCapabilitiesCache();
 
     // Listing cache should be gone; per-item cache should remain.
     const keys = getCacheStats().keys;
-    expect(keys.some((k) => k.startsWith("agentResponsibility:"))).toBe(true);
-    expect(keys.some((k) => k.startsWith("agentResponsibilities:"))).toBe(false);
+    expect(keys.some((k) => k.startsWith("capability:"))).toBe(true);
+    expect(keys.some((k) => k.startsWith("capabilities:"))).toBe(false);
   });
 });
 

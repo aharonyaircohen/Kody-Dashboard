@@ -3,8 +3,8 @@
  * @domain kody
  * @pattern company-bundle
  * @ai-summary Portable "Company" bundle — the repo-agnostic operating
- *   manual of an org: its agent (agent identities), agentResponsibilities (recurring work),
- *   context, commands (slash-command SOPs), capabilities, legacy agentActions, managed goals,
+ *   manual of an org: its agent identities, context, commands
+ *   (slash-command SOPs), capabilities, managed goals,
  *   and instructions (tone/behaviour).
  *   Deliberately excludes repo-specific state (memory, secrets,
  *   variables, dashboard config, generated activity, inbox, notifications) — those
@@ -19,43 +19,17 @@
 
 import { z } from "zod";
 import { isManagedGoalState, type ManagedGoalState } from "../managed-goals";
-import type { ScheduleEvery } from "../ticked/frontmatter";
 
 /** Bump when the on-disk bundle shape changes incompatibly. */
 export const COMPANY_BUNDLE_VERSION = 1 as const;
 
 /**
- * An agent or agentResponsibility entry. They share the same portable API shape even
- * though agent are markdown files and agentResponsibilities are folders. `agent` (the executor agentIdentity slug)
- * is only ever set on agentResponsibilities; agent files always carry `null`.
+ * A portable agent identity entry.
  */
-export interface CompanyTickEntry {
+export interface CompanyAgentEntry {
   slug: string;
   title: string;
   body: string;
-  /** Cadence between autonomous runs; null means every scheduler wake or not applicable. */
-  schedule: ScheduleEvery | null;
-  disabled: boolean;
-  /** Executor agentIdentity slug — agentResponsibilities only; agent entries are always null. */
-  agent: string | null;
-  /** Agent slug responsible for reviewing agentResponsibility output; agent entries are null. */
-  reviewer: string | null;
-  /** Public `@kody <action>` name — agentResponsibilities only; agent entries are null. */
-  action: string | null;
-  /** GitHub logins to mention from agentResponsibility output. */
-  mentions: string[];
-  /** Primary implementation agentAction assigned to a agentResponsibility. */
-  agentAction: string | null;
-  /** Legacy/multi-run agentAction slugs assigned to a agentResponsibility. */
-  agentActions: string[];
-  /** AgentResponsibility tool names exposed to the tick agent. */
-  agentResponsibilityTools: string[];
-  /** Optional tick script path for the agentResponsibility agent. */
-  tickScript: string | null;
-  /** Context/report/agentResponsibility slugs read by the agentResponsibility. */
-  readsFrom: string[];
-  /** Report/context slugs written by the agentResponsibility. */
-  writesTo: string[];
 }
 
 /** A slash-command entry. */
@@ -78,7 +52,7 @@ export interface CompanyContextEntry {
  * these ship as a path→content map of every file under the state-repo folder.
  * Paths are relative to the folder.
  */
-export interface CompanyAgentActionEntry {
+export interface CompanyCapabilityEntry {
   slug: string;
   files: Record<string, string>;
 }
@@ -92,8 +66,7 @@ export interface CompanyGoalEntry {
 /**
  * The portable engine-config slice of a Company. Only repo-agnostic policy is
  * carried — quality commands, comment aliases, the `@kody` access gate,
- * per-agentAction model routing, and the bare-`@kody` default agentActions
- * (slugs that resolve against the bundled agentActions). The default branch
+ * capability defaults and model routing. The default branch
  * (`git.defaultBranch`) is deliberately excluded: it's repo-specific.
  */
 export interface CompanyConfigBundle {
@@ -105,9 +78,9 @@ export interface CompanyConfigBundle {
   };
   aliases?: Record<string, string>;
   allowedAssociations?: string[];
-  defaultAgentAction?: string;
-  defaultPrAgentAction?: string;
-  perAgentAction?: Record<string, string>;
+  defaultExecutable?: string;
+  defaultPrExecutable?: string;
+  perExecutable?: Record<string, string>;
 }
 
 /** The full portable bundle. */
@@ -118,13 +91,10 @@ export interface CompanyBundle {
   exportedAt: string;
   /** `owner/repo` the bundle was exported from (provenance only). */
   exportedFrom: string;
-  agent: CompanyTickEntry[];
-  agentResponsibilities: CompanyTickEntry[];
+  agent: CompanyAgentEntry[];
   contexts: CompanyContextEntry[];
   commands: CompanyCommandEntry[];
-  capabilities: CompanyAgentActionEntry[];
-  /** Legacy collection kept while older repos still carry `agent-actions/`. */
-  agentActions: CompanyAgentActionEntry[];
+  capabilities: CompanyCapabilityEntry[];
   goals: CompanyGoalEntry[];
   /** Repo instructions body, or `null` when the source repo had none. */
   instructions: string | null;
@@ -159,11 +129,9 @@ export type CompanyConfigOutcome = "applied" | "skipped" | "absent";
 export interface CompanyImportResult {
   mode: CompanyImportMode;
   agent: CompanyImportCounts;
-  agentResponsibilities: CompanyImportCounts;
   contexts: CompanyImportCounts;
   commands: CompanyImportCounts;
   capabilities: CompanyImportCounts;
-  agentActions: CompanyImportCounts;
   goals: CompanyImportCounts;
   instructions: CompanyInstructionsOutcome;
   config: CompanyConfigOutcome;
@@ -178,25 +146,10 @@ const slugSchema = z
   .string()
   .regex(/^[a-z0-9][a-z0-9_-]{0,63}$/, "invalid slug");
 
-const tickEntrySchema = z.object({
+const agentEntrySchema = z.object({
   slug: slugSchema,
   title: z.string().min(1),
   body: z.string().default(""),
-  schedule: z
-    .enum(["15m", "30m", "1h", "2h", "6h", "12h", "1d", "3d", "7d", "manual"])
-    .nullable()
-    .default(null),
-  disabled: z.boolean().default(false),
-  agent: z.string().min(1).nullable().default(null),
-  reviewer: z.string().min(1).nullable().default(null),
-  action: slugSchema.nullable().default(null),
-  mentions: z.array(z.string().min(1)).default([]),
-  agentAction: slugSchema.nullable().default(null),
-  agentActions: z.array(slugSchema).default([]),
-  agentResponsibilityTools: z.array(z.string().min(1)).default([]),
-  tickScript: z.string().min(1).nullable().default(null),
-  readsFrom: z.array(z.string().min(1)).default([]),
-  writesTo: z.array(z.string().min(1)).default([]),
 });
 
 const commandEntrySchema = z.object({
@@ -212,7 +165,7 @@ const contextEntrySchema = z.object({
   agent: z.array(z.string().min(1)).default([]),
 });
 
-const agentActionEntrySchema = z.object({
+const capabilityEntrySchema = z.object({
   slug: slugSchema,
   files: z.record(z.string(), z.string()),
 });
@@ -235,9 +188,9 @@ const configBundleSchema = z.object({
     .optional(),
   aliases: z.record(z.string().max(64), z.string().max(64)).optional(),
   allowedAssociations: z.array(z.string().max(40)).max(16).optional(),
-  defaultAgentAction: z.string().max(64).optional(),
-  defaultPrAgentAction: z.string().max(64).optional(),
-  perAgentAction: z.record(z.string().max(64), z.string().max(128)).optional(),
+  defaultExecutable: z.string().max(64).optional(),
+  defaultPrExecutable: z.string().max(64).optional(),
+  perExecutable: z.record(z.string().max(64), z.string().max(128)).optional(),
 });
 
 /**
@@ -250,8 +203,7 @@ export const companyBundleSchema = z
     kodyCompany: z.literal(COMPANY_BUNDLE_VERSION),
     exportedAt: z.string().optional(),
     exportedFrom: z.string().optional(),
-    agent: z.array(tickEntrySchema).default([]),
-    agentResponsibilities: z.array(tickEntrySchema).default([]),
+    agent: z.array(agentEntrySchema).default([]),
     contexts: z.array(contextEntrySchema).default([]),
     commands: z.array(commandEntrySchema).optional(),
     /**
@@ -260,8 +212,7 @@ export const companyBundleSchema = z
      * older bundles still import their slash commands.
      */
     prompts: z.array(commandEntrySchema).optional(),
-    capabilities: z.array(agentActionEntrySchema).default([]),
-    agentActions: z.array(agentActionEntrySchema).default([]),
+    capabilities: z.array(capabilityEntrySchema).default([]),
     goals: z.array(goalEntrySchema).default([]),
     instructions: z.string().nullable().default(null),
     config: configBundleSchema.nullish(),

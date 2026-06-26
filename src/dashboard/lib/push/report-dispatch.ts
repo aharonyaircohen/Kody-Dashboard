@@ -3,7 +3,7 @@
  * @domain kody
  * @pattern report-push-dispatch
  * @ai-summary Server-only helper that fires a Web Push browser banner to
- *   every subscribed device when a Kody agentResponsibility writes (or updates) a report
+ *   every subscribed device when a Kody capability writes (or updates) a report
  *   under `<repo>/reports/<slug>.md`. Unlike the mention spine
  *   (`mention-dispatch.ts`), this is **broadcast** — reports are produced by
  *   the system on a schedule and are interesting to anyone who's enabled push
@@ -136,7 +136,7 @@ function buildPayload(slug: string, repoFullName: string): string {
  * Drop lines that change every tick without the report's meaning changing.
  * The engine stamps `_Last updated: <ISO>_` into every report on every rerun,
  * so a re-save with no real change still differs by exactly this one line
- * (this is ~68% of report pushes — e.g. agent-responsibility-call re-proposing the same agentResponsibility
+ * (this is ~68% of report pushes — e.g. capability-call re-proposing the same capability
  * hourly). Stripping it before comparison is what separates "genuinely
  * new/updated report" from "same report, fresh timestamp". Matches the line
  * however it's wrapped in markdown emphasis (`_..._`, `*..*`, blockquote).

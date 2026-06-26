@@ -5,7 +5,7 @@
  * @ai-summary Create a new capability backed by state-repo capabilities storage.
  */
 import { AuthGuard } from "@dashboard/lib/auth-guard";
-import { AgentActionEditorPage } from "@dashboard/lib/components/AgentActionsManager";
+import { CapabilityEditorPage } from "@dashboard/lib/components/CapabilitiesManager";
 import { buildKodyMetadata } from "../../../metadata";
 
 export const dynamic = "force-static";
@@ -21,7 +21,7 @@ export const metadata = buildKodyMetadata({
 export default function NewCapabilityPage() {
   return (
     <AuthGuard>
-      <AgentActionEditorPage slug={null} basePath="/capabilities" />
+      <CapabilityEditorPage slug={null} basePath="/capabilities" />
     </AuthGuard>
   );
 }

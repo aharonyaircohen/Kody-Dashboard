@@ -2,19 +2,19 @@
  * Shared types for the chat-defaults bundle.
  */
 
-export interface AgentActionEntry {
+export interface ChatCapabilityEntry {
   slug: string;
   title: string;
   describe: string;
   /** Flat list of tool names the chat exposes. Names match the registry. */
   tools: string[];
-  /** Skill slugs the agentAction composes. */
+  /** Skill slugs the chat capability composes. */
   skills: string[];
-  /** Glue text — how the agentAction wires agentIdentity + skills together. */
+  /** Glue text — how the capability wires agent identity, workflows, and skills together. */
   prompt: string;
 }
 
-export interface AgentResponsibilityEntry {
+export interface ChatWorkflowEntry {
   slug: string;
   title: string;
   body: string;

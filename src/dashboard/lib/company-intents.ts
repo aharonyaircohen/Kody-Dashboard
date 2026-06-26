@@ -43,12 +43,12 @@ export interface CompanyIntent {
   portfolio: {
     goals: string[];
     loops: string[];
-    responsibilities: string[];
+    capabilities: string[];
   };
   manager: {
     agent: "cto";
     loop: "company-manager-loop";
-    responsibility: "company-manager";
+    capability: "company-manager";
     reviewEvery: "1d" | "1w";
     lastReviewedAt?: string;
   };
@@ -74,12 +74,9 @@ export interface CompanyIntentManagerHealth {
     state?: string;
     updatedAt?: string;
   };
-  responsibility: {
+  capability: {
     id: string;
     exists: boolean;
-    disabled?: boolean;
-    lastTickAt?: string | null;
-    nextEligibleAt?: string | null;
   };
 }
 
@@ -158,7 +155,7 @@ export function buildCompanyIntent(
     manager: {
       agent: "cto",
       loop: "company-manager-loop",
-      responsibility: "company-manager",
+      capability: "company-manager",
       reviewEvery: input.manager.reviewEvery,
     },
     createdAt: now,
@@ -245,8 +242,8 @@ export function companyIntentWarnings(
   if (managerHealth && !managerHealth.loop.exists) {
     warnings.push("Manager loop missing");
   }
-  if (managerHealth && !managerHealth.responsibility.exists) {
-    warnings.push("Manager responsibility missing");
+  if (managerHealth && !managerHealth.capability.exists) {
+    warnings.push("Manager capability missing");
   }
   return warnings;
 }
@@ -269,7 +266,7 @@ function normalizePortfolio(value: unknown): CompanyIntent["portfolio"] {
   return {
     goals: stringArray(input?.goals).filter(isCompanyIntentId),
     loops: stringArray(input?.loops).filter(isCompanyIntentId),
-    responsibilities: stringArray(input?.responsibilities).filter(
+    capabilities: stringArray(input?.capabilities).filter(
       isCompanyIntentId,
     ),
   };
@@ -315,7 +312,7 @@ function normalizeManager(value: unknown): CompanyIntent["manager"] {
   return {
     agent: "cto",
     loop: "company-manager-loop",
-    responsibility: "company-manager",
+    capability: "company-manager",
     reviewEvery: enumField(input?.reviewEvery, ["1d", "1w"]) ?? "1d",
     ...(lastReviewedAt ? { lastReviewedAt } : {}),
   };

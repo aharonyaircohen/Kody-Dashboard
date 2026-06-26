@@ -10,7 +10,7 @@
  *   single write path, via the shared `postWithFallback` helper). For
  *   non-dispatchable verbs (`qa-review`/`approve`/`comment`) there is no
  *   dashboard executor, so approve only records the verdict — it never
- *   silently reroutes to `@kody`. Either way the verdict lands in the agentResponsibility
+ *   silently reroutes to `@kody`. Either way the verdict lands in the capability
  *   trust ledger.
  *
  *   `reject` → records the rejection only (and resets that action's
@@ -22,7 +22,7 @@
  *   operator doesn't want to act on but also doesn't want to penalise
  *   the CTO over. Never dispatches a command.
  *
- *   The ledger is what makes automation evolve: once a agentResponsibility clears the trust
+ *   The ledger is what makes automation evolve: once a capability clears the trust
  *   threshold, the engine gate may let it self-dispatch.
  */
 import { NextRequest, NextResponse } from "next/server";
@@ -62,7 +62,7 @@ const bodySchema = z.object({
   decision: z.enum(["approve", "reject", "dismiss"]),
   /**
    * Slug of the agent whose rec this verdict decides. Kept for display
-   * and legacy clients. Trust itself is keyed by agentResponsibility.
+   * and legacy clients. Trust itself is keyed by capability.
    */
   agent: z
     .string()
@@ -70,11 +70,11 @@ const bodySchema = z.object({
     .regex(/^[a-z0-9][a-z0-9-]*$/i)
     .default(DEFAULT_AGENT_SLUG),
   /**
-   * Slug of the AGENT_RESPONSIBILITY whose rec this verdict decides — the trust key. Absent on
+   * Slug of the capability whose rec this verdict decides — the trust key. Absent on
    * legacy clients; the server falls back to the agentIdentity slug so trust still
-   * records coherently until the engine stamps `kody-agentResponsibility` on every rec.
+   * records coherently until the engine stamps `kody-capability` on every rec.
    */
-  agentResponsibility: z
+  capability: z
     .string()
     .max(40)
     .regex(/^[a-z0-9][a-z0-9-]*$/i)
@@ -114,7 +114,7 @@ export async function POST(req: NextRequest) {
     }
 
     const { taskNumber, action, decision, actorLogin, agent } = payload;
-    const agentResponsibility = payload.agentResponsibility ?? agent;
+    const capability = payload.capability ?? agent;
     const requested = payload.command?.trim();
 
     if (actorLogin) {
@@ -131,7 +131,7 @@ export async function POST(req: NextRequest) {
     if (decision === "approve" && isDashboardAction(action)) {
       // `merge`: the dashboard squash-merges the PR itself (the engine never
       // auto-merges). The rec's taskNumber IS the PR number (the QA-verify
-      // agentResponsibility posts the rec on the PR). A blocked merge (CI/conflict) returns
+      // capability posts the rec on the PR). A blocked merge (CI/conflict) returns
       // 409 BEFORE recording, so it never counts toward the trust streak.
       const mergeOctokit = userOctokit ?? getOctokit();
       const outcome = await attemptSquashMerge(mergeOctokit, taskNumber);
@@ -181,7 +181,7 @@ export async function POST(req: NextRequest) {
 
     const manifest = await mutateTrust((current) =>
       applyTrustDecision(current, {
-        agentResponsibility,
+        capability,
         action,
         decision,
         taskNumber,
@@ -193,10 +193,10 @@ export async function POST(req: NextRequest) {
       ok: true,
       executed,
       agent,
-      agentResponsibility,
+      capability,
       action,
       decision,
-      stats: manifest.agentResponsibilities[agentResponsibility] ?? null,
+      stats: manifest.capabilities[capability] ?? null,
     });
   } catch (err: unknown) {
     const message =

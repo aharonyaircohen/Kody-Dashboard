@@ -4,7 +4,7 @@
  * @pattern job-ledger-view
  * @ai-summary Renders a task's job ledger — the ordered list of engine runs
  * ("jobs") recorded in the canonical TaskState comment. Each row is one run:
- * what agentAction/action it was, who it ran as, instant vs scheduled, its
+ * what capability/action it was, who it ran as, instant vs scheduled, its
  * outcome, when, and a link to the run. A job IS the execution unit (mint +
  * run); this list is the durable trail those runs leave behind. "Re-run" mints
  * a fresh job via the existing whole-task rerun dispatch (re-run = new job).
@@ -111,7 +111,7 @@ export function TaskRunsList({
                 <div className="min-w-0 flex-1">
                   <div className="flex items-center gap-2 flex-wrap">
                     <span className="text-sm font-medium text-white/85 truncate">
-                      {entry.agentAction}
+                      {(entry.capability ?? entry.action) || "run"}
                     </span>
                     {entry.action && (
                       <span className="text-xs text-white/45">

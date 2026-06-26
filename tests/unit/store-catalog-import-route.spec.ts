@@ -28,8 +28,8 @@ const managedGoals = vi.hoisted(() => ({
   listCompanyStoreGoalTemplateFiles: vi.fn(),
 }));
 
-const agentResponsibilities = vi.hoisted(() => ({
-  readResolvedAgentResponsibilityFile: vi.fn(),
+const capabilities = vi.hoisted(() => ({
+  readResolvedCapabilityFile: vi.fn(),
 }));
 
 const engineConfig = vi.hoisted(() => ({
@@ -60,9 +60,8 @@ vi.mock("@dashboard/lib/managed-goals-files", () => ({
     managedGoals.listCompanyStoreGoalTemplateFiles,
 }));
 
-vi.mock("@dashboard/lib/agent-responsibilities-files", () => ({
-  readResolvedAgentResponsibilityFile:
-    agentResponsibilities.readResolvedAgentResponsibilityFile,
+vi.mock("@dashboard/lib/capabilities", () => ({
+  readResolvedCapabilityFile: capabilities.readResolvedCapabilityFile,
 }));
 
 vi.mock("@dashboard/lib/engine/config", () => ({
@@ -82,12 +81,10 @@ function req(body: unknown): NextRequest {
 function baseConfig() {
   return {
     config: {
-      agentActions: { default: "run" },
+      executables: { default: "run" },
       company: {
         activeAgents: [],
         activeCapabilities: [],
-        activeAgentActions: [],
-        activeAgentResponsibilities: [],
         activeCommands: [],
         activeGoals: [],
       },
@@ -116,29 +113,34 @@ describe("store catalog import route", () => {
     );
     companyStore.listCompanyStoreAssetSlugs.mockImplementation(
       async (_octokit: unknown, kind: string) => {
-        if (kind === "agent-actions") return ["ship-feature"];
-        if (kind === "capabilities") return ["ship-feature"];
-        return ["release-watch"];
+        if (kind === "capabilities") {
+          return [
+            "ship-feature",
+            "release-watch",
+            "release-prepare",
+            "release-merge",
+            "vercel-production-deploy",
+          ];
+        }
+        return [];
       },
     );
     managedGoals.listCompanyStoreGoalTemplateFiles.mockResolvedValue([
       {
         id: "weekly-quality",
-        state: { agentResponsibilities: ["release-watch"] },
+        state: { capabilities: ["release-watch"] },
       },
       {
         id: "daily-triage",
-        state: { agentResponsibilities: ["release-watch"] },
+        state: { capabilities: ["release-watch"] },
       },
     ]);
-    agentResponsibilities.readResolvedAgentResponsibilityFile.mockImplementation(
+    capabilities.readResolvedCapabilityFile.mockImplementation(
       async (slug: string) =>
-        slug === "release-watch"
+        ["ship-feature", "release-watch"].includes(slug)
           ? {
               slug,
-              agent: "atlas-agent",
-              agentAction: "ship-feature",
-              agentActions: [],
+              agent: slug === "release-watch" ? "atlas-agent" : null,
             }
           : null,
     );
@@ -166,8 +168,6 @@ describe("store catalog import route", () => {
       {
         activeAgents: ["atlas-agent"],
         activeCapabilities: undefined,
-        activeAgentActions: undefined,
-        activeAgentResponsibilities: undefined,
         activeCommands: undefined,
         activeGoals: undefined,
       },
@@ -197,8 +197,6 @@ describe("store catalog import route", () => {
       {
         activeAgents: undefined,
         activeCapabilities: ["ship-feature"],
-        activeAgentActions: undefined,
-        activeAgentResponsibilities: undefined,
         activeCommands: undefined,
         activeGoals: undefined,
       },
@@ -208,12 +206,10 @@ describe("store catalog import route", () => {
     expect(octokit.git.createTree).not.toHaveBeenCalled();
   });
 
-  it("adds store item types with their active dependencies", async () => {
+  it("adds store goal and command types with their active capability dependencies", async () => {
     const octokit = makeOctokit();
     auth.getUserOctokit.mockResolvedValue(octokit);
 
-    await POST(req({ kind: "agentAction", slug: "ship-feature" }));
-    await POST(req({ kind: "agentResponsibility", slug: "release-watch" }));
     await POST(req({ kind: "agentGoal", slug: "weekly-quality" }));
     await POST(req({ kind: "agentLoop", slug: "daily-triage" }));
     await POST(req({ kind: "command", slug: "factory" }));
@@ -223,8 +219,13 @@ describe("store catalog import route", () => {
       octokit,
       "acme",
       "widgets",
-      expect.objectContaining({ activeAgentActions: ["ship-feature"] }),
-      "chore(kody): add store agentAction ship-feature",
+      {
+        activeAgents: ["atlas-agent"],
+        activeCapabilities: ["release-watch"],
+        activeCommands: undefined,
+        activeGoals: ["weekly-quality"],
+      },
+      "chore(kody): add store agentGoal weekly-quality",
     );
     expect(engineConfig.writeConfigPatch).toHaveBeenNthCalledWith(
       2,
@@ -233,13 +234,11 @@ describe("store catalog import route", () => {
       "widgets",
       {
         activeAgents: ["atlas-agent"],
-        activeCapabilities: undefined,
-        activeAgentActions: ["ship-feature"],
-        activeAgentResponsibilities: ["release-watch"],
+        activeCapabilities: ["release-watch"],
         activeCommands: undefined,
-        activeGoals: undefined,
+        activeGoals: ["daily-triage"],
       },
-      "chore(kody): add store agentResponsibility release-watch",
+      "chore(kody): add store agentLoop daily-triage",
     );
     expect(engineConfig.writeConfigPatch).toHaveBeenNthCalledWith(
       3,
@@ -247,40 +246,8 @@ describe("store catalog import route", () => {
       "acme",
       "widgets",
       {
-        activeAgents: ["atlas-agent"],
-        activeCapabilities: undefined,
-        activeAgentActions: ["ship-feature"],
-        activeAgentResponsibilities: ["release-watch"],
-        activeCommands: undefined,
-        activeGoals: ["weekly-quality"],
-      },
-      "chore(kody): add store agentGoal weekly-quality",
-    );
-    expect(engineConfig.writeConfigPatch).toHaveBeenNthCalledWith(
-      4,
-      octokit,
-      "acme",
-      "widgets",
-      {
-        activeAgents: ["atlas-agent"],
-        activeCapabilities: undefined,
-        activeAgentActions: ["ship-feature"],
-        activeAgentResponsibilities: ["release-watch"],
-        activeCommands: undefined,
-        activeGoals: ["daily-triage"],
-      },
-      "chore(kody): add store agentLoop daily-triage",
-    );
-    expect(engineConfig.writeConfigPatch).toHaveBeenNthCalledWith(
-      5,
-      octokit,
-      "acme",
-      "widgets",
-      {
         activeAgents: undefined,
         activeCapabilities: undefined,
-        activeAgentActions: undefined,
-        activeAgentResponsibilities: undefined,
         activeCommands: ["factory"],
         activeGoals: undefined,
       },
@@ -295,7 +262,7 @@ describe("store catalog import route", () => {
       {
         id: "web-release",
         state: {
-          agentResponsibilities: [
+          capabilities: [
             "release-prepare",
             "release-merge",
             "vercel-production-deploy",
@@ -303,7 +270,7 @@ describe("store catalog import route", () => {
         },
       },
     ]);
-    agentResponsibilities.readResolvedAgentResponsibilityFile.mockImplementation(
+    capabilities.readResolvedCapabilityFile.mockImplementation(
       async (slug: string) =>
         [
           "release-prepare",
@@ -313,8 +280,6 @@ describe("store catalog import route", () => {
           ? {
               slug,
               agent: null,
-              agentAction: slug,
-              agentActions: [],
             }
           : null,
     );
@@ -333,13 +298,7 @@ describe("store catalog import route", () => {
       "widgets",
       {
         activeAgents: undefined,
-        activeCapabilities: undefined,
-        activeAgentActions: [
-          "release-prepare",
-          "release-merge",
-          "vercel-production-deploy",
-        ],
-        activeAgentResponsibilities: [
+        activeCapabilities: [
           "release-prepare",
           "release-merge",
           "vercel-production-deploy",
@@ -356,7 +315,7 @@ describe("store catalog import route", () => {
     auth.getUserOctokit.mockResolvedValue(octokit);
     engineConfig.getEngineConfig.mockResolvedValue({
       config: {
-        agentActions: { default: "run" },
+        executables: { default: "run" },
         company: {
           activeAgents: ["atlas-agent"],
         },
@@ -380,11 +339,10 @@ describe("store catalog import route", () => {
     auth.getUserOctokit.mockResolvedValue(octokit);
     engineConfig.getEngineConfig.mockResolvedValue({
       config: {
-        agentActions: { default: "run" },
+        executables: { default: "run" },
         company: {
           activeAgents: ["atlas-agent"],
-          activeAgentActions: ["ship-feature"],
-          activeAgentResponsibilities: ["release-watch"],
+          activeCapabilities: ["release-watch"],
           activeGoals: [{ template: "weekly-quality", every: "1w" }],
         },
       },
@@ -407,7 +365,7 @@ describe("store catalog import route", () => {
     auth.getUserOctokit.mockResolvedValue(octokit);
     engineConfig.getEngineConfig.mockResolvedValue({
       config: {
-        agentActions: { default: "run" },
+        executables: { default: "run" },
         company: {
           activeGoals: [{ template: "weekly-quality", every: "1w" }],
         },
@@ -429,9 +387,7 @@ describe("store catalog import route", () => {
       "widgets",
       {
         activeAgents: ["atlas-agent"],
-        activeCapabilities: undefined,
-        activeAgentActions: ["ship-feature"],
-        activeAgentResponsibilities: ["release-watch"],
+        activeCapabilities: ["release-watch"],
         activeCommands: undefined,
         activeGoals: undefined,
       },
@@ -456,5 +412,18 @@ describe("store catalog import route", () => {
       expect.any(NextRequest),
       undefined,
     );
+  });
+
+  it("rejects legacy store item kinds", async () => {
+    const octokit = makeOctokit();
+    auth.getUserOctokit.mockResolvedValue(octokit);
+
+    const res = await POST(req({ kind: "executable", slug: "ship-feature" }));
+
+    expect(res.status).toBe(400);
+    await expect(res.json()).resolves.toMatchObject({
+      error: "validation_error",
+    });
+    expect(engineConfig.writeConfigPatch).not.toHaveBeenCalled();
   });
 });

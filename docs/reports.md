@@ -1,6 +1,6 @@
 # Reports
 
-Reports are the dashboard review surface for agentResponsibility output. A agentResponsibility can either act through an agentAction, or write a markdown report under `reports/<slug>.md` in the configured Kody state repo when the next step needs operator judgement.
+Reports are the dashboard review surface for capability output. A capability can either act through an executable, or write a markdown report under `reports/<slug>.md` in the configured Kody state repo when the next step needs operator judgement.
 
 The Reports page reads files, shows report body, tracks unread state locally, and can render optional suggested actions from frontmatter. It replaces the old inbox-approval/ledger review surface for recommendations.
 
@@ -11,7 +11,7 @@ Every report is a markdown file with frontmatter:
 ```yaml
 ---
 generatedAt: "2026-06-08T12:00:00Z"
-agentResponsibilitySlug: qa-sweep
+capabilitySlug: qa-sweep
 reviewStatus: action-needed
 reviewArea: ci
 findings:
@@ -22,7 +22,7 @@ suggestedActions:
   - id: fix-ci-42
     type: dispatch
     label: Run fix-ci on PR #42
-    agentAction: fix-ci
+    executable: fix-ci
     target: 42
     reason: The latest CI run failed on the PR head.
   - id: task-flaky-test
@@ -43,7 +43,7 @@ Required keys:
 
 Optional routing keys:
 
-- `agentResponsibilitySlug`: the agentResponsibility that produced the report.
+- `capabilitySlug`: the capability that produced the report.
 - `reviewStatus`: `none`, `info`, `action-needed`, `assigned`, or `reviewed`.
 - `reviewArea`: broad area for future report review/routing.
 - `suggestedActions`: dashboard-rendered follow-up buttons.
@@ -59,11 +59,11 @@ Supported action types:
 
 | Type          | Required fields                               | What the dashboard does                                                     |
 | ------------- | --------------------------------------------- | --------------------------------------------------------------------------- |
-| `dispatch`    | `id`, `type`, `label`, `agentAction`, `target` | Runs an instant job for the named agentAction against the issue/PR number.   |
+| `dispatch`    | `id`, `type`, `label`, `executable`, `target` | Runs an instant job for the named executable against the issue/PR number.   |
 | `create-task` | `id`, `type`, `label`, `title`                | Opens the existing task dialog prefilled from the action and source report. |
 | `dismiss`     | `id`, `type`, `label`                         | Hides that suggested action locally for the current browser.                |
 
-Dispatch actions must name a real agentAction and a concrete issue/PR number.
+Dispatch actions must name a real executable and a concrete issue/PR number.
 The dashboard does not infer commands from prose.
 
 Create-task actions can include:
@@ -76,17 +76,17 @@ screen, but it does not write a verdict, trust score, or audit decision.
 
 ## Operating Model
 
-Use reports when a agentResponsibility has findings, context, or recommendations that a human
+Use reports when a capability has findings, context, or recommendations that a human
 should review before follow-up work starts.
 
-Use direct agentAction action when the agentAction already has a clear operation
-and the required permissions. The agentResponsibility itself does not write arbitrary state;
-the agentAction owns what operations it can perform.
+Use direct executable action when the executable already has a clear operation
+and the required permissions. The capability itself does not write arbitrary state;
+the executable owns what operations it can perform.
 
 This keeps the loop simple:
 
-1. AgentResponsibility runs.
-2. AgentAction either acts or writes/updates a report.
+1. Capability runs.
+2. Executable either acts or writes/updates a report.
 3. Operator reads the report.
 4. Operator uses a suggested action, creates a task/goal, dispatches a job, or
    does nothing.

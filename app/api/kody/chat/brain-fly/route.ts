@@ -39,7 +39,7 @@ import { logger } from "@dashboard/lib/logger";
 import {
   streamBrainChat,
   type BrainAttachment,
-  type BrainAgentResponsibilityContext,
+  type BrainCapabilityContext,
   type BrainTaskContext,
 } from "@dashboard/lib/brain-proxy";
 import {
@@ -88,7 +88,7 @@ export async function POST(req: NextRequest) {
     message?: string;
     taskContext?: BrainTaskContext;
     attachments?: BrainAttachment[];
-    agentResponsibilityContext?: BrainAgentResponsibilityContext;
+    capabilityContext?: BrainCapabilityContext;
     voiceMode?: boolean;
     resumeSince?: number;
     resumeText?: string;
@@ -246,7 +246,7 @@ export async function POST(req: NextRequest) {
           ),
       taskContext: body.taskContext,
       attachments: body.attachments,
-      agentResponsibilityContext: body.agentResponsibilityContext,
+      capabilityContext: body.capabilityContext,
       repo,
       repoToken,
       voiceMode: body.voiceMode === true,

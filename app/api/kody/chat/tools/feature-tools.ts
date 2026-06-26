@@ -113,39 +113,32 @@ state repo \`events/{sessionId}.jsonl\` (durable fallback, polled by
 Each stage's status is committed to a per-task \`status.json\` on the work branch.`,
   },
   {
-    id: "kody-agentResponsibilities",
-    name: "Kody AgentResponsibilities",
+    id: "kody-capabilities",
+    name: "Kody Capabilities",
     summary:
-      "Folders at state repo agent-responsibilities/<slug>/ that define responsibility purpose and execution binding.",
-    details: `A Kody AgentResponsibility is a folder at state repo \`agent-responsibilities/<slug>/\`:
+      "Current storage folders at state repo capabilities/<slug>/ that define capability contracts.",
+    details: `A Kody Capability is stored at state repo \`capabilities/<slug>/\`:
 
-- \`profile.json\` stores action, agentAction, agent, mentions, and data-contract metadata.
-- \`agent-responsibility.md\` stores the human-readable purpose, output, allowed commands, and restrictions.
+- \`profile.json\` stores execution settings, capabilityKind, tools, skills, and scripts.
+- \`capability.md\` stores the human-readable instructions and restrictions.
 
-Responsibilities do not own cadence. Goals and loops decide when to run a responsibility.
+Intent owns why. Goal owns what should become true. Loop owns when to check.
+Agent owns who acts. Capability owns what can be run.
 
-Format (must match existing agentResponsibilities in state repo \`agent-responsibilities/\`):
+Format (must match existing capabilities in state repo \`capabilities/\`):
 - \`profile.json\` metadata
-- \`agent-responsibility.md\` with an H1 title
-- \`## Job\` — purpose and outcome
-- \`## AgentAction\` when relevant
-- \`## Output\`
-- \`## Allowed Commands\`
+- \`capability.md\` with clear instructions
 - \`## Restrictions\`
 
-Default chat template is REPORT-PRODUCER: each active tick gathers inputs,
-composes a YAML \`findings:\` report, and refreshes
-\`reports/<slug>.md in the configured Kody state repo\`.
+The capability defines the run contract. Ownership, schedule, goals, and loops
+stay outside the capability.
 
-Do not put metadata or raw state keys in \`agent-responsibility.md\`. Runtime state stays
+Do not put metadata or raw state keys in \`capability.md\`. Runtime state stays
 engine-owned.
 
-The chat exposes \`read_agent_responsibility_creation_guide\` and \`create_or_update_agent_responsibility\` to
-scaffold a new agentResponsibility after a gap-analysis conversation. The same
-\`create_or_update_agent_responsibility\` tool patches an existing agentResponsibility in place —
-read-merge: omit a field to preserve it, pass \`body\` to replace the
-markdown, never first turn and always call \`read_agent_responsibility\` first to surface
-the current profile.`,
+The chat exposes \`read_capability_creation_guide\` and \`create_or_update_capability\` to
+scaffold a new capability after a gap-analysis conversation. Never call it on
+the first turn; show the proposed profile and instructions for approval first.`,
   },
   {
     id: "kody-agent",
@@ -267,7 +260,7 @@ function featureFromAgent(agent: AgentConfig): FeatureEntry {
 const NAV_HREF_TO_HANDWRITTEN: Readonly<Record<string, string>> = {
   "/": "task-dashboard",
   "/secrets": "secrets-vault",
-  "/agent-responsibilities": "kody-agentResponsibilities",
+  "/capabilities": "kody-capabilities",
   "/agents": "kody-agent",
 };
 

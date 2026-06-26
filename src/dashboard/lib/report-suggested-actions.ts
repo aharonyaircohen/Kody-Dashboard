@@ -20,7 +20,7 @@ export interface ReportSuggestedAction {
   type: ReportSuggestedActionType;
   label: string;
   reason?: string;
-  agentAction?: string;
+  capability?: string;
   target?: number;
   title?: string;
   body?: string;
@@ -104,7 +104,11 @@ export function parseReportSuggestedActions(
         type,
         label: raw.label,
         ...(raw.reason ? { reason: raw.reason } : {}),
-        ...(raw.agentAction ? { agentAction: raw.agentAction } : {}),
+        ...(raw.capability
+          ? { capability: raw.capability }
+          : raw.executable
+            ? { capability: raw.executable }
+            : {}),
         ...(parseTarget(raw.target) ? { target: parseTarget(raw.target) } : {}),
         ...(raw.title ? { title: raw.title } : {}),
         ...(raw.body ? { body: raw.body } : {}),

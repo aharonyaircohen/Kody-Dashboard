@@ -4,7 +4,7 @@ import { describe, expect, it, vi } from "vitest";
 import { readManagedGoalFile } from "../../src/dashboard/lib/managed-goals-files";
 
 describe("readManagedGoalFile", () => {
-  it("normalizes engine-written null agentResponsibilities", async () => {
+  it("normalizes engine-written null capabilities", async () => {
     const repos = {
       get: vi.fn(async () => ({
         data: {
@@ -36,12 +36,12 @@ describe("readManagedGoalFile", () => {
                   outcome: "Goal creation works.",
                   evidence: ["planReady"],
                 },
-                agentResponsibilities: null,
+                capabilities: null,
                 route: [
                   {
                     stage: "plan",
                     evidence: "planReady",
-                    agentResponsibility: "plan",
+                    capability: "plan",
                   },
                 ],
                 facts: {},
@@ -67,6 +67,6 @@ describe("readManagedGoalFile", () => {
     );
 
     expect(file?.sha).toBe("goal-sha");
-    expect(file?.state.agentResponsibilities).toEqual(["plan"]);
+    expect(file?.state.capabilities).toEqual(["plan"]);
   });
 });

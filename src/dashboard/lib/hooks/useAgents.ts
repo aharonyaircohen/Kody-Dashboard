@@ -4,7 +4,7 @@
  * @pattern agent-control-hooks
  * @ai-summary React Query hooks for the Agent Control page.
  *   Backed by `agents/<slug>.md` files in the state repo via the API.
- *   Duplicated from useAgentResponsibilities.ts.
+ *   Duplicated from useCapabilities.ts.
  */
 "use client";
 
@@ -166,7 +166,7 @@ export function useDeleteAgent(actorLogin?: string) {
 
 /**
  * Dispatch an ad-hoc message to an agent — runs the agent one-shot
- * (like a agentResponsibility) and replies on the control issue. When `actorLogin` is set,
+ * (like a capability) and replies on the control issue. When `actorLogin` is set,
  * the reply @-mentions the requester so it lands in their inbox.
  */
 export function useDispatchAgent(actorLogin?: string) {

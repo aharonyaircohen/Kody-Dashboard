@@ -99,7 +99,7 @@ describe("GET /api/kody/capabilities", () => {
     h.getEngineConfig.mockResolvedValue({
       config: {
         company: {
-          activeAgentActions: ["store-on"],
+          activeCapabilities: ["store-on"],
         },
       },
       sha: "config-sha",
@@ -121,7 +121,7 @@ describe("GET /api/kody/capabilities", () => {
       "local-one",
       "store-on",
     ]);
-    expect(json.agentActions).toEqual(json.capabilities);
+    expect(json.executables).toBeUndefined();
     expect(h.listCapabilityFiles).toHaveBeenCalledTimes(1);
   });
 });
@@ -164,10 +164,9 @@ describe("POST /api/kody/capabilities", () => {
     );
 
     expect(res.status).toBe(200);
-    await expect(res.json()).resolves.toMatchObject({
-      capability: { slug: "ship-feature" },
-      agentAction: { slug: "ship-feature" },
-    });
+    const json = await res.json();
+    expect(json).toMatchObject({ capability: { slug: "ship-feature" } });
+    expect(json).not.toHaveProperty("executable");
     expect(h.writeCapabilityFile).toHaveBeenCalledWith(
       expect.objectContaining({
         fields: expect.objectContaining({

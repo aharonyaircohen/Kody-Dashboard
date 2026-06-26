@@ -27,8 +27,8 @@ export interface ReportFile {
   htmlUrl: string;
   /** Size in bytes (helps preview length without fetching body). */
   size: number;
-  /** Legacy producer metadata from older responsibility-owned reports. */
-  agentResponsibilitySlug: string | null;
+  /** Producer capability metadata from report frontmatter. */
+  capabilitySlug: string | null;
   /** Review routing status, from report frontmatter. */
   reviewStatus: string | null;
   /** Review routing area, from report frontmatter. */
@@ -115,7 +115,9 @@ function parseReportMarkdown(raw: string, slug: string) {
   return {
     title: deriveTitle(afterFrontmatter, slug),
     body: stripLeadingH1(afterFrontmatter),
-    agentResponsibilitySlug: topLevelValue(frontmatter, "agentResponsibilitySlug"),
+    capabilitySlug:
+      topLevelValue(frontmatter, "capabilitySlug") ??
+      topLevelValue(frontmatter, "capabilitySlug"),
     reviewStatus: topLevelValue(frontmatter, "reviewStatus"),
     reviewArea: topLevelValue(frontmatter, "reviewArea"),
     findingCount: countFindings(frontmatter),
@@ -156,7 +158,7 @@ export async function listReportFiles(): Promise<ReportFile[]> {
           updatedAt: new Date().toISOString(),
           htmlUrl: file.htmlUrl ?? "",
           size: file.size ?? size,
-          agentResponsibilitySlug: parsed.agentResponsibilitySlug,
+          capabilitySlug: parsed.capabilitySlug,
           reviewStatus: parsed.reviewStatus,
           reviewArea: parsed.reviewArea,
           findingCount: parsed.findingCount,
@@ -194,7 +196,7 @@ export async function readReportFile(slug: string): Promise<ReportFile | null> {
       updatedAt: new Date().toISOString(),
       htmlUrl: file.htmlUrl ?? "",
       size: file.size ?? raw.length,
-      agentResponsibilitySlug: parsed.agentResponsibilitySlug,
+      capabilitySlug: parsed.capabilitySlug,
       reviewStatus: parsed.reviewStatus,
       reviewArea: parsed.reviewArea,
       findingCount: parsed.findingCount,

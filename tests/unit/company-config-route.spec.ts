@@ -78,11 +78,11 @@ function patchReq(body: unknown): NextRequest {
 }
 
 const STORED_CONFIG = {
-  agentActions: { default: "run" },
+  executables: { default: "run" },
   github: { owner: "acme", repo: "widgets" },
   agent: {
     model: "minimax/MiniMax-M2.7-highspeed",
-    perAgentAction: { research: "anthropic/claude-opus-4-7" },
+    perExecutable: { research: "anthropic/claude-opus-4-7" },
     reasoningEffort: "medium",
   },
 };

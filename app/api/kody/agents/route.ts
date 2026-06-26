@@ -4,8 +4,8 @@
  * @pattern agent-api
  * @ai-summary Agent Control API — GET lists agent, POST creates one.
  *   An agent is a markdown file at `agents/<slug>.md` in the state repo.
- *   Duplicated from the agentResponsibilities API; the manual "Run now"
- *   path reuses the engine's `agent-responsibility-tick` plumbing.
+ *   Duplicated from the capabilities API; the manual "Run now"
+ *   path reuses the engine's `capability-tick` plumbing.
  */
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { NextRequest, NextResponse } from "next/server";

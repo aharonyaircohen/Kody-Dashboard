@@ -75,7 +75,7 @@ Fields:
 
 #### When to use JSON vs Form-encoded
 
-- **JSON** (`application/json`) — modern APIs: Slack-shaped, Mattermost, Google Chat, Sentry, PagerAgentResponsibility, custom services.
+- **JSON** (`application/json`) — modern APIs: Slack-shaped, Mattermost, Google Chat, Sentry, PagerCapability, custom services.
 - **Form-encoded** (`application/x-www-form-urlencoded`) — Twilio, Mailgun, most "old-school" REST APIs. Requires a flat JSON-object template; the dashboard URL-encodes each key=value pair before posting.
 
 #### Recipe: Twilio WhatsApp

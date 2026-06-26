@@ -61,7 +61,7 @@ describe("kody workflow dispatch input mapping", () => {
     });
   });
 
-  it("falls back to agentAction when workflow inputs cannot be read", async () => {
+  it("falls back to executable when workflow inputs cannot be read", async () => {
     const octokit = {
       rest: {
         repos: {
@@ -79,6 +79,6 @@ describe("kody workflow dispatch input mapping", () => {
         ref: "main",
         action: "repo-graph",
       }),
-    ).resolves.toEqual({ agentAction: "repo-graph" });
+    ).resolves.toEqual({ executable: "repo-graph" });
   });
 });

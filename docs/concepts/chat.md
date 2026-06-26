@@ -71,7 +71,7 @@ verified in the route:
   thinking, `budgetTokens: 5000`); everything else uses the
   OpenAI-compatible SDK.
 - **Tools.** Wires `fetch_url` + feature/UI tools always, then (when a repo
-  is resolved) GitHub / bug / task / goal / agentResponsibility / agent / memory / release
+  is resolved) GitHub / bug / task / goal / capability / agent / memory / release
   / pipeline / vibe tools. The model runs up to ~10 tool-calling rounds (30
   in goal-planner mode), so a single turn can do a real research loop.
 - **History is trimmed** to the last `MAX_HISTORY_MESSAGES` (16) before

@@ -3,11 +3,11 @@
  * @domain kody
  * @pattern agent-dispatch
  * @ai-summary POST /api/kody/agents/:slug/dispatch — manually send an ad-hoc
- *   message to an agent and run it like a one-shot agentResponsibility. Posts an
+ *   message to an agent and run it like a one-shot capability. Posts an
  *   `@kody agent-ask --agent <slug> --thread issue:<control>` directive on
  *   the repo's "Kody control" issue (followed by the message verbatim); the
  *   engine's `issue_comment` trigger routes to the stateless `agent-ask`
- *   agentAction, which runs the agentIdentity and replies on the control issue.
+ *   executable, which runs the agentIdentity and replies on the control issue.
  *
  *   This is the explicit-button sibling of the `@agent`-mention path
  *   (`dispatchAgentMentions`): same `dispatchAgentAsk` dispatch shape, just

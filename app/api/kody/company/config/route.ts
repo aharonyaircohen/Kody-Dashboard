@@ -8,8 +8,7 @@
  *   (`access.allowedAssociations`), and the default branch (`git.defaultBranch`).
  *   GET reads the current values; PATCH applies a partial update, preserving
  *   every untouched config key. Mirrors the operators route's auth +
- *   merge-not-overwrite pattern. Per-agentAction model overrides live on the
- *   models route; default PR agentAction on the agentActions route.
+ *   merge-not-overwrite pattern.
  */
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
@@ -46,18 +45,12 @@ export async function GET(req: NextRequest) {
       aliases: config.aliases ?? {},
       allowedAssociations: config.access?.allowedAssociations ?? [],
       activeAgents: config.company?.activeAgents ?? [],
-      activeCapabilities:
-        config.company?.activeCapabilities ??
-        config.company?.activeAgentActions ??
-        [],
-      activeAgentActions: config.company?.activeAgentActions ?? [],
-      activeAgentResponsibilities:
-        config.company?.activeAgentResponsibilities ?? [],
+      activeCapabilities: config.company?.activeCapabilities ?? [],
       activeCommands: config.company?.activeCommands ?? [],
       activeGoals: config.company?.activeGoals ?? [],
       state: config.state ?? null,
       defaultBranch: config.git?.defaultBranch ?? "",
-      perAgentAction: config.agent?.perAgentAction ?? {},
+      perExecutable: config.agent?.perExecutable ?? {},
       reasoningEffort: config.agent?.reasoningEffort ?? null,
     });
   } catch (err) {
@@ -138,21 +131,15 @@ const PatchSchema = z
       .max(VALID_ASSOCIATIONS.length)
       .nullable()
       .optional(),
-    activeAgentResponsibilities: z
-      .array(slugSchema)
-      .max(200)
-      .nullable()
-      .optional(),
     activeAgents: z.array(slugSchema).max(200).nullable().optional(),
     activeCapabilities: z.array(slugSchema).max(200).nullable().optional(),
-    activeAgentActions: z.array(slugSchema).max(200).nullable().optional(),
     activeCommands: z.array(slugSchema).max(200).nullable().optional(),
     activeGoals: z.array(activeGoalSchema).max(200).nullable().optional(),
     state: stateSchema.nullable().optional(),
     defaultBranch: z.string().max(255).nullable().optional(),
-    // AgentAction slug → `provider/model` override. Bounded so a paste can't
+    // Executable slug → `provider/model` override. Bounded so a paste can't
     // bloat the config blob.
-    perAgentAction: z
+    perExecutable: z
       .record(z.string().max(64), z.string().max(128))
       .nullable()
       .optional(),
@@ -173,13 +160,11 @@ const PatchSchema = z
       b.allowedAssociations !== undefined ||
       b.activeAgents !== undefined ||
       b.activeCapabilities !== undefined ||
-      b.activeAgentActions !== undefined ||
-      b.activeAgentResponsibilities !== undefined ||
       b.activeCommands !== undefined ||
       b.activeGoals !== undefined ||
       b.state !== undefined ||
       b.defaultBranch !== undefined ||
-      b.perAgentAction !== undefined ||
+      b.perExecutable !== undefined ||
       b.reasoningEffort !== undefined,
     { message: "no_fields" },
   );
@@ -220,15 +205,13 @@ export async function PATCH(req: NextRequest) {
     quality,
     aliases,
     allowedAssociations,
-    activeAgentResponsibilities,
     activeCommands,
     activeAgents,
     activeCapabilities,
-    activeAgentActions,
     activeGoals,
     state,
     defaultBranch,
-    perAgentAction,
+    perExecutable,
     reasoningEffort,
   } = parsed.data;
 
@@ -249,13 +232,11 @@ export async function PATCH(req: NextRequest) {
         allowedAssociations,
         activeAgents,
         activeCapabilities,
-        activeAgentActions,
-        activeAgentResponsibilities,
         activeCommands,
         activeGoals,
         state,
         defaultBranch,
-        perAgentAction,
+        perExecutable,
         reasoningEffort,
       },
       `chore(kody): update config (${actorLogin})`,
@@ -269,18 +250,12 @@ export async function PATCH(req: NextRequest) {
       aliases: config.aliases ?? {},
       allowedAssociations: config.access?.allowedAssociations ?? [],
       activeAgents: config.company?.activeAgents ?? [],
-      activeCapabilities:
-        config.company?.activeCapabilities ??
-        config.company?.activeAgentActions ??
-        [],
-      activeAgentActions: config.company?.activeAgentActions ?? [],
-      activeAgentResponsibilities:
-        config.company?.activeAgentResponsibilities ?? [],
+      activeCapabilities: config.company?.activeCapabilities ?? [],
       activeCommands: config.company?.activeCommands ?? [],
       activeGoals: config.company?.activeGoals ?? [],
       state: config.state ?? null,
       defaultBranch: config.git?.defaultBranch ?? "",
-      perAgentAction: config.agent?.perAgentAction ?? {},
+      perExecutable: config.agent?.perExecutable ?? {},
       reasoningEffort: config.agent?.reasoningEffort ?? null,
     });
   } catch (err) {

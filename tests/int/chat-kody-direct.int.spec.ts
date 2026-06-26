@@ -20,7 +20,7 @@ vi.mock("@dashboard/lib/engine/config", async (importOriginal) => {
   return {
     ...actual,
     getEngineConfig: vi.fn(async () => ({
-      config: { agentActions: { default: "run" } },
+      config: { executables: { default: "run" } },
       sha: null,
     })),
   };
@@ -155,27 +155,27 @@ describe("POST /api/kody/chat/kody", () => {
     expect(prompt).toBe("base");
   });
 
-  it("appends a current-agentResponsibility block when opts.agentResponsibility is set", async () => {
+  it("appends a current-capability block when opts.capability is set", async () => {
     const { buildSystemPrompt } =
       await import("../../app/api/kody/chat/kody/system-prompt");
     const prompt = buildSystemPrompt("base", null, undefined, {
-      agentResponsibility: {
+      capability: {
         number: 7,
         title: "Auto-triage stale issues",
         body: "## Intent\nClose stale issues",
         state: "open",
-        labels: ["kody:agentResponsibility"],
+        labels: ["kody:capability"],
       },
     });
-    expect(prompt).toContain("Current agentResponsibility");
-    expect(prompt).toContain("AgentResponsibility #7");
+    expect(prompt).toContain("Current capability");
+    expect(prompt).toContain("Capability #7");
     expect(prompt).toContain("Auto-triage stale issues");
     expect(prompt).toContain("Close stale issues");
-    expect(prompt).toContain("kody:agentResponsibility");
+    expect(prompt).toContain("kody:capability");
   });
 
   it("base kody prompt tells the model to read injected context blocks before answering", async () => {
-    // Regression: model used to ignore ## Current task / Current agentResponsibility /
+    // Regression: model used to ignore ## Current task / Current capability /
     // Current page / Goals / Remembered context blocks and answer as if it
     // were a fresh session. Hard rule #2 now explicitly grounds answers
     // in those blocks. Prompt lives in the chat-defaults bundle agentIdentity.
@@ -185,7 +185,7 @@ describe("POST /api/kody/chat/kody", () => {
     expect(prompt).toMatch(/injected context block/i);
     expect(prompt).toMatch(/do NOT re-ask for facts the block already states/i);
     expect(prompt).toContain("## Current task");
-    expect(prompt).toContain("## Current agentResponsibility");
+    expect(prompt).toContain("## Current capability");
     expect(prompt).toContain("## Current report");
     expect(prompt).toContain("## Current page");
     expect(prompt).toContain("## Goals");

@@ -10,7 +10,7 @@
  *
  * Both endpoints share the same wire protocol with the upstream Brain server
  * — `POST {brainUrl}/chats/{chatId}/messages` with `X-Api-Key`, SSE response —
- * so the body decoration (task/agentResponsibility preambles, attachment merging) and the
+ * so the body decoration (task/capability preambles, attachment merging) and the
  * SSE translation into the dashboard's `chat.message | chat.tool_use |
  * chat.done | chat.error` shape live here in one place.
  *
@@ -41,7 +41,7 @@ export interface BrainAttachment {
   data?: string;
 }
 
-export interface BrainAgentResponsibilityContext {
+export interface BrainCapabilityContext {
   number?: number;
   title?: string;
   body?: string;
@@ -56,7 +56,7 @@ export interface BrainChatRequest {
   message: string;
   taskContext?: BrainTaskContext;
   attachments?: BrainAttachment[];
-  agentResponsibilityContext?: BrainAgentResponsibilityContext;
+  capabilityContext?: BrainCapabilityContext;
   /** owner/name of the user's repo (forwarded so Brain can clone a worktree). */
   repo?: string;
   /**
@@ -117,7 +117,7 @@ export interface BrainChatRequest {
 /**
  * Output-only style overlay: makes Brain answer in plain, simple terms.
  * Appended LAST in the decorated message so its formatting rules win by
- * recency over the repo/task/agentResponsibility preambles (same reasoning as the voice
+ * recency over the repo/task/capability preambles (same reasoning as the voice
  * overlay). It reshapes OUTPUT only — no mention of tools or agentIdentity.
  */
 export const PLAIN_LANGUAGE_PREAMBLE = `[Answer style]
@@ -178,22 +178,22 @@ export function formatTaskContext(
   return parts.join("\n");
 }
 
-export function formatAgentResponsibilityContext(
-  mc: BrainAgentResponsibilityContext | undefined,
+export function formatCapabilityContext(
+  mc: BrainCapabilityContext | undefined,
 ): string | null {
   if (!mc || mc.number == null) return null;
   const parts: string[] = [];
-  parts.push(`[Current agentResponsibility]`);
-  parts.push(`- AgentResponsibility: #${mc.number}${mc.title ? ` — ${mc.title}` : ""}`);
+  parts.push(`[Current capability]`);
+  parts.push(`- Capability: #${mc.number}${mc.title ? ` — ${mc.title}` : ""}`);
   if (mc.state) parts.push(`- State: ${mc.state}`);
   if (mc.labels?.length) parts.push(`- Labels: ${mc.labels.join(", ")}`);
   if (mc.body) {
     const truncated =
       mc.body.length > 1500 ? `${mc.body.slice(0, 1500)}…` : mc.body;
-    parts.push(`\n[AgentResponsibility body]\n${truncated}`);
+    parts.push(`\n[Capability body]\n${truncated}`);
   }
   parts.push(
-    "\nThe user is chatting about this specific agentResponsibility. A Kody agentResponsibility is a folder at state-repo `agent-responsibilities/<slug>/`: `profile.json` holds action/cadence/agents metadata, and `agent-responsibility.md` describes purpose, output, allowed commands, and restrictions. Answer grounded in the body above — do NOT claim the agentResponsibility does not exist.",
+    "\nThe user is chatting about this specific capability. A Kody capability is a folder at state-repo `capabilities/<slug>/`: `profile.json` holds action/cadence/agents metadata, and `capability.md` describes purpose, output, allowed commands, and restrictions. Answer grounded in the body above — do NOT claim the capability does not exist.",
   );
   return parts.join("\n");
 }
@@ -202,7 +202,7 @@ export function buildDecoratedMessage(
   message: string,
   opts: {
     taskContext?: BrainTaskContext;
-    agentResponsibilityContext?: BrainAgentResponsibilityContext;
+    capabilityContext?: BrainCapabilityContext;
     repo?: string;
     plainLanguage?: boolean;
   },
@@ -215,12 +215,12 @@ export function buildDecoratedMessage(
     ? `[Repository]\nThe user has ${opts.repo} selected in the dashboard. All questions are about this repository unless they say otherwise — inspect its code/issues/PRs for context and refer to it by name.\n\nBefore making any code change or fix, first explain what you intend to change and why, then STOP and wait for the user to explicitly approve. Do NOT edit, commit, or push in the same turn as the explanation — the approval ask must be the last thing you do that turn. Only after the user says go: make the change, commit with a clear conventional-commit message, and push to the working branch as the final step — don't leave approved changes uncommitted.`
     : null;
   const taskPreamble = formatTaskContext(opts.taskContext);
-  const agentResponsibilityPreamble = formatAgentResponsibilityContext(opts.agentResponsibilityContext);
+  const capabilityPreamble = formatCapabilityContext(opts.capabilityContext);
   // Style overlay goes LAST so its output rules win by recency over the
-  // repo/task/agentResponsibility context blocks above it.
+  // repo/task/capability context blocks above it.
   const stylePreamble = opts.plainLanguage ? PLAIN_LANGUAGE_PREAMBLE : null;
   const preamble =
-    [repoPreamble, agentResponsibilityPreamble, taskPreamble, stylePreamble]
+    [repoPreamble, capabilityPreamble, taskPreamble, stylePreamble]
       .filter(Boolean)
       .join("\n\n") || null;
   return preamble ? `${preamble}\n\n[User]\n${message}` : message;
@@ -243,7 +243,7 @@ export async function streamBrainChat(
 ): Promise<Response> {
   const decoratedMessage = buildDecoratedMessage(input.message, {
     taskContext: input.taskContext,
-    agentResponsibilityContext: input.agentResponsibilityContext,
+    capabilityContext: input.capabilityContext,
     repo: input.repo,
     plainLanguage: input.plainLanguage,
   });

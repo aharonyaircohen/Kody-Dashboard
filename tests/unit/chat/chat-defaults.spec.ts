@@ -1,6 +1,6 @@
 /**
- * Verifies chat-defaults bundle structure: agentIdentity, agentAction, agentResponsibilities,
- * skills. Repo-backed agentResponsibilities/agent-actions are source truth; TS defaults are
+ * Verifies chat-defaults bundle structure: agentIdentity, capability, workflows,
+ * skills. Repo-backed capabilities/workflows are source truth; TS defaults are
  * fallback data.
  */
 
@@ -15,33 +15,35 @@ import {
 } from "@dashboard/lib/chat-defaults";
 import {
   DEFAULT_IDENTITY_MD,
-  DEFAULT_EXECUTABLE,
-  DEFAULT_DUTIES,
+  DEFAULT_CHAT_CAPABILITY,
+  DEFAULT_WORKFLOWS,
   DEFAULT_SKILLS,
 } from "@dashboard/lib/chat-defaults/defaults";
-import { AGENT_KODY } from "@dashboard/lib/agents";
 
 describe("chat-defaults bundle", () => {
-  it("loads repo-backed chat agentResponsibilities when present, otherwise uses defaults", async () => {
+  it("loads repo-backed chat workflows when present, otherwise uses defaults", async () => {
     const bundle = await loadChatDefaults("acme", "widget");
-    const agentActionPath = ".kody/agent-actions/kody-chat/profile.json";
-    const analyzerPath =
-      ".kody/agent-responsibilities/kody-analyzer/profile.json";
+    const capabilityPath = ".kody/capabilities/kody-chat/profile.json";
+    const analyzerPath = ".kody/capabilities/kody-analyzer/profile.json";
 
-    expect(bundle.agentAction.slug).toBe("kody-chat");
-    if (existsSync(agentActionPath) && existsSync(analyzerPath)) {
-      const agentActionProfile = JSON.parse(
-        readFileSync(agentActionPath, "utf8"),
+    expect(bundle.capability.slug).toBe("kody-chat");
+    if (existsSync(capabilityPath) && existsSync(analyzerPath)) {
+      const capabilityProfile = JSON.parse(
+        readFileSync(capabilityPath, "utf8"),
       );
       const analyzerProfile = JSON.parse(readFileSync(analyzerPath, "utf8"));
-      expect(bundle.agentAction).toMatchObject(agentActionProfile);
-      expect(analyzerProfile.agentAction).toBe("kody-chat");
+      expect(bundle.capability).toMatchObject(capabilityProfile);
+      expect(
+        bundle.workflows.find((workflow) => workflow.slug === "kody-analyzer"),
+      ).toMatchObject({
+        slug: analyzerProfile.slug ?? analyzerProfile.name ?? "kody-analyzer",
+      });
     } else {
-      expect(bundle.agentAction).toMatchObject(DEFAULT_EXECUTABLE);
+      expect(bundle.capability).toMatchObject(DEFAULT_CHAT_CAPABILITY);
     }
     expect(
-      bundle.agentResponsibilities.some(
-        (agentResponsibility) => agentResponsibility.slug === "kody-analyzer",
+      bundle.workflows.some(
+        (workflow) => workflow.slug === "kody-analyzer",
       ),
     ).toBe(true);
     expect(bundle.skills["diagnose-pr"]?.body).toContain(
@@ -94,8 +96,8 @@ describe("chat-defaults bundle", () => {
     }
   });
 
-  it("agentAction's tools list contains only names that exist in the chat registry", () => {
-    // Every name in DEFAULT_EXECUTABLE.tools must match a tool the
+  it("capability's tools list contains only names that exist in the chat registry", () => {
+    // Every name in DEFAULT_CHAT_CAPABILITY.tools must match a tool the
     // route actually wires. If we add a name here that the registry
     // doesn't have, the model is told about a tool that doesn't
     // exist → it tries to call → call fails → it hallucinates. The
@@ -108,11 +110,9 @@ describe("chat-defaults bundle", () => {
       "app/api/kody/chat/tools/task-tools.ts",
       "app/api/kody/chat/tools/bug-tools.ts",
       "app/api/kody/chat/tools/goal-tools.ts",
-      "app/api/kody/chat/tools/agent-responsibility-tools.ts",
-      "app/api/kody/chat/tools/agent-responsibility-admin-tools.ts",
       "app/api/kody/chat/tools/agent-tools.ts",
       "app/api/kody/chat/tools/agent-admin-tools.ts",
-      "app/api/kody/chat/tools/agent-action-tools.ts",
+      "app/api/kody/chat/tools/capability-tools.ts",
       "app/api/kody/chat/tools/commands-tools.ts",
       "app/api/kody/chat/tools/context-tools.ts",
       "app/api/kody/chat/tools/todo-tools.ts",
@@ -173,18 +173,18 @@ describe("chat-defaults bundle", () => {
       "cms_mutate_document",
     ])
       toolKeys.add(name);
-    for (const name of DEFAULT_EXECUTABLE.tools) {
+    for (const name of DEFAULT_CHAT_CAPABILITY.tools) {
       expect(
         toolKeys.has(name),
-        `Tool "${name}" is in the agentAction's allowlist but not in any chat tool file. ` +
+        `Tool "${name}" is in the capability's allowlist but not in any chat tool file. ` +
           "The model will be told it can call this tool but the call will fail. " +
           "Either implement the tool or remove it from the allowlist.",
       ).toBe(true);
     }
   });
 
-  it("exposes 4 agentResponsibilities — kody-analyzer, kody-operator, kody-vibe, kody-mem", () => {
-    const slugs = DEFAULT_DUTIES.map((d) => d.slug).sort();
+  it("exposes 4 workflows — kody-analyzer, kody-operator, kody-vibe, kody-mem", () => {
+    const slugs = DEFAULT_WORKFLOWS.map((d) => d.slug).sort();
     expect(slugs).toEqual([
       "kody-analyzer",
       "kody-mem",
@@ -193,18 +193,18 @@ describe("chat-defaults bundle", () => {
     ]);
   });
 
-  it("groups the right skills under the right agentResponsibility", () => {
-    const analyzer = DEFAULT_DUTIES.find((d) => d.slug === "kody-analyzer");
-    const operator = DEFAULT_DUTIES.find((d) => d.slug === "kody-operator");
-    const vibe = DEFAULT_DUTIES.find((d) => d.slug === "kody-vibe");
-    const mem = DEFAULT_DUTIES.find((d) => d.slug === "kody-mem");
+  it("groups the right skills under the right workflow", () => {
+    const analyzer = DEFAULT_WORKFLOWS.find((d) => d.slug === "kody-analyzer");
+    const operator = DEFAULT_WORKFLOWS.find((d) => d.slug === "kody-operator");
+    const vibe = DEFAULT_WORKFLOWS.find((d) => d.slug === "kody-vibe");
+    const mem = DEFAULT_WORKFLOWS.find((d) => d.slug === "kody-mem");
 
     expect(analyzer!.body).toContain("diagnose-pr");
     expect(analyzer!.body).toContain("report-advise");
     expect(analyzer!.body).toContain("goal-planner");
 
     expect(operator!.body).toContain("create-issue");
-    expect(operator!.body).toContain("create-agentResponsibility");
+    expect(operator!.body).toContain("create-capability");
     expect(operator!.body).toContain("create-agent");
 
     expect(vibe!.body).toContain("vibe");
@@ -216,21 +216,21 @@ describe("chat-defaults bundle", () => {
     const trigger = 'Explicit memory command ("remember X"';
 
     expect(DEFAULT_SKILLS.memory.body).toContain(trigger);
-    expect(DEFAULT_DUTIES.find((d) => d.slug === "kody-mem")!.body).toContain(
+    expect(DEFAULT_WORKFLOWS.find((d) => d.slug === "kody-mem")!.body).toContain(
       "explicit memory command",
     );
     expect(bundle.skills.memory.body).toContain(trigger);
     expect(
-      bundle.agentResponsibilities.find(
-        (agentResponsibility) => agentResponsibility.slug === "kody-mem",
+      bundle.workflows.find(
+        (workflow) => workflow.slug === "kody-mem",
       )!.body,
     ).toContain("explicit memory command");
   });
 
-  it("exposes 8 skills — diagnose-pr, report-advise, goal-planner, create-issue, create-agentResponsibility, create-agent, vibe, memory", () => {
+  it("exposes 8 skills — diagnose-pr, report-advise, goal-planner, create-issue, create-capability, create-agent, vibe, memory", () => {
     expect(Object.keys(DEFAULT_SKILLS).sort()).toEqual([
       "create-agent",
-      "create-agentResponsibility",
+      "create-capability",
       "create-issue",
       "diagnose-pr",
       "goal-planner",
@@ -240,25 +240,25 @@ describe("chat-defaults bundle", () => {
     ]);
   });
 
-  it("agentAction's skills array matches the keys of DEFAULT_SKILLS", () => {
+  it("capability's skills array matches the keys of DEFAULT_SKILLS", () => {
     const skillSlugs = Object.keys(DEFAULT_SKILLS).sort();
-    const execSkills = [...DEFAULT_EXECUTABLE.skills].sort();
+    const execSkills = [...DEFAULT_CHAT_CAPABILITY.skills].sort();
     expect(execSkills).toEqual(skillSlugs);
   });
 
-  it("agentAction's tools array is a flat list of names (no objects)", () => {
-    for (const t of DEFAULT_EXECUTABLE.tools) {
+  it("capability's tools array is a flat list of names (no objects)", () => {
+    for (const t of DEFAULT_CHAT_CAPABILITY.tools) {
       expect(typeof t).toBe("string");
     }
-    expect(DEFAULT_EXECUTABLE.tools.length).toBeGreaterThan(0);
+    expect(DEFAULT_CHAT_CAPABILITY.tools.length).toBeGreaterThan(0);
   });
 
-  it("agentAction's tools list is deduped", () => {
-    const seen = new Set(DEFAULT_EXECUTABLE.tools);
-    expect(seen.size).toBe(DEFAULT_EXECUTABLE.tools.length);
+  it("capability's tools list is deduped", () => {
+    const seen = new Set(DEFAULT_CHAT_CAPABILITY.tools);
+    expect(seen.size).toBe(DEFAULT_CHAT_CAPABILITY.tools.length);
   });
 
-  it("agentAction exposes the workflow/pipeline status tools (regression: chat must recognize workflow status)", () => {
+  it("capability exposes the workflow/pipeline status tools (regression: chat must recognize workflow status)", () => {
     // Regression guard — the chat used to lose these and started telling
     // users it had no access to workflow runs. If a future refactor drops
     // any of these, this test fails.
@@ -268,11 +268,11 @@ describe("chat-defaults bundle", () => {
       "kody_list_open_prs",
     ];
     for (const t of required) {
-      expect(DEFAULT_EXECUTABLE.tools).toContain(t);
+      expect(DEFAULT_CHAT_CAPABILITY.tools).toContain(t);
     }
   });
 
-  it("agentAction exposes todo-page management tools", () => {
+  it("capability exposes todo-page management tools", () => {
     // Kody chat should manage the dashboard Todos page directly through
     // state-repo todo files, not redirect todo requests into GitHub issues.
     const required = [
@@ -282,23 +282,22 @@ describe("chat-defaults bundle", () => {
       "delete_todo_list",
     ];
     for (const t of required) {
-      expect(DEFAULT_EXECUTABLE.tools).toContain(t);
+      expect(DEFAULT_CHAT_CAPABILITY.tools).toContain(t);
     }
     expect(DEFAULT_IDENTITY_MD).toContain("use the todo tools directly");
     expect(DEFAULT_IDENTITY_MD).toContain("not GitHub issues");
   });
 
-  it("agentAction's tool names match the chat registry naming (no camelCase drift)", () => {
+  it("capability's tool names match the chat registry naming (no camelCase drift)", () => {
     // Guard against future renames that don't update the bundle — known
-    // drift: `remoteExec` vs registry's `remote_exec`, `read_agent_responsibility_creation_guide`
-    // vs the real `read_agentAction_creation_guide`, etc.
+    // drift: `remoteExec` vs registry's `remote_exec`, old capability/executable names
+    // vs the real `read_capability_creation_guide`, etc.
     const known = new Set([
       "remote_read",
       "remote_ls",
-      "read_agent_responsibility_creation_guide",
-      "read_agentAction_creation_guide",
+      "read_capability_creation_guide",
     ]);
-    for (const t of DEFAULT_EXECUTABLE.tools) {
+    for (const t of DEFAULT_CHAT_CAPABILITY.tools) {
       if (t.startsWith("remote") || t.includes("creation_guide")) {
         expect(known.has(t)).toBe(true);
       }
@@ -319,7 +318,7 @@ describe("composeChatPrompt", () => {
     expect(prompt).toContain("acme/widget");
     // Goals / missions namespace block.
     expect(prompt).toContain("## Goals and missions");
-    // Workflows header + all 4 agentResponsibilities.
+    // Workflows header + all 4 workflows.
     expect(prompt).toContain("## Workflows");
     expect(prompt).toContain("### kody-analyzer");
     expect(prompt).toContain("### kody-operator");
@@ -331,7 +330,7 @@ describe("composeChatPrompt", () => {
     expect(prompt).toContain("### report-advise");
     expect(prompt).toContain("### goal-planner");
     expect(prompt).toContain("### create-issue");
-    expect(prompt).toContain("### create-agentResponsibility");
+    expect(prompt).toContain("### create-capability");
     expect(prompt).toContain("### create-agent");
     expect(prompt).toContain("### vibe");
     expect(prompt).toContain("### memory");

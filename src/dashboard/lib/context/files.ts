@@ -20,7 +20,7 @@
  *   kody-direct chat system prompt under a `## Context` heading (see
  *   `loadContextForPrompt`), so every agentIdentity inherits the facts without
  *   restating them. Context entries are included in the Company bundle because
- *   agentResponsibilities and agent may depend on them.
+ *   capabilities and agent may depend on them.
  *
  *   Hot-path loader mirrors the instructions/memory-index pattern: a
  *   60s in-process per-repo cache, invalidated by the write/delete

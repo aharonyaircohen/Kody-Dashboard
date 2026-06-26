@@ -1,10 +1,3 @@
-/**
- * @fileType page
- * @domain kody
- * @pattern jobs-page
- * @ai-summary Legacy Jobs entry point. Jobs have been folded into AgentResponsibilities;
- *   keep this route as a redirect so old bookmarks land on the canonical UI.
- */
 import { redirect } from "next/navigation";
 import { buildKodyMetadata } from "../metadata";
 
@@ -13,11 +6,11 @@ export const revalidate = false;
 export const fetchCache = "force-cache";
 
 export const metadata = buildKodyMetadata({
-  title: "AgentResponsibilities — Kody Operations Dashboard",
-  description: "Manage Kody agentResponsibilities.",
+  title: "Capabilities — Kody Operations Dashboard",
+  description: "Manage reusable Kody capabilities.",
   path: "/jobs",
 });
 
 export default function JobsPage() {
-  redirect("/agent-responsibilities");
+  redirect("/capabilities");
 }

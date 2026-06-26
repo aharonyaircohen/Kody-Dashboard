@@ -3,7 +3,7 @@
  * @domain kody
  * @pattern company-import
  * @ai-summary Apply a portable Company bundle to the connected repo.
- *   Writes agent, agentResponsibilities, Context, commands, capabilities, legacy agentActions,
+ *   Writes agents, Context, commands, capabilities,
  *   managed goals, and the single instructions file via their existing helpers.
  *   On a slug/file that already
  *   exists, `mode` decides: "skip" (default, non-destructive) leaves the
@@ -14,10 +14,6 @@
  */
 
 import type { Octokit } from "@octokit/rest";
-import {
-  readAgentResponsibilityFile,
-  writeAgentResponsibilityFile,
-} from "../agent-responsibilities-files";
 import { readAgentFile, writeAgentFile } from "../agent-files";
 import { readCommandFile, writeCommandFile } from "../commands/files";
 import { readContextFile, writeContextFile } from "../context/files";
@@ -25,10 +21,6 @@ import {
   readInstructionsFile,
   writeInstructionsFile,
 } from "../instructions/files";
-import {
-  readAgentActionFolderFiles,
-  writeAgentActionFolderFiles,
-} from "../agent-actions";
 import {
   readCapabilityFolderFiles,
   writeCapabilityFolderFiles,
@@ -53,9 +45,9 @@ import type {
   CompanyImportResult,
   CompanyCommandEntry,
   CompanyContextEntry,
-  CompanyAgentActionEntry,
+  CompanyCapabilityEntry,
   CompanyGoalEntry,
-  CompanyTickEntry,
+  CompanyAgentEntry,
   ParsedCompanyBundle,
 } from "./types";
 
@@ -69,14 +61,13 @@ interface TickWriter {
 }
 
 /**
- * Import one ticked collection (agent or agentResponsibilities). For each entry: skip or
- * overwrite if it already exists, otherwise create. Failures are caught
- * per-entry so one bad file doesn't abort the whole import.
+ * Import agent identities. For each entry: skip or overwrite if it already
+ * exists, otherwise create. Failures are caught per-entry so one bad file
+ * doesn't abort the whole import.
  */
-async function importTickCollection(
+async function importAgents(
   octokit: Octokit,
-  label: string,
-  entries: CompanyTickEntry[],
+  entries: CompanyAgentEntry[],
   mode: CompanyImportMode,
   writer: TickWriter,
   notes: string[],
@@ -97,18 +88,6 @@ async function importTickCollection(
         slug: entry.slug,
         title: entry.title,
         body: entry.body,
-        schedule: entry.schedule,
-        disabled: entry.disabled,
-        agent: entry.agent,
-        reviewer: entry.reviewer,
-        action: entry.action,
-        mentions: entry.mentions,
-        agentAction: entry.agentAction,
-        agentActions: entry.agentActions,
-        agentResponsibilityTools: entry.agentResponsibilityTools,
-        tickScript: entry.tickScript,
-        readsFrom: entry.readsFrom,
-        writesTo: entry.writesTo,
         sha: existing?.sha,
       });
       if (existing) counts.updated++;
@@ -116,7 +95,7 @@ async function importTickCollection(
     } catch (err) {
       counts.failed++;
       const msg = err instanceof Error ? err.message : String(err);
-      notes.push(`${label} "${entry.slug}" failed: ${msg}`);
+      notes.push(`agent "${entry.slug}" failed: ${msg}`);
     }
   }
   return counts;
@@ -188,54 +167,12 @@ async function importContexts(
 }
 
 /**
- * Import agentActions. Each entry is a folder (a path→content map); write the
- * whole folder exactly so nested scripts, templates, and helper files survive.
- */
-async function importAgentActions(
-  octokit: Octokit,
-  entries: CompanyAgentActionEntry[],
-  mode: CompanyImportMode,
-  notes: string[],
-): Promise<CompanyImportCounts> {
-  const counts = emptyCounts();
-  for (const entry of entries) {
-    try {
-      const profileJson = entry.files["profile.json"];
-      if (!profileJson) {
-        counts.failed++;
-        notes.push(`agentAction "${entry.slug}" failed: missing profile.json`);
-        continue;
-      }
-      const existing = await readAgentActionFolderFiles(entry.slug, octokit);
-      if (existing && mode === "skip") {
-        counts.skipped++;
-        continue;
-      }
-
-      await writeAgentActionFolderFiles({
-        octokit,
-        slug: entry.slug,
-        files: entry.files,
-        isUpdate: !!existing,
-      });
-      if (existing) counts.updated++;
-      else counts.created++;
-    } catch (err) {
-      counts.failed++;
-      const msg = err instanceof Error ? err.message : String(err);
-      notes.push(`agentAction "${entry.slug}" failed: ${msg}`);
-    }
-  }
-  return counts;
-}
-
-/**
  * Import capabilities. Each entry is a folder (a path→content map); write the
  * whole folder exactly so nested scripts, templates, and helper files survive.
  */
 async function importCapabilities(
   octokit: Octokit,
-  entries: CompanyAgentActionEntry[],
+  entries: CompanyCapabilityEntry[],
   mode: CompanyImportMode,
   notes: string[],
 ): Promise<CompanyImportCounts> {
@@ -346,11 +283,11 @@ async function importConfig(
       allowedAssociations:
         Array.isArray(existing?.access?.allowedAssociations) &&
         existing.access.allowedAssociations.length > 0,
-      defaultAgentAction: !!existing?.defaultAgentAction,
-      defaultPrAgentAction: !!existing?.defaultPrAgentAction,
-      perAgentAction:
-        !!existing?.agent?.perAgentAction &&
-        Object.keys(existing.agent.perAgentAction).length > 0,
+      defaultExecutable: !!existing?.defaultExecutable,
+      defaultPrExecutable: !!existing?.defaultPrExecutable,
+      perExecutable:
+        !!existing?.agent?.perExecutable &&
+        Object.keys(existing.agent.perExecutable).length > 0,
     };
 
     const patch: ConfigPatch = {};
@@ -359,14 +296,14 @@ async function importConfig(
     if (config.allowedAssociations && !has.allowedAssociations) {
       patch.allowedAssociations = config.allowedAssociations;
     }
-    if (config.defaultAgentAction && !has.defaultAgentAction) {
-      patch.defaultAgentAction = config.defaultAgentAction;
+    if (config.defaultExecutable && !has.defaultExecutable) {
+      patch.defaultExecutable = config.defaultExecutable;
     }
-    if (config.defaultPrAgentAction && !has.defaultPrAgentAction) {
-      patch.defaultPrAgentAction = config.defaultPrAgentAction;
+    if (config.defaultPrExecutable && !has.defaultPrExecutable) {
+      patch.defaultPrExecutable = config.defaultPrExecutable;
     }
-    if (config.perAgentAction && !has.perAgentAction) {
-      patch.perAgentAction = config.perAgentAction;
+    if (config.perExecutable && !has.perExecutable) {
+      patch.perExecutable = config.perExecutable;
     }
 
     if (Object.keys(patch).length === 0) return "skipped";
@@ -387,9 +324,7 @@ async function importConfig(
 }
 
 /**
- * Apply a validated bundle to the connected repo. Agent first, then
- * agentResponsibilities — so a agentResponsibility that names an agent lands after its executor
- * exists (cosmetic ordering; the engine resolves at tick time regardless).
+ * Apply a validated bundle to the connected repo.
  */
 export async function applyCompanyBundle(
   octokit: Octokit,
@@ -398,20 +333,11 @@ export async function applyCompanyBundle(
 ): Promise<CompanyImportResult> {
   const notes: string[] = [];
 
-  const agent = await importTickCollection(
+  const agent = await importAgents(
     octokit,
-    "agent",
     bundle.agent,
     mode,
     { read: readAgentFile, write: writeAgentFile },
-    notes,
-  );
-  const agentResponsibilities = await importTickCollection(
-    octokit,
-    "agentResponsibility",
-    bundle.agentResponsibilities,
-    mode,
-    { read: readAgentResponsibilityFile, write: writeAgentResponsibilityFile },
     notes,
   );
   const contexts = await importContexts(octokit, bundle.contexts, mode, notes);
@@ -419,12 +345,6 @@ export async function applyCompanyBundle(
   const capabilities = await importCapabilities(
     octokit,
     bundle.capabilities,
-    mode,
-    notes,
-  );
-  const agentActions = await importAgentActions(
-    octokit,
-    bundle.agentActions,
     mode,
     notes,
   );
@@ -450,18 +370,15 @@ export async function applyCompanyBundle(
     }
   }
 
-  // Config last: it may reference agentActions (default*AgentAction slugs) that
-  // the steps above just created.
+  // Config last: it may reference capabilities that the steps above just created.
   const config = await importConfig(octokit, bundle.config, mode, notes);
 
   return {
     mode,
     agent,
-    agentResponsibilities,
     contexts,
     commands,
     capabilities,
-    agentActions,
     goals,
     instructions,
     config,

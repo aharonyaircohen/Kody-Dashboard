@@ -11,8 +11,8 @@ import { expect, test, type Page } from "@playwright/test";
 
 type CatalogKind =
   | "agent"
-  | "agentAction"
-  | "agentResponsibility"
+  | "executable"
+  | "capability"
   | "agentGoal"
   | "agentLoop";
 
@@ -28,7 +28,7 @@ interface CatalogItem {
   htmlUrl: string | null;
   action?: string | null;
   agent?: string | null;
-  agentAction?: string | null;
+  executable?: string | null;
   capabilityKind?: string | null;
   schedule?: string | null;
 }
@@ -59,7 +59,7 @@ const catalogSeeds: Array<Omit<CatalogItem, "active" | "status" | "source">> = [
     slug: "ship-feature",
     title: "Ship Feature",
     description: "Implements a requested feature.",
-    kind: "agentAction",
+    kind: "executable",
     activatable: true,
     htmlUrl: null,
   },
@@ -67,11 +67,11 @@ const catalogSeeds: Array<Omit<CatalogItem, "active" | "status" | "source">> = [
     slug: "release-watch",
     title: "Release Watch",
     description: "Keeps release work moving.",
-    kind: "agentResponsibility",
+    kind: "capability",
     activatable: true,
     htmlUrl: null,
     agent: "atlas-agent",
-    agentAction: "ship-feature",
+    executable: "ship-feature",
     capabilityKind: "act",
   },
   {
@@ -121,8 +121,8 @@ async function mockStoreCatalog(page: Page): Promise<unknown[]> {
       body: JSON.stringify({
         items: items(),
         activeAgents: [],
-        activeAgentActions: [],
-        activeAgentResponsibilities: [],
+        activeExecutables: [],
+        activeCapabilities: [],
         activeGoals: [],
       }),
     });
@@ -212,8 +212,8 @@ test.describe("Store Catalog add", () => {
 
     expect(imports).toEqual([
       { kind: "agent", slug: "atlas-agent" },
-      { kind: "agentAction", slug: "ship-feature" },
-      { kind: "agentResponsibility", slug: "release-watch" },
+      { kind: "executable", slug: "ship-feature" },
+      { kind: "capability", slug: "release-watch" },
       { kind: "agentGoal", slug: "weekly-quality" },
       { kind: "agentLoop", slug: "daily-triage" },
     ]);

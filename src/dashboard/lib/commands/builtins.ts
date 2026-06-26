@@ -47,7 +47,7 @@ export const BUILTIN_COMMANDS: readonly BuiltinCommand[] = [
     description: "Summarize what needs attention",
     body:
       "Run the Work Briefing.\n\n" +
-      "First call `read_agentAction` for slug `work-briefing` and follow its `work-briefing` skill. " +
+      "First call `read_executable` for slug `work-briefing` and follow its `work-briefing` skill. " +
       "If it is not available, use the method below directly.\n\n" +
       "Use available read-only tools to gather current state:\n\n" +
       "- `list_reports`, then `read_report` for action-needed or recent reports\n" +
@@ -143,15 +143,15 @@ export const BUILTIN_COMMANDS: readonly BuiltinCommand[] = [
       "Summarize the state, flag anything that looks wrong or stuck, and suggest the next concrete action.",
   },
   {
-    slug: "agentResponsibility",
-    description: "Draft a scheduled Kody agentResponsibility",
+    slug: "capability",
+    description: "Draft a scheduled Kody capability",
     argumentHint: "<what should it do>",
     body:
-      "Draft a Kody agentResponsibility that does the following: $ARGUMENTS.\n\n" +
-      "Output a folder proposal for state-repo `agent-responsibilities/<slug>/` with `profile.json` metadata " +
-      "(action, agentAction when needed, every, agent, readsFrom/writesTo) and a " +
-      "`agent-responsibility.md` body with a clear H1, `## Job`, `## AgentAction` when relevant, " +
+      "Draft a Kody capability that does the following: $ARGUMENTS.\n\n" +
+      "Output a folder proposal for state-repo `capabilities/<slug>/` with `profile.json` metadata " +
+      "(action, executable when needed, every, agent, readsFrom/writesTo) and a " +
+      "`capability.md` body with a clear H1, `## Job`, `## Executable` when relevant, " +
       "`## Output`, `## Allowed Commands`, and `## Restrictions`. Keep implementation " +
-      "recipes in agentAction skills/scripts, not in the agentResponsibility body.",
+      "recipes in executable skills/scripts, not in the capability body.",
   },
 ] as const;

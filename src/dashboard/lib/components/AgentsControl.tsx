@@ -7,8 +7,8 @@
  *   in the state repo: a markdown body describing the agent's
  *   intent, allowed commands, and restrictions. Agents have no schedule, no
  *   state, and no run/tick — they're agent identities referenced by other flows.
- *   The chat rail reuses the existing agentResponsibility scope kind (an agent is
- *   structurally identical to a agentResponsibility).
+ *   The chat rail reuses the existing capability scope kind (an agent is
+ *   structurally identical to a capability).
  */
 "use client";
 
@@ -161,14 +161,14 @@ export function AgentsControlInner({
   const deleteMutation = useDeleteAgent(githubUser?.login);
 
   // Push chat context up to the persistent rail in the root layout.
-  // An agent is structurally identical to a agentResponsibility, so we reuse the
-  // existing agentResponsibility scope kind — the chat just needs the file's title/body
+  // An agent is structurally identical to a capability, so we reuse the
+  // existing capability scope kind — the chat just needs the file's title/body
   // to answer questions about the selected member.
   const { setScope } = useChatScope();
   useEffect(() => {
     setScope(
       selectedMember
-        ? { kind: "agentResponsibility", agentResponsibility: selectedMember }
+        ? { kind: "capability", capability: selectedMember }
         : null,
     );
     return () => setScope(null);
@@ -783,7 +783,7 @@ function SendTaskDialog({
           <DialogTitle>Send a task to {member.title}</DialogTitle>
           <DialogDescription>
             Runs <span className="font-mono">{member.slug}</span> once on your
-            message — like a one-off agentResponsibility. The reply is posted on
+            message — like a one-off capability. The reply is posted on
             the Kody control issue
             {githubUser?.login ? " and lands in your inbox" : ""}.
           </DialogDescription>

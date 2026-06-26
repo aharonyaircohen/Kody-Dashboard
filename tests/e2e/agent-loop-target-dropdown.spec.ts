@@ -70,7 +70,7 @@ async function mockDashboardApis(page: Page): Promise<void> {
               outcome: "Release website to production.",
               evidence: ["releasePrExists", "mainMerged", "productionDeployed"],
             },
-            agentResponsibilities: [
+            capabilities: [
               "release-prepare",
               "release-merge",
               "vercel-production-deploy",
@@ -79,8 +79,8 @@ async function mockDashboardApis(page: Page): Promise<void> {
               {
                 stage: "release",
                 evidence: "releasePrExists",
-                agentResponsibility: "release-prepare",
-                agentAction: "release-prepare",
+                capability: "release-prepare",
+                executable: "release-prepare",
               },
             ],
             schedule: "manual",
@@ -93,8 +93,8 @@ async function mockDashboardApis(page: Page): Promise<void> {
     });
   });
 
-  await page.route("**/api/kody/agent-responsibilities", async (route) => {
-    await fulfillJson(route, { agentResponsibilities: [] });
+  await page.route("**/api/kody/capabilities", async (route) => {
+    await fulfillJson(route, { capabilities: [] });
   });
 }
 

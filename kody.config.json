@@ -28,14 +28,14 @@
     "activeAgents": [
       "ceo"
     ],
-    "activeAgentResponsibilities": [
-      "agent-responsibility-call"
+    "activeCapabilities": [
+      "capability-call"
     ],
-    "activeAgentActions": [
+    "activeExecutables": [
       "agent-ask"
     ]
   },
-  "agent-actions": {
+  "executables": {
     "default": "run"
   },
   "access": {
@@ -47,9 +47,9 @@
       "MEMBER"
     ]
   },
-  "defaultAgentAction": "classify",
-  "defaultPrAgentAction": "fix",
-  "agentActions": {
+  "defaultExecutable": "classify",
+  "defaultPrExecutable": "fix",
+  "executables": {
     "default": "run"
   },
   "state": {

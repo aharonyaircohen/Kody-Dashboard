@@ -93,7 +93,7 @@ function localGoalState(): ManagedGoalState {
       outcome: "The codebase stays maintainable.",
       evidence: [],
     },
-    agentResponsibilities: ["code-health", "docs-health"],
+    capabilities: ["code-health", "docs-health"],
     route: [],
     stage: "watching",
     facts: {},
@@ -114,7 +114,7 @@ afterEach(() => {
 });
 
 describe("PATCH /api/kody/goals/managed/[id]", () => {
-  it("preserves standalone agentResponsibilities when route is not edited", async () => {
+  it("preserves standalone capabilities when route is not edited", async () => {
     h.getUserOctokit.mockResolvedValue({ rest: {} });
     h.readManagedGoalFile.mockResolvedValue({
       state: localGoalState(),
@@ -131,7 +131,7 @@ describe("PATCH /api/kody/goals/managed/[id]", () => {
     expect(res.status).toBe(200);
     expect(h.writeManagedGoalFile).toHaveBeenCalledTimes(1);
     const write = h.writeManagedGoalFile.mock.calls[0]![0];
-    expect(write.state.agentResponsibilities).toEqual([
+    expect(write.state.capabilities).toEqual([
       "code-health",
       "docs-health",
     ]);
@@ -139,7 +139,7 @@ describe("PATCH /api/kody/goals/managed/[id]", () => {
     expect(write.state.stage).toBe("watching");
   });
 
-  it("updates standalone agentResponsibilities when agentResponsibilities are edited", async () => {
+  it("updates standalone capabilities when capabilities are edited", async () => {
     h.getUserOctokit.mockResolvedValue({ rest: {} });
     h.readManagedGoalFile.mockResolvedValue({
       state: localGoalState(),
@@ -149,13 +149,13 @@ describe("PATCH /api/kody/goals/managed/[id]", () => {
     h.writeManagedGoalFile.mockResolvedValue(undefined);
 
     const res = await PATCH(
-      patchRequest({ agentResponsibilities: ["qa-sweep", "docs-health"] }),
+      patchRequest({ capabilities: ["qa-sweep", "docs-health"] }),
       params(),
     );
 
     expect(res.status).toBe(200);
     const write = h.writeManagedGoalFile.mock.calls[0]![0];
-    expect(write.state.agentResponsibilities).toEqual([
+    expect(write.state.capabilities).toEqual([
       "qa-sweep",
       "docs-health",
     ]);
@@ -179,7 +179,7 @@ describe("PATCH /api/kody/goals/managed/[id]", () => {
     const res = await PATCH(
       patchRequest({
         loopTarget: { type: "goal", id: "web-release" },
-        agentResponsibilities: [],
+        capabilities: [],
       }),
       params(),
     );
@@ -190,7 +190,7 @@ describe("PATCH /api/kody/goals/managed/[id]", () => {
       type: "goal",
       id: "web-release",
     });
-    expect(write.state.agentResponsibilities).toEqual([]);
+    expect(write.state.capabilities).toEqual([]);
     expect(write.state.scheduleMode).toBe("agentLoop");
   });
 
@@ -204,13 +204,12 @@ describe("PATCH /api/kody/goals/managed/[id]", () => {
           outcome: "Improve release flow.",
           evidence: ["planReady", "changeImplemented", "changeVerified"],
         },
-        agentResponsibilities: ["plan", "fix", "review"],
+        capabilities: ["plan", "fix", "review"],
         route: [
           {
             stage: "plan",
             evidence: "planReady",
-            agentResponsibility: "plan",
-            agentAction: "plan",
+            capability: "plan",
           },
         ],
         stage: "plan",
@@ -230,8 +229,8 @@ describe("PATCH /api/kody/goals/managed/[id]", () => {
       "mainMerged",
       "productionDeployed",
     ]);
-    expect(write.state.agentResponsibilities).toEqual([
-      "release",
+    expect(write.state.capabilities).toEqual([
+      "release-prepare",
       "task-leader",
       "vercel-production-deploy",
     ]);

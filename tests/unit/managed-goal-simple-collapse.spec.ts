@@ -26,7 +26,7 @@ describe("collapseManagedGoalRecordsForList simple template", () => {
           outcome: "Tasks labelled goal:npm-release are complete.",
           evidence: ["labelledTasksComplete"],
         },
-        agentResponsibilities: [],
+        capabilities: [],
         route: [],
         facts: {},
         blockers: [],

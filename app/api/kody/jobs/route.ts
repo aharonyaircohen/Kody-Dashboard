@@ -2,12 +2,10 @@
  * @fileType api-endpoint
  * @domain kody
  * @pattern jobs-api
- * @ai-summary Run an INSTANT agentResponsibility job. A job may link an agentAction as the
- *   implementation, but the dashboard only dispatches agentResponsibilities: it posts
- *   `@kody <agentResponsibility> [why]` on the target issue/PR.
+ * @ai-summary Run an INSTANT capability job. The dashboard posts
+ *   `@kody <capability> [why]` on the target issue/PR.
  *
- *   Scheduled jobs are NOT dispatched here — their source of truth is a agentResponsibility
- *   file (agent + every + intent), created via the agentResponsibilities API. This endpoint
+ *   Scheduled jobs are NOT dispatched here. This endpoint
  *   rejects `flavor: "scheduled"` so the two paths never blur.
  */
 /* eslint-disable @typescript-eslint/no-explicit-any */
@@ -24,7 +22,7 @@ import {
   setGitHubContext,
 } from "@dashboard/lib/github-client";
 import { recordAudit } from "@dashboard/lib/activity/audit";
-import { readAgentResponsibilityFile } from "@dashboard/lib/agent-responsibilities-files";
+import { readResolvedCapabilityFile } from "@dashboard/lib/capabilities";
 import {
   validateKodyJob,
   resolveJobProfile,
@@ -47,7 +45,7 @@ export async function POST(req: NextRequest) {
     const actorLogin =
       typeof raw?.actorLogin === "string" ? raw.actorLogin : undefined;
 
-    // Dashboard boundary: agentResponsibility is required. AgentAction-only jobs are rejected.
+    // Dashboard boundary: a capability is required.
     const job = validateKodyJob(raw);
 
     if (job.flavor !== "instant") {
@@ -55,7 +53,7 @@ export async function POST(req: NextRequest) {
         {
           error: "not_instant",
           message:
-            "Only instant jobs run here. Save a scheduled job as a agentResponsibility (agent + schedule + agentAction).",
+            "Only instant jobs run here. Save scheduled work as a capability loop.",
         },
         { status: 400 },
       );
@@ -71,7 +69,7 @@ export async function POST(req: NextRequest) {
     }
     if (!resolveJobProfile(job)) {
       return NextResponse.json(
-        { error: "no_agentResponsibility", message: "Pick a agentResponsibility to run." },
+        { error: "no_capability", message: "Pick a capability to run." },
         { status: 400 },
       );
     }
@@ -89,12 +87,15 @@ export async function POST(req: NextRequest) {
         { status: 401 },
       );
     }
-    const agentResponsibility = await readAgentResponsibilityFile(job.agentResponsibility!, userOctokit);
-    if (!agentResponsibility) {
+    const capability = await readResolvedCapabilityFile(
+      job.capability!,
+      userOctokit,
+    );
+    if (!capability) {
       return NextResponse.json(
         {
-          error: "agentResponsibility_not_found",
-          message: `AgentResponsibility "${job.agentResponsibility}" does not exist.`,
+          error: "capability_not_found",
+          message: `Capability "${job.capability}" does not exist.`,
         },
         { status: 400 },
       );

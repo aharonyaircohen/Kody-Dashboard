@@ -4,18 +4,18 @@
  * @pattern company-activity-record
  * @ai-summary Shape + JSONL parser for the engine-authored Company Activity
  *   log (`activity/<date>.jsonl` in the configured Kody state repo). Each line is one named, attributed
- *   action the engine performed — who (agent), what (agentResponsibility), why (trigger),
+ *   action the engine performed — who (agent), what (capability), why (trigger),
  *   and the result. The dashboard reads these into the Activity → Auto feed;
- *   it does NOT derive activity from commits/PRs (those carry no agent/agentResponsibility).
+ *   it does NOT derive activity from commits/PRs (those carry no agent/capability).
  *   Mirrors the record written by kody2 `appendCompanyActivity`.
  */
 
 export interface CompanyActivityRecord {
   ts: string;
-  /** Plain-English action, e.g. "Ran agentResponsibility: Verify changelog". */
+  /** Plain-English action, e.g. "Ran capability: Verify changelog". */
   action: string;
-  agentResponsibility: string;
-  agentResponsibilityTitle: string | null;
+  capability: string;
+  capabilityTitle: string | null;
   /** Agent (agentIdentity) slug that ran it. */
   agent: string | null;
   staffTitle: string | null;
@@ -36,12 +36,23 @@ const OUTCOMES = new Set(["completed", "failed", "unknown"]);
 function coerce(raw: unknown): CompanyActivityRecord | null {
   if (!raw || typeof raw !== "object") return null;
   const r = raw as Record<string, unknown>;
-  if (typeof r.ts !== "string" || typeof r.agentResponsibility !== "string") return null;
+  const capability =
+    typeof r.capability === "string"
+      ? r.capability
+      : typeof r.capability === "string"
+        ? r.capability
+        : null;
+  if (typeof r.ts !== "string" || capability === null) return null;
   return {
     ts: r.ts,
-    action: typeof r.action === "string" ? r.action : `Ran agentResponsibility: ${r.agentResponsibility}`,
-    agentResponsibility: r.agentResponsibility,
-    agentResponsibilityTitle: typeof r.agentResponsibilityTitle === "string" ? r.agentResponsibilityTitle : null,
+    action: typeof r.action === "string" ? r.action : `Ran capability: ${capability}`,
+    capability,
+    capabilityTitle:
+      typeof r.capabilityTitle === "string"
+        ? r.capabilityTitle
+        : typeof r.capabilityTitle === "string"
+          ? r.capabilityTitle
+          : null,
     agent: typeof r.agent === "string" ? r.agent : null,
     staffTitle: typeof r.staffTitle === "string" ? r.staffTitle : null,
     trigger:
@@ -82,13 +93,13 @@ export function sortActivityNewestFirst(
   return [...records].sort((a, b) => (a.ts < b.ts ? 1 : a.ts > b.ts ? -1 : 0));
 }
 
-/** Latest engine activity record per agentResponsibility slug. */
-export function latestActivityByAgentResponsibility(
+/** Latest engine activity record per capability slug. */
+export function latestActivityByCapability(
   records: CompanyActivityRecord[],
 ): Map<string, CompanyActivityRecord> {
   const latest = new Map<string, CompanyActivityRecord>();
   for (const rec of sortActivityNewestFirst(records)) {
-    if (!latest.has(rec.agentResponsibility)) latest.set(rec.agentResponsibility, rec);
+    if (!latest.has(rec.capability)) latest.set(rec.capability, rec);
   }
   return latest;
 }

@@ -5,7 +5,7 @@
  * @ai-summary Selected capability route backed by state-repo capabilities storage.
  */
 import { AuthGuard } from "@dashboard/lib/auth-guard";
-import { AgentActionsManager } from "@dashboard/lib/components/AgentActionsManager";
+import { CapabilitiesManager } from "@dashboard/lib/components/CapabilitiesManager";
 import { buildKodyMetadata } from "../../../metadata";
 
 export const dynamic = "force-dynamic";
@@ -24,7 +24,7 @@ export default async function CapabilityPage({
   const { slug } = await params;
   return (
     <AuthGuard>
-      <AgentActionsManager selectedSlug={slug} basePath="/capabilities" />
+      <CapabilitiesManager selectedSlug={slug} basePath="/capabilities" />
     </AuthGuard>
   );
 }

@@ -2,9 +2,9 @@
  * @fileType component
  * @domain layout
  * @pattern master-detail
- * @ai-summary The shared master/detail page used by Jobs, AgentResponsibilities, and
- *   AgentActions — a searchable list aside on the left and a detail pane on the
- *   right, under one PageHeader. Extracted from AgentResponsibilityControl (the reference UX)
+ * @ai-summary The shared master/detail page used by Jobs, Capabilities, and
+ *   Executables — a searchable list aside on the left and a detail pane on the
+ *   right, under one PageHeader. Extracted from CapabilityControl (the reference UX)
  *   so the three object pages share ONE layout instead of three from-scratch
  *   copies. On mobile the list and detail swap full-screen based on selection.
  */

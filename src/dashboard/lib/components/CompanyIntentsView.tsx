@@ -93,7 +93,7 @@ type IntentFormState = {
   requiresHumanFor: string;
   goals: string;
   loops: string;
-  responsibilities: string;
+  capabilities: string;
   reviewEvery: "1d" | "1w";
 };
 
@@ -173,7 +173,7 @@ const behaviorOptions: Array<{
       maxConcurrentGoals: "1",
       maxDailyActions: "5",
       principles: "Fix broken wiring before adding new work",
-      metrics: "missing loops\nmissing responsibilities\nstale reviews",
+      metrics: "missing loops\nmissing capabilities\nstale reviews",
     },
   },
 ];
@@ -645,7 +645,7 @@ export function CompanyIntentsView({
                       value={[
                         sectionText("goals", form.goals),
                         sectionText("loops", form.loops),
-                        sectionText("responsibilities", form.responsibilities),
+                        sectionText("capabilities", form.capabilities),
                       ]
                         .filter(Boolean)
                         .join("\n\n")}
@@ -653,7 +653,7 @@ export function CompanyIntentsView({
                         const parsed = parsePortfolioText(event.target.value);
                         setForm((prev) => ({ ...prev, ...parsed }));
                       }}
-                      placeholder="goals: release-health&#10;loops: company-manager-loop&#10;responsibilities: company-manager"
+                      placeholder="goals: release-health&#10;loops: company-manager-loop&#10;capabilities: company-manager"
                     />
                   </Field>
                 </div>
@@ -1022,7 +1022,7 @@ function IntentDetail({
         <div className="grid gap-6 xl:grid-cols-2">
           <Block
             title="CTO Loop"
-            subtitle="Manager responsibility wiring"
+            subtitle="Manager capability wiring"
             icon={Compass}
           >
             <ManagerHealth intent={intent} record={record} />
@@ -1092,22 +1092,16 @@ function ManagerHealth({
         }
       />
       <Meta
-        label="Responsibility"
+        label="Capability"
         value={
-          health?.responsibility.exists
-            ? health.responsibility.disabled
-              ? `${health.responsibility.id} disabled`
-              : `${health.responsibility.id} ready`
-            : `${intent.manager.responsibility} missing`
+          health?.capability.exists
+            ? `${health.capability.id} ready`
+            : `${intent.manager.capability} missing`
         }
       />
       <Meta
         label="Last review"
         value={formatDate(intent.manager.lastReviewedAt)}
-      />
-      <Meta
-        label="Last tick"
-        value={formatDate(health?.responsibility.lastTickAt ?? undefined)}
       />
     </dl>
   );
@@ -1156,9 +1150,9 @@ function Portfolio({ intent }: { intent: CompanyIntent }) {
           href="/agent-loops"
         />
         <LinkedChipGroup
-          title="Responsibilities"
-          items={intent.portfolio.responsibilities ?? []}
-          href="/agent-responsibilities"
+          title="Capabilities"
+          items={intent.portfolio.capabilities ?? []}
+          href="/capabilities"
         />
       </div>
     </div>
@@ -1441,7 +1435,7 @@ function emptyForm(): IntentFormState {
     requiresHumanFor: "",
     goals: "",
     loops: "company-manager-loop",
-    responsibilities: "company-manager",
+    capabilities: "company-manager",
     reviewEvery: "1d",
   };
 }
@@ -1489,7 +1483,7 @@ function recordToForm(record: CompanyIntentRecord): IntentFormState {
     requiresHumanFor: intent.policy.automation.requiresHumanFor.join("\n"),
     goals: intent.portfolio.goals.join("\n"),
     loops: intent.portfolio.loops.join("\n"),
-    responsibilities: intent.portfolio.responsibilities.join("\n"),
+    capabilities: intent.portfolio.capabilities.join("\n"),
     reviewEvery: intent.manager.reviewEvery,
   };
 }
@@ -1524,7 +1518,7 @@ function formToInput(form: IntentFormState): CompanyIntentInput {
     portfolio: {
       goals: parseLines(form.goals).filter(isCompanyIntentId),
       loops: parseLines(form.loops).filter(isCompanyIntentId),
-      responsibilities: parseLines(form.responsibilities).filter(
+      capabilities: parseLines(form.capabilities).filter(
         isCompanyIntentId,
       ),
     },
@@ -1559,11 +1553,11 @@ function sectionText(label: string, value: string): string {
 
 function parsePortfolioText(
   value: string,
-): Pick<IntentFormState, "goals" | "loops" | "responsibilities"> {
-  const result = { goals: "", loops: "", responsibilities: "" };
+): Pick<IntentFormState, "goals" | "loops" | "capabilities"> {
+  const result = { goals: "", loops: "", capabilities: "" };
   let current: keyof typeof result | null = null;
   for (const line of value.split(/\r?\n/)) {
-    const match = line.match(/^(goals|loops|responsibilities):\s*(.*)$/i);
+    const match = line.match(/^(goals|loops|capabilities):\s*(.*)$/i);
     if (match) {
       current = match[1].toLowerCase() as keyof typeof result;
       result[current] = match[2]?.trim() ?? "";

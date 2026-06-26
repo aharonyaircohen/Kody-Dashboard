@@ -14,7 +14,7 @@ const source = readFileSync(
 );
 
 describe("ManagedModelsView model form", () => {
-  it("keeps agentGoal creation evidence-driven while sharing the agentResponsibilities control", () => {
+  it("keeps agentGoal creation evidence-driven while sharing the capabilities control", () => {
     const dialog = source.slice(
       source.indexOf("function NewGoalDialog"),
       source.indexOf("function EditManagedGoalDialog"),
@@ -27,20 +27,20 @@ describe("ManagedModelsView model form", () => {
     expect(source).toContain('kindLabel: "",');
     expect(source).toContain("{copy.kindLabel ? (");
     expect(dialog).toContain(
-      "Define the finish line and attach the agentResponsibilities Kody should use.",
+      "Define the finish line and attach the capabilities Kody should use.",
     );
-    expect(dialog).toContain("AgentResponsibilities");
+    expect(dialog).toContain("Capabilities");
     expect(dialog).toContain("SearchableMultiSelect");
-    expect(dialog).toContain('id="agentGoal-agentResponsibilities"');
-    expect(dialog).toContain("options={agentResponsibilityOptions}");
-    expect(dialog).toContain(": selectedAgentResponsibilitySlugs,");
+    expect(dialog).toContain('id="agentGoal-capabilities"');
+    expect(dialog).toContain("options={capabilityOptions}");
+    expect(dialog).toContain(": selectedCapabilitySlugs,");
     expect(dialog).toContain("useState<string[]>([])");
     expect(dialog).toContain("if (open) reset();");
-    expect(dialog).toContain("setSelectedAgentResponsibilitySlugs([]);");
+    expect(dialog).toContain("setSelectedCapabilitySlugs([]);");
     expect(dialog).not.toContain(
-      "isRoutine ? [] : defaultType.agentResponsibilities",
+      "isRoutine ? [] : defaultType.capabilities",
     );
-    expect(dialog).toContain("selectedAgentResponsibilitySlugs.length > 0");
+    expect(dialog).toContain("selectedCapabilitySlugs.length > 0");
     expect(dialog).toContain("SaveReportCheckbox");
     expect(source).toContain("function PreferredRunTimeFields");
     expect(source).toContain('className="grid min-w-0 grid-cols-2 gap-2"');
@@ -100,16 +100,16 @@ describe("ManagedModelsView model form", () => {
     expect(visibleTypeBlock).not.toContain('"release"');
     expect(visibleTypeBlock).not.toContain('"checklist"');
     expect(createDialog).toContain("userVisibleObjectiveGoalTypes()");
-    expect(createDialog).toContain('id="agentGoal-agentResponsibilities"');
+    expect(createDialog).toContain('id="agentGoal-capabilities"');
     expect(createDialog).toContain('id="loop-target"');
     expect(editDialog).toContain("userVisibleObjectiveGoalTypes()");
     expect(editDialog).toContain("selectedVisibleObjectiveGoalType");
     expect(editDialog).not.toContain("showObjectiveTypeSelect");
-    expect(editDialog).toContain('id="edit-agentGoal-agentResponsibilities"');
+    expect(editDialog).toContain('id="edit-agentGoal-capabilities"');
     expect(editDialog).toContain('id="edit-loop-target"');
   });
 
-  it("keeps agentGoal edits agentResponsibility-driven without exposing type labels", () => {
+  it("keeps agentGoal edits capability-driven without exposing type labels", () => {
     const dialog = source.slice(
       source.indexOf("function EditManagedGoalDialog"),
       source.indexOf("function GoalRow"),
@@ -119,18 +119,18 @@ describe("ManagedModelsView model form", () => {
       'const intentLabel = isRoutine ? "Scope" : "Finish line"',
     );
     expect(dialog).toContain(
-      "Update the finish line and attached agentResponsibilities.",
+      "Update the finish line and attached capabilities.",
     );
     expect(dialog).toContain("const objectiveGoalType =");
-    expect(dialog).toContain('"edit-agentGoal-agentResponsibilities"');
-    expect(dialog).toContain("options={agentResponsibilityOptions}");
+    expect(dialog).toContain('"edit-agentGoal-capabilities"');
+    expect(dialog).toContain("options={capabilityOptions}");
     expect(dialog).toContain(
-      "setSelectedAgentResponsibilitySlugs(goal.state.agentResponsibilities)",
+      "setSelectedCapabilitySlugs(goal.state.capabilities)",
     );
     expect(dialog).toContain("mergeOrderedSlugs(current, next)");
-    expect(dialog).toContain("moveSelectedAgentResponsibility");
+    expect(dialog).toContain("moveSelectedCapability");
     expect(dialog).toContain(
-      "agentResponsibilities: selectedAgentResponsibilitySlugs",
+      "capabilities: selectedCapabilitySlugs",
     );
     expect(dialog).toContain("evidence: evidenceForRoute(routeSteps)");
     expect(dialog).toContain("route: routeWithReportPreference");
@@ -151,7 +151,7 @@ describe("ManagedModelsView model form", () => {
     expect(dialog).not.toContain("Advanced");
   });
 
-  it("uses the same selected agentResponsibility tag picker for agentLoop edits", () => {
+  it("uses the same selected capability tag picker for agentLoop edits", () => {
     const dialog = source.slice(
       source.indexOf("function EditManagedGoalDialog"),
       source.indexOf("function GoalRow"),
@@ -160,14 +160,14 @@ describe("ManagedModelsView model form", () => {
     expect(dialog).toContain(
       'const intentLabel = isRoutine ? "Scope" : "Finish line"',
     );
-    expect(dialog).toContain("agentResponsibilitySelectOptions(");
-    expect(dialog).toContain("goal?.state.agentResponsibilities ?? []");
+    expect(dialog).toContain("capabilitySelectOptions(");
+    expect(dialog).toContain("goal?.state.capabilities ?? []");
     expect(dialog).toContain("SearchableMultiSelect");
-    expect(dialog).toContain("selectedAgentResponsibilitySlugs.length > 0");
-    expect(dialog).toContain('loopTarget?.type === "agentResponsibility"');
+    expect(dialog).toContain("selectedCapabilitySlugs.length > 0");
+    expect(dialog).toContain('loopTarget?.type === "capability"');
     expect(dialog).toContain("saveReport");
     expect(dialog).toContain(
-      'selectedHeading="Selected agentResponsibilities"',
+      'selectedHeading="Selected capabilities"',
     );
     expect(dialog).toContain('selectedTone="info"');
     expect(dialog).toContain('idPrefix="edit-loop"');

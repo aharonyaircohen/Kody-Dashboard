@@ -31,7 +31,7 @@ describe("validate-reports", () => {
       [
         "---",
         'generatedAt: "2026-06-08T12:00:00Z"',
-        "agentResponsibilitySlug: health-check",
+        "capabilitySlug: health-check",
         "reviewStatus: action-needed",
         "reviewArea: operations",
         "findings:",
@@ -44,7 +44,7 @@ describe("validate-reports", () => {
         "  - id: fix-ci-42",
         "    type: dispatch",
         "    label: Run fix-ci on PR #42",
-        "    agentAction: fix-ci",
+        "    capability: fix-ci",
         "    target: 42",
         "  - id: create-cleanup-task",
         "    type: create-task",
@@ -125,7 +125,7 @@ describe("validate-reports", () => {
     );
 
     expect(() => runValidator(root)).toThrow(
-      /suggestedActions\[0\] dispatch requires agentAction/,
+      /suggestedActions\[0\] dispatch requires capability/,
     );
   });
 });

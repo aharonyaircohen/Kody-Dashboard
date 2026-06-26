@@ -3,8 +3,8 @@
  * @domain kody
  * @pattern company-manager
  * @ai-summary Import/export a "Company" — the portable operating manual of
- *   an org (agent, agentResponsibilities, Context, commands, capabilities,
- *   legacy agentActions, managed goals, instructions, and config). Export downloads a JSON
+ *   an org (agents, capabilities, context, commands, managed goals,
+ *   instructions, and config). Export downloads a JSON
  *   bundle from the connected repo; Import uploads one and writes it back
  *   with skip/overwrite collision handling.
  */
@@ -18,7 +18,6 @@ import {
   Upload,
   Loader2,
   Users,
-  ListChecks,
   Bot,
   Boxes,
   ScrollText,
@@ -77,16 +76,14 @@ function CompanyManagerInner() {
       downloadJson(`kody-company-${safeRepo}-${stamp}.json`, bundle);
       const total =
         bundle.agent.length +
-        bundle.agentResponsibilities.length +
         bundle.contexts.length +
         bundle.commands.length +
         bundle.capabilities.length +
-        bundle.agentActions.length +
         bundle.goals.length +
         (bundle.instructions ? 1 : 0) +
         (bundle.config ? 1 : 0);
       toast.success(
-        `Exported ${bundle.agent.length} agent, ${bundle.agentResponsibilities.length} agentResponsibilities, ${bundle.goals.length} agentGoals/agent-loops, ${bundle.contexts.length} contexts, ${bundle.commands.length} commands, ${bundle.capabilities.length} capabilities, ${bundle.agentActions.length} legacy agentActions${
+        `Exported ${bundle.agent.length} agents, ${bundle.capabilities.length} capabilities, ${bundle.goals.length} goals/loops, ${bundle.contexts.length} contexts, ${bundle.commands.length} commands${
           bundle.instructions ? ", instructions" : ""
         }${bundle.config ? ", config" : ""} (${total} items)`,
       );
@@ -112,11 +109,9 @@ function CompanyManagerInner() {
       setLastImport(result);
       const failed =
         result.agent.failed +
-        result.agentResponsibilities.failed +
         result.contexts.failed +
         result.commands.failed +
         result.capabilities.failed +
-        result.agentActions.failed +
         result.goals.failed;
       if (failed > 0) {
         toast.warning(`Imported with ${failed} failure(s) — see details below`);
@@ -142,12 +137,11 @@ function CompanyManagerInner() {
         <p className="text-sm text-white/60 max-w-2xl">
           A <span className="text-white/80">Company</span> is your org&apos;s
           portable operating manual — its{" "}
-          <span className="text-white/80">agent</span>,{" "}
-          <span className="text-white/80">agentResponsibilities</span>,{" "}
-          <span className="text-white/80">agentGoals/agent-loops</span>,{" "}
+          <span className="text-white/80">agents</span>,{" "}
+          <span className="text-white/80">capabilities</span>,{" "}
+          <span className="text-white/80">goals/loops</span>,{" "}
           <span className="text-white/80">context</span>,{" "}
           <span className="text-white/80">commands</span>,{" "}
-          <span className="text-white/80">capabilities</span>,{" "}
           <span className="text-white/80">instructions</span>, and portable{" "}
           <span className="text-white/80">config</span> (quality commands,
           aliases, access gate, model routing). Export it from one repo and
@@ -165,9 +159,8 @@ function CompanyManagerInner() {
                 Export company
               </p>
               <p className="text-xs text-white/50 mt-1">
-                Download a JSON bundle of this repo&apos;s agent, agentResponsibilities,
-                agentGoals/agent-loops, context, repo-defined commands,
-                capabilities, legacy agentActions, and instructions.
+                Download a JSON bundle of this repo&apos;s agents, capabilities,
+                goals/loops, context, repo-defined commands, and instructions.
               </p>
             </div>
             <Button size="sm" onClick={handleExport} disabled={exporting}>
@@ -245,11 +238,9 @@ function CompanyManagerInner() {
             {lastImport && (
               <div className="text-xs text-white/60 border-t border-white/[0.06] pt-3 space-y-1">
                 <p>{countLine("Agent", lastImport.agent)}</p>
-                <p>{countLine("AgentResponsibilities", lastImport.agentResponsibilities)}</p>
                 <p>{countLine("Contexts", lastImport.contexts)}</p>
                 <p>{countLine("Commands", lastImport.commands)}</p>
                 <p>{countLine("Capabilities", lastImport.capabilities)}</p>
-                <p>{countLine("AgentActions", lastImport.agentActions)}</p>
                 <p>{countLine("AgentGoals/AgentLoops", lastImport.goals)}</p>
                 <p>Instructions: {lastImport.instructions}</p>
                 <p>Config: {lastImport.config}</p>
@@ -267,12 +258,11 @@ function CompanyManagerInner() {
 
         {/* What's included */}
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-[11px] text-white/45">
-          <Included icon={Users} label="Agent" />
-          <Included icon={ListChecks} label="AgentResponsibilities" />
-          <Included icon={Target} label="AgentGoals/AgentLoops" />
+          <Included icon={Users} label="Agents" />
+          <Included icon={Boxes} label="Capabilities" />
+          <Included icon={Target} label="Goals/Loops" />
           <Included icon={BookOpenText} label="Context" />
           <Included icon={Bot} label="Commands" />
-          <Included icon={Boxes} label="Capabilities" />
           <Included icon={ScrollText} label="Instructions" />
           <Included icon={SlidersHorizontal} label="Config" />
         </div>

@@ -51,7 +51,7 @@ import { supportsVision } from "@dashboard/lib/chat/vision-support";
 import {
   buildSystemPrompt,
   type GoalContext,
-  type AgentResponsibilityContext,
+  type CapabilityContext,
   type TaskContext,
   type OrgContext,
 } from "./system-prompt";
@@ -68,10 +68,9 @@ import { createRemoteTools } from "../tools/remote-tools";
 import { createBugTools } from "../tools/bug-tools";
 import { createTaskTools } from "../tools/task-tools";
 import { createGoalTools } from "../tools/goal-tools";
-import { createAgentResponsibilityTools } from "../tools/agent-responsibility-tools";
 import { createAgentTools } from "../tools/agent-tools";
 import { createMemoryTools } from "../tools/memory-tools";
-import { createAgentActionTools } from "../tools/agent-action-tools";
+import { createCapabilityTools } from "../tools/capability-tools";
 import { createPlannerTools } from "../tools/planner-tools";
 import { createReleaseTools } from "../tools/release-tools";
 import { createKodyTools } from "../tools/kody-tools";
@@ -95,7 +94,6 @@ import { createInboxTools } from "../tools/inbox-tools";
 import { createCmsTools } from "../tools/cms-tools";
 import { applyReasoning } from "@dashboard/lib/chat/reasoning-adapter";
 import { createAgentAdminTools } from "../tools/agent-admin-tools";
-import { createAgentResponsibilityAdminTools } from "../tools/agent-responsibility-admin-tools";
 import { createMacroTools } from "../tools/macros-tools";
 import {
   invalidateMemoryIndexPromptCache,
@@ -434,8 +432,8 @@ export async function POST(req: NextRequest) {
     task?: TaskContext;
     /** GitHub login of the requester — gates remote_* tools. Optional. */
     actorLogin?: string;
-    /** Current agentResponsibility context — scopes the chat to a specific agentResponsibility folder. */
-    agentResponsibility?: AgentResponsibilityContext;
+    /** Current capability context — scopes the chat to a specific capability folder. */
+    capability?: CapabilityContext;
     /**
      * When true, append the mission-planning block to the system prompt and
      * wire the planner tools (`create_task_for_goal`). `goal` must be set.
@@ -674,7 +672,7 @@ export async function POST(req: NextRequest) {
     }
   }
 
-  // Load the chat defaults bundle — agentIdentity + agentAction + agentResponsibilities + skills.
+  // Load the chat defaults bundle — agentIdentity + chat capability + workflows + skills.
   // The bundle is the source of truth for the chat's prompt base + tool
   // allowlist. Repo-stored with a TS fallback; step 1 returns TS defaults.
   const chatBundle = await loadChatDefaults(repo?.owner, repo?.repo);
@@ -747,12 +745,6 @@ export async function POST(req: NextRequest) {
         owner: repo.owner,
         repo: repo.repo,
       }),
-      ...createAgentResponsibilityTools({
-        octokit,
-        owner: repo.owner,
-        repo: repo.repo,
-        actorLogin: verifiedActorLogin,
-      }),
       ...createAgentTools({
         octokit,
         owner: repo.owner,
@@ -772,7 +764,7 @@ export async function POST(req: NextRequest) {
         actorLogin: verifiedActorLogin,
       }),
       ...createKodyTools({ octokit, owner: repo.owner, repo: repo.repo }),
-      ...createAgentActionTools({
+      ...createCapabilityTools({
         octokit,
         owner: repo.owner,
         repo: repo.repo,
@@ -847,12 +839,6 @@ export async function POST(req: NextRequest) {
         repo: repo.repo,
         actorLogin: verifiedActorLogin,
       }),
-      ...createAgentResponsibilityAdminTools({
-        octokit,
-        owner: repo.owner,
-        repo: repo.repo,
-        actorLogin: verifiedActorLogin,
-      }),
       ...createMacroTools({
         octokit,
         owner: repo.owner,
@@ -912,12 +898,12 @@ export async function POST(req: NextRequest) {
     { ...baseTools, ...extraTools },
     { vibeMode, hasCurrentTask: body.task?.issueNumber != null },
   );
-  // Bundle allowlist — the agentAction's `tools` field is the single source
+  // Bundle allowlist — the chat capability's `tools` field is the single source
   // of truth for which tools the chat exposes. Empty list = expose all
   // (preserves current behavior when the bundle is unconfigured).
   const allowlistedTools = filterToolsByAllowlist(
     mergedTools,
-    chatBundle.agentAction.tools,
+    chatBundle.capability.tools,
   );
   const tools = allowlistedTools as Parameters<typeof streamText>[0]["tools"];
 
@@ -937,7 +923,7 @@ export async function POST(req: NextRequest) {
     repo ? { owner: repo.owner, repo: repo.repo } : null,
     body.task,
     {
-      agentResponsibility: body.agentResponsibility,
+      capability: body.capability,
       goalPlanner: goalPlannerActive,
       goal: goalPlannerActive ? body.goal : undefined,
       report: body.report,

@@ -12,7 +12,7 @@ const minimalState: KodyTaskState = {
   core: {
     phase: "planning",
     status: "running",
-    currentAgentAction: "plan",
+    currentCapability: "plan",
     lastOutcome: {
       type: "PLAN_STARTED",
       payload: {},
@@ -82,7 +82,7 @@ describe("parseKodyStateComment", () => {
     const parsed = parseKodyStateComment(body);
     expect(parsed?.core.phase).toBe("planning");
     expect(parsed?.core.status).toBe("running");
-    expect(parsed?.core.currentAgentAction).toBe("plan");
+    expect(parsed?.core.currentCapability).toBe("plan");
     expect(parsed?.core.attempts).toEqual({ plan: 1 });
   });
 
@@ -93,7 +93,7 @@ describe("parseKodyStateComment", () => {
       history: [
         {
           timestamp: "2026-05-10T14:00:00Z",
-          agentAction: "plan",
+          capability: "plan",
           action: "PLAN_STARTED",
           flavor: "instant",
           status: "succeeded",
@@ -101,7 +101,7 @@ describe("parseKodyStateComment", () => {
         },
         {
           timestamp: "2026-05-10T15:00:00Z",
-          agentAction: "qa-verify",
+          capability: "qa-verify",
           action: "VERIFIED",
           flavor: "scheduled",
           schedule: "0 */6 * * *",
@@ -162,9 +162,35 @@ describe("parseKodyStateComment", () => {
     const body = renderComment(partial as unknown as KodyTaskState);
     const parsed = parseKodyStateComment(body);
     expect(parsed?.core.status).toBe("pending");
-    expect(parsed?.core.currentAgentAction).toBeNull();
+    expect(parsed?.core.currentCapability).toBeNull();
     expect(parsed?.core.lastOutcome).toBeNull();
     expect(parsed?.core.attempts).toEqual({});
+  });
+
+  it("normalizes legacy currentExecutable and history executable to capability", () => {
+    const legacy = {
+      schemaVersion: 1 as const,
+      core: {
+        phase: "planning" as const,
+        status: "running" as const,
+        currentExecutable: "plan",
+        attempts: {},
+      },
+      history: [
+        {
+          timestamp: "2026-05-10T14:00:00Z",
+          executable: "plan",
+          action: "PLAN_STARTED",
+        },
+      ],
+    };
+
+    const parsed = parseKodyStateComment(
+      renderComment(legacy as unknown as KodyTaskState),
+    );
+
+    expect(parsed?.core.currentCapability).toBe("plan");
+    expect(parsed?.history[0]?.capability).toBe("plan");
   });
 });
 

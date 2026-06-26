@@ -13,7 +13,6 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import {
   ArrowLeft,
-  Boxes,
   CheckCircle2,
   CircleDot,
   ExternalLink,
@@ -42,8 +41,7 @@ type CatalogKind =
   | "agent"
   | "agentGoal"
   | "agentLoop"
-  | "agentResponsibility"
-  | "agentAction"
+  | "capability"
   | "command";
 
 type CatalogItemKind = Exclude<CatalogKind, "all">;
@@ -69,7 +67,6 @@ interface StoreCatalogItem {
   htmlUrl: string | null;
   action?: string | null;
   agent?: string | null;
-  agentAction?: string | null;
   capabilityKind?: string | null;
   schedule?: string | null;
 }
@@ -77,8 +74,7 @@ interface StoreCatalogItem {
 interface StoreCatalogResponse {
   items: StoreCatalogItem[];
   activeAgents: string[];
-  activeAgentActions: string[];
-  activeAgentResponsibilities: string[];
+  activeCapabilities: string[];
   activeCommands: string[];
   activeGoals: ActiveGoalConfigEntry[];
 }
@@ -92,8 +88,7 @@ const KIND_FILTERS: Array<{
   { id: "agent", label: "Agents", icon: Users },
   { id: "agentGoal", label: "Goals", icon: Target },
   { id: "agentLoop", label: "Loops", icon: History },
-  { id: "agentResponsibility", label: "Responsibilities", icon: Layers },
-  { id: "agentAction", label: "Actions", icon: Boxes },
+  { id: "capability", label: "Capabilities", icon: Layers },
   { id: "command", label: "Commands", icon: Bot },
 ];
 
@@ -101,8 +96,7 @@ const KIND_LABEL: Record<CatalogItemKind, string> = {
   agent: "Agent",
   agentGoal: "Goal",
   agentLoop: "Loop",
-  agentResponsibility: "Responsibility",
-  agentAction: "Action",
+  capability: "Capability",
   command: "Command",
 };
 
@@ -115,7 +109,6 @@ function queryText(item: StoreCatalogItem): string {
     item.status,
     item.action,
     item.agent,
-    item.agentAction,
     item.capabilityKind,
   ]
     .filter(Boolean)
@@ -161,8 +154,7 @@ async function fetchCatalog(
   const json = (await res.json().catch(() => ({}))) as {
     items?: StoreCatalogItem[];
     activeAgents?: string[];
-    activeAgentActions?: string[];
-    activeAgentResponsibilities?: string[];
+    activeCapabilities?: string[];
     activeCommands?: string[];
     activeGoals?: ActiveGoalConfigEntry[];
     error?: string;
@@ -176,8 +168,7 @@ async function fetchCatalog(
   return {
     items: json.items ?? [],
     activeAgents: json.activeAgents ?? [],
-    activeAgentActions: json.activeAgentActions ?? [],
-    activeAgentResponsibilities: json.activeAgentResponsibilities ?? [],
+    activeCapabilities: json.activeCapabilities ?? [],
     activeCommands: json.activeCommands ?? [],
     activeGoals: json.activeGoals ?? [],
   };
@@ -223,8 +214,7 @@ async function invalidateOperationsQueries(
 ): Promise<void> {
   await Promise.all([
     queryClient.invalidateQueries({ queryKey: ["kody-agent"] }),
-    queryClient.invalidateQueries({ queryKey: ["kody-agentActions"] }),
-    queryClient.invalidateQueries({ queryKey: ["kody-agentResponsibilities"] }),
+    queryClient.invalidateQueries({ queryKey: ["kody-capabilities"] }),
     queryClient.invalidateQueries({ queryKey: ["kody-managed-goals"] }),
   ]);
 }
@@ -533,15 +523,13 @@ function CatalogDetail({
         <InfoRow label="Status" value={statusLabel(item)} />
         {item.action ? <InfoRow label="Action" value={item.action} /> : null}
         {item.agent ? <InfoRow label="Agent" value={item.agent} /> : null}
-        {item.agentAction ? (
-          <InfoRow label="Agent action" value={item.agentAction} />
+        {item.capabilityKind ? (
+          <InfoRow label="Kind" value={item.capabilityKind} />
         ) : null}
-              {item.capabilityKind ? (
-                <InfoRow label="Kind" value={item.capabilityKind} />
-              ) : null}
-              {(item.kind === "agentGoal" || item.kind === "agentLoop") && item.schedule ? (
-                <InfoRow label="Schedule" value={item.schedule} />
-              ) : null}
+        {(item.kind === "agentGoal" || item.kind === "agentLoop") &&
+        item.schedule ? (
+          <InfoRow label="Schedule" value={item.schedule} />
+        ) : null}
             </div>
     </article>
   );

@@ -39,7 +39,7 @@ function shippedState(): KodyTaskState {
     core: {
       phase: "shipped",
       status: "succeeded",
-      currentAgentAction: null,
+      currentCapability: null,
       lastOutcome: null,
       attempts: {},
     },
@@ -53,7 +53,7 @@ function failedState(): KodyTaskState {
     core: {
       phase: "failed",
       status: "failed",
-      currentAgentAction: null,
+      currentCapability: null,
       lastOutcome: null,
       attempts: {},
     },
@@ -69,7 +69,7 @@ function idleRunningState(): KodyTaskState {
     core: {
       phase: "idle",
       status: "running",
-      currentAgentAction: "classify",
+      currentCapability: "classify",
       lastOutcome: null,
       attempts: { classify: 1 },
     },

@@ -97,7 +97,7 @@ built-ins for cold-start and unavailable-Store cases.
 
 | Slug                   | What it does                                                 |
 | ---------------------- | ------------------------------------------------------------ |
-| `/agentResponsibility` | Draft a scheduled agentResponsibility folder.                |
+| `/capability` | Draft a scheduled capability folder.                |
 | `/analyze`             | Analyze whatever you're viewing: issue, PR, run, or check.   |
 | `/briefing`            | Summarize current work that needs attention.                 |
 | `/explain`             | Explain topic in codebase.                                   |

@@ -274,7 +274,7 @@ interface RowProps {
   /** Toggle the mute state of a notification category. */
   onToggleMute: (category: ServerNotificationType) => void;
   verdictFor: (
-    agent: string,
+    capability: string,
     taskNumber: number,
     action: CtoAction,
     sinceIso?: string,
@@ -327,7 +327,7 @@ function Row({
   // this fresh one. Without the gate every re-post of a sync/fix-ci rec
   // shows pre-stamped Dismissed once any past rec for that PR was dismissed.
   const ctoVerdict = cto
-    ? verdictFor(cto.agentResponsibility, cto.taskNumber, cto.action, entry.sentAt)
+    ? verdictFor(cto.capability, cto.taskNumber, cto.action, entry.sentAt)
     : null;
   return (
     <li
@@ -929,7 +929,7 @@ export function InboxList() {
             <CtoDialogActions
               action={rec.action}
               verdict={verdictFor(
-                rec.agentResponsibility,
+                rec.capability,
                 rec.taskNumber,
                 rec.action,
                 activeEntry.sentAt,
@@ -1015,7 +1015,7 @@ interface SectionProps {
   isMuted: (category: ServerNotificationType) => boolean;
   onToggleMute: (category: ServerNotificationType) => void;
   verdictFor: (
-    agent: string,
+    capability: string,
     taskNumber: number,
     action: CtoAction,
     sinceIso?: string,

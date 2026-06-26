@@ -114,7 +114,7 @@ export interface Attachment {
 export interface KodyChatProps {
   /**
    * What this chat is "about". Today only task-scoped chat is supported;
-   * the discriminated union leaves room for other kinds (e.g. agentResponsibility
+   * the discriminated union leaves room for other kinds (e.g. capability
    * drafting) to be added in later phases without touching every access
    * site in this component.
    *

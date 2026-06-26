@@ -16,10 +16,6 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 
 const h = vi.hoisted(() => ({
-  // agentResponsibilities-files
-  listAgentResponsibilityFiles: vi.fn(),
-  readAgentResponsibilityFile: vi.fn(),
-  writeAgentResponsibilityFile: vi.fn(),
   // agent-files
   listAgentFiles: vi.fn(),
   readAgentFile: vi.fn(),
@@ -35,15 +31,6 @@ const h = vi.hoisted(() => ({
   // instructions/files
   readInstructionsFile: vi.fn(),
   writeInstructionsFile: vi.fn(),
-  // agentActions
-  listAgentActionFiles: vi.fn(async () => [] as Array<Record<string, unknown>>),
-  readAgentActionFile: vi.fn(async () => null),
-  writeAgentActionFile: vi.fn(),
-  readAgentActionFolderFiles: vi.fn(
-    async () => null as Record<string, string> | null,
-  ),
-  writeAgentActionFolderFiles: vi.fn(),
-  fieldsFromProfile: vi.fn(() => ({})),
   // capabilities
   listCapabilityFiles: vi.fn(async () => [] as Array<Record<string, unknown>>),
   readCapabilityFolderFiles: vi.fn(
@@ -70,11 +57,6 @@ const h = vi.hoisted(() => ({
   writeConfigPatch: vi.fn(async () => ({ sha: null })),
 }));
 
-vi.mock("@dashboard/lib/agent-responsibilities-files", () => ({
-  listAgentResponsibilityFiles: h.listAgentResponsibilityFiles,
-  readAgentResponsibilityFile: h.readAgentResponsibilityFile,
-  writeAgentResponsibilityFile: h.writeAgentResponsibilityFile,
-}));
 vi.mock("@dashboard/lib/agent-files", () => ({
   listAgentFiles: h.listAgentFiles,
   readAgentFile: h.readAgentFile,
@@ -93,14 +75,6 @@ vi.mock("@dashboard/lib/context/files", () => ({
 vi.mock("@dashboard/lib/instructions/files", () => ({
   readInstructionsFile: h.readInstructionsFile,
   writeInstructionsFile: h.writeInstructionsFile,
-}));
-vi.mock("@dashboard/lib/agent-actions", () => ({
-  listAgentActionFiles: h.listAgentActionFiles,
-  readAgentActionFile: h.readAgentActionFile,
-  writeAgentActionFile: h.writeAgentActionFile,
-  readAgentActionFolderFiles: h.readAgentActionFolderFiles,
-  writeAgentActionFolderFiles: h.writeAgentActionFolderFiles,
-  fieldsFromProfile: h.fieldsFromProfile,
 }));
 vi.mock("@dashboard/lib/capabilities", () => ({
   listCapabilityFiles: h.listCapabilityFiles,
@@ -141,13 +115,12 @@ const goalState: ManagedGoalState = {
     outcome: "Ship the new goals page.",
     evidence: ["goals-page-live"],
   },
-  agentResponsibilities: ["release"],
+  capabilities: ["release"],
   route: [
     {
       stage: "ship",
       evidence: "goals-page-live",
-      agentResponsibility: "release",
-      agentAction: "release",
+      capability: "release",
     },
   ],
   stage: "ship",
@@ -162,20 +135,6 @@ function tickFile(over: Record<string, unknown> = {}) {
     body: "b",
     sha: "sha1",
     updatedAt: "2026-01-01T00:00:00Z",
-    lastTickAt: null,
-    nextEligibleAt: null,
-    schedule: null,
-    disabled: false,
-    agent: null,
-    reviewer: null,
-    action: null,
-    mentions: [],
-    agentAction: null,
-    agentActions: [],
-    agentResponsibilityTools: [],
-    tickScript: null,
-    readsFrom: [],
-    writesTo: [],
     htmlUrl: "https://gh/x",
     ...over,
   };
@@ -191,11 +150,9 @@ describe("companyBundleSchema", () => {
     exportedAt: "2026-01-01T00:00:00Z",
     exportedFrom: "acme/widgets",
     agent: [],
-    agentResponsibilities: [],
     contexts: [],
     commands: [],
     capabilities: [],
-    agentActions: [],
     goals: [],
     instructions: null,
     config: null,
@@ -204,7 +161,6 @@ describe("companyBundleSchema", () => {
   it("accepts a valid bundle and applies collection defaults", () => {
     const parsed = companyBundleSchema.parse({ kodyCompany: 1 });
     expect(parsed.agent).toEqual([]);
-    expect(parsed.agentResponsibilities).toEqual([]);
     expect(parsed.contexts).toEqual([]);
     expect(parsed.commands).toEqual([]);
     expect(parsed.capabilities).toEqual([]);
@@ -217,51 +173,13 @@ describe("companyBundleSchema", () => {
     expect(() => companyBundleSchema.parse({ foo: "bar" })).toThrow();
   });
 
-  it("rejects an invalid agentResponsibility slug", () => {
+  it("rejects an invalid capability slug", () => {
     expect(() =>
       companyBundleSchema.parse({
         ...base,
-        agentResponsibilities: [{ slug: "Bad Slug!", title: "x" }],
+        capabilities: [{ slug: "Bad Slug!", files: {} }],
       }),
     ).toThrow();
-  });
-
-  it("defaults a agentResponsibility's schedule/disabled/agent and keeps a valid one", () => {
-    const parsed = companyBundleSchema.parse({
-      ...base,
-      agentResponsibilities: [
-        {
-          slug: "nightly",
-          title: "Nightly",
-          body: "do it",
-          schedule: "1d",
-          agent: "cto",
-          reviewer: "qa",
-        },
-        { slug: "ad-hoc", title: "Ad hoc" },
-      ],
-    });
-    expect(parsed.agentResponsibilities[0]).toMatchObject({
-      schedule: "1d",
-      agent: "cto",
-      reviewer: "qa",
-      disabled: false,
-    });
-    expect(parsed.agentResponsibilities[1]).toMatchObject({
-      schedule: null,
-      agent: null,
-      reviewer: null,
-      disabled: false,
-      body: "",
-      mentions: [],
-      action: null,
-      agentAction: null,
-      agentActions: [],
-      agentResponsibilityTools: [],
-      tickScript: null,
-      readsFrom: [],
-      writesTo: [],
-    });
   });
 });
 
@@ -270,23 +188,7 @@ describe("buildCompanyBundle", () => {
     h.listAgentFiles.mockResolvedValue([
       tickFile({ slug: "cto", title: "CTO" }),
     ]);
-    h.listAgentResponsibilityFiles.mockResolvedValue([
-      tickFile({
-        slug: "nightly",
-        title: "Nightly",
-        schedule: "1d",
-        agent: "cto",
-        reviewer: "qa",
-        mentions: ["alice"],
-        action: "nightly",
-        agentAction: "ci-health-graph",
-        agentActions: ["ci-health-graph"],
-        agentResponsibilityTools: ["read_report"],
-        tickScript: ".kody/scripts/nightly.sh",
-        readsFrom: ["company-graph"],
-        writesTo: ["ci-health-graph"],
-      }),
-    ]);
+    h.listCapabilityFiles.mockResolvedValue([]);
     h.listContextFiles.mockResolvedValue([
       {
         slug: "reports",
@@ -345,34 +247,8 @@ describe("buildCompanyBundle", () => {
         slug: "cto",
         title: "CTO",
         body: "b",
-        schedule: null,
-        disabled: false,
-        agent: null,
-        reviewer: null,
-        mentions: [],
-        action: null,
-        agentAction: null,
-        agentActions: [],
-        agentResponsibilityTools: [],
-        tickScript: null,
-        readsFrom: [],
-        writesTo: [],
       },
     ]);
-    expect(bundle.agentResponsibilities[0]).toMatchObject({
-      slug: "nightly",
-      schedule: "1d",
-      agent: "cto",
-      reviewer: "qa",
-      mentions: ["alice"],
-      action: "nightly",
-      agentAction: "ci-health-graph",
-      agentActions: ["ci-health-graph"],
-      agentResponsibilityTools: ["read_report"],
-      tickScript: ".kody/scripts/nightly.sh",
-      readsFrom: ["company-graph"],
-      writesTo: ["ci-health-graph"],
-    });
     expect(bundle.contexts).toEqual([
       {
         slug: "reports",
@@ -397,7 +273,7 @@ describe("buildCompanyBundle", () => {
 
   it("emits null instructions when the file is blank/absent", async () => {
     h.listAgentFiles.mockResolvedValue([]);
-    h.listAgentResponsibilityFiles.mockResolvedValue([]);
+    h.listCapabilityFiles.mockResolvedValue([]);
     h.listContextFiles.mockResolvedValue([]);
     h.listRepoCommandFiles.mockResolvedValue({
       commands: [],
@@ -408,45 +284,9 @@ describe("buildCompanyBundle", () => {
     expect(bundle.instructions).toBeNull();
   });
 
-  it("exports agentAction folders recursively", async () => {
-    h.listAgentFiles.mockResolvedValue([]);
-    h.listAgentResponsibilityFiles.mockResolvedValue([]);
-    h.listContextFiles.mockResolvedValue([]);
-    h.listRepoCommandFiles.mockResolvedValue({
-      commands: [],
-      builtinsDisabled: false,
-    });
-    h.readInstructionsFile.mockResolvedValue(null);
-    h.listAgentActionFiles.mockResolvedValue([
-      { slug: "repo-graph", describe: "", landing: "comment" },
-    ]);
-    h.readAgentActionFolderFiles.mockResolvedValue({
-      "profile.json": '{"name":"repo-graph"}\n',
-      "prompt.md": "# Instructions\n",
-      "scripts/refresh.cjs": "console.log('ok');\n",
-      "skills/repo-graph/SKILL.md": "# Skill\n",
-      "templates/report.md": "# Report\n",
-    });
-
-    const bundle = await buildCompanyBundle();
-
-    expect(bundle.agentActions).toEqual([
-      {
-        slug: "repo-graph",
-        files: {
-          "profile.json": '{"name":"repo-graph"}\n',
-          "prompt.md": "# Instructions\n",
-          "scripts/refresh.cjs": "console.log('ok');\n",
-          "skills/repo-graph/SKILL.md": "# Skill\n",
-          "templates/report.md": "# Report\n",
-        },
-      },
-    ]);
-  });
-
   it("exports capability folders recursively", async () => {
     h.listAgentFiles.mockResolvedValue([]);
-    h.listAgentResponsibilityFiles.mockResolvedValue([]);
+    h.listCapabilityFiles.mockResolvedValue([]);
     h.listContextFiles.mockResolvedValue([]);
     h.listRepoCommandFiles.mockResolvedValue({
       commands: [],
@@ -478,7 +318,7 @@ describe("buildCompanyBundle", () => {
 });
 
 describe("applyCompanyBundle", () => {
-  const bundle = {
+  const bundle: CompanyBundle = {
     kodyCompany: COMPANY_BUNDLE_VERSION,
     exportedAt: "",
     exportedFrom: "",
@@ -487,37 +327,6 @@ describe("applyCompanyBundle", () => {
         slug: "cto",
         title: "CTO",
         body: "x",
-        schedule: null,
-        disabled: false,
-        agent: null,
-        reviewer: null,
-        action: null,
-        mentions: [],
-        agentAction: null,
-        agentActions: [],
-        agentResponsibilityTools: [],
-        tickScript: null,
-        readsFrom: [],
-        writesTo: [],
-      },
-    ],
-    agentResponsibilities: [
-      {
-        slug: "nightly",
-        title: "N",
-        body: "y",
-        schedule: "1d" as const,
-        disabled: false,
-        agent: "cto",
-        reviewer: "qa",
-        action: "nightly",
-        mentions: ["alice"],
-        agentAction: "ci-health-graph",
-        agentActions: ["ci-health-graph"],
-        agentResponsibilityTools: ["read_report"],
-        tickScript: ".kody/scripts/nightly.sh",
-        readsFrom: ["company-graph"],
-        writesTo: ["ci-health-graph"],
       },
     ],
     commands: [
@@ -531,7 +340,6 @@ describe("applyCompanyBundle", () => {
       },
     ],
     capabilities: [],
-    agentActions: [],
     goals: [],
     instructions: "Be terse.",
     config: null,
@@ -539,12 +347,10 @@ describe("applyCompanyBundle", () => {
 
   it("creates everything on a fresh repo", async () => {
     h.readAgentFile.mockResolvedValue(null);
-    h.readAgentResponsibilityFile.mockResolvedValue(null);
     h.readCommandFile.mockResolvedValue(null);
     h.readContextFile.mockResolvedValue(null);
     h.readInstructionsFile.mockResolvedValue(null);
     h.writeAgentFile.mockResolvedValue({});
-    h.writeAgentResponsibilityFile.mockResolvedValue({});
     h.writeCommandFile.mockResolvedValue({});
     h.writeContextFile.mockResolvedValue({});
     h.writeInstructionsFile.mockResolvedValue({});
@@ -557,27 +363,9 @@ describe("applyCompanyBundle", () => {
       skipped: 0,
       failed: 0,
     });
-    expect(result.agentResponsibilities).toMatchObject({ created: 1, skipped: 0 });
     expect(result.commands).toMatchObject({ created: 1 });
     expect(result.contexts).toMatchObject({ created: 1 });
     expect(result.instructions).toBe("created");
-    // a agentResponsibility carries its agent/reviewer agent slugs through to the writer
-    expect(h.writeAgentResponsibilityFile).toHaveBeenCalledWith(
-      expect.objectContaining({
-        slug: "nightly",
-        agent: "cto",
-        reviewer: "qa",
-        schedule: "1d",
-        action: "nightly",
-        mentions: ["alice"],
-        agentAction: "ci-health-graph",
-        agentActions: ["ci-health-graph"],
-        agentResponsibilityTools: ["read_report"],
-        tickScript: ".kody/scripts/nightly.sh",
-        readsFrom: ["company-graph"],
-        writesTo: ["ci-health-graph"],
-      }),
-    );
   });
 
   it("imports managed goals", async () => {
@@ -586,7 +374,6 @@ describe("applyCompanyBundle", () => {
       {
         ...bundle,
         agent: [],
-        agentResponsibilities: [],
         contexts: [],
         commands: [],
         goals: [{ id: "ship-goals-page", state: goalState }],
@@ -609,7 +396,6 @@ describe("applyCompanyBundle", () => {
 
   it("skips existing artifacts in skip mode (no writes)", async () => {
     h.readAgentFile.mockResolvedValue({ sha: "a" });
-    h.readAgentResponsibilityFile.mockResolvedValue({ sha: "b" });
     h.readCommandFile.mockResolvedValue({ sha: "c" });
     h.readContextFile.mockResolvedValue({ sha: "ctx" });
     h.readInstructionsFile.mockResolvedValue({ sha: "d" });
@@ -625,12 +411,10 @@ describe("applyCompanyBundle", () => {
 
   it("updates existing artifacts in overwrite mode (passes sha)", async () => {
     h.readAgentFile.mockResolvedValue({ sha: "agent-sha" });
-    h.readAgentResponsibilityFile.mockResolvedValue({ sha: "agentResponsibility-sha" });
     h.readCommandFile.mockResolvedValue({ sha: "command-sha" });
     h.readContextFile.mockResolvedValue({ sha: "ctx-sha" });
     h.readInstructionsFile.mockResolvedValue({ sha: "instr-sha" });
     h.writeAgentFile.mockResolvedValue({});
-    h.writeAgentResponsibilityFile.mockResolvedValue({});
     h.writeCommandFile.mockResolvedValue({});
     h.writeContextFile.mockResolvedValue({});
     h.writeInstructionsFile.mockResolvedValue({});
@@ -647,8 +431,6 @@ describe("applyCompanyBundle", () => {
   it("records a per-item failure without aborting the import", async () => {
     h.readAgentFile.mockResolvedValue(null);
     h.writeAgentFile.mockRejectedValue(new Error("boom"));
-    h.readAgentResponsibilityFile.mockResolvedValue(null);
-    h.writeAgentResponsibilityFile.mockResolvedValue({});
     h.readCommandFile.mockResolvedValue(null);
     h.readContextFile.mockResolvedValue(null);
     h.writeCommandFile.mockResolvedValue({});
@@ -659,17 +441,14 @@ describe("applyCompanyBundle", () => {
     const result = await applyCompanyBundle(octokit, bundle, "skip");
 
     expect(result.agent).toMatchObject({ failed: 1, created: 0 });
-    expect(result.agentResponsibilities).toMatchObject({ created: 1 });
     expect(result.notes.some((n) => n.includes("boom"))).toBe(true);
   });
 
   it("reports instructions absent when the bundle has none", async () => {
     h.readAgentFile.mockResolvedValue(null);
-    h.readAgentResponsibilityFile.mockResolvedValue(null);
     h.readCommandFile.mockResolvedValue(null);
     h.readContextFile.mockResolvedValue(null);
     h.writeAgentFile.mockResolvedValue({});
-    h.writeAgentResponsibilityFile.mockResolvedValue({});
     h.writeCommandFile.mockResolvedValue({});
     h.writeContextFile.mockResolvedValue({});
     const result = await applyCompanyBundle(
@@ -679,42 +458,6 @@ describe("applyCompanyBundle", () => {
     );
     expect(result.instructions).toBe("absent");
     expect(h.writeInstructionsFile).not.toHaveBeenCalled();
-  });
-
-  it("imports agentAction folders exactly, including nested dependencies", async () => {
-    const files = {
-      "profile.json": '{"name":"repo-graph"}\n',
-      "prompt.md": "# Instructions\n",
-      "scripts/refresh.cjs": "console.log('ok');\n",
-      "skills/repo-graph/SKILL.md": "# Skill\n",
-      "templates/report.md": "# Report\n",
-    };
-    h.readAgentActionFolderFiles.mockResolvedValue(null);
-    h.writeAgentActionFolderFiles.mockResolvedValue(undefined);
-
-    const result = await applyCompanyBundle(
-      octokit,
-      {
-        ...bundle,
-        agent: [],
-        agentResponsibilities: [],
-        contexts: [],
-        commands: [],
-        agentActions: [{ slug: "repo-graph", files }],
-        goals: [],
-        instructions: null,
-      },
-      "skip",
-    );
-
-    expect(result.agentActions).toMatchObject({ created: 1, failed: 0 });
-    expect(h.writeAgentActionFolderFiles).toHaveBeenCalledWith({
-      octokit,
-      slug: "repo-graph",
-      files,
-      isUpdate: false,
-    });
-    expect(h.writeAgentActionFile).not.toHaveBeenCalled();
   });
 
   it("imports capability folders exactly, including nested dependencies", async () => {
@@ -731,11 +474,9 @@ describe("applyCompanyBundle", () => {
       {
         ...bundle,
         agent: [],
-        agentResponsibilities: [],
         contexts: [],
         commands: [],
         capabilities: [{ slug: "repo-graph", files }],
-        agentActions: [],
         goals: [],
         instructions: null,
       },
@@ -749,6 +490,5 @@ describe("applyCompanyBundle", () => {
       files,
       isUpdate: false,
     });
-    expect(h.writeAgentActionFolderFiles).not.toHaveBeenCalled();
   });
 });

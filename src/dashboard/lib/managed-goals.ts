@@ -12,7 +12,7 @@ export interface ManagedGoalPreferredRunTime {
   time: string;
   timezone: string;
 }
-export type ManagedLoopTargetType = "agentResponsibility" | "goal";
+export type ManagedLoopTargetType = "capability" | "goal";
 export interface ManagedLoopTarget {
   type: ManagedLoopTargetType;
   id: string;
@@ -37,7 +37,7 @@ export interface ManagedGoalTypeDefinition {
   systemSummary: string;
   promptPlaceholder: string;
   evidence: string[];
-  agentResponsibilities: string[];
+  capabilities: string[];
   route: ManagedGoalRouteStep[];
 }
 
@@ -54,25 +54,22 @@ export const MANAGED_GOAL_TYPES: ManagedGoalTypeDefinition[] = [
     promptPlaceholder:
       "Example: Make goal creation simple enough to use daily.",
     evidence: ["planReady", "changeImplemented", "changeVerified"],
-    agentResponsibilities: ["plan", "fix", "review"],
+    capabilities: ["plan", "fix", "review"],
     route: [
       {
         stage: "plan",
         evidence: "planReady",
-        agentResponsibility: "plan",
-        agentAction: "plan",
+        capability: "plan",
       },
       {
         stage: "implement",
         evidence: "changeImplemented",
-        agentResponsibility: "fix",
-        agentAction: "fix",
+        capability: "fix",
       },
       {
         stage: "review",
         evidence: "changeVerified",
-        agentResponsibility: "review",
-        agentAction: "review",
+        capability: "review",
       },
     ],
   },
@@ -81,14 +78,14 @@ export const MANAGED_GOAL_TYPES: ManagedGoalTypeDefinition[] = [
     model: "agentLoop",
     label: "AgentLoop",
     description:
-      "Run recurring agentResponsibilities on schedule and surface health or drift.",
+      "Run recurring capabilities on schedule and surface health or drift.",
     bestFor:
       "Ongoing health, maintenance, QA sweeps, monitoring, and repo hygiene.",
     systemSummary:
-      "Kody runs agentLoop agentResponsibilities on selected schedule and records findings.",
+      "Kody runs agentLoop capabilities on selected schedule and records findings.",
     promptPlaceholder: "Example: Keep codebase healthy and report drift.",
     evidence: [],
-    agentResponsibilities: [
+    capabilities: [
       "cleanup",
       "code-health",
       "docs-health",
@@ -115,8 +112,8 @@ export const MANAGED_GOAL_TYPES: ManagedGoalTypeDefinition[] = [
       "Kody tracks release PR, merge, and production deployment evidence.",
     promptPlaceholder: "Example: Publish Kody Dashboard to production safely.",
     evidence: ["releasePrExists", "mainMerged", "productionDeployed"],
-    agentResponsibilities: [
-      "release",
+    capabilities: [
+      "release-prepare",
       "task-leader",
       "vercel-production-deploy",
     ],
@@ -124,8 +121,7 @@ export const MANAGED_GOAL_TYPES: ManagedGoalTypeDefinition[] = [
       {
         stage: "release",
         evidence: "releasePrExists",
-        agentResponsibility: "release",
-        agentAction: "release-prepare",
+        capability: "release-prepare",
         args: {
           issue: { fact: "issue" },
           goal: "web-release",
@@ -134,8 +130,7 @@ export const MANAGED_GOAL_TYPES: ManagedGoalTypeDefinition[] = [
       {
         stage: "merge",
         evidence: "mainMerged",
-        agentResponsibility: "task-leader",
-        agentAction: "task-leader",
+        capability: "task-leader",
         args: {
           issue: { fact: "issue" },
         },
@@ -143,8 +138,7 @@ export const MANAGED_GOAL_TYPES: ManagedGoalTypeDefinition[] = [
       {
         stage: "publish",
         evidence: "productionDeployed",
-        agentResponsibility: "vercel-production-deploy",
-        agentAction: "vercel-production-deploy",
+        capability: "vercel-production-deploy",
       },
     ],
   },
@@ -160,13 +154,12 @@ export const MANAGED_GOAL_TYPES: ManagedGoalTypeDefinition[] = [
       "Kody verifies the requested checklist and records completion evidence.",
     promptPlaceholder: "Example: Verify release readiness before launch.",
     evidence: ["checklistComplete"],
-    agentResponsibilities: ["task-verifier"],
+    capabilities: ["task-verifier"],
     route: [
       {
         stage: "verify",
         evidence: "checklistComplete",
-        agentResponsibility: "task-verifier",
-        agentAction: "task-verifier",
+        capability: "task-verifier",
       },
     ],
   },
@@ -180,13 +173,12 @@ export interface ManagedGoalDestination {
 export interface ManagedGoalRouteStep {
   stage: string;
   evidence: string;
-  agentResponsibility: string;
-  agentAction?: string;
+  capability: string;
   saveReport?: boolean;
   args?: Record<string, unknown>;
 }
 
-export interface ManagedGoalAgentResponsibilityScheduleStatus {
+export interface ManagedGoalCapabilityScheduleStatus {
   slug: string;
   title?: string;
   cadence?: string;
@@ -196,22 +188,21 @@ export interface ManagedGoalAgentResponsibilityScheduleStatus {
   reason: string;
 }
 
-export interface ManagedGoalAgentResponsibilityScheduleState {
+export interface ManagedGoalCapabilityScheduleState {
   mode: "agentLoop";
   lastGoalTickAt: string;
   lastDecision:
     | {
         kind: "dispatch";
-        agentResponsibility: string;
-        agentAction: string;
+        capability: string;
         reason: string;
         at: string;
       }
     | { kind: "idle"; reason: string; at: string }
     | { kind: "blocked"; reason: string; at: string };
-  agentResponsibilities: Record<
+  capabilities: Record<
     string,
-    ManagedGoalAgentResponsibilityScheduleStatus
+    ManagedGoalCapabilityScheduleStatus
   >;
 }
 
@@ -220,7 +211,7 @@ export interface ManagedGoalState {
   state: ManagedGoalStateValue;
   type: string;
   destination: ManagedGoalDestination;
-  agentResponsibilities: string[];
+  capabilities: string[];
   route: ManagedGoalRouteStep[];
   schedule?: ManagedGoalSchedule;
   preferredRunTime?: ManagedGoalPreferredRunTime;
@@ -230,7 +221,7 @@ export interface ManagedGoalState {
   scheduleMode?: "agentLoop" | string;
   loopTarget?: ManagedLoopTarget;
   saveReport?: boolean;
-  scheduleState?: ManagedGoalAgentResponsibilityScheduleState;
+  scheduleState?: ManagedGoalCapabilityScheduleState;
   latestInstanceId?: string;
   instanceCount?: number;
   instanceIds?: string[];
@@ -392,7 +383,7 @@ export interface CreateManagedGoalInput {
   preferredRunTime?: ManagedGoalPreferredRunTime | null;
   loopTarget?: ManagedLoopTarget;
   saveReport?: boolean;
-  agentResponsibilities?: string[];
+  capabilities?: string[];
   evidence?: string[];
   route?: ManagedGoalRouteStep[];
 }
@@ -405,7 +396,7 @@ export interface SimpleManagedGoalCreateFields {
   prompt: string;
   loopTarget?: ManagedLoopTarget;
   saveReport?: boolean;
-  agentResponsibilities?: string[];
+  capabilities?: string[];
   evidence?: string[];
   route?: ManagedGoalRouteStep[];
 }
@@ -419,7 +410,7 @@ export interface UpdateManagedGoalInput {
   preferredRunTime?: ManagedGoalPreferredRunTime | null;
   loopTarget?: ManagedLoopTarget;
   saveReport?: boolean;
-  agentResponsibilities?: string[];
+  capabilities?: string[];
   evidence?: string[];
   route?: ManagedGoalRouteStep[];
 }
@@ -500,7 +491,7 @@ function isWebReleaseGoal(goal: Partial<ManagedGoalState>): boolean {
   );
 }
 
-function normalizeManagedGoalResponsibility(
+function normalizeManagedGoalCapability(
   goal: Partial<ManagedGoalState>,
   slug: string,
 ): string {
@@ -510,12 +501,94 @@ function normalizeManagedGoalResponsibility(
   return slug;
 }
 
+function normalizeManagedGoalScheduleState(
+  value: unknown,
+): ManagedGoalCapabilityScheduleState | undefined {
+  if (!value || typeof value !== "object" || Array.isArray(value)) {
+    return undefined;
+  }
+  const raw = value as {
+    mode?: unknown;
+    lastGoalTickAt?: unknown;
+    lastDecision?: unknown;
+    capabilities?: unknown;
+  };
+  if (raw.mode !== "agentLoop" || typeof raw.lastGoalTickAt !== "string") {
+    return undefined;
+  }
+
+  const rawCapabilities = raw.capabilities;
+  const capabilities: Record<string, ManagedGoalCapabilityScheduleStatus> = {};
+  if (rawCapabilities && typeof rawCapabilities === "object") {
+    for (const [slug, status] of Object.entries(rawCapabilities)) {
+      if (!status || typeof status !== "object" || Array.isArray(status)) {
+        continue;
+      }
+      const item = status as Partial<ManagedGoalCapabilityScheduleStatus>;
+      capabilities[slug] = {
+        slug: typeof item.slug === "string" ? item.slug : slug,
+        ...(typeof item.title === "string" ? { title: item.title } : {}),
+        ...(typeof item.cadence === "string" ? { cadence: item.cadence } : {}),
+        ...(typeof item.lastFiredAt === "string"
+          ? { lastFiredAt: item.lastFiredAt }
+          : {}),
+        ...(typeof item.nextEligibleAt === "string"
+          ? { nextEligibleAt: item.nextEligibleAt }
+          : {}),
+        state: item.state ?? "waiting",
+        reason: typeof item.reason === "string" ? item.reason : "",
+      };
+    }
+  }
+
+  const rawDecision =
+    raw.lastDecision && typeof raw.lastDecision === "object"
+      ? (raw.lastDecision as {
+          kind?: unknown;
+          capability?: unknown;
+          executable?: unknown;
+          reason?: unknown;
+          at?: unknown;
+        })
+      : null;
+  let lastDecision: ManagedGoalCapabilityScheduleState["lastDecision"] = {
+    kind: "idle",
+    reason: "",
+    at: raw.lastGoalTickAt,
+  };
+  if (rawDecision?.kind === "dispatch") {
+    lastDecision = {
+      kind: "dispatch",
+      capability:
+        typeof rawDecision.capability === "string"
+          ? rawDecision.capability
+          : typeof rawDecision.executable === "string"
+            ? rawDecision.executable
+            : "",
+      reason: typeof rawDecision.reason === "string" ? rawDecision.reason : "",
+      at: typeof rawDecision.at === "string" ? rawDecision.at : "",
+    };
+  } else if (rawDecision?.kind === "idle" || rawDecision?.kind === "blocked") {
+    lastDecision = {
+      kind: rawDecision.kind,
+      reason: typeof rawDecision.reason === "string" ? rawDecision.reason : "",
+      at: typeof rawDecision.at === "string" ? rawDecision.at : "",
+    };
+  }
+
+  return {
+    mode: "agentLoop",
+    lastGoalTickAt: raw.lastGoalTickAt,
+    lastDecision,
+    capabilities,
+  };
+}
+
 function cloneRouteStep(step: ManagedGoalRouteStep): ManagedGoalRouteStep {
   return {
     stage: step.stage,
     evidence: step.evidence,
-    agentResponsibility: step.agentResponsibility,
-    ...(step.agentAction ? { agentAction: step.agentAction } : {}),
+    capability: step.capability,
     ...(step.saveReport === true ? { saveReport: true } : {}),
     ...(step.args ? { args: step.args } : {}),
   };
@@ -536,8 +609,8 @@ export function buildSimpleManagedGoalCreateInput(
     ...(typeof fields.saveReport === "boolean"
       ? { saveReport: fields.saveReport }
       : {}),
-    ...(fields.agentResponsibilities
-      ? { agentResponsibilities: fields.agentResponsibilities }
+    ...(fields.capabilities
+      ? { capabilities: fields.capabilities }
       : {}),
     ...(fields.evidence ? { evidence: fields.evidence } : {}),
     ...(fields.route ? { route: fields.route } : {}),
@@ -562,7 +635,7 @@ export function buildManagedGoalState(
         evidence: [SIMPLE_MANAGED_GOAL_EVIDENCE],
       },
       schedule: input.schedule ?? "manual",
-      agentResponsibilities: [],
+      capabilities: [],
       route: [],
       stage: "waiting",
       facts: {
@@ -590,14 +663,14 @@ export function buildManagedGoalState(
     : undefined;
   const evidenceInput = input.evidence ?? selectedGoalType?.evidence ?? [];
   const routeInput = input.route ?? selectedGoalType?.route ?? [];
-  const agentResponsibilityInput =
-    input.agentResponsibilities !== undefined
-      ? input.agentResponsibilities
-      : loopTarget?.type === "agentResponsibility"
+  const capabilityInput =
+    input.capabilities !== undefined
+      ? input.capabilities
+      : loopTarget?.type === "capability"
         ? [loopTarget.id]
         : isRoutine
           ? []
-          : (selectedGoalType?.agentResponsibilities ?? []);
+          : (selectedGoalType?.capabilities ?? []);
   const evidence = evidenceInput.map(normalizeEvidenceKey).filter(Boolean);
   const evidenceSet = new Set(evidence);
   const route = routeInput
@@ -605,10 +678,7 @@ export function buildManagedGoalState(
     .map((step) => ({
       stage: step.stage.trim(),
       evidence: normalizeEvidenceKey(step.evidence),
-      agentResponsibility: step.agentResponsibility.trim(),
-      ...(step.agentAction?.trim()
-        ? { agentAction: step.agentAction.trim() }
-        : {}),
+      capability: step.capability.trim(),
       ...(step.saveReport === true ? { saveReport: true } : {}),
       ...(step.args ? { args: step.args } : {}),
     }))
@@ -616,12 +686,12 @@ export function buildManagedGoalState(
       (step) =>
         step.stage &&
         step.evidence &&
-        step.agentResponsibility &&
+        step.capability &&
         evidenceSet.has(step.evidence),
     );
-  const agentResponsibilities = uniqueStrings([
-    ...agentResponsibilityInput,
-    ...route.map((step) => step.agentResponsibility),
+  const capabilities = uniqueStrings([
+    ...capabilityInput,
+    ...route.map((step) => step.capability),
   ]);
   return {
     version: 1,
@@ -642,7 +712,7 @@ export function buildManagedGoalState(
             : {}),
         }
       : {}),
-    agentResponsibilities,
+    capabilities,
     route,
     stage: route[0]?.stage,
     facts: selectedGoalType ? { goalType: selectedGoalType.id } : {},
@@ -653,6 +723,7 @@ export function buildManagedGoalState(
 export function isManagedGoalState(value: unknown): value is ManagedGoalState {
   if (!value || typeof value !== "object" || Array.isArray(value)) return false;
   const goal = value as Partial<ManagedGoalState>;
+  const legacy = value as { capabilities?: unknown };
   return (
     goal.version === 1 &&
     typeof goal.state === "string" &&
@@ -662,7 +733,8 @@ export function isManagedGoalState(value: unknown): value is ManagedGoalState {
     Array.isArray(
       (goal.destination as Partial<ManagedGoalDestination>).evidence,
     ) &&
-    Array.isArray(goal.agentResponsibilities) &&
+    (Array.isArray(goal.capabilities) ||
+      Array.isArray(legacy.capabilities)) &&
     Array.isArray(goal.route) &&
     !!goal.facts &&
     typeof goal.facts === "object" &&
@@ -697,36 +769,32 @@ export function normalizeManagedGoalState(
     .map((step) => {
       if (!step || typeof step !== "object" || Array.isArray(step)) return null;
       const legacyStep = step as ManagedGoalRouteStep & {
-        duty?: unknown;
+        capability?: unknown;
         executable?: unknown;
+        duty?: unknown;
       };
       const stage =
         typeof legacyStep.stage === "string" ? legacyStep.stage : "";
       const evidence =
         typeof legacyStep.evidence === "string" ? legacyStep.evidence : "";
-      const rawAgentResponsibility =
-        typeof legacyStep.agentResponsibility === "string"
-          ? legacyStep.agentResponsibility
-          : typeof legacyStep.duty === "string"
-            ? legacyStep.duty
-            : "";
-      const agentAction =
-        typeof legacyStep.agentAction === "string"
-          ? legacyStep.agentAction
+      const rawCapability =
+        typeof legacyStep.capability === "string"
+          ? legacyStep.capability
           : typeof legacyStep.executable === "string"
             ? legacyStep.executable
+            : typeof legacyStep.duty === "string"
+              ? legacyStep.duty
             : "";
 
-      if (!stage || !evidence || !rawAgentResponsibility) return null;
-      const agentResponsibility = normalizeManagedGoalResponsibility(
+      if (!stage || !evidence || !rawCapability) return null;
+      const capability = normalizeManagedGoalCapability(
         goal,
-        rawAgentResponsibility,
+        rawCapability,
       );
       return {
         stage,
         evidence,
-        agentResponsibility,
-        ...(agentAction ? { agentAction } : {}),
+        capability,
         ...(legacyStep.saveReport === true ? { saveReport: true } : {}),
         ...(legacyStep.args && typeof legacyStep.args === "object"
           ? { args: legacyStep.args as Record<string, unknown> }
@@ -736,23 +804,35 @@ export function normalizeManagedGoalState(
     .filter((step): step is ManagedGoalRouteStep => !!step);
 
   const legacyDuties = (goal as { duties?: unknown }).duties;
-  const agentResponsibilities = uniqueStrings(
+  const legacyResponsibilities = (goal as {
+    capabilities?: unknown;
+  }).capabilities;
+  const scheduleState = normalizeManagedGoalScheduleState(
+    (goal as { scheduleState?: unknown }).scheduleState,
+  );
+  const capabilities = uniqueStrings(
     [
-      ...(Array.isArray(goal.agentResponsibilities)
-        ? goal.agentResponsibilities.filter(
-            (responsibility): responsibility is string =>
-              typeof responsibility === "string",
+      ...(Array.isArray(goal.capabilities)
+        ? goal.capabilities.filter(
+            (capability): capability is string =>
+              typeof capability === "string",
+          )
+        : []),
+      ...(Array.isArray(legacyResponsibilities)
+        ? legacyResponsibilities.filter(
+            (capability): capability is string =>
+              typeof capability === "string",
           )
         : []),
       ...(Array.isArray(legacyDuties)
         ? legacyDuties.filter(
-            (responsibility): responsibility is string =>
-              typeof responsibility === "string",
+            (capability): capability is string =>
+              typeof capability === "string",
           )
         : []),
-      ...route.map((step) => step.agentResponsibility),
-    ].map((responsibility) =>
-      normalizeManagedGoalResponsibility(goal, responsibility),
+      ...route.map((step) => step.capability),
+    ].map((capability) =>
+      normalizeManagedGoalCapability(goal, capability),
     ),
   );
 
@@ -764,8 +844,9 @@ export function normalizeManagedGoalState(
         typeof destination.outcome === "string" ? destination.outcome : "",
       evidence: destination.evidence,
     },
-    agentResponsibilities,
+    capabilities,
     route,
+    ...(scheduleState ? { scheduleState } : {}),
     facts: goal.facts,
     blockers: goal.blockers,
   } as ManagedGoalState;

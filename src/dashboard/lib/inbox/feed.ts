@@ -73,8 +73,8 @@ export interface InboxFeedEntry {
   ctoCommand?: string;
   /** Emitting agent slug from the raw body's `kody-agent` line (recs only). */
   ctoAgent?: string;
-  /** Emitting agentResponsibility slug from the raw body's `kody-agentResponsibility` line — the trust key. */
-  ctoAgentResponsibility?: string;
+  /** Emitting capability slug from the raw body's `kody-capability` line — the trust key. */
+  ctoCapability?: string;
   /**
    * Server-classified notification category for this entry (`chat-response`,
    * `task-assigned`, …), computed from the source event at write time. Drives
@@ -108,6 +108,14 @@ function isFeedEntry(v: unknown): v is InboxFeedEntry {
   );
 }
 
+function normalizeFeedEntry(entry: InboxFeedEntry & { ctoCapability?: string }): InboxFeedEntry {
+  const { ctoCapability, ...rest } = entry;
+  return {
+    ...rest,
+    ...(ctoCapability ? { ctoCapability } : {}),
+  };
+}
+
 export function parseInboxFeedBody(
   body: string | null | undefined,
 ): InboxFeedManifest {
@@ -132,7 +140,7 @@ export function parseInboxFeedBody(
     const parsed = JSON.parse(json) as Partial<InboxFeedManifest>;
     if (!parsed || typeof parsed !== "object" || !Array.isArray(parsed.entries))
       return { ...EMPTY_INBOX_FEED_MANIFEST, entries: [] };
-    const entries = parsed.entries.filter(isFeedEntry);
+    const entries = parsed.entries.filter(isFeedEntry).map(normalizeFeedEntry);
     return { version: 1, entries };
   } catch {
     return { ...EMPTY_INBOX_FEED_MANIFEST, entries: [] };

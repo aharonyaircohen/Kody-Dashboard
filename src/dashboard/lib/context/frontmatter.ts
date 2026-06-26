@@ -46,7 +46,7 @@ const LEGACY_AUDIENCE_TO_AGENT: Record<string, string> = {
   qa: QA_AGENT,
 };
 
-/** Same slug shape as context/agents/agentResponsibility slugs. */
+/** Same slug shape as context/agents/capability slugs. */
 const AGENT_SLUG_RE = /^[a-z0-9][a-z0-9_-]{0,63}$/;
 
 export interface ContextFrontmatter {

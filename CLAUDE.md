@@ -184,7 +184,7 @@ Three layers, merged at runtime:
 
 - **Repo commands** live at `.kody/commands/<slug>.md` (frontmatter: `description`, `argument-hint`; body template). Repo wins on slug collision.
 - **Store commands** live at `.kody/commands/<slug>.md` in the configured company store and provide shared defaults such as `/factory`.
-- **Built-ins** ship in [src/dashboard/lib/commands/builtins.ts](src/dashboard/lib/commands/builtins.ts) (`/plan`, `/research`, `/review`, `/explain`, `/issue`, `/goal`, `/analyze`, `/agentResponsibility`, `/init`). `/research`, `/plan`, `/issue` follow research-first flow enforced by kody-live system prompt; `/issue` ends opt-in `kody_run_issue` handoff.
+- **Built-ins** ship in [src/dashboard/lib/commands/builtins.ts](src/dashboard/lib/commands/builtins.ts) (`/plan`, `/research`, `/review`, `/explain`, `/issue`, `/goal`, `/analyze`, `/capability`, `/init`). `/research`, `/plan`, `/issue` follow research-first flow enforced by kody-live system prompt; `/issue` ends opt-in `kody_run_issue` handoff.
 
 Drop `.kody/commands/.disable-builtins` to suppress every built-in for the repo.
 
@@ -202,7 +202,7 @@ plain text + `$ARGUMENTS` for portable prompts.
 
 **Engine path details** (when used): dispatches `kody.yml` in the connected
 repo with the session ID and an inline HMAC token in `dashboardUrl`. The kody
-engine runs `kody-engine dispatch`, which branches to the chat agentAction, streams
+engine runs `kody-engine dispatch`, which branches to the chat executable, streams
 events back to `/api/kody/events/ingest` (real-time), and commits them to
 `.kody/events/{sessionId}.jsonl` (durable fallback, polled by
 `/api/kody/events/stream`). Token is verified via HMAC of sessionId with

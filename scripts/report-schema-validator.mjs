@@ -99,9 +99,11 @@ export function validateReportText(file, text) {
     errors.push("generatedAt is not a valid date-time");
   }
 
-  const agentResponsibilitySlug = topLevelValue(frontmatter, "agentResponsibilitySlug");
-  if (agentResponsibilitySlug !== null && agentResponsibilitySlug.length === 0) {
-    errors.push("agentResponsibilitySlug is empty");
+  const capabilitySlug =
+    topLevelValue(frontmatter, "capabilitySlug") ??
+    topLevelValue(frontmatter, "capabilitySlug");
+  if (capabilitySlug !== null && capabilitySlug.length === 0) {
+    errors.push("capabilitySlug is empty");
   }
 
   const reviewStatus = topLevelValue(frontmatter, "reviewStatus");
@@ -145,9 +147,9 @@ export function validateReportText(file, text) {
       );
     }
     if (action.type === "dispatch") {
-      if (!action.agentAction) {
+      if (!action.capability && !action.executable) {
         errors.push(
-          `suggestedActions[${index}] dispatch requires agentAction`,
+          `suggestedActions[${index}] dispatch requires capability`,
         );
       }
       if (!parsePositiveInteger(action.target)) {

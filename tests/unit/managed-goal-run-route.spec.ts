@@ -103,7 +103,7 @@ describe("managed goal run route", () => {
           outcome: "Ship web release.",
           evidence: ["releaseDone"],
         },
-        agentResponsibilities: ["release"],
+        capabilities: ["release"],
         route: [],
         facts: {},
         blockers: [],

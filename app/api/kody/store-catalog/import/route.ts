@@ -29,8 +29,9 @@ import {
   type ActiveGoalConfigEntry,
   type ConfigPatch,
 } from "@dashboard/lib/engine/config";
-import { readResolvedAgentResponsibilityFile } from "@dashboard/lib/agent-responsibilities-files";
+import { readResolvedCapabilityFile } from "@dashboard/lib/capabilities";
 import { listCompanyStoreGoalTemplateFiles } from "@dashboard/lib/managed-goals-files";
+import type { ManagedGoalState } from "@dashboard/lib/managed-goals";
 
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
@@ -38,8 +39,6 @@ export const revalidate = 0;
 type ImportKind =
   | "agent"
   | "capability"
-  | "agentAction"
-  | "agentResponsibility"
   | "agentGoal"
   | "agentLoop"
   | "command";
@@ -47,8 +46,6 @@ type ImportKind =
 type ActiveConfigField =
   | "activeAgents"
   | "activeCapabilities"
-  | "activeAgentActions"
-  | "activeAgentResponsibilities"
   | "activeCommands"
   | "activeGoals";
 
@@ -61,8 +58,6 @@ type ImportResult = {
 type ActivationPlan = {
   activeAgents: string[];
   activeCapabilities: string[];
-  activeAgentActions: string[];
-  activeAgentResponsibilities: string[];
   activeCommands: string[];
   activeGoals: string[];
 };
@@ -71,8 +66,6 @@ const importSchema = z.object({
   kind: z.enum([
     "agent",
     "capability",
-    "agentAction",
-    "agentResponsibility",
     "agentGoal",
     "agentLoop",
     "command",
@@ -84,8 +77,6 @@ function validSlug(kind: ImportKind, slug: string): boolean {
   switch (kind) {
     case "agent":
     case "capability":
-    case "agentAction":
-    case "agentResponsibility":
     case "agentGoal":
     case "agentLoop":
     case "command":
@@ -96,8 +87,6 @@ function validSlug(kind: ImportKind, slug: string): boolean {
 function configFieldFor(kind: ImportKind): ActiveConfigField {
   if (kind === "agent") return "activeAgents";
   if (kind === "capability") return "activeCapabilities";
-  if (kind === "agentAction") return "activeAgentActions";
-  if (kind === "agentResponsibility") return "activeAgentResponsibilities";
   if (kind === "command") return "activeCommands";
   return "activeGoals";
 }
@@ -145,8 +134,6 @@ function emptyActivationPlan(): ActivationPlan {
   return {
     activeAgents: [],
     activeCapabilities: [],
-    activeAgentActions: [],
-    activeAgentResponsibilities: [],
     activeCommands: [],
     activeGoals: [],
   };
@@ -180,25 +167,11 @@ async function assertStoreItemExists(
       (candidate) => validSlug("agent", candidate),
     );
     if (slugs.includes(slug)) return;
-  } else if (kind === "agentAction") {
-    const slugs = await listCompanyStoreAssetSlugs(
-      octokit,
-      "agent-actions",
-      (candidate) => validSlug("agentAction", candidate),
-    );
-    if (slugs.includes(slug)) return;
   } else if (kind === "capability") {
     const slugs = await listCompanyStoreAssetSlugs(
       octokit,
       "capabilities",
       (candidate) => validSlug("capability", candidate),
-    );
-    if (slugs.includes(slug)) return;
-  } else if (kind === "agentResponsibility") {
-    const slugs = await listCompanyStoreAssetSlugs(
-      octokit,
-      "agent-responsibilities",
-      (candidate) => validSlug("agentResponsibility", candidate),
     );
     if (slugs.includes(slug)) return;
   } else if (kind === "command") {
@@ -218,42 +191,38 @@ async function assertStoreItemExists(
   });
 }
 
-async function addResponsibilityDependencies(
+async function addCapabilityDependencies(
   octokit: Octokit,
   plan: ActivationPlan,
   slug: string,
 ): Promise<void> {
-  if (!validSlug("agentResponsibility", slug)) {
-    throw dependencyNotFound("agentResponsibility", slug);
+  if (!validSlug("capability", slug)) {
+    throw dependencyNotFound("capability", slug);
   }
 
-  addPlanSlug(plan, "activeAgentResponsibilities", slug);
+  addPlanSlug(plan, "activeCapabilities", slug);
 
-  const responsibility = await readResolvedAgentResponsibilityFile(
-    slug,
-    octokit,
-  );
-  if (!responsibility) {
-    throw dependencyNotFound("agentResponsibility", slug);
-  }
+  const capability = await readResolvedCapabilityFile(slug, octokit);
+  if (!capability) throw dependencyNotFound("capability", slug);
 
-  if (responsibility.agent) {
-    if (!validSlug("agent", responsibility.agent)) {
-      throw dependencyNotFound("agent", responsibility.agent);
+  if (capability.agent) {
+    if (!validSlug("agent", capability.agent)) {
+      throw dependencyNotFound("agent", capability.agent);
     }
-    addPlanSlug(plan, "activeAgents", responsibility.agent);
+    addPlanSlug(plan, "activeAgents", capability.agent);
   }
+}
 
-  const actionSlugs = [
-    responsibility.agentAction,
-    ...responsibility.agentActions,
-  ].filter((value): value is string => !!value);
-  for (const actionSlug of actionSlugs) {
-    if (!validSlug("agentAction", actionSlug)) {
-      throw dependencyNotFound("agentAction", actionSlug);
-    }
-    addPlanSlug(plan, "activeAgentActions", actionSlug);
+function goalCapabilitySlugs(state: ManagedGoalState): string[] {
+  const compatibility = state as ManagedGoalState & {
+    capabilities?: unknown;
+  };
+  if (Array.isArray(compatibility.capabilities)) {
+    return compatibility.capabilities.filter(
+      (capability): capability is string => typeof capability === "string",
+    );
   }
+  return [];
 }
 
 async function activationPlanFor(
@@ -268,18 +237,8 @@ async function activationPlanFor(
     return plan;
   }
 
-  if (kind === "agentAction") {
-    addPlanSlug(plan, "activeAgentActions", slug);
-    return plan;
-  }
-
   if (kind === "capability") {
-    addPlanSlug(plan, "activeCapabilities", slug);
-    return plan;
-  }
-
-  if (kind === "agentResponsibility") {
-    await addResponsibilityDependencies(octokit, plan, slug);
+    await addCapabilityDependencies(octokit, plan, slug);
     return plan;
   }
 
@@ -293,8 +252,8 @@ async function activationPlanFor(
   const goal = goals.find((item) => item.id === slug);
   if (!goal) throw dependencyNotFound(kind, slug);
 
-  for (const responsibilitySlug of goal.state.agentResponsibilities) {
-    await addResponsibilityDependencies(octokit, plan, responsibilitySlug);
+  for (const capabilitySlug of goalCapabilitySlugs(goal.state)) {
+    await addCapabilityDependencies(octokit, plan, capabilitySlug);
   }
 
   return plan;
@@ -325,22 +284,7 @@ async function addStoreReference({
       : undefined;
   const nextActiveCapabilities =
     plan.activeCapabilities.length > 0
-      ? addSlugs(
-          config.company?.activeCapabilities ??
-            config.company?.activeAgentActions,
-          plan.activeCapabilities,
-        )
-      : undefined;
-  const nextActiveAgentActions =
-    plan.activeAgentActions.length > 0
-      ? addSlugs(config.company?.activeAgentActions, plan.activeAgentActions)
-      : undefined;
-  const nextActiveAgentResponsibilities =
-    plan.activeAgentResponsibilities.length > 0
-      ? addSlugs(
-          config.company?.activeAgentResponsibilities,
-          plan.activeAgentResponsibilities,
-        )
+      ? addSlugs(config.company?.activeCapabilities, plan.activeCapabilities)
       : undefined;
   const nextActiveCommands =
     plan.activeCommands.length > 0
@@ -362,28 +306,8 @@ async function addStoreReference({
         : undefined,
     activeCapabilities:
       nextActiveCapabilities &&
-      !sameStringList(
-        config.company?.activeCapabilities ??
-          config.company?.activeAgentActions,
-        nextActiveCapabilities,
-      )
+      !sameStringList(config.company?.activeCapabilities, nextActiveCapabilities)
         ? nextActiveCapabilities
-        : undefined,
-    activeAgentActions:
-      nextActiveAgentActions &&
-      !sameStringList(
-        config.company?.activeAgentActions,
-        nextActiveAgentActions,
-      )
-        ? nextActiveAgentActions
-        : undefined,
-    activeAgentResponsibilities:
-      nextActiveAgentResponsibilities &&
-      !sameStringList(
-        config.company?.activeAgentResponsibilities,
-        nextActiveAgentResponsibilities,
-      )
-        ? nextActiveAgentResponsibilities
         : undefined,
     activeCommands:
       nextActiveCommands &&

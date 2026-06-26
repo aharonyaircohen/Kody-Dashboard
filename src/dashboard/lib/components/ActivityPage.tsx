@@ -618,9 +618,9 @@ function autoTriggerBadge(trigger: "schedule" | "manual" | "event"): string {
 
 /**
  * "Auto" tab — the Company Activity feed: named, attributed actions the
- * engine performed (an agent ran a agentResponsibility, why, and the result), written
+ * engine performed (an agent ran a capability, why, and the result), written
  * by the engine to `activity/*.jsonl` in the configured Kody state repo. NOT derived from commits/PRs —
- * those carry no agent/agentResponsibility/purpose.
+ * those carry no agent/capability/purpose.
  */
 function AutoView({ active }: { active: boolean }) {
   const { data, isLoading, error } = useAutonomousActivity(active);
@@ -633,7 +633,7 @@ function AutoView({ active }: { active: boolean }) {
     const q = query.trim().toLowerCase();
     if (q)
       all = all.filter((r) =>
-        [r.action, r.agent ?? "", r.staffTitle ?? "", r.agentResponsibility, r.trigger]
+        [r.action, r.agent ?? "", r.staffTitle ?? "", r.capability, r.trigger]
           .join(" ")
           .toLowerCase()
           .includes(q),
@@ -667,7 +667,7 @@ function AutoView({ active }: { active: boolean }) {
             type="text"
             value={query}
             onChange={(e) => setQuery(e.target.value)}
-            placeholder="Search action, agent, agentResponsibility…"
+            placeholder="Search action, agent, capability..."
             className="w-64 rounded-md border border-white/[0.08] bg-white/[0.02] py-1 pl-7 pr-2 text-xs placeholder:text-white/30 focus:border-white/20 focus:outline-none"
           />
         </div>
@@ -682,14 +682,14 @@ function AutoView({ active }: { active: boolean }) {
         </p>
       ) : records.length === 0 ? (
         <p className="text-xs text-white/40 italic py-6 text-center">
-          No autonomous activity yet — appears once a agentResponsibility runs on the updated
+          No autonomous activity yet — appears once a capability runs on the updated
           engine.
         </p>
       ) : (
         <ul className="space-y-1.5">
           {records.map((r, i) => (
             <li
-              key={`${r.ts}-${r.agentResponsibility}-${i}`}
+              key={`${r.ts}-${r.capability}-${i}`}
               className="flex items-start gap-3 rounded-lg border border-white/[0.06] bg-white/[0.02] px-3 py-2.5"
             >
               <span className="mt-0.5 shrink-0">
@@ -710,7 +710,7 @@ function AutoView({ active }: { active: boolean }) {
                     </span>
                   ) : null}
                   <span className="rounded bg-violet-500/15 px-1 text-violet-200/80">
-                    agentResponsibility: {r.agentResponsibility}
+                    capability: {r.capability}
                   </span>
                   <span
                     className={cn("rounded px-1", autoTriggerBadge(r.trigger))}
@@ -744,7 +744,7 @@ function AutoView({ active }: { active: boolean }) {
       )}
       <p className="mt-6 text-[10px] text-white/30">
         Company activity — each line is one action the engine took: which agent
-        member ran which agentResponsibility, why (schedule / manual), and the result. Written
+        member ran which capability, why (schedule / manual), and the result. Written
         by the engine; the Log tab shows dashboard actions instead.
       </p>
     </div>
@@ -779,7 +779,7 @@ function LogView({ active }: { active: boolean }) {
           e.actor,
           e.repo ?? "",
           e.detail ?? "",
-          e.agentResponsibility ?? "",
+          e.capability ?? "",
           e.agent ?? "",
         ]
           .join(" ")
@@ -803,7 +803,7 @@ function LogView({ active }: { active: boolean }) {
             type="text"
             value={query}
             onChange={(e) => setQuery(e.target.value)}
-            placeholder="Search actions, target, actor, agentResponsibility…"
+            placeholder="Search actions, target, actor, capability..."
             className="w-64 rounded-md border border-white/[0.08] bg-white/[0.02] py-1 pl-7 pr-2 text-xs placeholder:text-white/30 focus:border-white/20 focus:outline-none"
           />
         </div>
@@ -871,9 +871,9 @@ function LogView({ active }: { active: boolean }) {
                 </div>
                 <div className="flex flex-wrap items-center gap-x-1.5 text-[10px] text-white/40 truncate">
                   <span>by {e.actor}</span>
-                  {e.agentResponsibility && (
+                  {e.capability && (
                     <span className="rounded bg-violet-500/15 px-1 text-violet-200/80">
-                      agentResponsibility: {e.agentResponsibility}
+                      capability: {e.capability}
                     </span>
                   )}
                   {e.agent && (
@@ -895,7 +895,7 @@ function LogView({ active }: { active: boolean }) {
         </ul>
       )}
       <p className="mt-6 text-[10px] text-white/30">
-        Dashboard actions (agentResponsibility runs/edits, task actions, vault writes,
+        Dashboard actions (capability runs/edits, task actions, vault writes,
         agent/prompt/goal changes) attributed to the verified GitHub user who
         made them. Persisted durably in the repo&apos;s audit-log issue (newest{" "}
         {150} kept) and merged with this instance&apos;s in-memory ring —

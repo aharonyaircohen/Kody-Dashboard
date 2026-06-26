@@ -62,14 +62,14 @@ describe("activity run logs", () => {
         JSON.stringify({
           ts: "2026-06-16T10:00:00Z",
           runId: "123",
-          agentAction: "build",
+          capability: "build",
           kind: "stage_start",
           name: "execute",
         }),
         JSON.stringify({
           ts: "2026-06-16T10:00:02Z",
           runId: "123",
-          agentAction: "preflight",
+          capability: "preflight",
           kind: "step",
           name: "checkout",
           durationMs: 1250,
@@ -78,7 +78,7 @@ describe("activity run logs", () => {
         JSON.stringify({
           ts: "2026-06-16T10:00:05Z",
           runId: "123",
-          agentAction: "agent",
+          capability: "agent",
           kind: "container",
           name: "codex",
           meta: { exitCode: 2, reason: "tests failed" },
@@ -97,6 +97,7 @@ describe("activity run logs", () => {
       "failure",
     ]);
     expect(timeline[2]).toMatchObject({
+      capability: "agent",
       failureReason: "tests failed",
       exitCode: 2,
       summary: "Failure: codex",

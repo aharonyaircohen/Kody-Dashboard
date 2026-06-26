@@ -4,16 +4,15 @@
  * @pattern ai-sdk-tool
  * @ai-summary Kody-pipeline dispatch tools for the kody-direct chat agent.
  *
- * Each tool posts a `@kody <agentResponsibility>` comment on an existing issue or pull
- * request. The agentResponsibility owns the public action; its profile links to the
- * implementation agentAction.
+ * Each tool posts a `@kody <capability>` comment on an existing issue or pull
+ * request.
  *
  * These tools DO trigger the pipeline. They must only be called when
  * the user explicitly asks to run a kody command (e.g. "kody fix #45",
  * "have kody review this PR", "rerun fix-ci on the PR"). Each tool's
  * description repeats this gate so the model carries it through.
  *
- * Supported PR-targeted agentResponsibility actions:
+ * Supported PR-targeted capability actions:
  *   fix         — apply fixes; bare = use PR review body
  *   fix-ci      — fix failing CI on the PR
  *   review      — code review
@@ -21,7 +20,7 @@
  *   revert      — revert the PR's merge commit
  *   sync        — merge the PR's base branch into it and push
  *
- * Issue-targeted dispatch (kody_run_issue): posts `@kody <agentResponsibility>` on an
+ * Issue-targeted dispatch (kody_run_issue): posts `@kody <capability>` on an
  * issue so the engine picks it up and executes the work — clone, edit,
  * commit, PR. This is the "execute the plan" handoff: the chat model does
  * research + planning, then on user confirmation calls this tool to hand
@@ -35,7 +34,7 @@ import {
   invalidateIssueCache,
   invalidatePRCache,
 } from "@dashboard/lib/github-client";
-import { isValidSlug, readAgentResponsibilityFile } from "@dashboard/lib/agent-responsibilities-files";
+import { isValidSlug, readResolvedCapabilityFile } from "@dashboard/lib/capabilities";
 
 interface Ctx {
   octokit: Octokit;
@@ -63,24 +62,24 @@ interface DispatchError {
   error: string;
 }
 
-async function resolveAgentResponsibilityAction(
+async function resolveCapabilityAction(
   ctx: Ctx,
-  agentResponsibilitySlug: string,
+  capabilitySlug: string,
 ): Promise<{ slug: string; action: string } | DispatchError> {
-  const slug = agentResponsibilitySlug.trim();
+  const slug = capabilitySlug.trim();
   if (!slug || !isValidSlug(slug)) {
     return {
       error:
-        "Refusing to dispatch: agentResponsibility must be lowercase letters, digits, dashes, or underscores.",
+        "Refusing to dispatch: capability must be lowercase letters, digits, dashes, or underscores.",
     };
   }
-  const agentResponsibility = await readAgentResponsibilityFile(slug, ctx.octokit);
-  if (!agentResponsibility) {
+  const capability = await readResolvedCapabilityFile(slug, ctx.octokit);
+  if (!capability) {
     return {
-      error: `Refusing to dispatch: agentResponsibility "${slug}" was not found.`,
+      error: `Refusing to dispatch: capability "${slug}" was not found.`,
     };
   }
-  return { slug: agentResponsibility.slug, action: agentResponsibility.action ?? agentResponsibility.slug };
+  return { slug: capability.slug, action: capability.slug };
 }
 
 async function dispatchOnPr(
@@ -90,11 +89,11 @@ async function dispatchOnPr(
   notes: string | undefined,
 ): Promise<DispatchResult | DispatchError> {
   const { octokit, owner, repo } = ctx;
-  const agentResponsibilityAction = await resolveAgentResponsibilityAction(ctx, command);
-  if ("error" in agentResponsibilityAction) return agentResponsibilityAction;
+  const capabilityAction = await resolveCapabilityAction(ctx, command);
+  if ("error" in capabilityAction) return capabilityAction;
   const commentBody = notes?.trim()
-    ? `@kody ${agentResponsibilityAction.action}\n\n${notes.trim()}`
-    : `@kody ${agentResponsibilityAction.action}`;
+    ? `@kody ${capabilityAction.action}\n\n${notes.trim()}`
+    : `@kody ${capabilityAction.action}`;
 
   try {
     const existing = await octokit.rest.issues.get({
@@ -124,16 +123,16 @@ async function dispatchOnPr(
     invalidateIssueCache(prNumber);
 
     logger.info(
-      { owner, repo, number: prNumber, agentResponsibility: agentResponsibilityAction.slug },
+      { owner, repo, number: prNumber, capability: capabilityAction.slug },
       "kody-dispatch: posted trigger comment",
     );
 
     return {
       number: prNumber,
       url: existing.data.html_url,
-      command: `@kody ${agentResponsibilityAction.action}`,
+      command: `@kody ${capabilityAction.action}`,
       triggered: true,
-      note: `Posted \`@kody ${agentResponsibilityAction.action}\` on PR #${prNumber}. Engine should pick it up shortly.`,
+      note: `Posted \`@kody ${capabilityAction.action}\` on PR #${prNumber}. Engine should pick it up shortly.`,
     };
   } catch (err) {
     logger.warn(
@@ -144,7 +143,7 @@ async function dispatchOnPr(
       error:
         err instanceof Error
           ? err.message
-          : `Failed to dispatch @kody ${agentResponsibilityAction.action}`,
+          : `Failed to dispatch @kody ${capabilityAction.action}`,
     };
   }
 }
@@ -152,13 +151,13 @@ async function dispatchOnPr(
 async function dispatchOnIssue(
   ctx: Ctx,
   issueNumber: number,
-  agentResponsibility: string,
+  capability: string,
   notes: string | undefined,
 ): Promise<DispatchResult | DispatchError> {
   const { octokit, owner, repo } = ctx;
-  const agentResponsibilityAction = await resolveAgentResponsibilityAction(ctx, agentResponsibility);
-  if ("error" in agentResponsibilityAction) return agentResponsibilityAction;
-  const header = `@kody ${agentResponsibilityAction.action}`;
+  const capabilityAction = await resolveCapabilityAction(ctx, capability);
+  if ("error" in capabilityAction) return capabilityAction;
+  const header = `@kody ${capabilityAction.action}`;
   const commentBody = notes?.trim() ? `${header}\n\n${notes.trim()}` : header;
 
   try {
@@ -185,7 +184,7 @@ async function dispatchOnIssue(
     invalidateIssueCache(issueNumber);
 
     logger.info(
-      { owner, repo, number: issueNumber, agentResponsibility: agentResponsibilityAction.slug },
+      { owner, repo, number: issueNumber, capability: capabilityAction.slug },
       "kody-dispatch: posted issue trigger",
     );
 
@@ -198,7 +197,7 @@ async function dispatchOnIssue(
     };
   } catch (err) {
     logger.warn(
-      { err, owner, repo, number: issueNumber, agentResponsibility: agentResponsibilityAction.slug },
+      { err, owner, repo, number: issueNumber, capability: capabilityAction.slug },
       "kody-dispatch (issue) failed",
     );
     return {
@@ -227,7 +226,7 @@ const DUTY_SCHEMA = z
   .max(64)
   .optional()
   .describe(
-    "Which Kody agentResponsibility to run. Defaults to `classify`. The agentResponsibility folder must exist under `agent-responsibilities/<slug>/` in the state repo.",
+    "Which Kody capability to run. Defaults to `classify`. The capability folder must exist under `capabilities/<slug>/` in the state repo.",
   );
 
 const NOTES_SCHEMA = z
@@ -339,7 +338,7 @@ export function createKodyTools(ctx: Ctx) {
     kody_run_issue: tool({
       description:
         `EXECUTE a plan on an issue in ${owner}/${repo}. Posts ` +
-        "`@kody <agentResponsibility>` (default: `classify`) as a comment on the issue. " +
+        "`@kody <capability>` (default: `classify`) as a comment on the issue. " +
         "The Kody engine in GitHub Actions then clones the repo, edits " +
         "files, commits, and opens a PR for that issue. THIS IS THE ONLY " +
         "way to actually execute code work from this chat — you do not " +
@@ -352,17 +351,14 @@ export function createKodyTools(ctx: Ctx) {
         "tool in the same turn. Use `notes` to pass the plan inline.",
       inputSchema: z.object({
         issueNumber: ISSUE_NUMBER_SCHEMA,
-        agentResponsibility: DUTY_SCHEMA,
-        agentAction: DUTY_SCHEMA.describe(
-          "Deprecated alias for `agentResponsibility`. Kept only for older tool calls.",
-        ),
+        capability: DUTY_SCHEMA,
         notes: NOTES_SCHEMA,
       }),
-      execute: ({ issueNumber, agentResponsibility, agentAction, notes }) =>
+      execute: ({ issueNumber, capability, notes }) =>
         dispatchOnIssue(
           ctx,
           issueNumber,
-          agentResponsibility ?? agentAction ?? "classify",
+          capability ?? "classify",
           notes,
         ),
     }),

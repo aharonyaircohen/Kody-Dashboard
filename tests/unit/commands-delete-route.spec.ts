@@ -79,7 +79,7 @@ describe("DELETE /api/kody/commands/:slug", () => {
     h.readCommandFile.mockResolvedValue(null);
     h.getEngineConfig.mockResolvedValue({
       config: {
-        agentActions: { default: "run" },
+        executables: { default: "run" },
         company: { activeCommands: ["factory", "plan"] },
       },
       sha: "config-sha",

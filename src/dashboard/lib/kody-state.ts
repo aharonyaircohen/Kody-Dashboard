@@ -41,16 +41,16 @@ export interface KodyAction {
  */
 export interface KodyHistoryEntry {
   timestamp: string;
-  agentAction: string;
+  capability: string | null;
   action: string;
   note?: string;
-  /** Agent member this run executed as, when the agentResponsibility declares one. */
+  /** Agent member this run executed as, when the capability declares one. */
   agent?: string;
   /** Stable id for this job run (CI run id in Actions, else a stamp). */
   jobId?: string;
   /** Whether this run was an instant (`@kody`) or scheduled (cron) job. */
   flavor?: KodyJobFlavor;
-  /** Cadence this scheduled job fired on (the agentResponsibility's `every`/cron). */
+  /** Cadence this scheduled job fired on (the capability's `every`/cron). */
   schedule?: string;
   /** This job's outcome at the time the entry was written. */
   status?: KodyStatus;
@@ -63,7 +63,7 @@ export interface KodyTaskState {
   core: {
     phase: KodyPhase;
     status: KodyStatus;
-    currentAgentAction: string | null;
+    currentCapability: string | null;
     lastOutcome: KodyAction | null;
     attempts: Record<string, number>;
     prUrl?: string;
@@ -73,6 +73,46 @@ export interface KodyTaskState {
   };
   /** Ordered run-history: one job entry per engine run on this issue/PR. */
   history: KodyHistoryEntry[];
+}
+
+type RawKodyState = Partial<Omit<KodyTaskState, "core" | "history">> & {
+  core?: Partial<KodyTaskState["core"]> & {
+    currentExecutable?: unknown;
+  };
+  history?: unknown;
+};
+
+function rawString(value: unknown): string | undefined {
+  return typeof value === "string" ? value : undefined;
+}
+
+function normalizeHistoryEntry(raw: unknown): KodyHistoryEntry | null {
+  if (!raw || typeof raw !== "object") return null;
+  const entry = raw as Record<string, unknown>;
+  const timestamp = rawString(entry.timestamp);
+  if (!timestamp) return null;
+
+  return {
+    timestamp,
+    capability: rawString(entry.capability) ?? rawString(entry.executable) ?? null,
+    action: rawString(entry.action) ?? "",
+    note: rawString(entry.note),
+    agent: rawString(entry.agent),
+    jobId: rawString(entry.jobId),
+    flavor:
+      entry.flavor === "instant" || entry.flavor === "scheduled"
+        ? entry.flavor
+        : undefined,
+    schedule: rawString(entry.schedule),
+    status:
+      entry.status === "pending" ||
+      entry.status === "running" ||
+      entry.status === "succeeded" ||
+      entry.status === "failed"
+        ? entry.status
+        : undefined,
+    runUrl: rawString(entry.runUrl),
+  };
 }
 
 /**
@@ -96,7 +136,7 @@ export function parseKodyStateComment(body: string): KodyTaskState | null {
     .trim();
 
   try {
-    const parsed = JSON.parse(jsonStr) as Partial<KodyTaskState>;
+    const parsed = JSON.parse(jsonStr) as RawKodyState;
     if (parsed?.schemaVersion !== 1) return null;
     if (!parsed.core) return null;
     return {
@@ -104,7 +144,10 @@ export function parseKodyStateComment(body: string): KodyTaskState | null {
       core: {
         phase: parsed.core.phase ?? "idle",
         status: parsed.core.status ?? "pending",
-        currentAgentAction: parsed.core.currentAgentAction ?? null,
+        currentCapability:
+          rawString(parsed.core.currentCapability) ??
+          rawString(parsed.core.currentExecutable) ??
+          null,
         lastOutcome: parsed.core.lastOutcome ?? null,
         attempts: parsed.core.attempts ?? {},
         prUrl: parsed.core.prUrl,
@@ -112,10 +155,9 @@ export function parseKodyStateComment(body: string): KodyTaskState | null {
         ranAsStaff: parsed.core.ranAsStaff ?? null,
       },
       history: Array.isArray(parsed.history)
-        ? parsed.history.filter(
-            (e): e is KodyHistoryEntry =>
-              !!e && typeof e.timestamp === "string",
-          )
+        ? parsed.history
+            .map((entry) => normalizeHistoryEntry(entry))
+            .filter((entry): entry is KodyHistoryEntry => entry !== null)
         : [],
     };
   } catch {

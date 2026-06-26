@@ -3,7 +3,7 @@
  * @domain company
  * @pattern company-page
  * @ai-summary Company import/export entry point. Exports the repo's
- *   portable operating manual (agent, agentResponsibilities, prompts, instructions) as a
+ *   portable operating manual (agent, capabilities, prompts, instructions) as a
  *   JSON bundle and imports one into another repo.
  */
 import { AuthGuard } from "@dashboard/lib/auth-guard";
@@ -17,7 +17,7 @@ export const fetchCache = "force-cache";
 export const metadata = buildKodyMetadata({
   title: "Company — Kody Operations Dashboard",
   description:
-    "Import and export a company: agent, agentResponsibilities, commands, instructions.",
+    "Import and export a company: agent, capabilities, commands, instructions.",
   path: "/company",
 });
 

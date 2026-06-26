@@ -34,8 +34,8 @@ context entry" is a planned affordance but **not built yet**.
 | **Chat-prompt loader**     | Concatenates the `kody`-owned (or `*`) entries into the chat system prompt under a `## Context` heading. 60s in-process per-repo cache.                   | `loadContextForPrompt()` in [`context/files.ts`](../src/dashboard/lib/context/files.ts) |
 
 There is **no schedule** and no built-in entries — Context is reference
-material, not scheduled work. (Contrast agent/agent-responsibilities, which are scheduled
-markdown; see [`./concepts/agents-agent-responsibilities.md`](./concepts/agents-agent-responsibilities.md).)
+material, not scheduled work. (Contrast agent/capabilities, which are scheduled
+markdown; see [`./concepts/staff-capabilities.md`](./concepts/staff-capabilities.md).)
 
 ## The audience model — `agent:`
 
@@ -202,17 +202,17 @@ dashboard runtime loads it yet.
 cache immediately; other Vercel instances pick up the change within the
 60s TTL.
 
-**Is Context part of the Company export/import bundle?** **No — not yet.**
-The [Company](./company.md) bundle covers agent, agentResponsibilities, commands,
-agentActions, instructions, and a config slice. Including Context is still
-an open decision.
+**Is Context part of the Company export/import bundle?** Yes. The
+[Company](./company.md) bundle carries Context entries and their agent
+audience list.
 
-**Why not put this in instructions?** [Instructions](./profile.md)
+**Why not put this in instructions?** Instructions
 (`.kody/instructions.md`) are a behavioral overlay (tone/length/
 formatting), appended **last** in the prompt so they win on style. Context
 is factual/agent background, injected **near the top** so it frames
 everything. Keep facts and agent briefs in Context, behavioral rules in
-instructions.
+instructions, and company ownership rules in
+[`./concepts/company-model.md`](./concepts/company-model.md).
 
 **Does deleting an entry erase history?** No — it removes the file with a
 commit; the content stays in git history like any deleted file.

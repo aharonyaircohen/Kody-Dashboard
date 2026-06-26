@@ -3,23 +3,18 @@
  * @domain kody
  * @pattern company-export
  * @ai-summary Build a portable Company bundle from the connected repo.
- *   Reads the company-level artifact types (agent, agentResponsibilities, commands,
- *   context, capabilities, legacy agentActions, managed goals, instructions) via their existing file helpers
+ *   Reads the company-level artifact types (agents, commands, context,
+ *   capabilities, managed goals, instructions) via their existing file helpers
  *   and maps each to the repo-agnostic shape in `types.ts` — dropping
  *   sha/html_url/commit and tick timestamps, which are meaningless in another repo. Runs inside
  *   an established GitHub context (see the API route).
  */
 
 import { getOctokit, getOwner, getRepo } from "../github-client";
-import { listAgentResponsibilityFiles } from "../agent-responsibilities-files";
 import { listAgentFiles } from "../agent-files";
 import { listRepoCommandFiles } from "../commands/files";
 import { listContextFiles } from "../context/files";
 import { readInstructionsFile } from "../instructions/files";
-import {
-  listAgentActionFiles,
-  readAgentActionFolderFiles,
-} from "../agent-actions";
 import {
   listCapabilityFiles,
   readCapabilityFolderFiles,
@@ -30,9 +25,9 @@ import {
   COMPANY_BUNDLE_VERSION,
   type CompanyBundle,
   type CompanyConfigBundle,
-  type CompanyTickEntry,
+  type CompanyAgentEntry,
   type CompanyCommandEntry,
-  type CompanyAgentActionEntry,
+  type CompanyCapabilityEntry,
   type CompanyGoalEntry,
   type CompanyContextEntry,
 } from "./types";
@@ -40,23 +35,11 @@ import type { TickFile } from "../ticked/files";
 import type { CommandFile } from "../commands/files";
 import type { ContextFile } from "../context/files";
 
-function toTickEntry(file: TickFile): CompanyTickEntry {
+function toAgentEntry(file: TickFile): CompanyAgentEntry {
   return {
     slug: file.slug,
     title: file.title,
     body: file.body,
-    schedule: file.schedule,
-    disabled: file.disabled,
-    agent: file.agent,
-    reviewer: file.reviewer,
-    action: file.action,
-    mentions: file.mentions,
-    agentAction: file.agentAction,
-    agentActions: file.agentActions,
-    agentResponsibilityTools: file.agentResponsibilityTools,
-    tickScript: file.tickScript,
-    readsFrom: file.readsFrom,
-    writesTo: file.writesTo,
   };
 }
 
@@ -77,20 +60,8 @@ function toContextEntry(file: ContextFile): CompanyContextEntry {
   };
 }
 
-/** Read every agentAction folder into portable path→content maps. */
-async function buildAgentActionEntries(): Promise<CompanyAgentActionEntry[]> {
-  const summaries = await listAgentActionFiles();
-  const entries = await Promise.all(
-    summaries.map(async (s) => {
-      const files = await readAgentActionFolderFiles(s.slug);
-      return files ? { slug: s.slug, files } : null;
-    }),
-  );
-  return entries.filter((e): e is NonNullable<typeof e> => e !== null);
-}
-
 /** Read every capability folder into portable path→content maps. */
-async function buildCapabilityEntries(): Promise<CompanyAgentActionEntry[]> {
+async function buildCapabilityEntries(): Promise<CompanyCapabilityEntry[]> {
   const summaries = await listCapabilityFiles();
   const entries = await Promise.all(
     summaries.map(async (s) => {
@@ -128,13 +99,13 @@ async function buildConfigBundle(): Promise<CompanyConfigBundle | null> {
   }
   const assoc = config.access?.allowedAssociations;
   if (Array.isArray(assoc) && assoc.length > 0) out.allowedAssociations = assoc;
-  if (config.defaultAgentAction)
-    out.defaultAgentAction = config.defaultAgentAction;
-  if (config.defaultPrAgentAction) {
-    out.defaultPrAgentAction = config.defaultPrAgentAction;
+  if (config.defaultExecutable)
+    out.defaultExecutable = config.defaultExecutable;
+  if (config.defaultPrExecutable) {
+    out.defaultPrExecutable = config.defaultPrExecutable;
   }
-  const perExec = config.agent?.perAgentAction;
-  if (perExec && Object.keys(perExec).length > 0) out.perAgentAction = perExec;
+  const perExec = config.agent?.perExecutable;
+  if (perExec && Object.keys(perExec).length > 0) out.perExecutable = perExec;
 
   return Object.keys(out).length > 0 ? out : null;
 }
@@ -148,21 +119,17 @@ async function buildConfigBundle(): Promise<CompanyConfigBundle | null> {
 export async function buildCompanyBundle(): Promise<CompanyBundle> {
   const [
     agent,
-    agentResponsibilities,
     contexts,
     commandsResult,
     capabilities,
-    agentActions,
     goals,
     instructions,
     config,
   ] = await Promise.all([
     listAgentFiles(),
-    listAgentResponsibilityFiles(),
     listContextFiles(),
     listRepoCommandFiles(),
     buildCapabilityEntries(),
-    buildAgentActionEntries(),
     buildGoalEntries(),
     readInstructionsFile(),
     buildConfigBundle(),
@@ -172,14 +139,12 @@ export async function buildCompanyBundle(): Promise<CompanyBundle> {
     kodyCompany: COMPANY_BUNDLE_VERSION,
     exportedAt: new Date().toISOString(),
     exportedFrom: `${getOwner()}/${getRepo()}`,
-    agent: agent.map(toTickEntry),
-    agentResponsibilities: agentResponsibilities.map(toTickEntry),
+    agent: agent.map(toAgentEntry),
     contexts: contexts.map(toContextEntry),
     commands: commandsResult.commands
       .filter((p) => p.source === "repo")
       .map(toCommandEntry),
     capabilities,
-    agentActions,
     goals,
     instructions: instructions?.body?.trim() ? instructions.body : null,
     config,

@@ -3,7 +3,7 @@
  * @domain kody
  * @pattern use-operators
  * @ai-summary Reads/writes the connected repo's operator list
- *   (`github.operators`) — the logins recommendation agentResponsibilities @-mention so
+ *   (`github.operators`) — the logins recommendation capabilities @-mention so
  *   their comments route into the inbox. Self-contained fetch + mutate over
  *   `kodyApi.company.operators`; callers get the list, loading/saving flags,
  *   and add/remove/save helpers. The list is the company's explicit choice,

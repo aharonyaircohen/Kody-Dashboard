@@ -52,7 +52,7 @@ describe("isManagedGoalState", () => {
           outcome: "Release is deployed.",
           evidence: ["productionDeployed"],
         },
-        agentResponsibilities: ["vercel-production-deploy"],
+        capabilities: ["vercel-production-deploy"],
         route: [],
         facts: {},
         blockers: [],
@@ -62,7 +62,7 @@ describe("isManagedGoalState", () => {
 });
 
 describe("normalizeManagedGoalState", () => {
-  it("normalizes engine-written null agentResponsibilities from route", () => {
+  it("normalizes engine-written null capabilities from route", () => {
     const state = normalizeManagedGoalState({
       version: 1,
       state: "active",
@@ -71,24 +71,23 @@ describe("normalizeManagedGoalState", () => {
         outcome: "Goal creation works.",
         evidence: ["planReady"],
       },
-      agentResponsibilities: null,
+      capabilities: null,
       route: [
         {
           stage: "plan",
           evidence: "planReady",
-          agentResponsibility: "plan",
-          agentAction: "plan",
+          capability: "plan",
         },
       ],
       facts: {},
       blockers: [],
     });
 
-    expect(state?.agentResponsibilities).toEqual(["plan"]);
+    expect(state?.capabilities).toEqual(["plan"]);
     expect(state?.route[0]?.stage).toBe("plan");
   });
 
-  it("accepts legacy duty goal state as agentResponsibilities", () => {
+  it("accepts legacy duty goal state as capabilities", () => {
     const state = normalizeManagedGoalState({
       version: 1,
       state: "active",
@@ -115,13 +114,12 @@ describe("normalizeManagedGoalState", () => {
 
     expect(state).not.toBeNull();
     expect(state).toMatchObject({
-      agentResponsibilities: ["company-graph"],
+      capabilities: ["company-graph"],
       route: [
         {
           stage: "refresh-company-graph",
           evidence: "companyGraphRefreshed",
-          agentResponsibility: "company-graph",
-          agentAction: "company-graph",
+          capability: "company-graph",
         },
       ],
     });
@@ -144,7 +142,7 @@ describe("normalizeManagedGoalState", () => {
         outcome: "Release deployed.",
         evidence: ["releasePrExists", "mainMerged", "productionDeployed"],
       },
-      agentResponsibilities: [
+      capabilities: [
         "release",
         "release-merge",
         "vercel-production-deploy",
@@ -153,20 +151,17 @@ describe("normalizeManagedGoalState", () => {
         {
           stage: "release",
           evidence: "releasePrExists",
-          agentResponsibility: "release",
-          agentAction: "release-prepare",
+          capability: "release",
         },
         {
           stage: "merge",
           evidence: "mainMerged",
-          agentResponsibility: "release-merge",
-          agentAction: "release-merge",
+          capability: "release-merge",
         },
         {
           stage: "publish",
           evidence: "productionDeployed",
-          agentResponsibility: "vercel-production-deploy",
-          agentAction: "vercel-production-deploy",
+          capability: "vercel-production-deploy",
         },
       ],
       facts: {},
@@ -174,17 +169,12 @@ describe("normalizeManagedGoalState", () => {
     });
 
     expect(state).not.toBeNull();
-    expect(state?.agentResponsibilities).toEqual([
+    expect(state?.capabilities).toEqual([
       "release-prepare",
       "release-merge",
       "vercel-production-deploy",
     ]);
-    expect(state?.route.map((step) => step.agentResponsibility)).toEqual([
-      "release-prepare",
-      "release-merge",
-      "vercel-production-deploy",
-    ]);
-    expect(state?.route.map((step) => step.agentAction)).toEqual([
+    expect(state?.route.map((step) => step.capability)).toEqual([
       "release-prepare",
       "release-merge",
       "vercel-production-deploy",
@@ -240,8 +230,8 @@ describe("simple managed goal creation", () => {
         outcome: "Publish Kody Dashboard to production safely.",
         evidence: ["releasePrExists", "mainMerged", "productionDeployed"],
       },
-      agentResponsibilities: [
-        "release",
+      capabilities: [
+        "release-prepare",
         "task-leader",
         "vercel-production-deploy",
       ],
@@ -249,20 +239,17 @@ describe("simple managed goal creation", () => {
         {
           stage: "release",
           evidence: "releasePrExists",
-          agentResponsibility: "release",
-          agentAction: "release-prepare",
+          capability: "release-prepare",
         },
         {
           stage: "merge",
           evidence: "mainMerged",
-          agentResponsibility: "task-leader",
-          agentAction: "task-leader",
+          capability: "task-leader",
         },
         {
           stage: "publish",
           evidence: "productionDeployed",
-          agentResponsibility: "vercel-production-deploy",
-          agentAction: "vercel-production-deploy",
+          capability: "vercel-production-deploy",
         },
       ],
       facts: {
@@ -291,24 +278,24 @@ describe("simple managed goal creation", () => {
       route: [],
       facts: { goalType: "agentLoop" },
     });
-    expect(state.agentResponsibilities).toEqual([]);
+    expect(state.capabilities).toEqual([]);
   });
 
-  it("uses responsibility target creating agentLoop", () => {
+  it("uses capability target creating agentLoop", () => {
     const state = buildManagedGoalState(
       buildSimpleManagedGoalCreateInput({
         goalType: "agentLoop",
         schedule: "1d",
         prompt: "Keep docs healthy.",
-        loopTarget: { type: "agentResponsibility", id: "docs-health" },
+        loopTarget: { type: "capability", id: "docs-health" },
       }),
     );
 
     expect(state.loopTarget).toEqual({
-      type: "agentResponsibility",
+      type: "capability",
       id: "docs-health",
     });
-    expect(state.agentResponsibilities).toEqual(["docs-health"]);
+    expect(state.capabilities).toEqual(["docs-health"]);
     expect(state.scheduleMode).toBe("agentLoop");
   });
 
@@ -323,7 +310,7 @@ describe("simple managed goal creation", () => {
     );
 
     expect(state.loopTarget).toEqual({ type: "goal", id: "web-release" });
-    expect(state.agentResponsibilities).toEqual([]);
+    expect(state.capabilities).toEqual([]);
     expect(state.scheduleMode).toBe("agentLoop");
   });
 
@@ -344,17 +331,17 @@ describe("simple managed goal creation", () => {
     });
   });
 
-  it("keeps selected agentResponsibilities when creating a legacy agentLoop", () => {
+  it("keeps selected capabilities when creating a legacy agentLoop", () => {
     const state = buildManagedGoalState(
       buildSimpleManagedGoalCreateInput({
         goalType: "agentLoop",
         schedule: "1d",
         prompt: "Keep docs healthy.",
-        agentResponsibilities: ["docs-health", "qa-sweep"],
+        capabilities: ["docs-health", "qa-sweep"],
       }),
     );
 
-    expect(state.agentResponsibilities).toEqual(["docs-health", "qa-sweep"]);
+    expect(state.capabilities).toEqual(["docs-health", "qa-sweep"]);
     expect(state.scheduleMode).toBe("agentLoop");
   });
 
@@ -364,31 +351,29 @@ describe("simple managed goal creation", () => {
         goalType: "improve",
         schedule: "manual",
         prompt: "Make goal creation predictable.",
-        agentResponsibilities: ["review", "plan"],
+        capabilities: ["review", "plan"],
         evidence: ["changeVerified", "planReady"],
         route: [
           {
             stage: "review",
             evidence: "changeVerified",
-            agentResponsibility: "review",
-            agentAction: "review",
+            capability: "review",
           },
           {
             stage: "plan",
             evidence: "planReady",
-            agentResponsibility: "plan",
-            agentAction: "plan",
+            capability: "plan",
           },
         ],
       }),
     );
 
     expect(state.destination.evidence).toEqual(["changeVerified", "planReady"]);
-    expect(state.route.map((step) => step.agentResponsibility)).toEqual([
+    expect(state.route.map((step) => step.capability)).toEqual([
       "review",
       "plan",
     ]);
-    expect(state.agentResponsibilities).toEqual(["review", "plan"]);
+    expect(state.capabilities).toEqual(["review", "plan"]);
     expect(state.stage).toBe("review");
   });
 
@@ -429,7 +414,7 @@ describe("isStoreBackedManagedGoal", () => {
           outcome: "Keep a simple goal tracked.",
           evidence: ["labelledTasksComplete"],
         },
-        agentResponsibilities: [],
+        capabilities: [],
         route: [],
         facts: {},
         blockers: [],
@@ -456,7 +441,7 @@ describe("canDeleteManagedGoal", () => {
           outcome: "Keep the codebase healthy.",
           evidence: [],
         },
-        agentResponsibilities: ["code-health"],
+        capabilities: ["code-health"],
         route: [],
         facts: {},
         blockers: [],
@@ -482,7 +467,7 @@ describe("canDeleteManagedGoal", () => {
           outcome: "Keep the codebase healthy.",
           evidence: [],
         },
-        agentResponsibilities: ["code-health"],
+        capabilities: ["code-health"],
         route: [],
         facts: {},
         blockers: [],
@@ -510,12 +495,12 @@ describe("managedGoalModel", () => {
           outcome: "Release safely.",
           evidence: ["releasePrExists"],
         },
-        agentResponsibilities: ["release"],
+        capabilities: ["release"],
         route: [
           {
             stage: "release",
             evidence: "releasePrExists",
-            agentResponsibility: "release",
+            capability: "release",
           },
         ],
         facts: {},
@@ -565,7 +550,7 @@ describe("collapseManagedGoalRecordsForList", () => {
           outcome: "Verify recurring scheduling.",
           evidence: ["companyGraphRefreshed"],
         },
-        agentResponsibilities: ["company-graph"],
+        capabilities: ["company-graph"],
         route: [],
         facts: {},
         blockers: [],

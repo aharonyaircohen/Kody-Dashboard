@@ -156,7 +156,7 @@ export function SettingsManager() {
               </div>
               <p className="text-xs text-white/50 -mt-2">
                 Select the GitHub repository and store version this dashboard
-                uses for agentResponsibilities, commands, and shared assets.
+                uses for capabilities, commands, and shared assets.
               </p>
               <div className="space-y-2">
                 <Label
@@ -199,7 +199,7 @@ export function SettingsManager() {
                   <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-amber-300" />
                   <p>
                     Non-default store targets can change company behavior for
-                    every store-backed agentResponsibility this browser runs.
+                    every store-backed capability this browser runs.
                   </p>
                 </div>
               )}
@@ -383,7 +383,7 @@ export function SettingsManager() {
         open={confirmStoreRef}
         onClose={() => setConfirmStoreRef(false)}
         title="Change Kody store target?"
-        description="This changes which GitHub repository and store version provide agentResponsibilities, commands, and shared assets for this browser."
+        description="This changes which GitHub repository and store version provide capabilities, commands, and shared assets for this browser."
         confirmLabel="Change store target"
         variant="destructive"
         onConfirm={saveStoreTarget}

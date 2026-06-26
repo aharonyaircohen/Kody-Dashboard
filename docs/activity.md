@@ -11,13 +11,13 @@ The page has four tabs, and they answer different questions because they read
 different sources:
 
 - **Log** — _what did a human do in the dashboard?_ (approvals, edits, vault writes)
-- **Auto** — _what did the engine do on its own?_ (which agent ran which agentResponsibility, and the result)
+- **Auto** — _what did the engine do on its own?_ (which agent ran which capability, and the result)
 - **Runs** — _is the engine healthy, jammed, or looping?_ (kody.yml workflow-run health)
 - **Feed** — _what happened inside a chat/run session?_ (per-session engine + chat event stream)
 
 The honest caveat up front: **attribution — tying one action to the one human
-or agentResponsibility that triggered it — is the hard, partial glue.** Each source carries
-_some_ of the picture (the Log has a verified actor; Auto has agent+agentResponsibility; Runs
+or capability that triggered it — is the hard, partial glue.** Each source carries
+_some_ of the picture (the Log has a verified actor; Auto has agent+capability; Runs
 guess the `@kody` action from a label; Feed guesses the initiator from the
 first message), but nothing stitches them into a single "this person caused
 this run caused these events" thread. That unification is a deliberate
@@ -27,8 +27,8 @@ follow-up, not what a current page does — see [Attribution](#attribution-the-m
 
 | Piece                    | What it is                                                                                                                              | Where                                                                                              |
 | ------------------------ | --------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------- |
-| **Log** tab              | Dashboard actions a verified human took (agentResponsibility runs/edits, task actions, vault writes, agent/prompt/goal changes), newest-first.         | [`../src/dashboard/lib/activity/audit.ts`](../src/dashboard/lib/activity/audit.ts) (`recordAudit`) |
-| **Auto** tab             | Company Activity — named, attributed engine actions (which agent ran which agentResponsibility, why, and the outcome). Engine-authored.                | [`../src/dashboard/lib/activity/company.ts`](../src/dashboard/lib/activity/company.ts)             |
+| **Log** tab              | Dashboard actions a verified human took (capability runs/edits, task actions, vault writes, agent/prompt/goal changes), newest-first.         | [`../src/dashboard/lib/activity/audit.ts`](../src/dashboard/lib/activity/audit.ts) (`recordAudit`) |
+| **Auto** tab             | Company Activity — named, attributed engine actions (which agent ran which capability, why, and the outcome). Engine-authored.                | [`../src/dashboard/lib/activity/company.ts`](../src/dashboard/lib/activity/company.ts)             |
 | **Runs** tab             | kody.yml workflow-run health: queue depth, flood detector, median duration, plus the `@kody` action joined from each run's issue label. | [`../src/dashboard/lib/activity/snapshot.ts`](../src/dashboard/lib/activity/snapshot.ts)           |
 | **Feed** tab             | One row per chat/run **session**, grouped from the engine's per-session event files; expand for the raw event payloads.                 | [`../src/dashboard/lib/activity/feed.ts`](../src/dashboard/lib/activity/feed.ts)                   |
 | `recordAudit(req, spec)` | The one call sites use to log a dashboard action. Resolves the **verified** actor from the request PAT, not the client-claimed login.   | [`../src/dashboard/lib/activity/audit.ts`](../src/dashboard/lib/activity/audit.ts)                 |
@@ -82,9 +82,9 @@ window before the `after()` write lands — de-duped by id, newest-first. It
 falls back to in-memory only when there's no repo context, so the tab never
 hard-fails.
 
-`recordAudit` is called from task actions, agentResponsibility CRUD + runs, goals, vault
-secrets, agentActions, agent, and chat-command writes (see the `AuditSpec` shape
-for the `action` / `resource` / `agentResponsibility` / `agent` / `outcome` fields).
+`recordAudit` is called from task actions, capability CRUD + runs, goals, vault
+secrets, executables, agent, and chat-command writes (see the `AuditSpec` shape
+for the `action` / `resource` / `capability` / `agent` / `outcome` fields).
 
 > A legacy `recordAction({…})` shim (in `action-log.ts`) still writes the
 > in-memory ring **only** — no verified actor, no durable persist. New call
@@ -95,14 +95,14 @@ for the `action` / `resource` / `agentResponsibility` / `agent` / `outcome` fiel
 
 The engine's **own** work product: each line in `.kody/activity/<date>.jsonl`
 is one named, attributed action the engine performed — _which agent member ran
-which agentResponsibility, why (schedule / manual / event), and the result_ (completed /
+which capability, why (schedule / manual / event), and the result_ (completed /
 failed, with an optional structured `outcomeKind` + `reason`). Written by kody2
 (`appendCompanyActivity`), parsed by
 [`company.ts`](../src/dashboard/lib/activity/company.ts).
 
-It is explicitly **not derived from commits/PRs** — those carry no agent, agentResponsibility,
+It is explicitly **not derived from commits/PRs** — those carry no agent, capability,
 or purpose, so they can't answer "who ran this and why." The Auto tab is empty
-until a agentResponsibility runs on an engine version that writes these records (the empty
+until a capability runs on an engine version that writes these records (the empty
 state says so).
 
 > **Stale doc-comment — flagged.** The route file's header summary
@@ -166,7 +166,7 @@ attribution needed to do so honestly isn't fully there:
 | Source | Who-triggered-it is…         | How reliable                                                                                          |
 | ------ | ---------------------------- | ----------------------------------------------------------------------------------------------------- |
 | Log    | the verified PAT login       | **Strong** — resolved from the token, not spoofable.                                                  |
-| Auto   | the `agent` slug + `agentResponsibility`    | **Strong for the engine actor**, but it's the agent that ran, not the human who scheduled the agentResponsibility. |
+| Auto   | the `agent` slug + `capability`    | **Strong for the engine actor**, but it's the agent that ran, not the human who scheduled the capability. |
 | Runs   | guessed from `kody:*` labels | **Weak** — `null` whenever a run can't be matched to a labelled open issue.                           |
 | Feed   | the first message's author   | **Weak** — user prompts often aren't logged, so initiator is frequently `null`.                       |
 
@@ -197,7 +197,7 @@ audit thread.
 │    │                │                  │  (kody:* labels)     │                     │
 └────┼────────────────┼──────────────────┼──────────────────────┼─────────────────────┘
      ▼                ▼                  ▼                      ▼
- verified human   engine agent+agentResponsibility   engine health +      per-session
+ verified human   engine agent+capability   engine health +      per-session
  actions          + outcome           @kody action         event stream
    (dashboard-written)  (engine-written)  (GitHub Actions)    (engine-written)
 ```
@@ -233,7 +233,7 @@ GitHub is the broker for all four. The dashboard writes only the Log source
 
 Audience and author. **Log** = what a _human_ did through the dashboard
 (approvals, edits, vault writes), written by the dashboard with a verified
-actor. **Auto** = what the _engine_ did on its own (a agent member ran a agentResponsibility),
+actor. **Auto** = what the _engine_ did on its own (a agent member ran a capability),
 written by the engine. They never overlap.
 
 **Why isn't there one merged timeline?**

@@ -7,7 +7,7 @@
  *
  *   - `<PageHeader />` — the sticky header bar (back arrow, icon, title,
  *     subtitle, right-side actions). Use this directly when a page owns
- *     its own body layout (e.g. Reports/AgentResponsibilities with internal scroll regions).
+ *     its own body layout (e.g. Reports/Capabilities with internal scroll regions).
  *
  *   - `<PageShell />` — convenience wrapper that combines `PageHeader`
  *     with the dark page background and a scrolling content area. Use

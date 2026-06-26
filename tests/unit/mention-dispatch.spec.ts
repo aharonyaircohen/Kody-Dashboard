@@ -70,10 +70,10 @@ vi.mock("@dashboard/lib/cto/recommendation", () => ({
   parseCtoAction: () => undefined,
   parseCtoCommand: () => undefined,
   parseCtoAgent: () => undefined,
-  parseCtoAgentResponsibility: () => null,
+  parseCtoCapability: () => null,
 }));
 vi.mock("@dashboard/lib/cto/trust-store", () => ({
-  readTrust: vi.fn().mockResolvedValue({ version: 1, agentResponsibilities: {}, log: [] }),
+  readTrust: vi.fn().mockResolvedValue({ version: 1, capabilities: {}, log: [] }),
 }));
 vi.mock("@dashboard/lib/cto/trust-state", () => ({
   latestTrustDecisions: () => ({}),

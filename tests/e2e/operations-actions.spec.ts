@@ -33,9 +33,10 @@ interface Agent {
   readOnly?: boolean;
 }
 
-interface AgentActionDetail {
+interface CapabilityDetail {
   slug: string;
   describe: string;
+  capabilityKind: "observe" | "act" | "verify";
   landing: "pr" | "comment";
   updatedAt: string;
   htmlUrl: string;
@@ -52,38 +53,12 @@ interface AgentActionDetail {
   profileJson: string;
 }
 
-interface AgentResponsibility {
-  slug: string;
-  title: string;
-  body: string;
-  updatedAt: string;
-  htmlUrl: string;
-  source?: "local" | "store";
-  readOnly?: boolean;
-  lastTickAt: string | null;
-  nextEligibleAt: string | null;
-  lastOutcome: string | null;
-  lastDurationMs: number | null;
-  schedule: string | null;
-  capabilityKind: "observe" | "act" | "verify" | null;
-  disabled: boolean;
-  agent: string | null;
-  reviewer: string | null;
-  action: string;
-  mentions: string[];
-  agentAction: string | null;
-  agentActions: string[];
-  agentResponsibilityTools: string[];
-  tickScript: string | null;
-  readsFrom: string[];
-  writesTo: string[];
-}
-
 interface ManagedGoalRecord {
   id: string;
   path: string;
   updatedAt: string;
   source?: "local" | "store";
+  recordType?: "instance" | "template";
   state: {
     version: 1;
     state: "inactive" | "active" | "paused" | "done";
@@ -92,12 +67,11 @@ interface ManagedGoalRecord {
       outcome: string;
       evidence: string[];
     };
-    agentResponsibilities: string[];
+    capabilities: string[];
     route: Array<{
       stage: string;
       evidence: string;
-      agentResponsibility: string;
-      agentAction: string;
+      capability: string;
     }>;
     schedule: "manual" | "1h" | "1d" | "7d" | "30d";
     stage: string;
@@ -282,13 +256,14 @@ async function mockAgents(page: Page): Promise<CapturedRequest[]> {
   return requests;
 }
 
-function actionSeed(
-  overrides: Partial<AgentActionDetail> = {},
-): AgentActionDetail {
+function capabilitySeed(
+  overrides: Partial<CapabilityDetail> = {},
+): CapabilityDetail {
   const slug = overrides.slug ?? "ship-feature";
   return {
     slug,
     describe: "Ship feature",
+    capabilityKind: "act",
     landing: "pr",
     updatedAt: NOW,
     htmlUrl: `https://example.test/${slug}`,
@@ -306,10 +281,11 @@ function actionSeed(
   };
 }
 
-function actionSummary(action: AgentActionDetail) {
+function capabilitySummary(action: CapabilityDetail) {
   return {
     slug: action.slug,
     describe: action.describe,
+    capabilityKind: action.capabilityKind,
     landing: action.landing,
     updatedAt: action.updatedAt,
     htmlUrl: action.htmlUrl,
@@ -319,39 +295,41 @@ function actionSummary(action: AgentActionDetail) {
   };
 }
 
-async function mockAgentActions(page: Page): Promise<CapturedRequest[]> {
+async function mockCapabilities(page: Page): Promise<CapturedRequest[]> {
   const requests: CapturedRequest[] = [];
-  const actions = new Map<string, AgentActionDetail>([
-    ["ship-feature", actionSeed()],
+  const actions = new Map<string, CapabilityDetail>([
+    ["ship-feature", capabilitySeed()],
   ]);
 
-  await page.route("**/api/kody/agent-actions**", async (route) => {
+  await page.route("**/api/kody/capabilities**", async (route) => {
     const request = route.request();
     const url = new URL(request.url());
-    const path = url.pathname.replace("/api/kody/agent-actions", "");
+    const path = url.pathname.replace("/api/kody/capabilities", "");
     const parts = path.split("/").filter(Boolean).map(decodeURIComponent);
     const method = request.method();
 
     if (parts.length === 0 && method === "GET") {
       await fulfillJson(route, {
-        agentActions: Array.from(actions.values()).map(actionSummary),
+        capabilities: Array.from(actions.values()).map(capabilitySummary),
       });
       return;
     }
 
     if (parts.length === 0 && method === "POST") {
-      const body = capture(requests, route, "/api/kody/agent-actions") as {
+      const body = capture(requests, route, "/api/kody/capabilities") as {
         slug?: string;
         describe?: string;
         instructions?: string;
+        capabilityKind?: "observe" | "act" | "verify";
         model?: string;
         permissionMode?: string;
         tools?: string[];
         landing?: "pr" | "comment";
       };
-      const created = actionSeed({
+      const created = capabilitySeed({
         slug: body.slug ?? "new-action",
         describe: body.describe ?? "",
+        capabilityKind: body.capabilityKind ?? "act",
         prompt: body.instructions ?? "",
         model: body.model ?? "inherit",
         permissionMode: body.permissionMode ?? "acceptEdits",
@@ -367,7 +345,7 @@ async function mockAgentActions(page: Page): Promise<CapturedRequest[]> {
     const action = actions.get(slug);
 
     if (parts.length === 1 && method === "GET" && action) {
-      await fulfillJson(route, { agentAction: action });
+      await fulfillJson(route, { capability: action });
       return;
     }
 
@@ -375,10 +353,11 @@ async function mockAgentActions(page: Page): Promise<CapturedRequest[]> {
       const body = capture(
         requests,
         route,
-        `/api/kody/agent-actions/${slug}`,
+        `/api/kody/capabilities/${slug}`,
       ) as {
         describe?: string;
         instructions?: string;
+        capabilityKind?: "observe" | "act" | "verify";
         model?: string;
         permissionMode?: string;
         tools?: string[];
@@ -387,6 +366,7 @@ async function mockAgentActions(page: Page): Promise<CapturedRequest[]> {
       actions.set(slug, {
         ...action,
         describe: body.describe ?? action.describe,
+        capabilityKind: body.capabilityKind ?? action.capabilityKind,
         prompt: body.instructions ?? action.prompt,
         model: body.model ?? action.model,
         permissionMode: body.permissionMode ?? action.permissionMode,
@@ -399,126 +379,9 @@ async function mockAgentActions(page: Page): Promise<CapturedRequest[]> {
     }
 
     if (parts.length === 1 && method === "DELETE" && action) {
-      capture(requests, route, `/api/kody/agent-actions/${slug}`);
+      capture(requests, route, `/api/kody/capabilities/${slug}`);
       actions.delete(slug);
       await fulfillJson(route, { success: true });
-      return;
-    }
-
-    await route.fulfill({ status: 404, body: "{}" });
-  });
-
-  return requests;
-}
-
-function responsibilitySeed(
-  overrides: Partial<AgentResponsibility> = {},
-): AgentResponsibility {
-  const slug = overrides.slug ?? "release-watch";
-  return {
-    slug,
-    title: "Release Watch",
-    body: "Watch release work.",
-    updatedAt: NOW,
-    htmlUrl: `https://example.test/${slug}`,
-    source: "local",
-    readOnly: false,
-    lastTickAt: null,
-    nextEligibleAt: null,
-    lastOutcome: null,
-    lastDurationMs: null,
-    schedule: "manual",
-    capabilityKind: "act",
-    disabled: false,
-    agent: "atlas",
-    reviewer: null,
-    action: "release-watch",
-    mentions: [],
-    agentAction: "ship-feature",
-    agentActions: [],
-    agentResponsibilityTools: [],
-    tickScript: null,
-    readsFrom: [],
-    writesTo: [],
-    ...overrides,
-  };
-}
-
-async function mockResponsibilities(page: Page): Promise<CapturedRequest[]> {
-  const requests: CapturedRequest[] = [];
-  const responsibilities: AgentResponsibility[] = [responsibilitySeed()];
-
-  await page.route("**/api/kody/agent-responsibilities**", async (route) => {
-    const request = route.request();
-    const url = new URL(request.url());
-    const path = url.pathname.replace("/api/kody/agent-responsibilities", "");
-    const parts = path.split("/").filter(Boolean).map(decodeURIComponent);
-    const method = request.method();
-
-    if (parts.length === 0 && method === "GET") {
-      await fulfillJson(route, { agentResponsibilities: responsibilities });
-      return;
-    }
-
-    if (parts.length === 0 && method === "POST") {
-      const body = capture(
-        requests,
-        route,
-        "/api/kody/agent-responsibilities",
-      ) as Partial<AgentResponsibility> & { title?: string; body?: string };
-      const created = responsibilitySeed({
-        slug: body.slug ?? slugify(body.title ?? "new-responsibility"),
-        title: body.title ?? "New Responsibility",
-        body: body.body ?? "",
-        schedule: body.schedule ?? "manual",
-        capabilityKind: body.capabilityKind ?? "observe",
-        disabled: body.disabled ?? false,
-        agent: body.agent ?? null,
-        reviewer: body.reviewer ?? null,
-        action: body.action ?? "",
-        agentAction: body.agentAction ?? null,
-      });
-      responsibilities.push(created);
-      await fulfillJson(route, { agentResponsibility: created });
-      return;
-    }
-
-    const slug = parts[0];
-    const index = responsibilities.findIndex((item) => item.slug === slug);
-
-    if (parts.length === 1 && method === "PATCH" && index >= 0) {
-      const body = capture(
-        requests,
-        route,
-        `/api/kody/agent-responsibilities/${slug}`,
-      ) as Partial<AgentResponsibility>;
-      responsibilities[index] = {
-        ...responsibilities[index],
-        ...body,
-        updatedAt: NOW,
-      };
-      await fulfillJson(route, {
-        agentResponsibility: responsibilities[index],
-      });
-      return;
-    }
-
-    if (parts.length === 1 && method === "DELETE" && index >= 0) {
-      capture(requests, route, `/api/kody/agent-responsibilities/${slug}`);
-      responsibilities.splice(index, 1);
-      await fulfillJson(route, { success: true });
-      return;
-    }
-
-    if (parts.length === 2 && parts[1] === "run" && method === "POST") {
-      capture(requests, route, `/api/kody/agent-responsibilities/${slug}/run`);
-      await fulfillJson(route, {
-        workflowId: "wf",
-        ref: "main",
-        action: responsibilities[index]?.action ?? slug,
-        agentResponsibility: slug,
-        force: true,
-      });
       return;
     }
 
@@ -538,6 +401,7 @@ function managedGoalSeed(
     path: `goals/instances/${id}/state.json`,
     updatedAt: NOW,
     source: "local",
+    recordType: "instance",
     state: {
       version: 1,
       state: "inactive",
@@ -546,13 +410,12 @@ function managedGoalSeed(
         outcome: "Improve quality",
         evidence: ["changeVerified"],
       },
-      agentResponsibilities: ["release-watch"],
+      capabilities: ["ship-feature"],
       route: [
         {
           stage: "verify",
           evidence: "changeVerified",
-          agentResponsibility: "release-watch",
-          agentAction: "ship-feature",
+          capability: "ship-feature",
         },
       ],
       schedule: "manual",
@@ -578,7 +441,7 @@ function managedLoopSeed(): ManagedGoalRecord {
         outcome: "Keep triage moving",
         evidence: [],
       },
-      agentResponsibilities: ["release-watch"],
+      capabilities: ["ship-feature"],
       route: [],
       schedule: "1d",
       stage: "triage",
@@ -684,6 +547,9 @@ test.describe("Operations actions", () => {
       ),
       createDialog.getByRole("button", { name: "Create member" }).click(),
     ]);
+    await page
+      .getByRole("button", { name: /Build Agent build-agent/ })
+      .click();
     await expect(
       page.getByRole("heading", { name: "Build Agent" }),
     ).toBeVisible();
@@ -739,39 +605,41 @@ test.describe("Operations actions", () => {
     ]);
   });
 
-  test("agent actions can be created, updated, and deleted", async ({
+  test("capabilities can be created, updated, and deleted", async ({
     page,
   }) => {
-    const requests = await mockAgentActions(page);
+    const requests = await mockCapabilities(page);
 
-    await openPage(page, "/agent-actions", "Actions");
+    await openPage(page, "/capabilities", "Capabilities");
     await expect(page.getByText("ship-feature").first()).toBeVisible();
 
-    await page.getByRole("link", { name: /new agentaction/i }).click();
+    await page.getByRole("link", { name: "New capability" }).click();
     await expect(
-      page.getByRole("heading", { name: "New action" }),
+      page.getByRole("heading", { name: "New capability", level: 1 }),
     ).toBeVisible();
-    await page.getByLabel("Implementation slug").fill("ship-hotfix");
-    await page.getByLabel("Description").fill("Ship a hotfix");
-    await page.getByRole("button", { name: "Instructions" }).click();
-    await page.locator("textarea").last().fill("# Instructions\nFix safely.");
+    await page.getByLabel("Name").fill("Ship hotfix");
+    await page
+      .getByRole("textbox", { name: "Instructions" })
+      .fill("# Instructions\nFix safely.");
     await Promise.all([
       page.waitForResponse(
         (response) =>
-          response.url().endsWith("/api/kody/agent-actions") &&
+          response.url().endsWith("/api/kody/capabilities") &&
           response.request().method() === "POST",
       ),
-      page.getByRole("button", { name: "Create" }).click(),
+      page.getByRole("button", { name: "Create", exact: true }).click(),
     ]);
     await expect(page.getByText("ship-hotfix").first()).toBeVisible();
 
     await page.getByText("ship-feature").first().click();
-    await page.getByRole("button", { name: "Edit agentAction" }).click();
-    await page.getByLabel("Description").fill("Ship a safer feature");
+    await page.getByRole("button", { name: "Edit capability" }).click();
+    await page
+      .getByRole("textbox", { name: "Instructions" })
+      .fill("# Instructions\nShip a safer feature.");
     await Promise.all([
       page.waitForResponse(
         (response) =>
-          response.url().includes("/api/kody/agent-actions/ship-feature") &&
+          response.url().includes("/api/kody/capabilities/ship-feature") &&
           response.request().method() === "PATCH",
       ),
       page.getByRole("button", { name: "Update" }).click(),
@@ -780,17 +648,17 @@ test.describe("Operations actions", () => {
       page.getByRole("article").getByText("Ship a safer feature"),
     ).toBeVisible();
 
-    await page.getByRole("button", { name: "Delete agentAction" }).click();
+    await page.getByRole("button", { name: "Delete capability" }).click();
     const deleteDialog = page.getByRole("dialog");
     await expect(
       deleteDialog.getByRole("heading", {
-        name: "Delete agentAction ship-feature?",
+        name: "Delete capability ship-feature?",
       }),
     ).toBeVisible();
     await Promise.all([
       page.waitForResponse(
         (response) =>
-          response.url().includes("/api/kody/agent-actions/ship-feature") &&
+          response.url().includes("/api/kody/capabilities/ship-feature") &&
           response.request().method() === "DELETE",
       ),
       deleteDialog.getByRole("button", { name: "Delete" }).click(),
@@ -804,122 +672,8 @@ test.describe("Operations actions", () => {
     ]);
   });
 
-  test("responsibilities can be created, run, disabled, enabled, and deleted", async ({
-    page,
-  }) => {
-    await mockAgents(page);
-    await mockAgentActions(page);
-    const requests = await mockResponsibilities(page);
-
-    await openPage(page, "/agent-responsibilities", "Responsibilities");
-    await expect(page.getByText("Release Watch").first()).toBeVisible();
-
-    await page.getByRole("button", { name: "New agentResponsibility" }).click();
-    const createDialog = page.getByRole("dialog");
-    await createDialog.getByLabel("Title").fill("Nightly QA");
-    await Promise.all([
-      page.waitForResponse(
-        (response) =>
-          response.url().endsWith("/api/kody/agent-responsibilities") &&
-          response.request().method() === "POST",
-      ),
-      createDialog
-        .getByRole("button", { name: "Create agentResponsibility" })
-        .click(),
-    ]);
-    await expect(page.getByText("Nightly QA").first()).toBeVisible();
-
-    await page
-      .locator("button")
-      .filter({ hasText: "release-watch" })
-      .first()
-      .click();
-    await expect(
-      page.getByRole("heading", { name: "Release Watch" }),
-    ).toBeVisible();
-
-    await Promise.all([
-      page.waitForResponse(
-        (response) =>
-          response
-            .url()
-            .includes("/api/kody/agent-responsibilities/release-watch/run") &&
-          response.request().method() === "POST",
-      ),
-      page.getByRole("button", { name: "Run agentResponsibility now" }).click(),
-    ]);
-
-    await Promise.all([
-      page.waitForResponse(
-        (response) =>
-          response
-            .url()
-            .includes("/api/kody/agent-responsibilities/release-watch") &&
-          response.request().method() === "PATCH",
-      ),
-      page.getByRole("button", { name: "Disable agentResponsibility" }).click(),
-    ]);
-
-    await page.getByRole("button", { name: "Disabled" }).click();
-    await page
-      .locator("button")
-      .filter({ hasText: "release-watch" })
-      .first()
-      .click();
-    await expect(
-      page.getByRole("button", { name: "Enable agentResponsibility" }),
-    ).toBeVisible();
-
-    await Promise.all([
-      page.waitForResponse(
-        (response) =>
-          response
-            .url()
-            .includes("/api/kody/agent-responsibilities/release-watch") &&
-          response.request().method() === "PATCH",
-      ),
-      page.getByRole("button", { name: "Enable agentResponsibility" }).click(),
-    ]);
-
-    await page.getByRole("button", { name: "Enabled" }).click();
-    await page
-      .locator("button")
-      .filter({ hasText: "release-watch" })
-      .first()
-      .click();
-    await expect(
-      page.getByRole("button", { name: "Disable agentResponsibility" }),
-    ).toBeVisible();
-
-    await page
-      .getByRole("button", { name: "Delete agentResponsibility" })
-      .click();
-    const deleteDialog = page.getByRole("dialog");
-    await Promise.all([
-      page.waitForResponse(
-        (response) =>
-          response
-            .url()
-            .includes("/api/kody/agent-responsibilities/release-watch") &&
-          response.request().method() === "DELETE",
-      ),
-      deleteDialog
-        .getByRole("button", { name: "Delete agentResponsibility" })
-        .click(),
-    ]);
-    await expect(page.getByText("Release Watch")).toHaveCount(0);
-
-    expect(requests.map((request) => request.method)).toEqual([
-      "POST",
-      "POST",
-      "PATCH",
-      "PATCH",
-      "DELETE",
-    ]);
-  });
-
   test("goals and loops can be run, toggled, and deleted", async ({ page }) => {
-    await mockResponsibilities(page);
+    await mockCapabilities(page);
     const requests = await mockManagedGoals(page);
 
     await openPage(page, "/agent-goals", "Goals");
@@ -946,8 +700,20 @@ test.describe("Operations actions", () => {
       page.getByRole("button", { name: "Deactivate goal" }),
     ).toBeVisible();
 
+    await Promise.all([
+      page.waitForResponse(
+        (response) =>
+          response.url().includes("/api/kody/goals/managed/quality-goal") &&
+          response.request().method() === "PATCH",
+      ),
+      page.getByRole("button", { name: "Deactivate goal" }).click(),
+    ]);
+    await expect(
+      page.getByRole("button", { name: "Activate goal" }),
+    ).toBeVisible();
+
     await page
-      .getByRole("button", { name: "Delete goal", exact: true })
+      .getByRole("button", { name: "Delete goal quality-goal" })
       .click();
     let deleteDialog = page.getByRole("dialog");
     await Promise.all([
@@ -956,7 +722,7 @@ test.describe("Operations actions", () => {
           response.url().includes("/api/kody/goals/managed/quality-goal") &&
           response.request().method() === "DELETE",
       ),
-      deleteDialog.getByRole("button", { name: "Delete" }).click(),
+      deleteDialog.getByRole("button", { name: "Remove" }).click(),
     ]);
     await expect(page.getByText("quality-goal")).toHaveCount(0);
 
@@ -985,7 +751,7 @@ test.describe("Operations actions", () => {
     ).toBeVisible();
 
     await page
-      .getByRole("button", { name: "Delete loop", exact: true })
+      .getByRole("button", { name: "Delete loop daily-triage" })
       .click();
     deleteDialog = page.getByRole("dialog");
     await Promise.all([
@@ -994,12 +760,13 @@ test.describe("Operations actions", () => {
           response.url().includes("/api/kody/goals/managed/daily-triage") &&
           response.request().method() === "DELETE",
       ),
-      deleteDialog.getByRole("button", { name: "Delete" }).click(),
+      deleteDialog.getByRole("button", { name: "Remove" }).click(),
     ]);
     await expect(page.getByText("daily-triage")).toHaveCount(0);
 
     expect(requests.map((request) => request.method)).toEqual([
       "POST",
+      "PATCH",
       "PATCH",
       "DELETE",
       "POST",

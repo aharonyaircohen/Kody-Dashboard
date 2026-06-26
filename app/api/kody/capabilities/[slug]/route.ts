@@ -59,7 +59,7 @@ export async function GET(
     const capability = await readResolvedCapabilityFile(slug);
     if (!capability)
       return NextResponse.json({ error: "not_found" }, { status: 404 });
-    return NextResponse.json({ capability, agentAction: capability });
+    return NextResponse.json({ capability });
   } catch (error: any) {
     console.error("[Capabilities] Error fetching capability:", error);
     return NextResponse.json(
@@ -189,7 +189,7 @@ export async function PATCH(
       resource: slug,
       detail: `edited capability ${slug}`,
     });
-    return NextResponse.json({ capability, agentAction: capability });
+    return NextResponse.json({ capability });
   } catch (error: any) {
     console.error("[Capabilities] Error updating capability:", error);
     if (error instanceof z.ZodError) {
@@ -268,10 +268,7 @@ export async function DELETE(
         headerAuth.repo,
         { force: true },
       );
-      const usesNewField = Array.isArray(config.company?.activeCapabilities);
-      const activeCapabilities = usesNewField
-        ? (config.company?.activeCapabilities ?? [])
-        : (config.company?.activeAgentActions ?? []);
+      const activeCapabilities = config.company?.activeCapabilities ?? [];
       if (!activeCapabilities.includes(slug)) {
         return NextResponse.json({ success: true, alreadyMissing: true });
       }
@@ -283,19 +280,10 @@ export async function DELETE(
         userOctokit,
         headerAuth.owner,
         headerAuth.repo,
-        usesNewField
-          ? {
-              activeCapabilities:
-                nextActiveCapabilities.length > 0
-                  ? nextActiveCapabilities
-                  : null,
-            }
-          : {
-              activeAgentActions:
-                nextActiveCapabilities.length > 0
-                  ? nextActiveCapabilities
-                  : null,
-            },
+        {
+          activeCapabilities:
+            nextActiveCapabilities.length > 0 ? nextActiveCapabilities : null,
+        },
         `chore(kody): remove store capability ${slug}`,
       );
 

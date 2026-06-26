@@ -25,8 +25,7 @@ describe("managed goals API client", () => {
           {
             stage: "verify",
             evidence: "goalVerified",
-            agentResponsibility: "research",
-            agentAction: "research",
+            capability: "research",
           },
         ],
       }),
@@ -52,13 +51,12 @@ describe("managed goals API client", () => {
                 outcome: "Users can create goals from the dashboard.",
                 evidence: ["goalVerified"],
               },
-              agentResponsibilities: ["research"],
+              capabilities: ["research"],
               route: [
                 {
                   stage: "verify",
                   evidence: "goalVerified",
-                  agentResponsibility: "research",
-                  agentAction: "research",
+                  capability: "research",
                 },
               ],
               facts: {},
@@ -80,8 +78,7 @@ describe("managed goals API client", () => {
         {
           stage: "verify",
           evidence: "goalVerified",
-          agentResponsibility: "research",
-          agentAction: "research",
+          capability: "research",
         },
       ],
     });
@@ -107,13 +104,12 @@ describe("managed goals API client", () => {
                 outcome: "Run this goal again.",
                 evidence: ["goalVerified"],
               },
-              agentResponsibilities: ["research"],
+              capabilities: ["research"],
               route: [
                 {
                   stage: "verify",
                   evidence: "goalVerified",
-                  agentResponsibility: "research",
-                  agentAction: "research",
+                  capability: "research",
                 },
               ],
               facts: {},
@@ -136,8 +132,7 @@ describe("managed goals API client", () => {
         {
           stage: "verify",
           evidence: "goalVerified",
-          agentResponsibility: "research",
-          agentAction: "research",
+          capability: "research",
         },
       ],
     });
@@ -169,13 +164,12 @@ describe("managed goals API client", () => {
                   outcome: "Edited goal.",
                   evidence: ["goalVerified"],
                 },
-                agentResponsibilities: ["research"],
+                capabilities: ["research"],
                 route: [
                   {
                     stage: "verify",
                     evidence: "goalVerified",
-                    agentResponsibility: "research",
-                    agentAction: "research",
+                    capability: "research",
                   },
                 ],
                 facts: {},

@@ -3,7 +3,7 @@
  * @domain kody
  * @pattern commands-files
  * @ai-summary Read/write consumer command files under `commands/<slug>.md`
- *   in the configured Kody state repo. Same shape as `agentResponsibilities-files.ts`:
+ *   in the configured Kody state repo. Same shape as `capabilities-files.ts`:
  *   filename is the slug, frontmatter holds description/argument-hint,
  *   body is the command template that gets substituted with $ARGUMENTS.
  *

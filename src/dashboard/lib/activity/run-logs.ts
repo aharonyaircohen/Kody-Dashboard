@@ -18,7 +18,8 @@ export type KodyRunTimelineCategory =
 export interface KodyRunLogEvent {
   ts?: string;
   runId?: string;
-  agentAction?: string;
+  capability?: string;
+  executable?: string;
   kind?: string;
   name?: string;
   durationMs?: number;
@@ -30,7 +31,7 @@ export interface KodyRunTimelineItem {
   id: string;
   ts: string | null;
   runId: string | null;
-  agentAction: string | null;
+  capability: string | null;
   kind: string;
   name: string | null;
   durationMs: number | null;
@@ -77,7 +78,7 @@ export interface KodyRunLogsSnapshot {
 const STAGE_KINDS = new Set(["stage_start", "stage_end"]);
 
 function textOf(event: KodyRunLogEvent): string {
-  return [event.kind, event.name, event.agentAction]
+  return [event.kind, event.name, event.capability, event.executable]
     .filter(Boolean)
     .join(" ")
     .toLowerCase();
@@ -124,7 +125,7 @@ function categoryFor(event: KodyRunLogEvent): KodyRunTimelineCategory | null {
 }
 
 function labelFor(event: KodyRunLogEvent): string {
-  return event.name || event.agentAction || event.kind || "event";
+  return event.name || event.capability || event.executable || event.kind || "event";
 }
 
 function summaryFor(
@@ -176,7 +177,7 @@ export function buildRunTimeline(
         id: `${event.runId ?? "run"}:${event.ts ?? index}:${event.kind ?? "event"}:${event.name ?? index}`,
         ts: event.ts ?? null,
         runId: event.runId ?? null,
-        agentAction: event.agentAction ?? null,
+        capability: event.capability ?? event.executable ?? null,
         kind: event.kind ?? "event",
         name: event.name ?? null,
         durationMs: numberOrNull(event.durationMs),

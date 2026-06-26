@@ -7,7 +7,7 @@ models, or project-specific content rules. A repo enables CMS by adding a state
 repo config file, and the Dashboard renders UI, chat tools, and MCP tools from
 that same contract.
 
-## Responsibility Boundary
+## Ownership Boundary
 
 Kody owns:
 

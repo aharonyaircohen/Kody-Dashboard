@@ -33,19 +33,19 @@ across three pages by concern — /config owns the repo-wide behavior fields:
 
 | Field                                       | What it controls                                                                                                          | Edited on                      |
 | ------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------- | ------------------------------ |
-| `github.operators`                          | GitHub logins recommendation agentResponsibilities @-mention so their comment routes into the dashboard inbox. Empty = nobody is tagged. | **/config** → Operators card   |
+| `github.operators`                          | GitHub logins recommendation capabilities @-mention so their comment routes into the dashboard inbox. Empty = nobody is tagged. | **/config** → Operators card   |
 | `quality.{typecheck,lint,format,testUnit}`  | Commands the engine runs to verify the code it produces. Blank/absent = skip that check.                                  | **/config** → Quality commands |
 | `access.allowedAssociations`                | GitHub author associations allowed to trigger `@kody` (OWNER/MEMBER/…). Empty = engine default (team only).               | **/config** → Access gate      |
 | `git.defaultBranch`                         | Base branch new work branches off and targets. Blank = engine default (`main`).                                           | **/config** → Default branch   |
 | `aliases`                                   | Word → subcommand map, e.g. `{ "build": "run" }` lets `@kody build` dispatch `run`.                                       | **/config** → Comment aliases  |
 | `agent.model`                               | The `provider/model` the engine runs. **The only key the engine reads for its model.**                                    | /models (synced on save)       |
-| `agent.perAgentAction`                       | Per-agentAction model override, e.g. `{ "research": "anthropic/claude-opus-4-7" }`.                                        | /models                        |
-| `defaultAgentAction` / `defaultPrAgentAction` | AgentAction for a bare `@kody` on an issue / PR (engine defaults: `classify` / `fix`).                                     | /agent-actions                   |
+| `agent.perExecutable`                       | Per-executable model override, e.g. `{ "research": "anthropic/claude-opus-4-7" }`.                                        | /models                        |
+| `defaultExecutable` / `defaultPrExecutable` | Executable for a bare `@kody` on an issue / PR (engine defaults: `classify` / `fix`).                                     | /executables                   |
 
 ## The Operators card — inbox routing
 
 `github.operators` is the **only** thing that gets a recommendation into the
-dashboard inbox. CTO/pr-health agentResponsibilities post their recommendation as a GitHub
+dashboard inbox. CTO/pr-health capabilities post their recommendation as a GitHub
 comment whose first line `@`-mentions an operator; that mention is what routes
 it inbound. An empty list means recommendations still post on GitHub but reach
 nobody — so the card warns when the list is blank, and an
@@ -76,7 +76,7 @@ edited in the same session never clobber each other.
   card shows the currently-effective set.
 - **Default branch** — a single text field. Blank shows and means the engine
   default (`main`).
-- **Comment aliases** — add/remove `word → agentAction` pairs. Built-in aliases
+- **Comment aliases** — add/remove `word → executable` pairs. Built-in aliases
   (e.g. `build → run`) always apply regardless of what's listed here.
 
 ## Write flow
@@ -103,10 +103,10 @@ edited in the same session never clobber each other.
 ```
 
 Every writer — `writeConfigPatch`, `writeOperators`, `writeEngineModel`,
-`writeDefaultAgentAction` — funnels through `mutateConfig`, so the
+`writeDefaultExecutable` — funnels through `mutateConfig`, so the
 merge-not-overwrite rule (never clobber the engine's required keys: `github`,
-`agentActions`, `quality`, …) lives in exactly one place. A fresh file is
-seeded with the engine's minimum (`agentActions`, `github`). Reads cache for
+`executables`, `quality`, …) lives in exactly one place. A fresh file is
+seeded with the engine's minimum (`executables`, `github`). Reads cache for
 60s; writes invalidate the cache immediately so a follow-up read sees the
 change.
 
@@ -135,7 +135,7 @@ correctly:
 
 See [./models.md](./models.md) for the full model picker. The link between the
 two pages is one-directional: editing /config never touches the model;
-saving /models writes `agent.model` (and `agent.perAgentAction`).
+saving /models writes `agent.model` (and `agent.perExecutable`).
 
 ## File reference
 
@@ -147,7 +147,7 @@ saving /models writes `agent.model` (and `agent.perAgentAction`).
 | [`../src/dashboard/lib/components/EngineConfigCards.tsx`](../src/dashboard/lib/components/EngineConfigCards.tsx) | Quality / access / branch / aliases cards                                 |
 | [`../src/dashboard/lib/engine/config.ts`](../src/dashboard/lib/engine/config.ts)                                 | Read/cache/merge-write of `kody.config.json`; `engineModelSpec` consumers |
 | [`../src/dashboard/lib/engine/useEngineConfig.ts`](../src/dashboard/lib/engine/useEngineConfig.ts)               | Hook: load slice + partial-patch save                                     |
-| [`../app/api/kody/company/config/route.ts`](../app/api/kody/company/config/route.ts)                             | GET/PATCH for quality, aliases, access, branch, perAgentAction             |
+| [`../app/api/kody/company/config/route.ts`](../app/api/kody/company/config/route.ts)                             | GET/PATCH for quality, aliases, access, branch, perExecutable             |
 | [`../app/api/kody/company/operators/route.ts`](../app/api/kody/company/operators/route.ts)                       | GET/PUT for `github.operators`                                            |
 | [`../app/api/kody/models/route.ts`](../app/api/kody/models/route.ts)                                             | /models route; syncs `agent.model` on save                                |
 | [`../src/dashboard/lib/variables/models.ts`](../src/dashboard/lib/variables/models.ts)                           | `engineModelSpec` / `pickEngineDefaultModel`                              |
@@ -174,7 +174,7 @@ as misleading. The `refactor(config): move engine config to its own /config
 page` commit moved them to a dedicated repo-scoped /config page; /company is
 now purely bundle import/export.
 
-**My inbox is empty even though agentResponsibilities run.**
+**My inbox is empty even though capabilities run.**
 
 `github.operators` is probably unset. Recommendations only reach the inbox by
 @-mentioning an operator, and that list is company-set, never auto-filled. Add

@@ -36,7 +36,7 @@ export function VibeRunButton({ task }: VibeRunButtonProps) {
     }
   }, [task.issueNumber]);
 
-  // Once any lifecycle has started, the engine's run agentAction has set
+  // Once any lifecycle has started, the engine's run executable has set
   // a label that moves the task off `open`. Hide the button — repeat
   // execution would just stomp on an existing branch / PR.
   if (task.column !== "open") return null;

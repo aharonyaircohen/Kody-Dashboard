@@ -2,14 +2,14 @@
  * Tests for the code-enforced pending-recommendation cap. The agentIdentity identities
  * are *told* to stop at 10 but count by hand and drift; this gate makes the
  * cap deterministic at the inbox-feed write point. The cap is applied **per
- * agentResponsibility slug** so a chatty agentResponsibility can't crowd other agentResponsibilities out of the queue. Pure
+ * capability slug** so a chatty capability can't crowd other capabilities out of the queue. Pure
  * logic, so it's exhaustively tested here.
  */
 import { describe, expect, it } from "vitest";
 import {
   MAX_PENDING_CTO_RECS,
   countPendingCtoRecs,
-  countPendingByAgentResponsibility,
+  countPendingByCapability,
   applyCtoBackpressure,
   ctoFeedKey,
 } from "@dashboard/lib/cto/backpressure";
@@ -38,7 +38,7 @@ const REPO = "acme/widgets";
 function rec(
   taskNumber: number,
   action = "execute",
-  agentResponsibility = "cto",
+  capability = "cto",
 ): InboxFeedEntry {
   return {
     id: `aguyaharonyair:https://github.com/${REPO}/issues/${taskNumber}#c${taskNumber}`,
@@ -51,8 +51,8 @@ function rec(
     url: `https://github.com/${REPO}/issues/${taskNumber}#issuecomment-${taskNumber}`,
     sentAt: new Date(2026, 0, 1, 0, taskNumber).toISOString(),
     ctoAction: action,
-    ctoAgent: agentResponsibility,
-    ctoAgentResponsibility: agentResponsibility,
+    ctoAgent: capability,
+    ctoCapability: capability,
   };
 }
 
@@ -78,25 +78,25 @@ function plainMention(n: number): InboxFeedEntry {
 const NO_DECISIONS: Record<string, TrustLatestDecision> = {};
 
 describe("ctoFeedKey", () => {
-  it("resolves a rec entry to its agentResponsibility+task+action", () => {
+  it("resolves a rec entry to its capability+task+action", () => {
     expect(ctoFeedKey(rec(42, "fix", "qa"))).toEqual({
-      agentResponsibility: "qa",
+      capability: "qa",
       taskNumber: 42,
       action: "fix",
     });
   });
 
-  it("falls back from agentResponsibility to agent, then to the CTO slug", () => {
+  it("falls back from capability to agent, then to the CTO slug", () => {
     const e = { ...ctoRec(42, "fix") };
-    delete e.ctoAgentResponsibility;
+    delete e.ctoCapability;
     expect(ctoFeedKey(e)).toEqual({
-      agentResponsibility: "cto",
+      capability: "cto",
       taskNumber: 42,
       action: "fix",
     });
     delete e.ctoAgent;
     expect(ctoFeedKey(e)).toEqual({
-      agentResponsibility: "cto",
+      capability: "cto",
       taskNumber: 42,
       action: "fix",
     });
@@ -112,22 +112,22 @@ describe("ctoFeedKey", () => {
   });
 });
 
-describe("countPendingCtoRecs / countPendingByAgentResponsibility", () => {
+describe("countPendingCtoRecs / countPendingByCapability", () => {
   it("counts only undecided recs (total)", () => {
     const entries = [ctoRec(1), ctoRec(2), plainMention(3), ctoRec(4)];
     expect(countPendingCtoRecs(entries, NO_DECISIONS)).toBe(3);
   });
 
-  it("buckets pending counts by agentResponsibility slug", () => {
+  it("buckets pending counts by capability slug", () => {
     const entries = [
       rec(1, "execute", "cto"),
       rec(2, "execute", "cto"),
       rec(3, "fix", "qa"),
       plainMention(4),
     ];
-    const byAgentResponsibility = countPendingByAgentResponsibility(entries, NO_DECISIONS);
-    expect(byAgentResponsibility.get("cto")).toBe(2);
-    expect(byAgentResponsibility.get("qa")).toBe(1);
+    const byCapability = countPendingByCapability(entries, NO_DECISIONS);
+    expect(byCapability.get("cto")).toBe(2);
+    expect(byCapability.get("qa")).toBe(1);
   });
 
   it("excludes recs whose verdict is newer than the rec (settles this rec)", () => {
@@ -146,8 +146,8 @@ describe("countPendingCtoRecs / countPendingByAgentResponsibility", () => {
     expect(countPendingCtoRecs([ctoRec(1)], stale)).toBe(1);
   });
 
-  it("a verdict for a DIFFERENT agentResponsibility doesn't settle this rec", () => {
-    // A future-dated verdict exists, but under the QA agentResponsibility — the CTO's rec on
+  it("a verdict for a DIFFERENT capability doesn't settle this rec", () => {
+    // A future-dated verdict exists, but under the QA capability — the CTO's rec on
     // the same task+action must still count as pending.
     const decidedMap: Record<string, TrustLatestDecision> = {
       [trustDecisionKey("qa", 1, "execute")]: decidedFuture("approve"),
@@ -169,7 +169,7 @@ describe("applyCtoBackpressure", () => {
     expect(withheld).toHaveLength(0);
   });
 
-  it("admits recs only up to that agentResponsibility's headroom", () => {
+  it("admits recs only up to that capability's headroom", () => {
     const current = Array.from({ length: 8 }, (_, i) => ctoRec(i + 1));
     const incoming = [ctoRec(101), ctoRec(102), ctoRec(103), ctoRec(104)];
     const { admitted, withheld } = applyCtoBackpressure(
@@ -182,7 +182,7 @@ describe("applyCtoBackpressure", () => {
     expect(withheld.map((e) => ctoFeedKey(e)?.taskNumber)).toEqual([103, 104]);
   });
 
-  it("withholds everything when that agentResponsibility is already at the cap", () => {
+  it("withholds everything when that capability is already at the cap", () => {
     const current = Array.from({ length: MAX_PENDING_CTO_RECS }, (_, i) =>
       ctoRec(i + 1),
     );
@@ -195,7 +195,7 @@ describe("applyCtoBackpressure", () => {
     expect(withheld).toHaveLength(1);
   });
 
-  it("a full CTO queue does NOT block QA's recs (per-agentResponsibility budgets)", () => {
+  it("a full CTO queue does NOT block QA's recs (per-capability budgets)", () => {
     // CTO is at its cap; QA has an empty queue — QA's recs must still flow.
     const current = Array.from({ length: MAX_PENDING_CTO_RECS }, (_, i) =>
       rec(i + 1, "execute", "cto"),
@@ -210,8 +210,8 @@ describe("applyCtoBackpressure", () => {
       incoming,
       NO_DECISIONS,
     );
-    expect(admitted.map((e) => ctoFeedKey(e)?.agentResponsibility)).toEqual(["qa", "qa"]);
-    expect(withheld.map((e) => ctoFeedKey(e)?.agentResponsibility)).toEqual(["cto"]);
+    expect(admitted.map((e) => ctoFeedKey(e)?.capability)).toEqual(["qa", "qa"]);
+    expect(withheld.map((e) => ctoFeedKey(e)?.capability)).toEqual(["cto"]);
   });
 
   it("frees a slot once the operator decides — the queue drains", () => {

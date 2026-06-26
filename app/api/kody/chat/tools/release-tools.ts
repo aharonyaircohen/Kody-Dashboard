@@ -5,7 +5,7 @@
  * @ai-summary Release-request tool for kody-direct chat agent.
  *
  * Opens a release-tracking GitHub issue and posts `@kody release` on it.
- * The repo-stored release agentAction reads branch policy from
+ * The repo-stored release executable reads branch policy from
  * state repo `variables.json` and handles both single-main and dev-to-main repos.
  */
 import { tool } from "ai";
@@ -64,9 +64,9 @@ export function createReleaseTools(ctx: Ctx) {
     request_release: tool({
       description:
         `Open a release-tracking GitHub issue in ${owner}/${repo} and ` +
-        "trigger the branch-aware Kody release agentAction by posting " +
+        "trigger the branch-aware Kody release executable by posting " +
         "`@kody release`. Use when the user asks to ship, cut, publish, " +
-        "or deploy a release. The agentAction opens the version PR to the " +
+        "or deploy a release. The executable opens the version PR to the " +
         "configured integration branch, then tags/releases after that PR " +
         "is merged. In dev/main repos it also opens the promotion PR.",
       inputSchema: z.object({

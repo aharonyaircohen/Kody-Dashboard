@@ -15,7 +15,7 @@
  * passed octokit for ALL of its GitHub access and succeed.
  *
  * Unlike company.spec.ts this does NOT mock the file helpers — it exercises
- * the real `agentResponsibilities-files`/`agent-files`/`commands/files`/`instructions/files`
+ * the real `capabilities-files`/`agent-files`/`commands/files`/`instructions/files`
  * so the octokit-threading is genuinely under test. Only github-client (the
  * shared context) is mocked.
  */
@@ -56,7 +56,7 @@ vi.mock("@dashboard/lib/github-client", () => ({
   getOctokit: vi.fn(() => badOctokit),
   getOwner: vi.fn(() => "acme"),
   getRepo: vi.fn(() => "widgets"),
-  invalidateAgentResponsibilitiesCache: vi.fn(),
+  invalidateCapabilitiesCache: vi.fn(),
   invalidateStaffCache: vi.fn(),
   invalidateCommandsCache: vi.fn(),
   fetchCompanyActivity: vi.fn(async () => []),
@@ -168,43 +168,11 @@ const bundle = {
       slug: "cto",
       title: "CTO",
       body: "x",
-      schedule: null,
-      disabled: false,
-      agent: null,
-      reviewer: null,
-      action: null,
-      mentions: [],
-      agentAction: null,
-      agentActions: [],
-      agentResponsibilityTools: [],
-      tickScript: null,
-      readsFrom: [],
-      writesTo: [],
-    },
-  ],
-  agentResponsibilities: [
-    {
-      slug: "nightly",
-      title: "N",
-      body: "y",
-      schedule: "1d" as const,
-      disabled: false,
-      agent: "cto",
-      reviewer: "qa",
-      action: "nightly",
-      mentions: [],
-      agentAction: null,
-      agentActions: [],
-      agentResponsibilityTools: [],
-      tickScript: null,
-      readsFrom: [],
-      writesTo: [],
     },
   ],
   contexts: [],
   commands: [{ slug: "review", description: "d", argumentHint: "", body: "B" }],
   capabilities: [],
-  agentActions: [],
   goals: [],
   instructions: "Be terse.",
   config: null,
@@ -222,10 +190,6 @@ describe("company import survives a cleared/bad request-context octokit", () => 
     // Pre-fix: the existence-check read + confirm read used getOctokit()
     // (badOctokit) → 401 → every entry reported failed. Post-fix: all created.
     expect(result.agent).toMatchObject({ created: 1, failed: 0 });
-    expect(result.agentResponsibilities).toMatchObject({
-      created: 1,
-      failed: 0,
-    });
     expect(result.commands).toMatchObject({ created: 1, failed: 0 });
     expect(result.instructions).toBe("created");
     expect(result.notes).toEqual([]);
@@ -244,10 +208,6 @@ describe("company import survives a cleared/bad request-context octokit", () => 
     const result = await applyCompanyBundle(good as never, bundle, "skip");
     // The one agent write genuinely failed; everything else still succeeded.
     expect(result.agent).toMatchObject({ created: 0, failed: 1 });
-    expect(result.agentResponsibilities).toMatchObject({
-      created: 1,
-      failed: 0,
-    });
     expect(result.notes.some((n) => n.includes("Bad credentials"))).toBe(true);
   });
 });

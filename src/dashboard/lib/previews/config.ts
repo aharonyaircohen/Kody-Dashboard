@@ -120,14 +120,14 @@ export async function resolveFlyPreviewsForRepo(
 ): Promise<ResolvedFlyPreviews> {
   const [owner, name] = repo.split("/");
   if (!owner || !name)
-    return resolveFlyPreviews({ agentActions: { default: "run" } });
+    return resolveFlyPreviews({ executables: { default: "run" } });
   try {
     let token = githubToken;
     if (!token) {
       const bg = await resolveBackgroundToken(owner, name);
       token = bg?.token;
     }
-    if (!token) return resolveFlyPreviews({ agentActions: { default: "run" } });
+    if (!token) return resolveFlyPreviews({ executables: { default: "run" } });
     const octokit = new Octokit({ auth: token });
     const { config } = await getEngineConfig(octokit, owner, name);
     return resolveFlyPreviews(config);
@@ -136,6 +136,6 @@ export async function resolveFlyPreviewsForRepo(
       { err, repo },
       "previews: fly-config read failed, using defaults",
     );
-    return resolveFlyPreviews({ agentActions: { default: "run" } });
+    return resolveFlyPreviews({ executables: { default: "run" } });
   }
 }

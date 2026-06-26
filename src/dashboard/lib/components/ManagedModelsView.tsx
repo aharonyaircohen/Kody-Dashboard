@@ -51,11 +51,11 @@ import {
 } from "@dashboard/ui/select";
 import { Textarea } from "@dashboard/ui/textarea";
 
-import type { AgentResponsibility } from "../api";
 import {
-  useAgentResponsibilities,
-  useRunAgentResponsibility,
-} from "../hooks/useAgentResponsibilities";
+  useCapabilities,
+  useRunCapability,
+  type CapabilitySummary,
+} from "../hooks/useCapabilities";
 import {
   useCreateManagedGoal,
   useDeleteManagedGoal,
@@ -475,12 +475,11 @@ function goalSearchText(goal: ManagedGoalRecord): string {
     loopTarget?.id ?? "",
     goal.state.destination.outcome,
     ...goal.state.destination.evidence,
-    ...goal.state.agentResponsibilities,
+    ...goal.state.capabilities,
     ...goal.state.route.flatMap((step) => [
       step.stage,
       step.evidence,
-      step.agentResponsibility,
-      step.agentAction ?? "",
+      step.capability,
     ]),
     ...goal.state.blockers,
   ]
@@ -488,15 +487,15 @@ function goalSearchText(goal: ManagedGoalRecord): string {
     .toLowerCase();
 }
 
-function compactAgentResponsibilityLabel(value: string): string {
+function compactCapabilityLabel(value: string): string {
   return value
     .trim()
     .replace(/[-_]+/g, " ")
     .replace(/\b\w/g, (letter) => letter.toUpperCase());
 }
 
-function agentResponsibilitySelectOptions(
-  agentResponsibilities: AgentResponsibility[],
+function capabilitySelectOptions(
+  capabilities: CapabilitySummary[],
   seedSlugs: string[],
 ): SearchableSelectOption[] {
   const bySlug = new Map<string, SearchableSelectOption>();
@@ -504,21 +503,21 @@ function agentResponsibilitySelectOptions(
     bySlug.set(slug, {
       value: slug,
       label: slug,
-      selectedLabel: compactAgentResponsibilityLabel(slug),
+      selectedLabel: compactCapabilityLabel(slug),
       searchText: slug,
     });
   }
-  for (const agentResponsibility of agentResponsibilities) {
-    const label = agentResponsibility.title || agentResponsibility.slug;
-    const source = agentResponsibility.source
-      ? ` / ${agentResponsibility.source}`
+  for (const capability of capabilities) {
+    const label = capability.describe || capability.slug;
+    const source = capability.source
+      ? ` / ${capability.source}`
       : "";
-    bySlug.set(agentResponsibility.slug, {
-      value: agentResponsibility.slug,
+    bySlug.set(capability.slug, {
+      value: capability.slug,
       label,
-      selectedLabel: compactAgentResponsibilityLabel(agentResponsibility.slug),
-      description: `${agentResponsibility.slug}${source}`,
-      searchText: `${label} ${agentResponsibility.slug} ${agentResponsibility.source ?? ""}`,
+      selectedLabel: compactCapabilityLabel(capability.slug),
+      description: `${capability.slug}${source}`,
+      searchText: `${label} ${capability.slug} ${capability.source ?? ""}`,
     });
   }
   return Array.from(bySlug.values()).sort((a, b) =>
@@ -545,7 +544,7 @@ function isManagedLoopTarget(value: unknown): value is ManagedLoopTarget {
   if (!value || typeof value !== "object" || Array.isArray(value)) return false;
   const target = value as Partial<ManagedLoopTarget>;
   return (
-    (target.type === "goal" || target.type === "agentResponsibility") &&
+    (target.type === "goal" || target.type === "capability") &&
     typeof target.id === "string" &&
     target.id.trim().length > 0
   );
@@ -559,9 +558,9 @@ function managedLoopTarget(goal: ManagedGoalRecord): ManagedLoopTarget | null {
     };
   }
   if (managedGoalModel(goal) !== "agentLoop") return null;
-  const firstResponsibility = goal.state.agentResponsibilities[0]?.trim();
-  return firstResponsibility
-    ? { type: "agentResponsibility", id: firstResponsibility }
+  const firstCapability = goal.state.capabilities[0]?.trim();
+  return firstCapability
+    ? { type: "capability", id: firstCapability }
     : null;
 }
 
@@ -569,7 +568,7 @@ function loopTargetLabel(target: ManagedLoopTarget | null): string {
   if (!target) return "No target";
   return target.type === "goal"
     ? `Goal: ${target.id}`
-    : `Responsibility: ${target.id}`;
+    : `Capability: ${target.id}`;
 }
 
 function mergeOrderedSlugs(current: string[], next: string[]): string[] {
@@ -597,26 +596,25 @@ function fallbackRouteStep(slug: string): ManagedGoalRouteStep {
   return {
     stage: slug,
     evidence: normalizeEvidenceKey(`${slug}Complete`) || `${slug}Complete`,
-    agentResponsibility: slug,
-    agentAction: slug,
+    capability: slug,
   };
 }
 
-function routeStepsForAgentResponsibilities(
+function routeStepsForCapabilities(
   goalType: ManagedGoalTypeDefinition,
   slugs: string[],
   existingRoute: ManagedGoalRouteStep[] = [],
 ): ManagedGoalRouteStep[] {
-  const existingByResponsibility = new Map(
-    existingRoute.map((step) => [step.agentResponsibility, step]),
+  const existingByCapability = new Map(
+    existingRoute.map((step) => [step.capability, step]),
   );
-  const defaultsByResponsibility = new Map(
-    goalType.route.map((step) => [step.agentResponsibility, step]),
+  const defaultsByCapability = new Map(
+    goalType.route.map((step) => [step.capability, step]),
   );
 
   return slugs.map((slug) => ({
-    ...(existingByResponsibility.get(slug) ??
-      defaultsByResponsibility.get(slug) ??
+    ...(existingByCapability.get(slug) ??
+      defaultsByCapability.get(slug) ??
       fallbackRouteStep(slug)),
   }));
 }
@@ -677,16 +675,16 @@ function OrderedPathSection({
   title,
   hint,
   route,
-  agentResponsibilitySlugs,
+  capabilitySlugs,
   onMove,
 }: {
   title: string;
   hint: string;
   route?: ManagedGoalRouteStep[];
-  agentResponsibilitySlugs: string[];
+  capabilitySlugs: string[];
   onMove: (index: number, direction: -1 | 1) => void;
 }) {
-  const rows = route ?? agentResponsibilitySlugs.map(fallbackRouteStep);
+  const rows = route ?? capabilitySlugs.map(fallbackRouteStep);
   if (rows.length === 0) return null;
 
   return (
@@ -701,7 +699,7 @@ function OrderedPathSection({
       <div className="space-y-2">
         {rows.map((step, index) => (
           <div
-            key={`${step.agentResponsibility}:${step.evidence}:${index}`}
+            key={`${step.capability}:${step.evidence}:${index}`}
             className="grid gap-3 rounded border border-white/[0.06] bg-white/[0.02] px-3 py-2 text-sm md:grid-cols-[minmax(0,1fr)_auto]"
           >
             <div className="min-w-0 space-y-1">
@@ -719,10 +717,7 @@ function OrderedPathSection({
                 ) : null}
               </div>
               <p className="truncate text-xs text-white/45">
-                agentResponsibility: {step.agentResponsibility}
-                {route && step.agentAction
-                  ? ` · agentAction: ${step.agentAction}`
-                  : ""}
+                capability: {step.capability}
               </p>
             </div>
             <div className="flex items-center gap-1">
@@ -733,7 +728,7 @@ function OrderedPathSection({
                 className="h-7 w-7 px-0"
                 onClick={() => onMove(index, -1)}
                 disabled={index === 0}
-                aria-label={`Move ${step.agentResponsibility} up`}
+                aria-label={`Move ${step.capability} up`}
                 title="Move up"
               >
                 <ArrowUp className="h-3.5 w-3.5" />
@@ -745,7 +740,7 @@ function OrderedPathSection({
                 className="h-7 w-7 px-0"
                 onClick={() => onMove(index, 1)}
                 disabled={index === rows.length - 1}
-                aria-label={`Move ${step.agentResponsibility} down`}
+                aria-label={`Move ${step.capability} down`}
                 title="Move down"
               >
                 <ArrowDown className="h-3.5 w-3.5" />
@@ -775,9 +770,9 @@ function NewGoalDialog({
 }) {
   const createGoal = useCreateManagedGoal();
   const {
-    data: agentResponsibilities = [],
-    isLoading: agentResponsibilitiesLoading,
-  } = useAgentResponsibilities();
+    data: capabilities = [],
+    isLoading: capabilitiesLoading,
+  } = useCapabilities();
   const goalTypes = useMemo(
     () =>
       model === "agentGoal"
@@ -806,8 +801,8 @@ function NewGoalDialog({
     null,
   );
   const [
-    selectedAgentResponsibilitySlugs,
-    setSelectedAgentResponsibilitySlugs,
+    selectedCapabilitySlugs,
+    setSelectedCapabilitySlugs,
   ] = useState<string[]>([]);
   const [saveReport, setSaveReport] = useState(isRoutine);
 
@@ -817,26 +812,25 @@ function NewGoalDialog({
     ? scheduleOptions.filter((option) => option.value !== "manual")
     : scheduleOptions;
   const loopGoalOptions = useMemo(() => goalTargetOptions(goals), [goals]);
-  const agentResponsibilityOptions = useMemo(
+  const capabilityOptions = useMemo(
     () =>
-      agentResponsibilitySelectOptions(
-        agentResponsibilities,
-        selectedGoalType.agentResponsibilities,
+      capabilitySelectOptions(
+        capabilities,
+        selectedGoalType.capabilities,
       ),
-    [agentResponsibilities, selectedGoalType.agentResponsibilities],
+    [capabilities, selectedGoalType.capabilities],
   );
   const routeSteps = useMemo(
     () =>
       isRoutine
         ? []
-        : routeStepsForAgentResponsibilities(
+        : routeStepsForCapabilities(
             selectedGoalType,
-            selectedAgentResponsibilitySlugs,
+            selectedCapabilitySlugs,
           ),
-    [isRoutine, selectedAgentResponsibilitySlugs, selectedGoalType],
+    [isRoutine, selectedCapabilitySlugs, selectedGoalType],
   );
-  const selectedLoopResponsibilitySlug =
-    selectedAgentResponsibilitySlugs[0] ?? null;
+  const selectedLoopCapabilitySlug = selectedCapabilitySlugs[0] ?? null;
   const preferredRunTime = buildPreferredRunTime(
     preferredRunAt,
     preferredRunTimeZone,
@@ -846,23 +840,23 @@ function NewGoalDialog({
       ? selectedLoopGoalId
         ? { type: "goal", id: selectedLoopGoalId }
         : undefined
-      : selectedLoopResponsibilitySlug
+      : selectedLoopCapabilitySlug
         ? {
-            type: "agentResponsibility",
-            id: selectedLoopResponsibilitySlug,
+            type: "capability",
+            id: selectedLoopCapabilitySlug,
           }
         : undefined
     : undefined;
   const canSubmit =
     outcome.trim().length > 0 &&
-    (isRoutine ? !!loopTarget : selectedAgentResponsibilitySlugs.length > 0) &&
+    (isRoutine ? !!loopTarget : selectedCapabilitySlugs.length > 0) &&
     (!isRoutine ||
       !preferredRunAt.trim() ||
       preferredRunTimeZone.trim().length > 0);
   const intentLabel = isRoutine ? "Scope" : "Finish line";
   const dialogDescription = isRoutine
-    ? "Create one ongoing loop with a clear scope, cadence, and agentResponsibilities."
-    : "Define the finish line and attach the agentResponsibilities Kody should use.";
+    ? "Create one ongoing loop with a clear scope, cadence, and capabilities."
+    : "Define the finish line and attach the capabilities Kody should use.";
   const intentPlaceholder = isRoutine
     ? "Example: Keep codebase healthy and surface drift."
     : selectedGoalType.promptPlaceholder;
@@ -901,7 +895,7 @@ function NewGoalDialog({
     setOutcome("");
     setLoopTargetType("goal");
     setSelectedLoopGoalId(null);
-    setSelectedAgentResponsibilitySlugs([]);
+    setSelectedCapabilitySlugs([]);
     setSaveReport(isRoutine);
   }, [defaultSchedule, defaultTimeZone, defaultType.id, isRoutine]);
 
@@ -909,17 +903,17 @@ function NewGoalDialog({
     if (open) reset();
   }, [open, reset]);
 
-  const selectAgentResponsibilities = (next: string[]) => {
-    setSelectedAgentResponsibilitySlugs((current) =>
+  const selectCapabilities = (next: string[]) => {
+    setSelectedCapabilitySlugs((current) =>
       mergeOrderedSlugs(current, next),
     );
   };
 
-  const moveSelectedAgentResponsibility = (
+  const moveSelectedCapability = (
     index: number,
     direction: -1 | 1,
   ) => {
-    setSelectedAgentResponsibilitySlugs((current) =>
+    setSelectedCapabilitySlugs((current) =>
       moveItem(current, index, direction),
     );
   };
@@ -941,11 +935,11 @@ function NewGoalDialog({
         prompt: outcome,
         loopTarget,
         saveReport: isRoutine ? saveReport : undefined,
-        agentResponsibilities: isRoutine
-          ? loopTarget?.type === "agentResponsibility"
+        capabilities: isRoutine
+          ? loopTarget?.type === "capability"
             ? [loopTarget.id]
             : []
-          : selectedAgentResponsibilitySlugs,
+          : selectedCapabilitySlugs,
         evidence: isRoutine ? [] : evidenceForRoute(routeSteps),
         route: isRoutine ? [] : routeWithReportPreference,
       }),
@@ -1012,7 +1006,7 @@ function NewGoalDialog({
                     value={loopTargetType}
                     onValueChange={(value) => {
                       setLoopTargetType(value as ManagedLoopTarget["type"]);
-                      setSelectedAgentResponsibilitySlugs([]);
+                      setSelectedCapabilitySlugs([]);
                     }}
                   >
                     <SelectTrigger id="loop-target-type">
@@ -1020,9 +1014,7 @@ function NewGoalDialog({
                     </SelectTrigger>
                     <SelectContent>
                       <SelectItem value="goal">Goal</SelectItem>
-                      <SelectItem value="agentResponsibility">
-                        Responsibility
-                      </SelectItem>
+                      <SelectItem value="capability">Capability</SelectItem>
                     </SelectContent>
                   </Select>
                 </div>
@@ -1041,44 +1033,44 @@ function NewGoalDialog({
                   ) : (
                     <SearchableSelect
                       id="loop-target"
-                      options={agentResponsibilityOptions}
-                      value={selectedLoopResponsibilitySlug}
+                      options={capabilityOptions}
+                      value={selectedLoopCapabilitySlug}
                       onChange={(next) =>
-                        setSelectedAgentResponsibilitySlugs(next ? [next] : [])
+                        setSelectedCapabilitySlugs(next ? [next] : [])
                       }
                       placeholder={
-                        agentResponsibilitiesLoading
-                          ? "Loading responsibilities..."
-                          : "Select responsibility"
+                        capabilitiesLoading
+                          ? "Loading capabilities..."
+                          : "Select capability"
                       }
-                      searchPlaceholder="Search responsibilities..."
-                      emptyLabel="No responsibilities found"
-                      disabled={agentResponsibilitiesLoading}
+                      searchPlaceholder="Search capabilities..."
+                      emptyLabel="No capabilities found"
+                      disabled={capabilitiesLoading}
                     />
                   )}
                 </div>
               </>
             ) : (
               <div className="min-w-0 space-y-2 md:col-span-2">
-                <Label htmlFor="agentGoal-agentResponsibilities">
-                  AgentResponsibilities
+                <Label htmlFor="agentGoal-capabilities">
+                  Capabilities
                 </Label>
                 <SearchableMultiSelect
-                  id="agentGoal-agentResponsibilities"
-                  options={agentResponsibilityOptions}
-                  value={selectedAgentResponsibilitySlugs}
-                  onChange={selectAgentResponsibilities}
+                  id="agentGoal-capabilities"
+                  options={capabilityOptions}
+                  value={selectedCapabilitySlugs}
+                  onChange={selectCapabilities}
                   placeholder={
-                    agentResponsibilitiesLoading
-                      ? "Loading agentResponsibilities..."
-                      : "Select agentResponsibilities"
+                    capabilitiesLoading
+                      ? "Loading capabilities..."
+                      : "Select capabilities"
                   }
-                  searchPlaceholder="Search agentResponsibilities..."
-                  emptyLabel="No agentResponsibilities found"
-                  disabled={agentResponsibilitiesLoading}
-                  selectedLabel="agentResponsibilities selected"
-                  selectedSingularLabel="agentResponsibility selected"
-                  selectedHeading="Selected agentResponsibilities"
+                  searchPlaceholder="Search capabilities..."
+                  emptyLabel="No capabilities found"
+                  disabled={capabilitiesLoading}
+                  selectedLabel="capabilities selected"
+                  selectedSingularLabel="capability selected"
+                  selectedHeading="Selected capabilities"
                   selectedTone="info"
                   maxVisibleSelected={4}
                 />
@@ -1086,8 +1078,8 @@ function NewGoalDialog({
                   title="Route"
                   hint="The ordered path Kody follows to collect evidence."
                   route={routeSteps}
-                  agentResponsibilitySlugs={selectedAgentResponsibilitySlugs}
-                  onMove={moveSelectedAgentResponsibility}
+                  capabilitySlugs={selectedCapabilitySlugs}
+                  onMove={moveSelectedCapability}
                 />
               </div>
             )}
@@ -1099,8 +1091,8 @@ function NewGoalDialog({
             onCheckedChange={setSaveReport}
             description={
               isRoutine
-                ? "Writes each loop run to reports/<responsibility>.md."
-                : "Writes each route responsibility output to reports/<responsibility>.md."
+                ? "Writes each loop run to reports/<capability>.md."
+                : "Writes each route capability output to reports/<capability>.md."
             }
           />
 
@@ -1136,14 +1128,14 @@ function EditManagedGoalDialog({
   open,
   onOpenChange,
   label,
-  agentResponsibilities,
+  capabilities,
   goals,
 }: {
   goal: ManagedGoalRecord | null;
   open: boolean;
   onOpenChange: (open: boolean) => void;
   label: string;
-  agentResponsibilities: AgentResponsibility[];
+  capabilities: CapabilitySummary[];
   goals: ManagedGoalRecord[];
 }) {
   const updateGoal = useUpdateManagedGoal(goal?.id ?? "");
@@ -1162,7 +1154,7 @@ function EditManagedGoalDialog({
   const intentLabel = isRoutine ? "Scope" : "Finish line";
   const editDescription = isRoutine
     ? "Update agentLoop scope, cadence, and target."
-    : "Update the finish line and attached agentResponsibilities.";
+    : "Update the finish line and attached capabilities.";
   const defaultTimeZone = useMemo(() => browserTimeZone(), []);
   const [outcome, setOutcome] = useState("");
   const [schedule, setSchedule] = useState<ManagedGoalSchedule>("manual");
@@ -1179,8 +1171,8 @@ function EditManagedGoalDialog({
     null,
   );
   const [
-    selectedAgentResponsibilitySlugs,
-    setSelectedAgentResponsibilitySlugs,
+    selectedCapabilitySlugs,
+    setSelectedCapabilitySlugs,
   ] = useState<string[]>([]);
   const [saveReport, setSaveReport] = useState(false);
   const objectiveGoalType = initialObjectiveGoalType;
@@ -1188,27 +1180,26 @@ function EditManagedGoalDialog({
     ? scheduleOptions.filter((option) => option.value !== "manual")
     : scheduleOptions;
   const loopGoalOptions = useMemo(() => goalTargetOptions(goals), [goals]);
-  const agentResponsibilityOptions = useMemo(
+  const capabilityOptions = useMemo(
     () =>
-      agentResponsibilitySelectOptions(
-        agentResponsibilities,
-        goal?.state.agentResponsibilities ?? [],
+      capabilitySelectOptions(
+        capabilities,
+        goal?.state.capabilities ?? [],
       ),
-    [agentResponsibilities, goal?.state.agentResponsibilities],
+    [capabilities, goal?.state.capabilities],
   );
   const routeSteps = useMemo(
     () =>
       !goal || isRoutine
         ? []
-        : routeStepsForAgentResponsibilities(
+        : routeStepsForCapabilities(
             objectiveGoalType,
-            selectedAgentResponsibilitySlugs,
+            selectedCapabilitySlugs,
             goal.state.route,
           ),
-    [goal, isRoutine, objectiveGoalType, selectedAgentResponsibilitySlugs],
+    [goal, isRoutine, objectiveGoalType, selectedCapabilitySlugs],
   );
-  const selectedLoopResponsibilitySlug =
-    selectedAgentResponsibilitySlugs[0] ?? null;
+  const selectedLoopCapabilitySlug = selectedCapabilitySlugs[0] ?? null;
   const preferredRunTime = buildPreferredRunTime(
     preferredRunAt,
     preferredRunTimeZone,
@@ -1218,10 +1209,10 @@ function EditManagedGoalDialog({
       ? selectedLoopGoalId
         ? { type: "goal", id: selectedLoopGoalId }
         : undefined
-      : selectedLoopResponsibilitySlug
+      : selectedLoopCapabilitySlug
         ? {
-            type: "agentResponsibility",
-            id: selectedLoopResponsibilitySlug,
+            type: "capability",
+            id: selectedLoopCapabilitySlug,
           }
         : undefined
     : undefined;
@@ -1252,8 +1243,8 @@ function EditManagedGoalDialog({
       setSaveReport(goal.state.saveReport !== false);
       setLoopTargetType(nextType);
       setSelectedLoopGoalId(target?.type === "goal" ? target.id : null);
-      setSelectedAgentResponsibilitySlugs(
-        target?.type === "agentResponsibility" ? [target.id] : [],
+      setSelectedCapabilitySlugs(
+        target?.type === "capability" ? [target.id] : [],
       );
       return;
     }
@@ -1261,20 +1252,20 @@ function EditManagedGoalDialog({
     setPreferredRunTimeZone(defaultTimeZone);
     setSaveReport(routeSavesReport(goal.state.route));
     setSelectedLoopGoalId(null);
-    setSelectedAgentResponsibilitySlugs(goal.state.agentResponsibilities);
+    setSelectedCapabilitySlugs(goal.state.capabilities);
   }, [defaultTimeZone, goal, isRoutine, open]);
 
-  const selectAgentResponsibilities = (next: string[]) => {
-    setSelectedAgentResponsibilitySlugs((current) =>
+  const selectCapabilities = (next: string[]) => {
+    setSelectedCapabilitySlugs((current) =>
       mergeOrderedSlugs(current, next),
     );
   };
 
-  const moveSelectedAgentResponsibility = (
+  const moveSelectedCapability = (
     index: number,
     direction: -1 | 1,
   ) => {
-    setSelectedAgentResponsibilitySlugs((current) =>
+    setSelectedCapabilitySlugs((current) =>
       moveItem(current, index, direction),
     );
   };
@@ -1286,7 +1277,7 @@ function EditManagedGoalDialog({
   const canSubmit =
     !!goal &&
     outcome.trim().length > 0 &&
-    (isRoutine ? !!loopTarget : selectedAgentResponsibilitySlugs.length > 0) &&
+    (isRoutine ? !!loopTarget : selectedCapabilitySlugs.length > 0) &&
     (!isRoutine ||
       !preferredRunAt.trim() ||
       preferredRunTimeZone.trim().length > 0);
@@ -1306,11 +1297,11 @@ function EditManagedGoalDialog({
             loopTarget,
             preferredRunTime: preferredRunTime ?? null,
             saveReport,
-            agentResponsibilities:
-              loopTarget?.type === "agentResponsibility" ? [loopTarget.id] : [],
+            capabilities:
+              loopTarget?.type === "capability" ? [loopTarget.id] : [],
           }
         : {
-            agentResponsibilities: selectedAgentResponsibilitySlugs,
+            capabilities: selectedCapabilitySlugs,
             evidence: evidenceForRoute(routeSteps),
             route: routeWithReportPreference,
           }),
@@ -1373,7 +1364,7 @@ function EditManagedGoalDialog({
                     value={loopTargetType}
                     onValueChange={(value) => {
                       setLoopTargetType(value as ManagedLoopTarget["type"]);
-                      setSelectedAgentResponsibilitySlugs([]);
+                      setSelectedCapabilitySlugs([]);
                     }}
                   >
                     <SelectTrigger id="edit-loop-target-type">
@@ -1381,9 +1372,7 @@ function EditManagedGoalDialog({
                     </SelectTrigger>
                     <SelectContent>
                       <SelectItem value="goal">Goal</SelectItem>
-                      <SelectItem value="agentResponsibility">
-                        Responsibility
-                      </SelectItem>
+                      <SelectItem value="capability">Capability</SelectItem>
                     </SelectContent>
                   </Select>
                 </div>
@@ -1402,34 +1391,34 @@ function EditManagedGoalDialog({
                   ) : (
                     <SearchableSelect
                       id="edit-loop-target"
-                      options={agentResponsibilityOptions}
-                      value={selectedLoopResponsibilitySlug}
+                      options={capabilityOptions}
+                      value={selectedLoopCapabilitySlug}
                       onChange={(next) =>
-                        setSelectedAgentResponsibilitySlugs(next ? [next] : [])
+                        setSelectedCapabilitySlugs(next ? [next] : [])
                       }
-                      placeholder="Select responsibility"
-                      searchPlaceholder="Search responsibilities..."
-                      emptyLabel="No responsibilities found"
+                      placeholder="Select capability"
+                      searchPlaceholder="Search capabilities..."
+                      emptyLabel="No capabilities found"
                     />
                   )}
                 </div>
               </>
             ) : (
               <div className="min-w-0 space-y-2 md:col-span-2">
-                <Label htmlFor="edit-agentGoal-agentResponsibilities">
-                  AgentResponsibilities
+                <Label htmlFor="edit-agentGoal-capabilities">
+                  Capabilities
                 </Label>
                 <SearchableMultiSelect
-                  id="edit-agentGoal-agentResponsibilities"
-                  options={agentResponsibilityOptions}
-                  value={selectedAgentResponsibilitySlugs}
-                  onChange={selectAgentResponsibilities}
-                  placeholder="Select agentResponsibilities"
-                  searchPlaceholder="Search agentResponsibilities..."
-                  emptyLabel="No agentResponsibilities found"
-                  selectedLabel="agentResponsibilities selected"
-                  selectedSingularLabel="agentResponsibility selected"
-                  selectedHeading="Selected agentResponsibilities"
+                  id="edit-agentGoal-capabilities"
+                  options={capabilityOptions}
+                  value={selectedCapabilitySlugs}
+                  onChange={selectCapabilities}
+                  placeholder="Select capabilities"
+                  searchPlaceholder="Search capabilities..."
+                  emptyLabel="No capabilities found"
+                  selectedLabel="capabilities selected"
+                  selectedSingularLabel="capability selected"
+                  selectedHeading="Selected capabilities"
                   selectedTone="info"
                   maxVisibleSelected={4}
                 />
@@ -1437,8 +1426,8 @@ function EditManagedGoalDialog({
                   title="Route"
                   hint="The ordered path Kody follows to collect evidence."
                   route={routeSteps}
-                  agentResponsibilitySlugs={selectedAgentResponsibilitySlugs}
-                  onMove={moveSelectedAgentResponsibility}
+                  capabilitySlugs={selectedCapabilitySlugs}
+                  onMove={moveSelectedCapability}
                 />
               </div>
             )}
@@ -1452,8 +1441,8 @@ function EditManagedGoalDialog({
             onCheckedChange={setSaveReport}
             description={
               isRoutine
-                ? "Writes each loop run to reports/<responsibility>.md."
-                : "Writes each route responsibility output to reports/<responsibility>.md."
+                ? "Writes each loop run to reports/<capability>.md."
+                : "Writes each route capability output to reports/<capability>.md."
             }
           />
 
@@ -1656,7 +1645,7 @@ function GoalInstancesSection({
 
 function GoalDetail({
   goal,
-  agentResponsibilities,
+  capabilities,
   copy,
   onBack,
   onActivate,
@@ -1668,7 +1657,7 @@ function GoalDetail({
   isRunning,
 }: {
   goal: ManagedGoalRecord;
-  agentResponsibilities: AgentResponsibility[];
+  capabilities: CapabilitySummary[];
   copy: ManagedModelViewCopy;
   onBack: () => void;
   onActivate: () => void;
@@ -1694,7 +1683,7 @@ function GoalDetail({
   const canPause = goal.state.state === "active";
   const canRun =
     goal.state.state === "active" || goal.state.state === "inactive";
-  const runAgentResponsibility = useRunAgentResponsibility();
+  const runCapability = useRunCapability();
 
   return (
     <article className="min-h-full">
@@ -1862,24 +1851,24 @@ function GoalDetail({
         ) : null}
 
         {!isRoutine ||
-        goal.state.agentResponsibilities.length > 0 ||
-        Object.keys(goal.state.scheduleState?.agentResponsibilities ?? {})
+        goal.state.capabilities.length > 0 ||
+        Object.keys(goal.state.scheduleState?.capabilities ?? {})
           .length > 0 ? (
-          <GoalAgentResponsibilitiesSection
+          <GoalCapabilitiesSection
             goal={goal}
             label={copy.singular}
-            agentResponsibilities={agentResponsibilities}
+            capabilities={capabilities}
             runningSlug={
-              runAgentResponsibility.isPending
+              runCapability.isPending
                 ? ((
-                    runAgentResponsibility.variables as
+                    runCapability.variables as
                       | { slug?: string }
                       | undefined
                   )?.slug ?? null)
                 : null
             }
             onRun={(slug) =>
-              runAgentResponsibility.mutate({ slug, force: true })
+              runCapability.mutate({ slug, force: true })
             }
           />
         ) : null}
@@ -1889,7 +1878,7 @@ function GoalDetail({
           title={isRoutine ? "Health" : "Evidence"}
           subtitle={
             isRoutine
-              ? "Runtime facts reported by agentLoop agentResponsibilities"
+              ? "Runtime facts reported by agentLoop capabilities"
               : `What proves this ${copy.singular} is done`
           }
           count={
@@ -1943,7 +1932,7 @@ function GoalDetail({
           <ContentSection
             icon={Route}
             title="Route"
-            subtitle="AgentResponsibilities and agentActions used to collect evidence"
+            subtitle="Capabilities used to collect evidence"
             count={goal.state.route.length}
           >
             <div className="space-y-2">
@@ -1968,14 +1957,8 @@ function GoalDetail({
                     </div>
                     <div className="text-xs text-muted-foreground flex gap-2 flex-wrap">
                       <span>
-                        agentResponsibility: {routeStep.agentResponsibility}
+                        capability: {routeStep.capability}
                       </span>
-                      {routeStep.agentAction ? (
-                        <>
-                          <span>·</span>
-                          <span>agentAction: {routeStep.agentAction}</span>
-                        </>
-                      ) : null}
                     </div>
                   </CardContent>
                 </Card>
@@ -2029,7 +2012,7 @@ function isScheduleEvery(value: unknown): value is ScheduleEvery {
   );
 }
 
-function agentResponsibilityCadenceLabel(
+function capabilityCadenceLabel(
   value: string | null | undefined,
 ): string {
   if (isScheduleEvery(value)) return scheduleEveryLabel(value);
@@ -2049,7 +2032,7 @@ function compactDateTime(value: string | null | undefined): string {
   });
 }
 
-function agentResponsibilityStateClass(state: string): string {
+function capabilityStateClass(state: string): string {
   if (state === "due") return "border-sky-400/25 bg-sky-400/10 text-sky-200";
   if (state === "waiting")
     return "border-white/10 bg-white/[0.04] text-white/60";
@@ -2060,53 +2043,53 @@ function agentResponsibilityStateClass(state: string): string {
   return "border-amber-400/25 bg-amber-400/10 text-amber-200";
 }
 
-function GoalAgentResponsibilitiesSection({
+function GoalCapabilitiesSection({
   goal,
   label,
-  agentResponsibilities,
+  capabilities,
   runningSlug,
   onRun,
 }: {
   goal: ManagedGoalRecord;
   label: string;
-  agentResponsibilities: AgentResponsibility[];
+  capabilities: CapabilitySummary[];
   runningSlug: string | null;
   onRun: (slug: string) => void;
 }) {
-  const agentResponsibilityBySlug = useMemo(
+  const capabilityBySlug = useMemo(
     () =>
       new Map(
-        agentResponsibilities.map((agentResponsibility) => [
-          agentResponsibility.slug,
-          agentResponsibility,
+        capabilities.map((capability) => [
+          capability.slug,
+          capability,
         ]),
       ),
-    [agentResponsibilities],
+    [capabilities],
   );
-  const scheduleAgentResponsibilities = useMemo(
-    () => goal.state.scheduleState?.agentResponsibilities ?? {},
-    [goal.state.scheduleState?.agentResponsibilities],
+  const scheduleCapabilities = useMemo(
+    () => goal.state.scheduleState?.capabilities ?? {},
+    [goal.state.scheduleState?.capabilities],
   );
-  const agentResponsibilitySlugs = useMemo(() => {
+  const capabilitySlugs = useMemo(() => {
     const ordered = new Set<string>();
-    for (const slug of goal.state.agentResponsibilities) ordered.add(slug);
-    for (const step of goal.state.route) ordered.add(step.agentResponsibility);
-    for (const slug of Object.keys(scheduleAgentResponsibilities))
+    for (const slug of goal.state.capabilities) ordered.add(slug);
+    for (const step of goal.state.route) ordered.add(step.capability);
+    for (const slug of Object.keys(scheduleCapabilities))
       ordered.add(slug);
     return Array.from(ordered);
   }, [
-    goal.state.agentResponsibilities,
+    goal.state.capabilities,
     goal.state.route,
-    scheduleAgentResponsibilities,
+    scheduleCapabilities,
   ]);
   const lastDecision = goal.state.scheduleState?.lastDecision;
 
   return (
     <ContentSection
       icon={Play}
-      title="AgentResponsibilities"
+      title="Capabilities"
       subtitle={`What this ${label} checks and chose last tick`}
-      count={agentResponsibilitySlugs.length}
+      count={capabilitySlugs.length}
     >
       {lastDecision ? (
         <div className="mb-3 rounded-md border border-white/[0.08] bg-black/20 px-3 py-2 text-xs text-muted-foreground">
@@ -2116,22 +2099,21 @@ function GoalAgentResponsibilitiesSection({
         </div>
       ) : null}
 
-      {agentResponsibilitySlugs.length ? (
+      {capabilitySlugs.length ? (
         <div className="space-y-2">
-          {agentResponsibilitySlugs.map((slug) => {
-            const agentResponsibility = agentResponsibilityBySlug.get(slug);
-            const schedule = scheduleAgentResponsibilities[slug];
-            const state =
-              schedule?.state ??
-              (agentResponsibility?.disabled ? "disabled" : "waiting");
-            const title = schedule?.title ?? agentResponsibility?.title ?? slug;
+          {capabilitySlugs.map((slug) => {
+            const capability = capabilityBySlug.get(slug);
+            const schedule = scheduleCapabilities[slug];
+            const state = schedule?.state ?? "waiting";
+            const title =
+              schedule?.title ?? capability?.describe ?? slug;
             const cadence =
-              schedule?.cadence ?? agentResponsibility?.schedule ?? null;
+              schedule?.cadence ?? capability?.every ?? null;
             const reason =
               schedule?.reason ??
-              (agentResponsibility
+              (capability
                 ? `Not selected by last ${label} tick`
-                : "AgentResponsibility not loaded");
+                : "Capability not loaded");
 
             return (
               <div
@@ -2146,7 +2128,7 @@ function GoalAgentResponsibilitiesSection({
                     <span
                       className={cn(
                         "shrink-0 rounded border px-1.5 py-0.5 text-[10px] uppercase tracking-wide",
-                        agentResponsibilityStateClass(state),
+                        capabilityStateClass(state),
                       )}
                     >
                       {state}
@@ -2154,20 +2136,14 @@ function GoalAgentResponsibilitiesSection({
                   </div>
                   <div className="flex flex-wrap gap-x-3 gap-y-1 text-xs text-muted-foreground">
                     <span className="font-mono">{slug}</span>
-                    <span>{agentResponsibilityCadenceLabel(cadence)}</span>
+                    <span>{capabilityCadenceLabel(cadence)}</span>
                     <span>
                       last{" "}
-                      {compactDateTime(
-                        schedule?.lastFiredAt ??
-                          agentResponsibility?.lastTickAt,
-                      )}
+                      {compactDateTime(schedule?.lastFiredAt)}
                     </span>
                     <span>
                       next{" "}
-                      {compactDateTime(
-                        schedule?.nextEligibleAt ??
-                          agentResponsibility?.nextEligibleAt,
-                      )}
+                      {compactDateTime(schedule?.nextEligibleAt)}
                     </span>
                   </div>
                   <p className="text-xs text-white/45">{reason}</p>
@@ -2193,7 +2169,7 @@ function GoalAgentResponsibilitiesSection({
           })}
         </div>
       ) : (
-        <EmptyHint text="No agentResponsibilities are attached to this goal." />
+        <EmptyHint text="No capabilities are attached to this goal." />
       )}
     </ContentSection>
   );
@@ -2256,7 +2232,7 @@ export function ManagedModelsView({
     refetch,
     error,
   } = useManagedGoals();
-  const { data: agentResponsibilities = [] } = useAgentResponsibilities();
+  const { data: capabilities = [] } = useCapabilities();
   const setGoalState = useSetManagedGoalState();
   const runManagedGoal = useRunManagedGoal();
   const deleteManagedGoal = useDeleteManagedGoal();
@@ -2345,7 +2321,7 @@ export function ManagedModelsView({
           selectedGoal ? (
             <GoalDetail
               goal={selectedGoal}
-              agentResponsibilities={agentResponsibilities}
+              capabilities={capabilities}
               copy={copy}
               onBack={() => selectGoal(null)}
               onEdit={() => setEditingGoal(selectedGoal)}
@@ -2428,7 +2404,7 @@ export function ManagedModelsView({
         goal={editingGoal}
         open={!!editingGoal}
         label={copy.singular}
-        agentResponsibilities={agentResponsibilities}
+        capabilities={capabilities}
         goals={goals}
         onOpenChange={(open) => {
           if (!open) setEditingGoal(null);

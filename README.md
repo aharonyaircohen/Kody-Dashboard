@@ -41,7 +41,7 @@ Open <http://localhost:3333>, sign in with GitHub, and point it at a repo where 
 ## Features
 
 - Task board (inbox → spec → building → review → done) with drag-and-drop
-- Capability manager — markdown-defined capabilities in `.kody/capabilities/`, with legacy agentResponsibilities still readable while repos migrate
+- Capability manager — markdown-defined capabilities in `.kody/capabilities/`, with legacy capabilities still readable while repos migrate
 - Parallel task execution — each task is its own GitHub Actions workflow run
 - PR viewer with file diffs, CI status, and gate approvals
 - Live previews — per-PR Fly.io preview environments (see [docs/previews.md](./docs/previews.md))

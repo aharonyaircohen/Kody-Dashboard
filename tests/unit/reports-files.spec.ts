@@ -9,7 +9,7 @@ vi.mock("@dashboard/lib/github-client", () => ({
 vi.mock("@dashboard/lib/engine/config", () => ({
   getEngineConfig: vi.fn().mockResolvedValue({
     config: {
-      agentActions: { default: "run" },
+      executables: { default: "run" },
       state: { repo: "https://github.com/acme/kody-state", path: "widgets" },
     },
     sha: null,
@@ -137,7 +137,7 @@ describe("report files", () => {
         [
           "---",
           'generatedAt: "2026-06-08T12:00:00Z"',
-          "agentResponsibilitySlug: skills-research",
+          "capabilitySlug: skills-research",
           "reviewStatus: action-needed",
           "reviewArea: engineering-capability",
           "findings:",
@@ -159,7 +159,7 @@ describe("report files", () => {
       expect.objectContaining({
         title: "Skills Research",
         body: "Only Vitest is missing.",
-        agentResponsibilitySlug: "skills-research",
+        capabilitySlug: "skills-research",
         reviewStatus: "action-needed",
         reviewArea: "engineering-capability",
         findingCount: 1,
@@ -182,7 +182,7 @@ describe("report files", () => {
           "  - id: fix-ci-42",
           "    type: dispatch",
           "    label: Run fix-ci on PR #42",
-          "    agentAction: fix-ci",
+          "    capability: fix-ci",
           "    target: 42",
           "    reason: Unit tests failed",
           "  - id: task-flaky-test",
@@ -206,7 +206,7 @@ describe("report files", () => {
         id: "fix-ci-42",
         type: "dispatch",
         label: "Run fix-ci on PR #42",
-        agentAction: "fix-ci",
+        capability: "fix-ci",
         target: 42,
         reason: "Unit tests failed",
       },

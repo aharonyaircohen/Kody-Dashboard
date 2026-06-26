@@ -74,9 +74,9 @@ describe("recordAudit", () => {
     });
 
     recordAudit({} as never, {
-      action: "agentResponsibility.run",
+      action: "capability.run",
       resource: "changelog-verify",
-      agentResponsibility: "changelog-verify",
+      capability: "changelog-verify",
       agent: "qa-engineer",
       detail: "manual run",
     });
@@ -87,11 +87,11 @@ describe("recordAudit", () => {
 
     const top = getActionLog()[0];
     expect(top).toMatchObject({
-      type: "agentResponsibility.run",
+      type: "capability.run",
       target: "changelog-verify",
       actor: "alice",
       repo: "acme/widgets",
-      agentResponsibility: "changelog-verify",
+      capability: "changelog-verify",
       agent: "qa-engineer",
       outcome: "ok",
       source: "dashboard",
@@ -101,7 +101,7 @@ describe("recordAudit", () => {
     const firstBatch = h.appendDurable.mock.calls[0]?.[0] as
       | Array<Record<string, unknown>>
       | undefined;
-    expect(firstBatch?.[0]).toMatchObject({ type: "agentResponsibility.run", actor: "alice" });
+    expect(firstBatch?.[0]).toMatchObject({ type: "capability.run", actor: "alice" });
   });
 
   it("falls back to actor 'unknown' and skips the durable write with no auth", async () => {

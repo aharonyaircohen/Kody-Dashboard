@@ -23,7 +23,7 @@ import {
   listCompanyStoreGoalTemplateFiles,
   readManagedGoalFile,
 } from "@dashboard/lib/managed-goals-files";
-import { readResolvedAgentResponsibilityFile } from "@dashboard/lib/agent-responsibilities-files";
+import { readResolvedCapabilityFile } from "@dashboard/lib/capabilities";
 import {
   companyIntentDecisionsPath,
   companyIntentPath,
@@ -84,7 +84,7 @@ const patchSchema = z.object({
     .object({
       goals: stringListSchema,
       loops: stringListSchema,
-      responsibilities: stringListSchema,
+      capabilities: stringListSchema,
     })
     .optional(),
   manager: z
@@ -136,8 +136,8 @@ function mergeIntent(
       ? {
           goals: patch.portfolio.goals.filter(isCompanyIntentId),
           loops: patch.portfolio.loops.filter(isCompanyIntentId),
-          responsibilities:
-            patch.portfolio.responsibilities.filter(isCompanyIntentId),
+          capabilities:
+            patch.portfolio.capabilities.filter(isCompanyIntentId),
         }
       : current.portfolio,
     manager: {
@@ -181,9 +181,9 @@ async function managerHealth(
   owner: string,
   repo: string,
 ): Promise<CompanyIntentManagerHealth> {
-  const [loop, responsibility] = await Promise.all([
+  const [loop, capability] = await Promise.all([
     readManagedGoalFile(intent.manager.loop, octokit, owner, repo).catch(() => null),
-    readResolvedAgentResponsibilityFile(intent.manager.responsibility, octokit).catch(
+    readResolvedCapabilityFile(intent.manager.capability, octokit).catch(
       () => null,
     ),
   ]);
@@ -200,15 +200,9 @@ async function managerHealth(
       updatedAt:
         typeof loop?.state.updatedAt === "string" ? loop.state.updatedAt : undefined,
     },
-    responsibility: {
-      id: intent.manager.responsibility,
-      exists: Boolean(responsibility),
-      disabled:
-        typeof responsibility?.disabled === "boolean"
-          ? responsibility.disabled
-          : undefined,
-      lastTickAt: responsibility?.lastTickAt ?? null,
-      nextEligibleAt: responsibility?.nextEligibleAt ?? null,
+    capability: {
+      id: intent.manager.capability,
+      exists: Boolean(capability),
     },
   };
 }

@@ -51,7 +51,7 @@ export const DEFAULT_MAX_BODY_BYTES = 60_000;
 
 /**
  * Thrown when `serialize(beforeWrite(next))` exceeds the configured byte
- * budget. Carries the actual size + budget so callers (and our agentResponsibility-failure
+ * budget. Carries the actual size + budget so callers (and our capability-failure
  * dispatch) can surface a useful error instead of pretending it's a conflict.
  */
 export class ManifestBodyTooLargeError extends Error {

@@ -3,8 +3,8 @@
  * @domain kody
  * @pattern agent-page
  * @ai-summary Agent entry point. Renders a tabbed shell hosting Agent
- *   Control under a single route. Mirrors the AgentResponsibilities page; starts empty
- *   (no agentResponsibilities are copied — `agents/` is its own state-repo directory).
+ *   Control under a single route. Mirrors the Capabilities page; starts empty
+ *   (no capabilities are copied — `agents/` is its own state-repo directory).
  */
 import { AuthGuard } from "@dashboard/lib/auth-guard";
 import { AgentsPageTabs } from "@dashboard/lib/components/AgentsPageTabs";

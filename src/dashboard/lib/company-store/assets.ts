@@ -11,15 +11,15 @@ import type { Octokit } from "@octokit/rest";
 import { getStoreRef, getStoreRepoUrl } from "../github-client";
 
 export type StoreAssetKind =
-  | "agent-responsibilities"
-  | "agent-actions"
+  | "capabilities"
+  | "executables"
   | "capabilities"
   | "commands"
   | "agent"
   | "agents";
 type StoreManifestKind =
-  | "agent-responsibilities"
-  | "agent-actions"
+  | "capabilities"
+  | "executables"
   | "capabilities"
   | "commands"
   | "agent";

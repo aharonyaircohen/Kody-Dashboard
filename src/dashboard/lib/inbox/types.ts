@@ -76,12 +76,12 @@ export interface InboxEntry {
    */
   ctoAgent?: string;
   /**
-   * Slug of the AGENT_RESPONSIBILITY that emitted the recommendation, parsed from the raw
-   * body's `kody-agentResponsibility` line at write time. The trust key — scopes autonomy
-   * per agentResponsibility, not just per agentIdentity. Absent on legacy entries (the client
+   * Slug of the capability that emitted the recommendation, parsed from the raw
+   * body's `kody-capability` line at write time. The trust key — scopes autonomy
+   * per capability, not just per agentIdentity. Absent on legacy entries (the client
    * falls back to the agentIdentity slug).
    */
-  ctoAgentResponsibility?: string;
+  ctoCapability?: string;
   /**
    * Server-classified notification category (`chat-response`, `task-assigned`,
    * …), carried through from the feed. Lets the inbox row offer "Mute this
@@ -115,7 +115,7 @@ export function parseInboxManifest(
     if (!obj || typeof obj !== "object")
       return { ...EMPTY_INBOX_MANIFEST, entries: [] };
     const entries = Array.isArray(obj.entries)
-      ? obj.entries.filter(isValidEntry)
+      ? obj.entries.filter(isValidEntry).map(normalizeInboxEntry)
       : [];
     return { version: INBOX_MANIFEST_VERSION, entries };
   } catch {
@@ -143,6 +143,14 @@ function isValidEntry(x: unknown): x is InboxEntry {
     typeof e.sentAt === "string" &&
     (e.readAt === null || typeof e.readAt === "string")
   );
+}
+
+function normalizeInboxEntry(entry: InboxEntry & { ctoCapability?: string }): InboxEntry {
+  const { ctoCapability, ...rest } = entry;
+  return {
+    ...rest,
+    ...(ctoCapability ? { ctoCapability } : {}),
+  };
 }
 
 /** Strip code fences, markdown markup, and HTML noise for the inbox preview.

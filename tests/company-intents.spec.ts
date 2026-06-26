@@ -43,12 +43,12 @@ describe("company intents", () => {
         portfolio: {
           goals: [],
           loops: ["company-manager-loop"],
-          responsibilities: ["company-manager"],
+          capabilities: ["company-manager"],
         },
         manager: {
           agent: "cto",
           loop: "company-manager-loop",
-          responsibility: "company-manager",
+          capability: "company-manager",
           reviewEvery: "1d",
         },
         createdAt: "2026-06-24T05:43:07.000Z",
@@ -135,7 +135,7 @@ describe("company intents", () => {
         portfolio: {
           goals: ["release-health"],
           loops: ["company-manager-loop"],
-          responsibilities: ["company-manager"],
+          capabilities: ["company-manager"],
         },
         manager: { reviewEvery: "1d" },
       },
@@ -145,7 +145,7 @@ describe("company intents", () => {
     expect(intent.manager).toMatchObject({
       agent: "cto",
       loop: "company-manager-loop",
-      responsibility: "company-manager",
+      capability: "company-manager",
     });
     expect(intent.createdAt).toBe("2026-06-24T00:00:00.000Z");
   });
@@ -162,13 +162,13 @@ describe("company intents", () => {
     expect(
       companyIntentWarnings(intent, {
         loop: { id: "company-manager-loop", exists: false },
-        responsibility: { id: "company-manager", exists: false },
+        capability: { id: "company-manager", exists: false },
       }),
     ).toEqual([
       "No metrics set",
       "No scope set",
       "Manager loop missing",
-      "Manager responsibility missing",
+      "Manager capability missing",
     ]);
   });
 

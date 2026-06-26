@@ -27,7 +27,7 @@ vi.mock("@dashboard/lib/auth", () => ({
 vi.mock("@dashboard/lib/engine/config", () => ({
   getEngineConfig: vi.fn().mockResolvedValue({
     config: {
-      agentActions: { default: "run" },
+      executables: { default: "run" },
       state: {
         repo: "https://github.com/test-owner/kody-state",
         path: "test-repo",
@@ -137,14 +137,14 @@ describe("POST /api/kody/goals/[id]/manage", () => {
     (mockOctokit as any).repos = mockOctokit.rest.repos;
     vi.mocked(getUserOctokit).mockResolvedValue(mockOctokit as any);
 
-    const req = makeManageRequest("agentResponsibility-migration", true);
-    const res = await POST(req, makeParams("agentResponsibility-migration"));
+    const req = makeManageRequest("capability-migration", true);
+    const res = await POST(req, makeParams("capability-migration"));
 
     expect(getRefCalls).toHaveLength(0);
     expect(createRefCalls).toHaveLength(0);
     expect(capturedWriteBranch).toBeUndefined();
     expect(capturedWritePath).toBe(
-      "test-repo/goals/instances/agentResponsibility-migration/state.json",
+      "test-repo/goals/instances/capability-migration/state.json",
     );
 
     // The dispatch must pass the goal slug as issue_number so the engine can
@@ -154,7 +154,7 @@ describe("POST /api/kody/goals/[id]/manage", () => {
       repo: "test-repo",
       workflow_id: "kody.yml",
       ref: "main",
-      inputs: { issue_number: { value: "agentResponsibility-migration" } },
+      inputs: { issue_number: { value: "capability-migration" } },
     });
   });
 
@@ -206,8 +206,8 @@ describe("POST /api/kody/goals/[id]/manage", () => {
     (mockOctokit as any).repos = mockOctokit.rest.repos;
     vi.mocked(getUserOctokit).mockResolvedValue(mockOctokit as any);
 
-    const req = makeManageRequest("agentResponsibility-migration", false);
-    const res = await POST(req, makeParams("agentResponsibility-migration"));
+    const req = makeManageRequest("capability-migration", false);
+    const res = await POST(req, makeParams("capability-migration"));
 
     expect(res.status).toBe(200);
     const json = await res.json();

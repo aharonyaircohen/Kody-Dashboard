@@ -3,7 +3,7 @@
  * @domain kody
  * @pattern memory-files
  * @ai-summary Memory file storage — read/write `memory/<id>.md` and
- *   `memory/INDEX.md` in the configured Kody state repo. Mirrors the agentResponsibilities-
+ *   `memory/INDEX.md` in the configured Kody state repo. Mirrors the capabilities-
  *   files pattern: filename is identity, body is markdown, frontmatter
  *   carries metadata (name, description, type, created). The INDEX file
  *   is a one-line-per-entry pointer file injected into the chat system
@@ -111,7 +111,7 @@ interface RawFrontmatter {
 
 /**
  * Tiny scalar-only YAML parser, scoped to memory frontmatter. We keep the
- * surface small on purpose — the Kody agentResponsibilities frontmatter helper has a similar
+ * surface small on purpose — the Kody capabilities frontmatter helper has a similar
  * design. Strings may be unquoted, single-quoted, or double-quoted; values
  * with special characters (`:`, `#`, leading whitespace) MUST be quoted.
  */

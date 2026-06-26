@@ -74,10 +74,10 @@ export interface SpawnRunnerInput {
    */
   perfTier?: PerfTier;
   /**
-   * GitHub issue number for agent (run-agentAction) mode. When set, the
+   * GitHub issue number for agent (run-executable) mode. When set, the
    * runner's entrypoint invokes `kody run --issue N` instead of bare
    * `kody`. The engine's existing `--issue` path then routes to the
-   * `run` agentAction (branch → code → commit → PR). Used by Vibe's
+   * `run` executable (branch → code → commit → PR). Used by Vibe's
    * one-shot execution path; leave empty for chat-mode sessions.
    */
   issueNumber?: number;

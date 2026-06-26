@@ -3,8 +3,7 @@
  * @domain kody
  * @pattern agent-files
  * @ai-summary Agent preset over the shared ticked-file store. An agent
- *   member is an `agents/<slug>.md` state file; agentResponsibilities and agent are the
- *   same mechanism, so the implementation lives once in `ticked/files.ts`.
+ *   member is an `agents/<slug>.md` state file.
  *   This file binds the agent directory / commit scope / cache and
  *   re-exports the API under the `*AgentFile` names so importers stay
  *   stable.
@@ -25,7 +24,6 @@ import {
   type TickFile,
 } from "./ticked/files";
 
-/** Alias — agentResponsibilities and agent share the `TickFile` shape. */
 export type AgentFile = TickFile;
 
 const impl = createTickedFiles({
@@ -94,23 +92,6 @@ async function readStoreAgentFile(
     body,
     sha: "",
     updatedAt,
-    lastTickAt: null,
-    nextEligibleAt: null,
-    lastOutcome: null,
-    lastDurationMs: null,
-schedule: null,
-capabilityKind: null,
-    disabled: false,
-    agent: null,
-    reviewer: null,
-    action: null,
-    mentions: [],
-    agentAction: null,
-    agentActions: [],
-    agentResponsibilityTools: [],
-    tickScript: null,
-    readsFrom: [],
-    writesTo: [],
     htmlUrl: buildCompanyStoreBlobUrl(path),
     source: "store",
     readOnly: true,

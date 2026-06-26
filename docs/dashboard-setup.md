@@ -15,8 +15,8 @@ through the dashboard once you're logged in.
 
 | Store         | Page         | In the repo            | Secret?               | Doc                                          |
 | ------------- | ------------ | ---------------------- | --------------------- | -------------------------------------------- |
-| **Agents** | `/agent` | `.kody/agents/*.md` | No (plaintext) | [Agents & Capabilities](./concepts/staff-agent-responsibilities.md) |
-| **Capabilities** | `/capabilities` | `.kody/capabilities/<slug>/` | No (plaintext) | [Agents & Capabilities](./concepts/staff-agent-responsibilities.md) |
+| **Agents** | `/agent` | `.kody/agents/*.md` | No (plaintext) | [Agents & Capabilities](./concepts/staff-capabilities.md) |
+| **Capabilities** | `/capabilities` | `.kody/capabilities/<slug>/` | No (plaintext) | [Agents & Capabilities](./concepts/staff-capabilities.md) |
 | **Commands**  | `/commands`  | `.kody/commands/*.md`  | No (plaintext)        | [Commands](./commands.md)                    |
 | **Secrets**   | `/secrets`   | `.kody/secrets.enc`    | **Yes** (AES-256-GCM) | [Secrets vault](./secrets-vault.md)          |
 | **Variables** | `/variables` | `.kody/variables.json` | No (plaintext)        | [Variables](./variables.md)                  |
@@ -35,7 +35,7 @@ values, allowed commands, restrictions) and nothing about _what_ it does
 or _when_ it runs. Capability contracts reference an agent member by slug; the engine
 injects the agent ahead of the capability body at run time. Keep these pure
 identity — no tasks, schedules, or implementation recipes. See
-[Agents & Capabilities](./concepts/staff-agent-responsibilities.md).
+[Agents & Capabilities](./concepts/staff-capabilities.md).
 
 ### Capabilities — `/capabilities`
 
@@ -43,9 +43,9 @@ A capability folder describes the capability purpose, output, allowed commands,
 and restrictions in `capability.md`; stores kind, agent, cadence, public action,
 and implementation metadata in `profile.json`; and can be run manually or by the
 engine scheduler. Toggle a capability off with `disabled: true`. Legacy
-agentResponsibility folders under `.kody/agent-responsibilities/` still load as
+capability folders under `.kody/capabilities/` still load as
 a fallback while repos migrate. See
-[Agents & Capabilities](./concepts/staff-agent-responsibilities.md).
+[Agents & Capabilities](./concepts/staff-capabilities.md).
 
 ### Commands — `/commands`
 

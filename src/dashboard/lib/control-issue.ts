@@ -4,8 +4,8 @@
  * @pattern control-issue
  * @ai-summary Shared helper for the repo's single "Kody control" issue —
  *   the audit-trail issue the dashboard posts `@kody <subcommand>` comments
- *   on to manually dispatch engine agentActions (the engine fires on
- *   `issue_comment` and routes to the named agentAction). Used by AgentResponsibility
+ *   on to manually dispatch engine executables (the engine fires on
+ *   `issue_comment` and routes to the named executable). Used by Capability
  *   "Run now" and by agent @mentions ("ask"); both reuse the same issue
  *   so the dispatch trail lives in one place.
  */
@@ -18,9 +18,9 @@ export const CONTROL_TITLE = "Kody control";
 const CONTROL_BODY = [
   "Audit trail for manual `@kody` dispatches from the dashboard.",
   "",
-  'Each comment below was a manual dispatch (AgentResponsibility "Run now", or an agent',
+  'Each comment below was a manual dispatch (Capability "Run now", or an agent',
   "@mention in a message). The engine fires on `issue_comment` and routes",
-  "to the named agentAction.",
+  "to the named executable.",
   "",
   "Do not close — the dashboard reuses this issue. If you do close it,",
   "the next dispatch will create a new one.",
@@ -87,7 +87,7 @@ export interface WorkerAskReply {
 /**
  * Dispatch a one-shot `agent-ask` tick by posting the directive comment on
  * the repo's control issue. The engine's `issue_comment` trigger fires
- * kody.yml and routes to the `agent-ask` agentAction. The directive line is
+ * kody.yml and routes to the `agent-ask` executable. The directive line is
  * first (the engine strips it); the message + context follows verbatim so
  * markdown/newlines survive. Returns the created comment.
  *

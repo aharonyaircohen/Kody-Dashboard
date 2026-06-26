@@ -20,7 +20,7 @@ export interface TaskContext {
   associatedPR?: { number?: number; state?: string; html_url?: string };
 }
 
-export interface AgentResponsibilityContext {
+export interface CapabilityContext {
   number?: number;
   title?: string;
   body?: string;
@@ -72,7 +72,7 @@ export function buildSystemPrompt(
   repo: { owner: string; repo: string } | null,
   task: TaskContext | undefined,
   opts?: {
-    agentResponsibility?: AgentResponsibilityContext;
+    capability?: CapabilityContext;
     goalPlanner?: boolean;
     goal?: GoalContext;
     report?: ReportContext;
@@ -154,7 +154,7 @@ ${repoLines}
 
 Rules:
 - Read and summary questions can use the org as the scope.
-- Any write action, repo mutation, issue creation, agentResponsibility run, config change, or comment must target one concrete repository. If the user did not name one, ask which repository.
+- Any write action, repo mutation, issue creation, capability run, config change, or comment must target one concrete repository. If the user did not name one, ask which repository.
 - The connected repository in auth may only be the browser credential anchor. Do not treat it as the only repo when the current page is the org workspace.`,
     );
   }
@@ -183,7 +183,7 @@ Kody has two separate planning surfaces. Keep the words distinct.
 
 \`/goal\` should create a managed company goal. \`/mission\` should create the old task-group mission. If the user says "old goal", "task-page goal", "goal group", or "task group", treat it as a mission.
 
-For managed goals, ask for missing outcome/proof steps if needed. Keep the route simple: one evidence key, one stage, one agentResponsibility, and one agentAction is enough for a first goal.`,
+For managed goals, ask for missing outcome/proof steps if needed. Keep the route simple: one evidence key, one stage, one capability, and one executable is enough for a first goal.`,
     );
     if (opts?.memoryIndex && opts.memoryIndex.trim().length > 0) {
       sections.push(
@@ -213,20 +213,20 @@ ${truncateMemoryIndex(opts.memoryIndex.trim())}`,
       );
     }
   }
-  if (opts?.agentResponsibility) {
-    const m = opts.agentResponsibility;
-    const lines: string[] = ["## Current agentResponsibility"];
-    if (m.number != null) lines.push(`- AgentResponsibility #${m.number}`);
+  if (opts?.capability) {
+    const m = opts.capability;
+    const lines: string[] = ["## Current capability"];
+    if (m.number != null) lines.push(`- Capability #${m.number}`);
     if (m.title) lines.push(`- Title: ${m.title}`);
     if (m.state) lines.push(`- State: ${m.state}`);
     if (m.labels?.length) lines.push(`- Labels: ${m.labels.join(", ")}`);
     if (m.body) {
       const bodyPreview =
         m.body.length > 2000 ? `${m.body.slice(0, 2000)}…` : m.body;
-      lines.push(`\n### AgentResponsibility body\n\n${bodyPreview}`);
+      lines.push(`\n### Capability body\n\n${bodyPreview}`);
     }
     lines.push(
-      "\nThe user is chatting about **this specific agentResponsibility**. A Kody agentResponsibility is a folder at state repo `agent-responsibilities/<slug>/`: `profile.json` holds action/cadence/agents metadata, and `agent-responsibility.md` describes purpose, output, allowed commands, and restrictions. Answer their questions grounded in the agentResponsibility body above — do NOT claim the agentResponsibility does not exist. If they want to edit the agentResponsibility, help them draft changes to the profile and body.",
+      "\nThe user is chatting about **this specific capability**. A Kody capability is a folder at state repo `capabilities/<slug>/`: `profile.json` holds action/cadence/agents metadata, and `capability.md` describes purpose, output, allowed commands, and restrictions. Answer their questions grounded in the capability body above — do NOT claim the capability does not exist. If they want to edit the capability, help them draft changes to the profile and body.",
     );
     sections.push(lines.join("\n"));
   }
@@ -300,7 +300,7 @@ If the user's approval is partial ("approve 1, 3, 4 but skip 2"), only create th
     const r = opts.report;
     const lines: string[] = ["## Current report"];
     lines.push(
-      `The user is viewing the report **${r.title}** (slug \`${r.slug}\`) on the dashboard's \`/reports\` page. Reports are markdown files at \`reports/<slug>.md\` in the configured Kody state repo, produced by Kody agentResponsibilities and engine pipelines as diagnostic output, never the source of truth for code.`,
+      `The user is viewing the report **${r.title}** (slug \`${r.slug}\`) on the dashboard's \`/reports\` page. Reports are markdown files at \`reports/<slug>.md\` in the configured Kody state repo, produced by Kody capabilities and engine pipelines as diagnostic output, never the source of truth for code.`,
     );
     const bodyPreview =
       r.body.length > 4000 ? `${r.body.slice(0, 4000)}…` : r.body;

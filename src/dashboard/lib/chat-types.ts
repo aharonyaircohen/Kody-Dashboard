@@ -145,6 +145,13 @@ export function createEmptyGlobalStore(): GlobalChatStore {
   };
 }
 
+export interface ScopedAgentContext {
+  slug: string;
+  title?: string;
+  describe?: string;
+  body?: string;
+}
+
 /**
  * Discriminated union describing what the chat is "about".
  *
@@ -163,13 +170,13 @@ export type ChatContext =
   | { kind: "task"; task: import("./types").KodyTask }
   | {
       /**
-       * Chat scoped to an existing agentResponsibility (or agent — an agent
-       * is a pure agent file that's structurally a subset of a agentResponsibility and
+       * Chat scoped to an existing capability (or agent — an agent
+       * is a pure agent file that's structurally a subset of a capability and
        * reuses this scope kind). The agent is given the title/body so
-       * it can answer questions about that specific agentResponsibility/agents.
+       * it can answer questions about that specific capability/agents.
        */
-      kind: "agentResponsibility";
-      agentResponsibility: import("./api").AgentResponsibility | import("./api").Agent;
+      kind: "capability";
+      capability: ScopedAgentContext | import("./api").Agent;
     }
   | {
       /**

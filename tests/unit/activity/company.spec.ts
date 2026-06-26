@@ -3,7 +3,7 @@
  */
 import { describe, it, expect } from "vitest";
 import {
-  latestActivityByAgentResponsibility,
+  latestActivityByCapability,
   parseActivityJsonl,
   sortActivityNewestFirst,
 } from "@dashboard/lib/activity/company";
@@ -13,8 +13,8 @@ describe("parseActivityJsonl", () => {
     const text = [
       JSON.stringify({
         ts: "2026-05-23T10:00:00Z",
-        action: "Ran agentResponsibility: QA",
-        agentResponsibility: "qa",
+        action: "Ran capability: QA",
+        capability: "qa",
         agent: "qa-engineer",
         staffTitle: "QA Engineer",
         trigger: "schedule",
@@ -24,21 +24,21 @@ describe("parseActivityJsonl", () => {
       }),
       "",
       "{ not json",
-      JSON.stringify({ ts: "2026-05-23T09:00:00Z", agentResponsibility: "sweep" }), // minimal
+      JSON.stringify({ ts: "2026-05-23T09:00:00Z", capability: "sweep" }), // legacy minimal
     ].join("\n");
 
     const out = parseActivityJsonl(text);
     expect(out).toHaveLength(2);
     expect(out[0]).toMatchObject({
-      agentResponsibility: "qa",
+      capability: "qa",
       agent: "qa-engineer",
       trigger: "schedule",
       outcome: "completed",
     });
     // Minimal record gets safe defaults.
     expect(out[1]).toMatchObject({
-      agentResponsibility: "sweep",
-      action: "Ran agentResponsibility: sweep",
+      capability: "sweep",
+      action: "Ran capability: sweep",
       trigger: "event",
       outcome: "unknown",
       agent: null,
@@ -46,10 +46,10 @@ describe("parseActivityJsonl", () => {
     });
   });
 
-  it("drops records missing ts or agentResponsibility", () => {
+  it("drops records missing ts or capability", () => {
     const text = [
-      JSON.stringify({ action: "x", agentResponsibility: "d" }), // no ts
-      JSON.stringify({ ts: "2026-05-23T10:00:00Z" }), // no agentResponsibility
+      JSON.stringify({ action: "x", capability: "d" }), // no ts
+      JSON.stringify({ ts: "2026-05-23T10:00:00Z" }), // no capability
     ].join("\n");
     expect(parseActivityJsonl(text)).toHaveLength(0);
   });
@@ -57,7 +57,7 @@ describe("parseActivityJsonl", () => {
   it("coerces unknown trigger/outcome to safe defaults", () => {
     const text = JSON.stringify({
       ts: "2026-05-23T10:00:00Z",
-      agentResponsibility: "d",
+      capability: "d",
       trigger: "weird",
       outcome: "bogus",
     });
@@ -72,12 +72,12 @@ describe("sortActivityNewestFirst", () => {
   it("orders by ts descending", () => {
     const recs = parseActivityJsonl(
       [
-        JSON.stringify({ ts: "2026-05-23T08:00:00Z", agentResponsibility: "a" }),
-        JSON.stringify({ ts: "2026-05-23T12:00:00Z", agentResponsibility: "b" }),
-        JSON.stringify({ ts: "2026-05-23T10:00:00Z", agentResponsibility: "c" }),
+        JSON.stringify({ ts: "2026-05-23T08:00:00Z", capability: "a" }),
+        JSON.stringify({ ts: "2026-05-23T12:00:00Z", capability: "b" }),
+        JSON.stringify({ ts: "2026-05-23T10:00:00Z", capability: "c" }),
       ].join("\n"),
     );
-    expect(sortActivityNewestFirst(recs).map((r) => r.agentResponsibility)).toEqual([
+    expect(sortActivityNewestFirst(recs).map((r) => r.capability)).toEqual([
       "b",
       "c",
       "a",
@@ -85,16 +85,16 @@ describe("sortActivityNewestFirst", () => {
   });
 });
 
-describe("latestActivityByAgentResponsibility", () => {
-  it("keeps the newest record per agentResponsibility", () => {
+describe("latestActivityByCapability", () => {
+  it("keeps the newest record per capability", () => {
     const recs = parseActivityJsonl(
       [
-        JSON.stringify({ ts: "2026-05-23T08:00:00Z", agentResponsibility: "docs" }),
-        JSON.stringify({ ts: "2026-05-23T12:00:00Z", agentResponsibility: "qa" }),
-        JSON.stringify({ ts: "2026-05-23T10:00:00Z", agentResponsibility: "docs" }),
+        JSON.stringify({ ts: "2026-05-23T08:00:00Z", capability: "docs" }),
+        JSON.stringify({ ts: "2026-05-23T12:00:00Z", capability: "qa" }),
+        JSON.stringify({ ts: "2026-05-23T10:00:00Z", capability: "docs" }),
       ].join("\n"),
     );
-    const latest = latestActivityByAgentResponsibility(recs);
+    const latest = latestActivityByCapability(recs);
     expect(latest.get("docs")?.ts).toBe("2026-05-23T10:00:00Z");
     expect(latest.get("qa")?.ts).toBe("2026-05-23T12:00:00Z");
   });

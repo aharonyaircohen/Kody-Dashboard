@@ -1,13 +1,13 @@
 /**
- * Tests for the agentResponsibility-keyed trust ledger (`trust-state.ts`). Trust is whole-agentResponsibility
- * (one mode + streak per agentResponsibility slug, no action dimension). Contracts:
- *   - sibling agentResponsibilities of one agentIdentity stay independent;
+ * Tests for the capability-keyed trust ledger (`trust-state.ts`). Trust is whole-capability
+ * (one mode + streak per capability slug, no action dimension). Contracts:
+ *   - sibling capabilities of one agentIdentity stay independent;
  *   - approve bumps the streak and graduates at the threshold; reject zeroes +
  *     de-graduates; dismiss is neutral;
  *   - operator overrides (reset/graduate/degrade) are pure + immutable and work
- *     from scratch (graduate a agentResponsibility with no history);
+ *     from scratch (graduate a capability with no history);
  *   - parse/serialize round-trips plain JSON;
- *   - summarizeTrust emits one row per roster agentResponsibility (so its toggle is always
+ *   - summarizeTrust emits one row per roster capability (so its toggle is always
  *     present) even with zero history.
  */
 import { describe, expect, it } from "vitest";
@@ -16,23 +16,23 @@ import {
   TRUST_GRADUATION_THRESHOLD,
   applyTrustDecision,
   applyTrustOp,
-  degradeAgentResponsibility,
-  graduateAgentResponsibility,
+  degradeCapability,
+  graduateCapability,
   isGraduated,
   latestTrustDecisions,
   parseTrustManifest,
-  resetAgentResponsibility,
+  resetCapability,
   serializeTrustManifest,
   summarizeTrust,
   trustDecisionKey,
   type TrustManifest,
 } from "@dashboard/lib/cto/trust-state";
 
-function approvals(agentResponsibility: string, n: number): TrustManifest {
+function approvals(capability: string, n: number): TrustManifest {
   let m: TrustManifest = structuredClone(EMPTY_TRUST_MANIFEST);
   for (let i = 0; i < n; i++) {
     m = applyTrustDecision(m, {
-      agentResponsibility,
+      capability,
       decision: "approve",
       taskNumber: 100 + i,
     });
@@ -40,8 +40,8 @@ function approvals(agentResponsibility: string, n: number): TrustManifest {
   return m;
 }
 
-describe("applyTrustDecision — whole-agentResponsibility keying", () => {
-  it("keeps sibling agentResponsibilities of the same agentIdentity independent", () => {
+describe("applyTrustDecision — whole-capability keying", () => {
+  it("keeps sibling capabilities of the same agentIdentity independent", () => {
     const m = approvals("qa-sweep", 10);
     expect(isGraduated(m, "qa-sweep")).toBe(true);
     expect(isGraduated(m, "qa-verify")).toBe(false);
@@ -49,42 +49,42 @@ describe("applyTrustDecision — whole-agentResponsibility keying", () => {
 
   it("graduates at the threshold and de-graduates on a reject", () => {
     const m = approvals("qa", TRUST_GRADUATION_THRESHOLD);
-    expect(m.agentResponsibilities.qa.mode).toBe("auto");
+    expect(m.capabilities.qa.mode).toBe("auto");
     const after = applyTrustDecision(m, {
-      agentResponsibility: "qa",
+      capability: "qa",
       decision: "reject",
       taskNumber: 999,
     });
-    expect(after.agentResponsibilities.qa.mode).toBe("ask");
-    expect(after.agentResponsibilities.qa.consecutiveApprovals).toBe(0);
+    expect(after.capabilities.qa.mode).toBe("ask");
+    expect(after.capabilities.qa.consecutiveApprovals).toBe(0);
   });
 
   it("dismiss is neutral (logs, no stat change) and keeps the action for display", () => {
     const m = approvals("qa", 3);
     const after = applyTrustDecision(m, {
-      agentResponsibility: "qa",
+      capability: "qa",
       decision: "dismiss",
       taskNumber: 7,
       action: "fix",
     });
-    expect(after.agentResponsibilities.qa.consecutiveApprovals).toBe(3);
+    expect(after.capabilities.qa.consecutiveApprovals).toBe(3);
     expect(after.log.at(-1)?.action).toBe("fix");
   });
 });
 
 describe("operator overrides", () => {
   it("graduate forces auto from scratch (no prior history)", () => {
-    const after = graduateAgentResponsibility(EMPTY_TRUST_MANIFEST, "qa-sweep");
-    expect(after.agentResponsibilities["qa-sweep"].mode).toBe("auto");
-    expect(after.agentResponsibilities["qa-sweep"].consecutiveApprovals).toBe(
+    const after = graduateCapability(EMPTY_TRUST_MANIFEST, "qa-sweep");
+    expect(after.capabilities["qa-sweep"].mode).toBe("auto");
+    expect(after.capabilities["qa-sweep"].consecutiveApprovals).toBe(
       TRUST_GRADUATION_THRESHOLD,
     );
   });
 
   it("degrade resets to ask; reset wipes; input never mutated", () => {
-    const grad = graduateAgentResponsibility(approvals("qa", 2), "qa");
-    expect(degradeAgentResponsibility(grad, "qa").agentResponsibilities.qa.mode).toBe("ask");
-    expect(resetAgentResponsibility(grad, "qa").agentResponsibilities.qa).toEqual({
+    const grad = graduateCapability(approvals("qa", 2), "qa");
+    expect(degradeCapability(grad, "qa").capabilities.qa.mode).toBe("ask");
+    expect(resetCapability(grad, "qa").capabilities.qa).toEqual({
       approvals: 0,
       rejections: 0,
       consecutiveApprovals: 0,
@@ -98,7 +98,7 @@ describe("operator overrides", () => {
 
 describe("parse/serialize", () => {
   it("round-trips a manifest and tolerates junk", () => {
-    const m = graduateAgentResponsibility(approvals("qa", 1), "qa");
+    const m = graduateCapability(approvals("qa", 1), "qa");
     expect(parseTrustManifest(serializeTrustManifest(m))).toEqual(m);
     expect(parseTrustManifest("not json")).toEqual(EMPTY_TRUST_MANIFEST);
     expect(parseTrustManifest(null)).toEqual(EMPTY_TRUST_MANIFEST);
@@ -106,16 +106,16 @@ describe("parse/serialize", () => {
 });
 
 describe("latestTrustDecisions", () => {
-  it("keys the latest verdict by agentResponsibility+task+action", () => {
+  it("keys the latest verdict by capability+task+action", () => {
     let m = applyTrustDecision(EMPTY_TRUST_MANIFEST, {
-      agentResponsibility: "qa-verify",
+      capability: "qa-verify",
       taskNumber: 1574,
       action: "sync",
       decision: "reject",
       at: "2026-01-01T00:00:00.000Z",
     });
     m = applyTrustDecision(m, {
-      agentResponsibility: "qa-verify",
+      capability: "qa-verify",
       taskNumber: 1574,
       action: "sync",
       decision: "approve",
@@ -132,13 +132,13 @@ describe("latestTrustDecisions", () => {
 });
 
 describe("summarizeTrust", () => {
-  it("emits a row for every roster agentResponsibility even with no history (toggle always present)", () => {
+  it("emits a row for every roster capability even with no history (toggle always present)", () => {
     const views = summarizeTrust(EMPTY_TRUST_MANIFEST, [
       { slug: "qa-sweep", agent: "qa" },
       { slug: "docs-readme", agent: "tech-writer" },
     ]);
     expect(views).toHaveLength(2);
-    const sweep = views.find((v) => v.agentResponsibility === "qa-sweep")!;
+    const sweep = views.find((v) => v.capability === "qa-sweep")!;
     expect(sweep.agent).toBe("qa");
     expect(sweep.mode).toBe("ask");
     expect(sweep.hasHistory).toBe(false);

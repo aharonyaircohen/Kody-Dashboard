@@ -9,7 +9,7 @@ import { buildKodyMetadata } from "../../metadata";
 
 export const metadata = buildKodyMetadata({
   title: "Intents - Kody Operations Dashboard",
-  description: "CTO company-manager guidance for goals, loops, and responsibilities.",
+  description: "CTO company-manager guidance for goals, loops, and capabilities.",
   path: "/company-intents",
 });
 

@@ -7,7 +7,7 @@
  *   event and its resolved recipients, it appends one feed entry per recipient
  *   to the shared inbox-feed manifest. The CTO backpressure cap lives here as a
  *   post-resolve admission filter (it gates which recommendation entries are
- *   admitted, per-agentResponsibility, at this single write point). Best-effort: never throws
+ *   admitted, per capability, at this single write point). Best-effort: never throws
  *   so a feed-write failure can't stop the push fan-out or break the webhook ACK.
  */
 import "server-only";
@@ -19,7 +19,7 @@ import {
   parseCtoAction,
   parseCtoCommand,
   parseCtoAgent,
-  parseCtoAgentResponsibility,
+  parseCtoCapability,
 } from "../../cto/recommendation";
 import { readTrust } from "../../cto/trust-store";
 import { latestTrustDecisions } from "../../cto/trust-state";
@@ -54,7 +54,7 @@ export async function deliverInbox(
   const ctoAction = parseCtoAction(ev.body ?? "");
   const ctoCommand = parseCtoCommand(ev.body ?? "");
   const ctoAgent = parseCtoAgent(ev.body ?? "");
-  const ctoAgentResponsibility = parseCtoAgentResponsibility(ev.body ?? "");
+  const ctoCapability = parseCtoCapability(ev.body ?? "");
   // Same classifier the mute filter keys on — stamp it on the entry so the
   // inbox row can offer a one-click "Mute this type" for the right category.
   const category = classifyNotificationType(ev);
@@ -72,7 +72,7 @@ export async function deliverInbox(
     ...(ctoAction ? { ctoAction } : {}),
     ...(ctoCommand ? { ctoCommand } : {}),
     ...(ctoAgent ? { ctoAgent } : {}),
-    ...(ctoAgentResponsibility ? { ctoAgentResponsibility } : {}),
+    ...(ctoCapability ? { ctoCapability } : {}),
     ...(category ? { category } : {}),
   }));
 

@@ -4,7 +4,7 @@
  * @pattern agent-chat-local-cache
  *
  * localStorage-backed persistence for agent-scoped chat messages, keyed by
- * agent slug. Mirrors `agentResponsibility-chat-local.ts` shape.
+ * agent slug. Mirrors `capability-chat-local.ts` shape.
  *
  * Why local-only: agent are markdown files with no per-member branch
  * (unlike tasks), and there is no server-side agent-chat persistence API.

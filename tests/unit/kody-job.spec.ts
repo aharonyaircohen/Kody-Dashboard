@@ -7,69 +7,63 @@ import {
   type KodyJob,
 } from "@dashboard/lib/kody-job";
 
-describe("KodyJob agentResponsibility dispatch boundary", () => {
-  it("assembles a agentResponsibility run with an implementation agentAction link", () => {
+describe("KodyJob capability dispatch boundary", () => {
+  it("assembles a capability run", () => {
     const job = validateKodyJob({
-      agentAction: "qa-verify", // HOW
-      agentResponsibility: "nightly-qa", // WHY (slug)
+      capability: "nightly-qa",
       agent: "qa-engineer", // WHO
       schedule: "0 3 * * *", // WHEN
       target: 42,
       cliArgs: { pr: 42 },
       flavor: "scheduled",
     });
-    expect(job.agentAction).toBe("qa-verify");
-    expect(job.agentResponsibility).toBe("nightly-qa");
+    expect(job.capability).toBe("nightly-qa");
     expect(job.agent).toBe("qa-engineer");
     expect(job.schedule).toBe("0 3 * * *");
     expect(job.flavor).toBe("scheduled");
   });
 
-  it("requires a agentResponsibility and rejects agentAction-only jobs", () => {
+  it("requires a capability", () => {
     expect(() => validateKodyJob({ flavor: "instant", cliArgs: {} })).toThrow(
       InvalidKodyJobError,
     );
-    expect(() =>
-      validateKodyJob({ agentAction: "run", flavor: "instant" }),
-    ).toThrow(/agentResponsibility/);
-    expect(validateKodyJob({ agentResponsibility: "health", flavor: "scheduled" }).agentResponsibility).toBe(
+    expect(validateKodyJob({ capability: "health", flavor: "scheduled" }).capability).toBe(
       "health",
     );
   });
 
   it('rejects an unknown flavor (engine accepts only "instant" | "scheduled")', () => {
-    expect(() => validateKodyJob({ agentResponsibility: "run", flavor: "whenever" })).toThrow(
+    expect(() => validateKodyJob({ capability: "run", flavor: "whenever" })).toThrow(
       /flavor/,
     );
   });
 
-  it("rejects invalid agentResponsibility slugs", () => {
+  it("rejects invalid capability slugs", () => {
     expect(() =>
-      validateKodyJob({ agentResponsibility: "Feature Work", flavor: "instant" }),
-    ).toThrow(/agentResponsibility slug/);
+      validateKodyJob({ capability: "Feature Work", flavor: "instant" }),
+    ).toThrow(/capability slug/);
   });
 
   it("defaults cliArgs to an object and rejects a non-object cliArgs", () => {
-    expect(validateKodyJob({ agentResponsibility: "run", flavor: "instant" }).cliArgs).toEqual(
+    expect(validateKodyJob({ capability: "run", flavor: "instant" }).cliArgs).toEqual(
       {},
     );
     expect(() =>
-      validateKodyJob({ agentResponsibility: "run", flavor: "instant", cliArgs: 5 }),
+      validateKodyJob({ capability: "run", flavor: "instant", cliArgs: 5 }),
     ).toThrow(/cliArgs/);
   });
 
-  it("resolves the dispatch profile as the agentResponsibility, not the agentAction", () => {
+  it("resolves the dispatch profile as the capability", () => {
     expect(
       resolveJobProfile({
-        agentAction: "feature",
-        agentResponsibility: "x",
+        capability: "x",
         cliArgs: {},
         flavor: "instant",
       }),
     ).toBe("x");
     expect(
       resolveJobProfile({
-        agentResponsibility: "nightly-qa",
+        capability: "nightly-qa",
         cliArgs: {},
         flavor: "scheduled",
       }),
@@ -78,7 +72,7 @@ describe("KodyJob agentResponsibility dispatch boundary", () => {
 
   it("renders an instant job as the @kody dispatch comment", () => {
     const job: KodyJob = {
-      agentResponsibility: "research",
+      capability: "research",
       why: "look into the flaky test",
       cliArgs: {},
       flavor: "instant",

@@ -1,8 +1,6 @@
 /**
- * Unit tests for the legacy ticked-markdown frontmatter parser
- * (src/dashboard/lib/ticked/frontmatter.ts). Folder-backed agentResponsibilities use
- * profile.json; these helpers remain for markdown records and shared cadence
- * validation.
+ * Unit tests for the ticked-markdown frontmatter parser
+ * (src/dashboard/lib/ticked/frontmatter.ts).
  */
 import { describe, it, expect } from "vitest";
 import {
@@ -58,7 +56,7 @@ describe("splitFrontmatter", () => {
     ).toBeUndefined();
   });
 
-  it("ignores comments, unknown keys, and legacy agentResponsibility stage metadata", () => {
+  it("ignores comments and unknown keys", () => {
     const { frontmatter } = splitFrontmatter(
       "---\n# a comment\nevery: 6h\nstage: report-refresh\nunknown: value\n---\nbody",
     );
@@ -74,56 +72,6 @@ describe("splitFrontmatter", () => {
     ).toBe("my-bot");
   });
 
-  it("parses mentions as a comma-separated login list", () => {
-    expect(
-      splitFrontmatter("---\nmentions: aguyaharonyair, alice\n---\nx")
-        .frontmatter.mentions,
-    ).toEqual(["aguyaharonyair", "alice"]);
-  });
-
-  it("strips a leading @ and trims each mention", () => {
-    expect(
-      splitFrontmatter("---\nmentions: @alice ,  @bob\n---\nx").frontmatter
-        .mentions,
-    ).toEqual(["alice", "bob"]);
-  });
-
-  it("drops empty mention slots and omits the field when none remain", () => {
-    expect(
-      splitFrontmatter("---\nmentions: alice,, ,\n---\nx").frontmatter.mentions,
-    ).toEqual(["alice"]);
-    expect(
-      splitFrontmatter("---\nmentions:   ,  \n---\nx").frontmatter.mentions,
-    ).toBeUndefined();
-  });
-
-  it("parses multi-agentAction, agentResponsibility-tool, and scripted agentResponsibility fields", () => {
-    const { frontmatter } = splitFrontmatter(
-      [
-        "---",
-        "action: repo-graph",
-        "agentAction: repo-graph-refresh",
-        "agentActions: db-worker, api-worker, ui-worker",
-        "tools: list_prs_to_repair, sync_pr",
-        "tickScript: .kody/scripts/check-agentResponsibility.sh",
-        "reads_from: company-graph, reports",
-        "writes_to: ci-health-graph",
-        "---",
-        "body",
-      ].join("\n"),
-    );
-    expect(frontmatter.action).toBe("repo-graph");
-    expect(frontmatter.agentAction).toBe("repo-graph-refresh");
-    expect(frontmatter.agentActions).toEqual([
-      "db-worker",
-      "api-worker",
-      "ui-worker",
-    ]);
-    expect(frontmatter.agentResponsibilityTools).toEqual(["list_prs_to_repair", "sync_pr"]);
-    expect(frontmatter.tickScript).toBe(".kody/scripts/check-agentResponsibility.sh");
-    expect(frontmatter.readsFrom).toEqual(["company-graph", "reports"]);
-    expect(frontmatter.writesTo).toEqual(["ci-health-graph"]);
-  });
 });
 
 describe("joinFrontmatter", () => {
@@ -143,35 +91,10 @@ describe("joinFrontmatter", () => {
     );
   });
 
-  it("emits mentions as a comma-joined line after reviewer, no @", () => {
-    const fm: TickFrontmatter = { agent: "bot", mentions: ["alice", "bob"] };
-    expect(joinFrontmatter(fm, "body")).toBe(
-      "---\nagent: bot\nmentions: alice, bob\n---\n\nbody",
-    );
-  });
-
-  it("emits reviewer after agent and strips @", () => {
-    const fm: TickFrontmatter = { agent: "bot", reviewer: "@qa" };
-    expect(joinFrontmatter(fm, "body")).toBe(
-      "---\nagent: bot\nreviewer: qa\n---\n\nbody",
-    );
-    expect(
-      splitFrontmatter("---\nagent: bot\nreviewer: @qa\n---\nbody")
-        .frontmatter,
-    ).toMatchObject({ agent: "bot", reviewer: "qa" });
-  });
-
-  it("reads agent but does not turn assignee into reviewer", () => {
+  it("reads agent and ignores assignee", () => {
     expect(
       splitFrontmatter("---\nagent: bot\nassignee: @qa\n---\nbody").frontmatter,
     ).toEqual({ agent: "bot" });
-  });
-
-  it("omits the mentions line when the array is empty", () => {
-    expect(joinFrontmatter({ mentions: [] }, "body")).toBe("body");
-    expect(joinFrontmatter({ every: "1h", mentions: [] }, "body")).toBe(
-      "---\nevery: 1h\n---\n\nbody",
-    );
   });
 
   it("round-trips through splitFrontmatter", () => {
@@ -184,61 +107,6 @@ describe("joinFrontmatter", () => {
     expect(frontmatter).toEqual(fm);
   });
 
-  it("round-trips mentions through splitFrontmatter", () => {
-    const fm: TickFrontmatter = {
-      every: "1d",
-      agent: "weekly",
-      mentions: ["alice", "bob"],
-    };
-    const { frontmatter } = splitFrontmatter(joinFrontmatter(fm, "the body"));
-    expect(frontmatter).toEqual(fm);
-  });
-
-  it("emits the legacy agentResponsibility metadata shape in stable order", () => {
-    const fm: TickFrontmatter = {
-      action: "repo-graph",
-      agentAction: "repo-graph-refresh",
-      every: "1h",
-      agent: "kody",
-      reviewer: "qa",
-      mentions: ["alice"],
-      agentActions: ["db-worker", "api-worker"],
-      agentResponsibilityTools: ["list_prs_to_repair", "sync_pr"],
-      tickScript: ".kody/scripts/check-agentResponsibility.sh",
-      readsFrom: ["company-graph", "reports"],
-      writesTo: ["ci-health-graph"],
-      disabled: true,
-    };
-    expect(joinFrontmatter(fm, "body")).toBe(
-      [
-        "---",
-        "action: repo-graph",
-        "agentAction: repo-graph-refresh",
-        "every: 1h",
-        "agent: kody",
-        "reviewer: qa",
-        "mentions: alice",
-        "agentActions: db-worker, api-worker",
-        "tools: list_prs_to_repair, sync_pr",
-        "tickScript: .kody/scripts/check-agentResponsibility.sh",
-        "reads_from: company-graph, reports",
-        "writes_to: ci-health-graph",
-        "disabled: true",
-        "---",
-        "",
-        "body",
-      ].join("\n"),
-    );
-  });
-
-  it("omits empty new agentResponsibility arrays and null tick scripts", () => {
-    expect(
-      joinFrontmatter(
-        { every: "1h", agentActions: [], agentResponsibilityTools: [], tickScript: null },
-        "body",
-      ),
-    ).toBe("---\nevery: 1h\n---\n\nbody");
-  });
 });
 
 describe("cadence helpers", () => {
