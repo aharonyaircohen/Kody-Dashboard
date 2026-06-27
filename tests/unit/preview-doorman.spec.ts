@@ -1,9 +1,13 @@
 import { spawn, type ChildProcessWithoutNullStreams } from "node:child_process";
 import { createHmac } from "node:crypto";
 import { readFileSync } from "node:fs";
+import {
+  createServer as createHttpServer,
+  type Server as HttpServer,
+} from "node:http";
+import { createServer as createNetServer } from "node:net";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
-import { createServer } from "node:net";
 import { afterEach, describe, expect, it } from "vitest";
 
 const repoRoot = resolve(dirname(fileURLToPath(import.meta.url)), "../..");
@@ -11,14 +15,18 @@ const doormanPath = resolve(repoRoot, "builder/doorman/doorman.ts");
 const verifyKeyHex = "a".repeat(64);
 
 const children: ChildProcessWithoutNullStreams[] = [];
+const servers: HttpServer[] = [];
 
 afterEach(async () => {
-  await Promise.all(children.splice(0).map(stopChild));
+  await Promise.all([
+    ...children.splice(0).map(stopChild),
+    ...servers.splice(0).map(closeServer),
+  ]);
 });
 
 function getFreePort(): Promise<number> {
   return new Promise((resolvePort, reject) => {
-    const server = createServer();
+    const server = createNetServer();
     server.once("error", reject);
     server.listen(0, "127.0.0.1", () => {
       const address = server.address();
@@ -54,6 +62,19 @@ async function startDoorman(
   env: Record<string, string>,
 ): Promise<{ child: ChildProcessWithoutNullStreams; port: number }> {
   const [port, nextPort] = await Promise.all([getFreePort(), getFreePort()]);
+  const backend = createHttpServer((req, res) => {
+    res.setHeader("Content-Type", "text/plain");
+    res.end(`proxied ${req.url}`);
+  });
+  await new Promise<void>((resolveListen, rejectListen) => {
+    backend.once("error", rejectListen);
+    backend.listen(nextPort, "127.0.0.1", () => {
+      backend.off("error", rejectListen);
+      resolveListen();
+    });
+  });
+  servers.push(backend);
+
   const child = spawn(
     process.execPath,
     ["--experimental-strip-types", doormanPath],
@@ -115,8 +136,20 @@ function stopChild(child: ChildProcessWithoutNullStreams): Promise<void> {
   });
 }
 
+function closeServer(server: HttpServer): Promise<void> {
+  return new Promise((resolveClose, rejectClose) => {
+    server.close((error) => {
+      if (error) {
+        rejectClose(error);
+        return;
+      }
+      resolveClose();
+    });
+  });
+}
+
 describe("preview doorman", () => {
-  it("accepts branch tickets for the configured branch and strips kp", async () => {
+  it("accepts branch tickets for the configured branch and proxies without kp", async () => {
     const { port } = await startDoorman({
       KODY_REPO_CONTEXT: "owner/repo",
       KODY_BRANCH: "dev",
@@ -128,10 +161,12 @@ describe("preview doorman", () => {
       { redirect: "manual" },
     );
 
-    expect(res.status).toBe(302);
+    expect(res.status).toBe(200);
     expect(res.headers.get("set-cookie")).toContain("kody_preview_session=1");
     expect(res.headers.get("set-cookie")).toContain("Partitioned");
-    expect(res.headers.get("location")).toBe("/lesson?tab=one");
+    expect(res.headers.get("referrer-policy")).toBe("no-referrer");
+    expect(res.headers.get("cache-control")).toBe("no-store");
+    await expect(res.text()).resolves.toBe("proxied /lesson?tab=one");
   });
 
   it("rejects branch tickets minted for another branch", async () => {
@@ -159,9 +194,9 @@ describe("preview doorman", () => {
       redirect: "manual",
     });
 
-    expect(res.status).toBe(302);
+    expect(res.status).toBe(200);
     expect(res.headers.get("set-cookie")).toContain("Partitioned");
-    expect(res.headers.get("location")).toBe("/");
+    await expect(res.text()).resolves.toBe("proxied /");
   });
 });
 
