@@ -25,11 +25,13 @@ import {
   addEnvironment,
   addUploadedEnvironment,
   expiredUploads,
+  isFlyBranchEnvironment,
   resolveEnvironments,
   setEnvExpiry,
   STATIC_PREVIEW_TTL_MS,
   type PreviewEnvironment,
 } from "../preview-environments";
+import { fetchBranchPreviews } from "../previews/branch-preview-client";
 import {
   destroyStaticPreview,
   uploadStaticPreview,
@@ -106,7 +108,35 @@ export function PreviewWorkspace() {
 
   const selectedEnv =
     environments.find((e) => e.id === selectedId) ?? environments[0] ?? null;
-  const baseUrl = selectedEnv?.url ?? null;
+  const selectedBranch =
+    selectedEnv && isFlyBranchEnvironment(selectedEnv)
+      ? selectedEnv.flyBranch
+      : null;
+
+  const branchPreviewQuery = useQuery({
+    queryKey: [
+      "kody-branch-previews",
+      selectedBranch?.repo ?? "",
+      selectedBranch?.branch ?? "",
+    ],
+    queryFn: fetchBranchPreviews,
+    enabled: Boolean(selectedBranch && getStoredAuth()),
+    staleTime: 30 * 1000,
+    retry: 1,
+  });
+
+  const branchPreviewUrl =
+    selectedBranch && branchPreviewQuery.data
+      ? (branchPreviewQuery.data.previews.find(
+          (preview) => preview.branch === selectedBranch.branch,
+        )?.url ?? null)
+      : null;
+  const baseUrl = selectedBranch
+    ? branchPreviewUrl
+    : (selectedEnv?.url ?? null);
+  const isResolvingBranchPreview =
+    Boolean(selectedBranch) &&
+    (branchPreviewQuery.isLoading || branchPreviewQuery.isFetching);
 
   const saveMutation = useMutation({
     mutationFn: (next: PreviewEnvironment[]) =>
@@ -209,7 +239,7 @@ export function PreviewWorkspace() {
     <section className="relative flex-1 min-w-0 min-h-0 flex flex-col">
       <PreviewPane
         baseUrl={baseUrl}
-        isResolving={false}
+        isResolving={isResolvingBranchPreview}
         owner={owner}
         repo={repo}
         onComposerInjection={setComposerInjection}

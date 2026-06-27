@@ -23,16 +23,50 @@ import {
 } from "@dashboard/lib/dashboard-config/store";
 import { logger } from "@dashboard/lib/logger";
 
-const PreviewEnvironmentSchema = z.object({
-  id: z.string().min(1).max(64),
-  label: z.string().min(1).max(48),
-  url: z.string().url({ message: "Must be a valid URL" }).max(2048),
-  // Present only for uploaded-file environments — keys the Fly static
-  // preview so removal can also tear it down.
-  staticId: z.string().min(1).max(64).optional(),
-  // Absolute expiry (ms epoch) for uploaded previews; reaped past this.
-  expiresAt: z.number().int().nonnegative().optional(),
-});
+const PreviewUrlSchema = z
+  .string()
+  .max(2048)
+  .refine(
+    (value) => {
+      if (
+        /^\/api\/kody\/views\/(?!_t\/)[A-Za-z0-9][A-Za-z0-9-]{0,63}(?:\/[^\s?#]*)?(?:\?[^#\s]*)?(?:#[^\s]*)?$/.test(
+          value,
+        )
+      ) {
+        return true;
+      }
+      try {
+        const parsed = new URL(value);
+        return parsed.protocol === "http:" || parsed.protocol === "https:";
+      } catch {
+        return false;
+      }
+    },
+    { message: "Uploaded and repo-backed views need a URL" },
+  );
+
+const PreviewEnvironmentSchema = z
+  .object({
+    id: z.string().min(1).max(64),
+    label: z.string().min(1).max(48),
+    url: PreviewUrlSchema.optional(),
+    flyBranch: z
+      .object({
+        repo: z.string().regex(/^[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+$/),
+        branch: z.string().min(1).max(255),
+      })
+      .optional(),
+    // Present only for uploaded-file environments — keys the Fly static
+    // preview so removal can also tear it down.
+    staticId: z.string().min(1).max(64).optional(),
+    // Absolute expiry (ms epoch) for uploaded previews; reaped past this.
+    expiresAt: z.number().int().nonnegative().optional(),
+  })
+  .passthrough()
+  .refine((env) => Boolean(env.url) || Boolean(env.flyBranch), {
+    message: "Preview environment needs a URL or branch preview",
+    path: ["url"],
+  });
 
 const UpsertSchema = z.object({
   defaultPreviewUrl: z
@@ -127,7 +161,7 @@ export async function PUT(req: NextRequest) {
     }
     if ("namedPreviews" in bodyKeys) {
       const list = parsed.data.namedPreviews ?? [];
-      next.namedPreviews = list.length > 0 ? list : undefined;
+      next.namedPreviews = list;
       commitMessage = `chore(dashboard): update preview environments`;
     }
     if ("brainFlyChatEnabled" in bodyKeys) {

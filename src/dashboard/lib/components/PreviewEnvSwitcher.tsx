@@ -16,6 +16,7 @@ import {
   Check,
   Clock,
   Loader2,
+  GitBranch,
   Pencil,
   Plus,
   Trash2,
@@ -26,6 +27,7 @@ import {
   daysUntilExpiry,
   removeEnvironment,
   updateEnvironment,
+  isFlyBranchEnvironment,
   type PreviewEnvironment,
 } from "../preview-environments";
 import { PreviewEnvForm } from "./PreviewEnvForm";
@@ -41,6 +43,13 @@ function expiryChip(
   if (days <= 2)
     return { text: `${days}d left`, className: "text-amber-400/80" };
   return { text: `${days}d left`, className: "text-zinc-500" };
+}
+
+function environmentSubtitle(env: PreviewEnvironment): string {
+  if (isFlyBranchEnvironment(env)) {
+    return `${env.flyBranch.repo} @ ${env.flyBranch.branch}`;
+  }
+  return env.url ?? "";
 }
 
 interface PreviewEnvSwitcherProps {
@@ -188,7 +197,7 @@ export function PreviewEnvSwitcher({
                 >
                   <PreviewEnvForm
                     initialLabel={env.label}
-                    initialUrl={env.url}
+                    initialUrl={env.url ?? ""}
                     submitLabel="Save"
                     isSaving={isSaving}
                     onSubmit={(label, url) => handleEdit(env.id, label, url)}
@@ -220,6 +229,9 @@ export function PreviewEnvSwitcher({
                   />
                   <span className="min-w-0">
                     <span className="flex items-center gap-1.5 text-xs font-medium text-zinc-200">
+                      {isFlyBranchEnvironment(env) && (
+                        <GitBranch className="w-3 h-3 shrink-0 text-sky-300" />
+                      )}
                       <span className="truncate">{env.label}</span>
                       {typeof env.expiresAt === "number" && (
                         <span
@@ -233,7 +245,7 @@ export function PreviewEnvSwitcher({
                       )}
                     </span>
                     <span className="block text-[11px] text-zinc-500 truncate">
-                      {env.url}
+                      {environmentSubtitle(env)}
                     </span>
                   </span>
                 </button>
@@ -253,15 +265,17 @@ export function PreviewEnvSwitcher({
                     )}
                   </button>
                 )}
-                <button
-                  type="button"
-                  onClick={() => setEditingId(env.id)}
-                  title="Edit"
-                  aria-label={`Edit ${env.label}`}
-                  className="opacity-0 group-hover:opacity-100 p-1 rounded text-zinc-400 hover:text-white hover:bg-zinc-700 transition"
-                >
-                  <Pencil className="w-3 h-3" />
-                </button>
+                {env.url && (
+                  <button
+                    type="button"
+                    onClick={() => setEditingId(env.id)}
+                    title="Edit"
+                    aria-label={`Edit ${env.label}`}
+                    className="opacity-0 group-hover:opacity-100 p-1 rounded text-zinc-400 hover:text-white hover:bg-zinc-700 transition"
+                  >
+                    <Pencil className="w-3 h-3" />
+                  </button>
+                )}
                 <button
                   type="button"
                   onClick={() => handleRemove(env.id)}

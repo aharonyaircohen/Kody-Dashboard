@@ -17,7 +17,12 @@ export interface PreviewEnvironment {
   /** Display label (Production, Staging, Dev, …). Kept short for the toolbar. */
   label: string;
   /** Base URL of the environment. Views (Web/Admin) are paths under this. */
-  url: string;
+  url?: string;
+  /**
+   * Stable pointer to a Kody Fly branch preview. The signed URL is minted when
+   * the workspace opens it, so saved environments never store an expiring token.
+   */
+  flyBranch?: FlyBranchPreviewRef;
   /**
    * Set only for environments created by uploading a file (served on a Fly
    * static preview, no build). Lets removal also destroy the Fly app — a
@@ -30,6 +35,12 @@ export interface PreviewEnvironment {
    * environments never set this — they don't expire.
    */
   expiresAt?: number;
+}
+
+export interface FlyBranchPreviewRef {
+  /** owner/name */
+  repo: string;
+  branch: string;
 }
 
 const ID_RAND_LEN = 4;
@@ -89,6 +100,43 @@ export function normalizeEnvUrl(input: string): string | null {
   }
 }
 
+export function normalizeRepoRef(input: string): string | null {
+  const trimmed = input.trim();
+  if (!/^[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+$/.test(trimmed)) return null;
+  return trimmed;
+}
+
+export function normalizeBranchName(input: string): string | null {
+  const trimmed = input.trim();
+  if (!trimmed || trimmed.length > 255) return null;
+  if (
+    trimmed.includes("..") ||
+    trimmed.startsWith("/") ||
+    trimmed.endsWith("/")
+  ) {
+    return null;
+  }
+  if (/[\s~^:?*[\\\]]/.test(trimmed)) return null;
+  return trimmed;
+}
+
+function normalizeFlyBranch(input: unknown): FlyBranchPreviewRef | null {
+  if (!input || typeof input !== "object") return null;
+  const value = input as Record<string, unknown>;
+  if (typeof value.repo !== "string" || typeof value.branch !== "string") {
+    return null;
+  }
+  const repo = normalizeRepoRef(value.repo);
+  const branch = normalizeBranchName(value.branch);
+  return repo && branch ? { repo, branch } : null;
+}
+
+export function isFlyBranchEnvironment(
+  env: PreviewEnvironment,
+): env is PreviewEnvironment & { flyBranch: FlyBranchPreviewRef } {
+  return Boolean(normalizeFlyBranch(env.flyBranch));
+}
+
 interface LegacyConfigShape {
   namedPreviews?: PreviewEnvironment[];
   defaultPreviewUrl?: string;
@@ -103,16 +151,26 @@ export function resolveEnvironments(
   config: LegacyConfigShape | null | undefined,
 ): PreviewEnvironment[] {
   const list = config?.namedPreviews;
-  if (Array.isArray(list) && list.length > 0) {
+  if (Array.isArray(list)) {
     return list
       .filter(
         (e): e is PreviewEnvironment =>
           !!e &&
           typeof e.id === "string" &&
           typeof e.label === "string" &&
-          typeof e.url === "string",
+          (typeof e.url === "string" ||
+            Boolean(normalizeFlyBranch(e.flyBranch))),
       )
-      .map((e) => ({ ...e, url: normalizeEnvUrl(e.url) ?? e.url }));
+      .map((e) => {
+        const flyBranch = normalizeFlyBranch(e.flyBranch);
+        return {
+          ...e,
+          ...(typeof e.url === "string"
+            ? { url: normalizeEnvUrl(e.url) ?? e.url }
+            : {}),
+          ...(flyBranch ? { flyBranch } : {}),
+        };
+      });
   }
   const legacy = config?.defaultPreviewUrl?.trim();
   if (legacy) {
@@ -125,6 +183,25 @@ export function resolveEnvironments(
     ];
   }
   return [];
+}
+
+/** Append a Fly branch preview environment. */
+export function addBranchPreviewEnvironment(
+  list: PreviewEnvironment[],
+  repo: string,
+  branch: string,
+): PreviewEnvironment[] {
+  const cleanRepo = normalizeRepoRef(repo);
+  const cleanBranch = normalizeBranchName(branch);
+  if (!cleanRepo || !cleanBranch) return list;
+  return [
+    ...list,
+    {
+      id: makeEnvId(cleanBranch),
+      label: cleanBranch.slice(0, MAX_LABEL),
+      flyBranch: { repo: cleanRepo, branch: cleanBranch },
+    },
+  ];
 }
 
 /** Append a new environment. Returns the next list (immutable). No-op if invalid. */
@@ -184,8 +261,30 @@ export function updateEnvironment(
         : e.label;
     const url =
       patch.url !== undefined ? (normalizeEnvUrl(patch.url) ?? e.url) : e.url;
-    return { ...e, label, url };
+    return { ...e, label, ...(url ? { url } : {}) };
   });
+}
+
+/** Replace one Fly branch environment's branch pointer. */
+export function updateBranchPreviewEnvironment(
+  list: PreviewEnvironment[],
+  id: string,
+  repo: string,
+  branch: string,
+): PreviewEnvironment[] {
+  const cleanRepo = normalizeRepoRef(repo);
+  const cleanBranch = normalizeBranchName(branch);
+  if (!cleanRepo || !cleanBranch) return list;
+  return list.map((e) =>
+    e.id === id
+      ? {
+          ...e,
+          label: cleanBranch.slice(0, MAX_LABEL),
+          flyBranch: { repo: cleanRepo, branch: cleanBranch },
+          url: undefined,
+        }
+      : e,
+  );
 }
 
 /** Remove an environment by id. Returns the next list (immutable). */

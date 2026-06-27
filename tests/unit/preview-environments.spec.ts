@@ -1,9 +1,11 @@
 import { describe, it, expect } from "vitest";
 
 import {
+  addBranchPreviewEnvironment,
   addUploadedEnvironment,
   daysUntilExpiry,
   expiredUploads,
+  isFlyBranchEnvironment,
   resolveEnvironments,
   setEnvExpiry,
   STATIC_PREVIEW_TTL_MS,
@@ -94,5 +96,48 @@ describe("resolveEnvironments", () => {
       namedPreviews: [uploaded("up", NOW + DAY)],
     });
     expect(out[0]).toMatchObject({ staticId: "up", expiresAt: NOW + DAY });
+  });
+
+  it("preserves Fly branch preview pointers without requiring a stored URL", () => {
+    const out = resolveEnvironments({
+      namedPreviews: [
+        {
+          id: "dev",
+          label: "dev",
+          flyBranch: { repo: "A-Guy-educ/A-Guy-Web", branch: "dev" },
+        },
+      ],
+    });
+
+    expect(out).toHaveLength(1);
+    expect(out[0]).toMatchObject({
+      id: "dev",
+      label: "dev",
+      flyBranch: { repo: "A-Guy-educ/A-Guy-Web", branch: "dev" },
+    });
+    expect(isFlyBranchEnvironment(out[0]!)).toBe(true);
+  });
+
+  it("keeps an explicit empty list empty instead of falling back to legacy url", () => {
+    expect(
+      resolveEnvironments({
+        defaultPreviewUrl: "https://old.example.com",
+        namedPreviews: [],
+      }),
+    ).toEqual([]);
+  });
+});
+
+describe("addBranchPreviewEnvironment", () => {
+  it("stores repo and branch identity, not a tokenized URL", () => {
+    const next = addBranchPreviewEnvironment([], "A-Guy-educ/A-Guy-Web", "dev");
+
+    expect(next).toEqual([
+      expect.objectContaining({
+        label: "dev",
+        flyBranch: { repo: "A-Guy-educ/A-Guy-Web", branch: "dev" },
+      }),
+    ]);
+    expect(next[0]!.url).toBeUndefined();
   });
 });

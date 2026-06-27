@@ -37,6 +37,7 @@ import {
   destroyPreview,
   getPreview,
 } from "@dashboard/lib/previews/preview-lifecycle";
+import { mintBranchPreviewTicket } from "@dashboard/lib/preview-token";
 
 export const runtime = "nodejs";
 
@@ -169,9 +170,11 @@ export async function GET(req: NextRequest) {
     branches.map(async (branch) => {
       try {
         const info = await getPreview({ repo, branch }, cfg);
-        return info
-          ? { branch, ...info }
-          : { branch, state: "pending" as const, url: null };
+        if (!info) return { branch, state: "pending" as const, url: null };
+        if (!info.url) return { branch, ...info };
+
+        const { ticket } = mintBranchPreviewTicket(repo, branch, 4 * 60 * 60);
+        return { branch, ...info, url: `${info.url}?kp=${ticket}` };
       } catch (err) {
         logger.warn({ err, branch }, "branch-preview: status failed");
         return { branch, state: "unknown" as const, url: null };
