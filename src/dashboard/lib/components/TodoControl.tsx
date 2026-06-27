@@ -59,6 +59,11 @@ import {
 } from "../hooks/useTodoEntries";
 import { useGitHubIdentity } from "../hooks/useGitHubIdentity";
 import { selectionPath } from "../selection-routing";
+import {
+  buildCreateTodoItemsPayload,
+  hasInvalidCreateTodoDraftItems,
+} from "../todos/create-list-form";
+import { todoListSelectionRedirect } from "../todos/selection";
 import { cn } from "../utils";
 import { useChatScope } from "./ChatRailShell";
 import { ConfirmDialog } from "./ConfirmDialog";
@@ -219,14 +224,13 @@ export function TodoControlInner({
   }, [todoLists]);
 
   useEffect(() => {
-    if (filtered.length === 0) {
-      if (selectedSlug) router.replace("/todos");
-      return;
-    }
-    if (!selectedSlug || !filtered.some((list) => list.slug === selectedSlug)) {
-      router.replace(selectionPath("/todos", filtered[0].slug));
-    }
-  }, [filtered, router, selectedSlug]);
+    if (isLoading) return;
+    const redirect = todoListSelectionRedirect(
+      selectedSlug,
+      todoLists.map((list) => list.slug),
+    );
+    if (redirect) router.replace(redirect);
+  }, [isLoading, router, selectedSlug, todoLists]);
 
   const selectList = (slug: string | null, replace = false) => {
     const path = slug ? selectionPath("/todos", slug) : "/todos";
@@ -640,14 +644,6 @@ function TodoListDetail({
             </div>
 
             <div className="flex items-center gap-2 shrink-0">
-              <Button
-                size="sm"
-                onClick={() => setItemEditor({ mode: "create" })}
-                className="gap-1.5"
-              >
-                <Plus className="w-3.5 h-3.5" />
-                Add item
-              </Button>
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
                   <Button
@@ -744,29 +740,11 @@ function TodoListDetail({
         </div>
 
         {list.items.length === 0 ? (
-          <div className="rounded-md border border-dashed border-border bg-muted/20 py-12 text-center space-y-3">
-            <div className="w-10 h-10 mx-auto rounded-full bg-emerald-500/10 flex items-center justify-center">
-              <Sparkles className="w-5 h-5 text-emerald-600 dark:text-emerald-400" />
-            </div>
-            <div className="space-y-1">
-              <p className="text-sm font-medium text-foreground">
-                No items in this list
-              </p>
-              <p className="text-xs text-muted-foreground max-w-sm mx-auto">
-                Add note-like items here, then mark each one complete as it is
-                handled.
-              </p>
-            </div>
-            <Button
-              size="sm"
-              variant="outline"
-              onClick={() => setItemEditor({ mode: "create" })}
-              className="gap-1.5 mt-1"
-            >
-              <Plus className="w-3.5 h-3.5" />
-              Add item
-            </Button>
-          </div>
+          <AddTodoPlaceholder
+            label="Add first todo"
+            hint="Create the first todo in this list."
+            onClick={() => setItemEditor({ mode: "create" })}
+          />
         ) : filteredItems.length === 0 ? (
           <div className="rounded-md border border-dashed border-border bg-muted/20 py-10 text-center space-y-2">
             <p className="text-sm font-medium text-foreground">
@@ -794,6 +772,13 @@ function TodoListDetail({
                 disabled={updateMutation.isPending}
               />
             ))}
+            <li>
+              <AddTodoPlaceholder
+                label="Add todo"
+                hint="Create a new todo in this list."
+                onClick={() => setItemEditor({ mode: "create" })}
+              />
+            </li>
           </ul>
         )}
       </div>
@@ -826,6 +811,36 @@ function TodoListDetail({
         onClose={() => setPendingItemDelete(null)}
       />
     </article>
+  );
+}
+
+function AddTodoPlaceholder({
+  label,
+  hint,
+  onClick,
+}: {
+  label: string;
+  hint: string;
+  onClick: () => void;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className="group flex min-h-40 w-full flex-col items-center justify-center gap-3 rounded-md border border-dashed border-border bg-muted/20 px-4 py-10 text-center transition-colors hover:border-emerald-400/60 hover:bg-emerald-500/[0.08] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-400/70"
+    >
+      <span className="flex h-12 w-12 items-center justify-center rounded-full bg-emerald-500/10 text-emerald-500 transition-colors group-hover:bg-emerald-500/20 dark:text-emerald-300">
+        <Plus className="w-5 h-5" />
+      </span>
+      <span className="space-y-1">
+        <span className="block text-sm font-medium text-foreground">
+          {label}
+        </span>
+        <span className="block max-w-sm text-xs text-muted-foreground">
+          {hint}
+        </span>
+      </span>
+    </button>
   );
 }
 
@@ -1097,22 +1112,21 @@ function CreateTodoListDialog({
     if (title.trim().length > 160) return "Keep title under 160 characters.";
     return null;
   })();
-  const hasInvalidItem = items.some((item) => item.title.trim().length === 0);
+  const hasInvalidItem = hasInvalidCreateTodoDraftItems(items);
   const canSave =
     !!title.trim() &&
     !titleError &&
     !hasInvalidItem &&
     !createMutation.isPending;
+  const addDraftItem = () =>
+    setItems((current) => [...current, { title: "", body: "" }]);
 
   const handleSubmit = () => {
     if (!canSave) return;
     createMutation.mutate(
       {
         title: title.trim(),
-        items: items.map((item) => ({
-          title: item.title.trim(),
-          body: item.body,
-        })),
+        items: buildCreateTodoItemsPayload(items),
       },
       { onSuccess: (list) => onCreated(list) },
     );
@@ -1146,26 +1160,37 @@ function CreateTodoListDialog({
 
           <div className="space-y-3">
             <div className="flex items-center justify-between gap-3">
-              <Label>Items</Label>
+              <Label>Todos</Label>
               <Button
                 type="button"
                 variant="outline"
                 size="sm"
-                onClick={() =>
-                  setItems((current) => [...current, { title: "", body: "" }])
-                }
+                onClick={addDraftItem}
                 className="gap-1.5"
               >
                 <Plus className="w-3.5 h-3.5" />
-                Add item
+                Add todo
               </Button>
             </div>
 
             {items.length === 0 ? (
-              <p className="rounded-md border border-dashed border-white/[0.1] px-3 py-4 text-center text-xs text-muted-foreground">
-                No initial items. You can add them now or after creating the
-                list.
-              </p>
+              <button
+                type="button"
+                onClick={addDraftItem}
+                className="group flex min-h-36 w-full flex-col items-center justify-center gap-3 rounded-md border border-dashed border-white/[0.16] bg-white/[0.02] px-4 py-8 text-center transition-colors hover:border-emerald-400/60 hover:bg-emerald-500/[0.08] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-400/70"
+              >
+                <span className="flex h-11 w-11 items-center justify-center rounded-full bg-emerald-500/10 text-emerald-300 transition-colors group-hover:bg-emerald-500/20">
+                  <Plus className="w-5 h-5" />
+                </span>
+                <span className="space-y-1">
+                  <span className="block text-sm font-medium text-foreground">
+                    Add first todo
+                  </span>
+                  <span className="block text-xs text-muted-foreground">
+                    Or create the list empty and add todos later.
+                  </span>
+                </span>
+              </button>
             ) : (
               <div className="space-y-3 max-h-[50vh] overflow-y-auto pr-1">
                 {items.map((item, index) => (
@@ -1176,7 +1201,7 @@ function CreateTodoListDialog({
                     <div className="flex items-start gap-2">
                       <div className="min-w-0 flex-1 space-y-1.5">
                         <Label htmlFor={`todo-create-item-${index}`}>
-                          Item title
+                          Todo title
                         </Label>
                         <Input
                           id={`todo-create-item-${index}`}
@@ -1192,8 +1217,10 @@ function CreateTodoListDialog({
                           }
                           placeholder="Investigate empty cart state"
                         />
-                        {!item.title.trim() ? (
-                          <p className="text-xs text-rose-300">Required</p>
+                        {!item.title.trim() && item.body.trim() ? (
+                          <p className="text-xs text-rose-300">
+                            Add a title to keep this item.
+                          </p>
                         ) : null}
                       </div>
                       <Button
@@ -1355,16 +1382,16 @@ function TodoItemDialog({
       <DialogContent className="max-w-2xl">
         <DialogHeader>
           <DialogTitle>
-            {state?.mode === "edit" ? "Edit item" : "Add item"}
+            {state?.mode === "edit" ? "Edit todo" : "Add todo"}
           </DialogTitle>
           <DialogDescription>
-            Each item is a note with its own completed state.
+            Each todo is a note with its own completed state.
           </DialogDescription>
         </DialogHeader>
 
         <div className="space-y-4 mt-2">
           <div className="space-y-1.5">
-            <Label htmlFor="todo-item-title">Item title</Label>
+            <Label htmlFor="todo-item-title">Todo title</Label>
             <Input
               id="todo-item-title"
               value={title}
@@ -1391,7 +1418,7 @@ function TodoItemDialog({
             onClick={() => onSubmit({ title: title.trim(), body })}
             disabled={!canSave}
           >
-            {isSaving ? "Saving..." : "Save item"}
+            {isSaving ? "Saving..." : "Save todo"}
           </Button>
         </div>
       </DialogContent>
