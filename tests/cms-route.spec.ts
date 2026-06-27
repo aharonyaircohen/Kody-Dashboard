@@ -319,6 +319,7 @@ describe("CMS API routes", () => {
         collections: [
           {
             name: "lessons",
+            operations: { create: true, update: true, delete: false },
             permissions: {
               content: { update: ["editor"], delete: ["admin"] },
             },
@@ -339,6 +340,11 @@ describe("CMS API routes", () => {
     expect(JSON.parse(lessonFile!.content).permissions.content).toMatchObject({
       update: ["editor", "admin"],
       delete: ["admin"],
+    });
+    expect(JSON.parse(lessonFile!.content).operations).toMatchObject({
+      create: true,
+      update: true,
+      delete: false,
     });
   });
 

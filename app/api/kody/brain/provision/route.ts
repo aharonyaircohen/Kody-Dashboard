@@ -11,8 +11,8 @@
  * route's internal provisionBrain call.
  *
  * Auth: requireKodyAuth. The Fly token comes from `ctx.context.flyToken`,
- * which is resolved in `fly-context.ts` as: env `FLY_API_TOKEN` →
- * env `FLY_IO_TOKEN` → repo vault `FLY_API_TOKEN`. Single source, no
+ * which is resolved in `fly-context.ts` as: repo vault `FLY_API_TOKEN` →
+ * env `FLY_API_TOKEN` → env `FLY_IO_TOKEN`. Single source, no
  * fallback dance, no retry loop.
  *
  * App name resolution (in order):

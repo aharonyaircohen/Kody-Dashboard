@@ -27,6 +27,7 @@ import {
 } from "@dashboard/lib/state-repo";
 import { getCmsActorRole } from "@dashboard/lib/cms/roles";
 import type {
+  CmsCollectionOperations,
   CmsContentOperation,
   CmsPermissionsConfig,
   CmsRole,
@@ -271,10 +272,17 @@ const CONTENT_PERMISSION_OPERATIONS: CmsContentOperation[] = [
   "update",
   "delete",
 ];
+const CMS_WRITE_OPERATIONS = ["create", "update", "delete"] as const;
+type CmsWriteOperation = (typeof CMS_WRITE_OPERATIONS)[number];
+type CmsWriteOperationsPatch = Pick<CmsCollectionOperations, CmsWriteOperation>;
 
 interface CmsPermissionsPatch {
   permissions?: CmsPermissionsConfig;
-  collections: Array<{ name: string; permissions: CmsPermissionsConfig }>;
+  collections: Array<{
+    name: string;
+    permissions: CmsPermissionsConfig;
+    operations?: CmsWriteOperationsPatch;
+  }>;
 }
 
 function sanitizePermissionsPayload(input: unknown): CmsPermissionsPatch {
@@ -298,6 +306,7 @@ function sanitizePermissionsPayload(input: unknown): CmsPermissionsPatch {
 function sanitizeCollectionPermissionPatch(input: unknown): {
   name: string;
   permissions: CmsPermissionsConfig;
+  operations?: CmsWriteOperationsPatch;
 } {
   if (!input || typeof input !== "object" || Array.isArray(input)) {
     throw new CmsRuntimeError(
@@ -317,7 +326,11 @@ function sanitizeCollectionPermissionPatch(input: unknown): {
     );
   }
 
-  return { name, permissions: sanitizePermissions(item.permissions) ?? {} };
+  return {
+    name,
+    permissions: sanitizePermissions(item.permissions) ?? {},
+    operations: sanitizeWriteOperations(item.operations),
+  };
 }
 
 function sanitizePermissions(input: unknown): CmsPermissionsConfig | undefined {
@@ -386,6 +399,34 @@ function sanitizeRoles(input: unknown): CmsRole[] {
   return roles;
 }
 
+function sanitizeWriteOperations(
+  input: unknown,
+): CmsWriteOperationsPatch | undefined {
+  if (input == null) return undefined;
+  if (typeof input !== "object" || Array.isArray(input)) {
+    throw new CmsRuntimeError(
+      "invalid_body",
+      "collection operations must be an object",
+      400,
+    );
+  }
+
+  const raw = input as Record<string, unknown>;
+  const result = {} as CmsWriteOperationsPatch;
+  for (const operation of CMS_WRITE_OPERATIONS) {
+    if (!(operation in raw)) continue;
+    if (typeof raw[operation] !== "boolean") {
+      throw new CmsRuntimeError(
+        "invalid_body",
+        `collection operation ${operation} must be boolean`,
+        400,
+      );
+    }
+    result[operation] = raw[operation];
+  }
+  return result;
+}
+
 async function buildCmsPermissionFiles(
   octokit: Awaited<ReturnType<typeof getUserOctokit>>,
   owner: string,
@@ -412,10 +453,7 @@ async function buildCmsPermissionFiles(
   if (patch.permissions) root.permissions = patch.permissions;
 
   const collectionPatchByName = new Map(
-    patch.collections.map((collection) => [
-      collection.name,
-      collection.permissions,
-    ]),
+    patch.collections.map((collection) => [collection.name, collection]),
   );
   const files = [
     { path: "cms/config.json", content: `${JSON.stringify(root, null, 2)}\n` },
@@ -433,9 +471,9 @@ async function buildCmsPermissionFiles(
         if (!file) continue;
         const collection = parseJsonRecord(file.content, path);
         const name = String(collection.name ?? "");
-        const permissions = collectionPatchByName.get(name);
-        if (!permissions) continue;
-        collection.permissions = permissions;
+        const collectionPatch = collectionPatchByName.get(name);
+        if (!collectionPatch) continue;
+        applyCollectionPatch(collection, collectionPatch);
         files.push({
           path,
           content: `${JSON.stringify(collection, null, 2)}\n`,
@@ -446,8 +484,8 @@ async function buildCmsPermissionFiles(
       if (entry && typeof entry === "object" && !Array.isArray(entry)) {
         const collection = entry as Record<string, unknown>;
         const name = String(collection.name ?? "");
-        const permissions = collectionPatchByName.get(name);
-        if (permissions) collection.permissions = permissions;
+        const collectionPatch = collectionPatchByName.get(name);
+        if (collectionPatch) applyCollectionPatch(collection, collectionPatch);
       }
     }
     files[0] = {
@@ -459,14 +497,14 @@ async function buildCmsPermissionFiles(
 
   if (rawCollections && typeof rawCollections === "object") {
     for (const [name, value] of Object.entries(rawCollections)) {
-      const permissions = collectionPatchByName.get(name);
+      const collectionPatch = collectionPatchByName.get(name);
       if (
-        permissions &&
+        collectionPatch &&
         value &&
         typeof value === "object" &&
         !Array.isArray(value)
       ) {
-        (value as Record<string, unknown>).permissions = permissions;
+        applyCollectionPatch(value as Record<string, unknown>, collectionPatch);
       }
     }
     files[0] = {
@@ -476,6 +514,25 @@ async function buildCmsPermissionFiles(
   }
 
   return files;
+}
+
+function applyCollectionPatch(
+  collection: Record<string, unknown>,
+  patch: CmsPermissionsPatch["collections"][number],
+) {
+  collection.permissions = patch.permissions;
+  if (!patch.operations) return;
+
+  const existingOperations =
+    collection.operations &&
+    typeof collection.operations === "object" &&
+    !Array.isArray(collection.operations)
+      ? (collection.operations as Record<string, unknown>)
+      : {};
+  collection.operations = {
+    ...existingOperations,
+    ...patch.operations,
+  };
 }
 
 function parseJsonRecord(

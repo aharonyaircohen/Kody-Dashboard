@@ -1065,6 +1065,9 @@ function CmsPermissionsDialog({
   const [collectionPresets, setCollectionPresets] = useState<
     Record<string, CmsWriteRolePreset>
   >(() => buildCollectionPermissionPresets(config.collections));
+  const [operationFlags, setOperationFlags] = useState<Record<string, boolean>>(
+    () => buildCollectionOperationFlags(config.collections),
+  );
   const [newOverrideCollection, setNewOverrideCollection] = useState("");
 
   useEffect(() => {
@@ -1072,6 +1075,7 @@ function CmsPermissionsDialog({
     setGlobalPresets(buildGlobalPermissionPresets(config.permissions));
     setOverrides(buildOverrideState(config.collections));
     setCollectionPresets(buildCollectionPermissionPresets(config.collections));
+    setOperationFlags(buildCollectionOperationFlags(config.collections));
     setNewOverrideCollection("");
   }, [config.collections, config.permissions, open]);
 
@@ -1090,6 +1094,16 @@ function CmsPermissionsDialog({
     setCollectionPresets((current) => ({
       ...current,
       [permissionPresetKey(collection, operation)]: preset,
+    }));
+  };
+  const updateCollectionOperation = (
+    collection: string,
+    operation: CmsPermissionOperation,
+    enabled: boolean,
+  ) => {
+    setOperationFlags((current) => ({
+      ...current,
+      [permissionPresetKey(collection, operation)]: enabled,
     }));
   };
   const applyPolicyPreset = (preset: CmsPermissionPolicyPreset) => {
@@ -1139,6 +1153,17 @@ function CmsPermissionsDialog({
         const enabled = overrides[collection.name] === true;
         return {
           name: collection.name,
+          operations: {
+            create:
+              operationFlags[permissionPresetKey(collection.name, "create")] ??
+              collection.operations.create,
+            update:
+              operationFlags[permissionPresetKey(collection.name, "update")] ??
+              collection.operations.update,
+            delete:
+              operationFlags[permissionPresetKey(collection.name, "delete")] ??
+              collection.operations.delete,
+          },
           permissions: enabled
             ? {
                 ...collection.permissions,
@@ -1237,6 +1262,69 @@ function CmsPermissionsDialog({
                     </SelectContent>
                   </Select>
                 </label>
+              ))}
+            </div>
+          </div>
+
+          <div className="border-t border-border px-4 py-4">
+            <div className="flex flex-col gap-1">
+              <div className="text-sm font-medium text-foreground">
+                Collection write actions
+              </div>
+              <div className="text-xs text-muted-foreground">
+                Enable the actions each collection supports. Role rules below
+                decide who can use enabled actions.
+              </div>
+            </div>
+            <div className="mt-3 overflow-x-auto border-y border-border">
+              <div className="grid min-w-[560px] grid-cols-[minmax(180px,1fr)_120px_120px_120px] bg-muted/50 px-3 py-2 text-xs font-semibold uppercase text-muted-foreground">
+                <div>Collection</div>
+                {CMS_WRITE_PERMISSION_OPERATIONS.map((item) => (
+                  <div key={item.operation}>{item.label}</div>
+                ))}
+              </div>
+              {config.collections.map((collection) => (
+                <div
+                  key={collection.name}
+                  className="grid min-w-[560px] grid-cols-[minmax(180px,1fr)_120px_120px_120px] items-center border-t border-border px-3 py-3"
+                >
+                  <div className="min-w-0 pr-4">
+                    <div className="truncate text-sm font-medium text-foreground">
+                      {collection.label}
+                    </div>
+                    <div className="truncate text-xs text-muted-foreground">
+                      {collection.name}
+                    </div>
+                  </div>
+                  {CMS_WRITE_PERMISSION_OPERATIONS.map((item) => {
+                    const key = permissionPresetKey(
+                      collection.name,
+                      item.operation,
+                    );
+                    const enabled =
+                      operationFlags[key] ??
+                      collection.operations[item.operation];
+                    return (
+                      <label
+                        key={item.operation}
+                        className="flex items-center gap-2 text-sm text-foreground"
+                      >
+                        <Checkbox
+                          checked={enabled}
+                          onCheckedChange={(checked) =>
+                            updateCollectionOperation(
+                              collection.name,
+                              item.operation,
+                              checked === true,
+                            )
+                          }
+                          aria-label={`${item.label} ${collection.label}`}
+                        />
+                        <span>{enabled ? "On" : "Off"}</span>
+                      </label>
+                    );
+                  })}
+                </div>
               ))}
             </div>
           </div>
@@ -1432,6 +1520,19 @@ function buildCollectionPermissionPresets(
         result[permissionPresetKey(collection.name, operation)] =
           presetForRoles(roles);
       }
+    }
+  }
+  return result;
+}
+
+function buildCollectionOperationFlags(
+  collections: CmsCollectionConfig[],
+): Record<string, boolean> {
+  const result: Record<string, boolean> = {};
+  for (const collection of collections) {
+    for (const { operation } of CMS_WRITE_PERMISSION_OPERATIONS) {
+      result[permissionPresetKey(collection.name, operation)] =
+        collection.operations[operation];
     }
   }
   return result;

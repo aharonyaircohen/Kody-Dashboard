@@ -44,8 +44,15 @@ describe("publishGitHubActionsSandboxSnapshotWithOctokit", () => {
     await writeFile(snapshotPath, "snapshot bytes");
     const octokit = {
       repos: {
+        get: vi.fn(),
         getContent: vi.fn().mockRejectedValue({ status: 404 }),
         createOrUpdateFileContents: vi.fn().mockResolvedValue({}),
+      },
+      git: {
+        getRef: vi.fn().mockResolvedValue({
+          data: { object: { sha: "state-sha" } },
+        }),
+        createRef: vi.fn(),
       },
     };
 
@@ -60,6 +67,7 @@ describe("publishGitHubActionsSandboxSnapshotWithOctokit", () => {
         owner: "owner",
         repo: "kody-state",
         path: `repo/${githubActionsSandboxSnapshotPath(sandbox(snapshotPath))}`,
+        branch: "kody-state",
         content: Buffer.from("snapshot bytes").toString("base64"),
       }),
     );

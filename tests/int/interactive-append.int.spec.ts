@@ -43,6 +43,12 @@ function sessionPath(sessionId: string): string {
   return `/repos/acme/kody-state/contents/widgets%2Fsessions%2F${sessionId}.jsonl`;
 }
 
+function mockStateBranch(): void {
+  nock(GITHUB_API)
+    .get("/repos/acme/kody-state/git/ref/heads%2Fkody-state")
+    .reply(200, { object: { sha: "state-sha" } });
+}
+
 function makeRequest(body: unknown): NextRequest {
   return new NextRequest("https://dash.test/api/kody/chat/interactive/append", {
     method: "POST",
@@ -68,7 +74,10 @@ function captureAppendedTurn(sessionId: string): Promise<{
   return new Promise((resolve) => {
     nock(GITHUB_API)
       .get(sessionPath(sessionId))
-      .reply(404)
+      .query({ ref: "kody-state" })
+      .reply(404);
+    mockStateBranch();
+    nock(GITHUB_API)
       .put(sessionPath(sessionId), (payload: { content: string }) => {
         const decoded = Buffer.from(payload.content, "base64").toString(
           "utf-8",

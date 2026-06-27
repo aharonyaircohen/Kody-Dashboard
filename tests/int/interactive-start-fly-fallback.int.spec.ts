@@ -60,6 +60,12 @@ function sessionPath(sessionId: string): string {
   return `/repos/acme/kody-state/contents/widgets%2Fsessions%2F${sessionId}.jsonl`;
 }
 
+function mockStateBranch(): void {
+  nock(GITHUB_API)
+    .get("/repos/acme/kody-state/git/ref/heads%2Fkody-state")
+    .reply(200, { object: { sha: "state-sha" } });
+}
+
 function makeRequest(body: unknown): NextRequest {
   return new NextRequest("https://dash.test/api/kody/chat/interactive/start", {
     method: "POST",
@@ -77,7 +83,10 @@ function makeRequest(body: unknown): NextRequest {
 function nockSessionWrite(sessionId: string): void {
   nock(GITHUB_API)
     .get(sessionPath(sessionId))
-    .reply(404)
+    .query({ ref: "kody-state" })
+    .reply(404);
+  mockStateBranch();
+  nock(GITHUB_API)
     .put(sessionPath(sessionId))
     .reply(201, { content: { sha: "newsha" } });
 }

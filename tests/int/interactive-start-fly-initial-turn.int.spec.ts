@@ -77,7 +77,19 @@ function capturingContext() {
       owner: "acme",
       repo: "widgets",
       githubToken: "ghp_test",
-      octokit: { repos: { getContent, createOrUpdateFileContents } },
+      octokit: {
+        repos: {
+          get: vi.fn(),
+          getContent,
+          createOrUpdateFileContents,
+        },
+        git: {
+          getRef: vi.fn(async () => ({
+            data: { object: { sha: "state-sha" } },
+          })),
+          createRef: vi.fn(),
+        },
+      },
       allSecrets: {},
       flyToken: "fly_test",
       perfTier: "medium",

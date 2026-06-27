@@ -1,4 +1,5 @@
 import type {
+  CmsCollectionOperations,
   CmsConfigState,
   CmsDocument,
   CmsListResult,
@@ -43,6 +44,7 @@ export interface SaveCmsPermissionsPayload {
   collections: Array<{
     name: string;
     permissions: CmsPermissionsConfig;
+    operations?: Pick<CmsCollectionOperations, "create" | "update" | "delete">;
   }>;
 }
 

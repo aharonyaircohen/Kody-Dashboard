@@ -42,6 +42,12 @@ function sessionPath(owner: string, repo: string, sessionId: string): string {
   return `/repos/${owner}/kody-state/contents/${repo}%2Fsessions%2F${sessionId}.jsonl`;
 }
 
+function mockStateBranch(owner: string): void {
+  nock(GITHUB_API)
+    .get(`/repos/${owner}/kody-state/git/ref/heads%2Fkody-state`)
+    .reply(200, { object: { sha: "state-sha" } });
+}
+
 function makeRequest(
   body: unknown,
   headers: Record<string, string> = {},
@@ -108,7 +114,10 @@ describe("POST /api/kody/chat/trigger", () => {
     // Session file write: getContent (404 = new) + createOrUpdateFileContents.
     nock(GITHUB_API)
       .get(sessionPath("test-owner", "test-repo", "sess-42"))
-      .reply(404)
+      .query({ ref: "kody-state" })
+      .reply(404);
+    mockStateBranch("test-owner");
+    nock(GITHUB_API)
       .put(sessionPath("test-owner", "test-repo", "sess-42"))
       .reply(201, { content: { sha: "abc" } });
 
@@ -150,7 +159,10 @@ describe("POST /api/kody/chat/trigger", () => {
 
     nock(GITHUB_API)
       .get(sessionPath("test-owner", "test-repo", "sess-42"))
-      .reply(404)
+      .query({ ref: "kody-state" })
+      .reply(404);
+    mockStateBranch("test-owner");
+    nock(GITHUB_API)
       .put(sessionPath("test-owner", "test-repo", "sess-42"))
       .reply(201, { content: { sha: "x" } });
 
@@ -170,7 +182,10 @@ describe("POST /api/kody/chat/trigger", () => {
 
     nock(GITHUB_API)
       .get(sessionPath("override-owner", "override-repo", "sess-42"))
-      .reply(404)
+      .query({ ref: "kody-state" })
+      .reply(404);
+    mockStateBranch("override-owner");
+    nock(GITHUB_API)
       .put(sessionPath("override-owner", "override-repo", "sess-42"))
       .reply(201, { content: { sha: "x" } });
 
@@ -188,7 +203,10 @@ describe("POST /api/kody/chat/trigger", () => {
   it("returns 500 when GitHub rejects dispatch (surfaces real errors)", async () => {
     nock(GITHUB_API)
       .get(sessionPath("test-owner", "test-repo", "sess-42"))
-      .reply(404)
+      .query({ ref: "kody-state" })
+      .reply(404);
+    mockStateBranch("test-owner");
+    nock(GITHUB_API)
       .put(sessionPath("test-owner", "test-repo", "sess-42"))
       .reply(201, { content: { sha: "x" } })
       .post("/repos/test-owner/test-repo/actions/workflows/kody.yml/dispatches")

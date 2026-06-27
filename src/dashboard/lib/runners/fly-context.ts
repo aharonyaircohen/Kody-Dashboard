@@ -158,11 +158,12 @@ export async function resolveFlyContext(
   // the per-repo fallback. No fallback dance, no per-call retry, no
   // multi-token probing — if the chosen token can't create, the user
   // sees Fly's error verbatim and updates the token in one place.
+  const vaultFlyToken = allSecrets.FLY_API_TOKEN?.trim() || undefined;
+  if ("FLY_API_TOKEN" in allSecrets) delete allSecrets.FLY_API_TOKEN;
   const flyToken =
-    process.env.FLY_API_TOKEN ??
-    process.env.FLY_IO_TOKEN ??
-    allSecrets.FLY_API_TOKEN;
-  if (flyToken) delete allSecrets.FLY_API_TOKEN;
+    vaultFlyToken ??
+    process.env.FLY_API_TOKEN?.trim() ??
+    process.env.FLY_IO_TOKEN?.trim();
 
   const rawPerf = req.headers.get("x-kody-fly-perf");
   const perfTier: PerfTier | undefined =

@@ -35,7 +35,17 @@ function makeOctokit(createScript: Array<"ok" | number>) {
     err.status = 404;
     throw err;
   });
-  const octokit = { repos: { getContent, createOrUpdateFileContents } };
+  const octokit = {
+    repos: {
+      get: vi.fn(),
+      getContent,
+      createOrUpdateFileContents,
+    },
+    git: {
+      getRef: vi.fn(async () => ({ data: { object: { sha: "state-sha" } } })),
+      createRef: vi.fn(),
+    },
+  };
   return {
     octokit: octokit as unknown as Octokit,
     createOrUpdateFileContents,
@@ -110,7 +120,19 @@ describe("appendUserTurn", () => {
         sha: "abc123",
       },
     }));
-    const octokit = { repos: { getContent, createOrUpdateFileContents } };
+    const octokit = {
+      repos: {
+        get: vi.fn(),
+        getContent,
+        createOrUpdateFileContents,
+      },
+      git: {
+        getRef: vi.fn(async () => ({
+          data: { object: { sha: "state-sha" } },
+        })),
+        createRef: vi.fn(),
+      },
+    };
     return {
       octokit: octokit as unknown as Octokit,
       createOrUpdateFileContents,

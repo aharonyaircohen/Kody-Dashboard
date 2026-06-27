@@ -140,14 +140,15 @@ describe("POST /api/kody/goals/[id]/manage", () => {
     };
 
     (mockOctokit as any).repos = mockOctokit.rest.repos;
+    (mockOctokit as any).git = mockOctokit.rest.git;
     vi.mocked(getUserOctokit).mockResolvedValue(mockOctokit as any);
 
     const req = makeManageRequest("capability-migration", true);
     const res = await POST(req, makeParams("capability-migration"));
 
-    expect(getRefCalls).toHaveLength(0);
-    expect(createRefCalls).toHaveLength(0);
-    expect(capturedWriteBranch).toBeUndefined();
+    expect(getRefCalls).toHaveLength(2);
+    expect(createRefCalls).toHaveLength(1);
+    expect(capturedWriteBranch).toBe("kody-state");
     expect(capturedWritePath).toBe(
       "test-repo/goals/instances/capability-migration/state.json",
     );
@@ -208,6 +209,7 @@ describe("POST /api/kody/goals/[id]/manage", () => {
     };
 
     (mockOctokit as any).repos = mockOctokit.rest.repos;
+    (mockOctokit as any).git = mockOctokit.rest.git;
     vi.mocked(getUserOctokit).mockResolvedValue(mockOctokit as any);
 
     const req = makeManageRequest("capability-migration", false);
@@ -217,7 +219,7 @@ describe("POST /api/kody/goals/[id]/manage", () => {
     const json = await res.json();
     expect(json.state?.managed).toBe(false);
     expect(createRefCalls).toHaveLength(0);
-    expect(capturedWriteBranch).toBeUndefined();
+    expect(capturedWriteBranch).toBe("kody-state");
   });
 
   it("returns 409 when trying to unmanage a goal that has no prior state", async () => {
@@ -236,6 +238,7 @@ describe("POST /api/kody/goals/[id]/manage", () => {
     };
 
     (mockOctokit as any).repos = mockOctokit.rest.repos;
+    (mockOctokit as any).git = mockOctokit.rest.git;
     vi.mocked(getUserOctokit).mockResolvedValue(mockOctokit as any);
 
     const req = makeManageRequest("brand-new-goal", false);

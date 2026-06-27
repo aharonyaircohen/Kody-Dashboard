@@ -102,11 +102,14 @@ describe("CMS UI routes", () => {
 
     expect(manager).toContain("CMS permissions");
     expect(manager).toContain("Default policy");
+    expect(manager).toContain("Collection write actions");
     expect(manager).toContain("Collection overrides");
     expect(manager).toContain("Clear overrides");
     expect(manager).toContain("Save permissions");
+    expect(manager).toContain("buildCollectionOperationFlags");
     expect(manager).toContain("onOpenPermissions");
     expect(client).toContain("saveCmsPermissions");
+    expect(client).toContain("operations?: Pick");
     expect(client).toContain('method: "PATCH"');
   });
 

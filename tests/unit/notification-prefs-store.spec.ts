@@ -162,6 +162,10 @@ describe("writeNotificationPrefs", () => {
       getContent: ReturnType<typeof vi.fn>;
       createOrUpdateFileContents: ReturnType<typeof vi.fn>;
     };
+    git: {
+      getRef: ReturnType<typeof vi.fn>;
+      createRef: ReturnType<typeof vi.fn>;
+    };
   };
 
   beforeEach(() => {
@@ -169,6 +173,12 @@ describe("writeNotificationPrefs", () => {
       repos: {
         getContent: vi.fn(),
         createOrUpdateFileContents: vi.fn(),
+      },
+      git: {
+        getRef: vi.fn().mockResolvedValue({
+          data: { object: { sha: "state-sha" } },
+        }),
+        createRef: vi.fn(),
       },
     };
     h.getOctokit.mockReturnValue(mockOctokit as unknown);
@@ -196,6 +206,7 @@ describe("writeNotificationPrefs", () => {
       mockOctokit.repos.createOrUpdateFileContents.mock.calls[0]![0];
     expect(createCall).toMatchObject({
       path: "widgets/notifications/preferences/alice.json",
+      branch: "kody-state",
       message: "feat(notifications): update prefs for alice",
     });
     expect(createCall.sha).toBeUndefined();
