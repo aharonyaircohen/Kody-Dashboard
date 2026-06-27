@@ -70,6 +70,10 @@ export interface SaveCmsPermissionsPayload {
   }>;
 }
 
+export interface SaveCmsAdapterPayload {
+  adapter: string;
+}
+
 export interface SaveCmsModelResourcePayload {
   collection: CmsCollectionConfig;
   originalName?: string | null;
@@ -137,6 +141,23 @@ export async function createCmsConfig(
 export async function saveCmsPermissions(
   headers: Record<string, string>,
   payload: SaveCmsPermissionsPayload,
+): Promise<CmsConfigState> {
+  const res = await fetch("/api/kody/cms", {
+    method: "PATCH",
+    headers: { ...headers, "content-type": "application/json" },
+    cache: "no-store",
+    body: JSON.stringify(payload),
+  });
+  const json = (await res.json().catch(() => ({}))) as CmsIndexResponse;
+  if (!res.ok || !json.cms) {
+    throw new Error(json.message || json.error || `HTTP ${res.status}`);
+  }
+  return json.cms;
+}
+
+export async function saveCmsAdapter(
+  headers: Record<string, string>,
+  payload: SaveCmsAdapterPayload,
 ): Promise<CmsConfigState> {
   const res = await fetch("/api/kody/cms", {
     method: "PATCH",

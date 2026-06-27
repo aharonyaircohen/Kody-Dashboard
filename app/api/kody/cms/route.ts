@@ -225,22 +225,33 @@ export async function PATCH(req: NextRequest) {
     );
     assertSchemaOperationAllowed(config, "edit", actorRole);
 
-    const payload = sanitizePermissionsPayload(
-      await req.json().catch(() => ({})),
-    );
-    const files = await buildCmsPermissionFiles(
-      octokit,
-      headerAuth.owner,
-      headerAuth.repo,
-      payload,
-    );
+    const rawPayload = await req.json().catch(() => ({}));
+    const adapter = isCmsAdapterPatch(rawPayload)
+      ? readRequiredCmsAdapter(rawPayload)
+      : null;
+    const files = adapter
+      ? await buildCmsAdapterFiles(
+          octokit,
+          headerAuth.owner,
+          headerAuth.repo,
+          config.defaultAdapter,
+          adapter,
+        )
+      : await buildCmsPermissionFiles(
+          octokit,
+          headerAuth.owner,
+          headerAuth.repo,
+          sanitizePermissionsPayload(rawPayload),
+        );
 
     await writeStateFiles({
       octokit,
       owner: headerAuth.owner,
       repo: headerAuth.repo,
       files,
-      message: "chore(cms): update CMS permissions",
+      message: adapter
+        ? "chore(cms): switch CMS adapter"
+        : "chore(cms): update CMS permissions",
     });
 
     invalidateCmsConfigCache(headerAuth.owner, headerAuth.repo);
@@ -288,6 +299,28 @@ function readCmsAdapter(payload: unknown): string {
     throw new CmsRuntimeError("invalid_body", "adapter name is invalid", 400);
   }
   return adapter;
+}
+
+function readRequiredCmsAdapter(payload: unknown): string {
+  if (!payload || typeof payload !== "object" || !("adapter" in payload)) {
+    throw new CmsRuntimeError("invalid_body", "adapter is required", 400);
+  }
+  const adapter = String((payload as { adapter?: unknown }).adapter ?? "")
+    .trim()
+    .toLowerCase();
+  if (!adapter) {
+    throw new CmsRuntimeError("invalid_body", "adapter is required", 400);
+  }
+  if (!isValidCmsAdapterName(adapter)) {
+    throw new CmsRuntimeError("invalid_body", "adapter name is invalid", 400);
+  }
+  return adapter;
+}
+
+function isCmsAdapterPatch(payload: unknown): boolean {
+  return Boolean(
+    payload && typeof payload === "object" && "adapter" in payload,
+  );
 }
 
 const CMS_ROLES = new Set<CmsRole>(["viewer", "editor", "admin"]);
@@ -541,6 +574,131 @@ async function buildCmsPermissionFiles(
   }
 
   return files;
+}
+
+async function buildCmsAdapterFiles(
+  octokit: Awaited<ReturnType<typeof getUserOctokit>>,
+  owner: string,
+  repo: string,
+  previousDefaultAdapter: string | undefined,
+  adapter: string,
+) {
+  if (!octokit)
+    throw new CmsRuntimeError("no_user_token", "No user token", 401);
+
+  const configFile = await readStateText(
+    octokit,
+    owner,
+    repo,
+    "cms/config.json",
+  );
+  if (!configFile) {
+    throw new CmsConfigError(["missing state file: cms/config.json"], {
+      code: "cms_not_configured",
+      status: 404,
+    });
+  }
+
+  const root = parseJsonRecord(configFile.content, "cms/config.json");
+  const oldDefault =
+    typeof root.defaultAdapter === "string" && root.defaultAdapter.trim()
+      ? root.defaultAdapter.trim()
+      : previousDefaultAdapter;
+  root.defaultAdapter = adapter;
+
+  const adapters =
+    root.adapters &&
+    typeof root.adapters === "object" &&
+    !Array.isArray(root.adapters)
+      ? { ...(root.adapters as Record<string, unknown>) }
+      : {};
+  if (
+    !adapters[adapter] ||
+    typeof adapters[adapter] !== "object" ||
+    Array.isArray(adapters[adapter])
+  ) {
+    adapters[adapter] = defaultCmsAdapterSettings(adapter);
+  }
+  root.adapters = adapters;
+
+  const files = [
+    { path: "cms/config.json", content: `${JSON.stringify(root, null, 2)}\n` },
+  ];
+
+  await applyAdapterToDefaultCollections(
+    octokit,
+    owner,
+    repo,
+    root,
+    oldDefault,
+    adapter,
+    files,
+  );
+  files[0] = {
+    path: "cms/config.json",
+    content: `${JSON.stringify(root, null, 2)}\n`,
+  };
+  return files;
+}
+
+async function applyAdapterToDefaultCollections(
+  octokit: Awaited<ReturnType<typeof getUserOctokit>>,
+  owner: string,
+  repo: string,
+  root: Record<string, unknown>,
+  oldDefault: string | undefined,
+  adapter: string,
+  files: Array<{ path: string; content: string }>,
+) {
+  if (!octokit) return;
+  const rawCollections = root.collections;
+
+  if (Array.isArray(rawCollections)) {
+    for (let index = 0; index < rawCollections.length; index += 1) {
+      const entry = rawCollections[index];
+      if (typeof entry === "string") {
+        const path = `cms/${entry}`;
+        const file = await readStateText(octokit, owner, repo, path);
+        if (!file) continue;
+        const collection = parseJsonRecord(file.content, path);
+        if (!shouldSwitchCollectionAdapter(collection, oldDefault)) continue;
+        collection.adapter = adapter;
+        files.push({
+          path,
+          content: `${JSON.stringify(collection, null, 2)}\n`,
+        });
+        continue;
+      }
+
+      if (entry && typeof entry === "object" && !Array.isArray(entry)) {
+        const collection = entry as Record<string, unknown>;
+        if (shouldSwitchCollectionAdapter(collection, oldDefault)) {
+          collection.adapter = adapter;
+        }
+      }
+    }
+    return;
+  }
+
+  if (rawCollections && typeof rawCollections === "object") {
+    for (const value of Object.values(rawCollections)) {
+      if (value && typeof value === "object" && !Array.isArray(value)) {
+        const collection = value as Record<string, unknown>;
+        if (shouldSwitchCollectionAdapter(collection, oldDefault)) {
+          collection.adapter = adapter;
+        }
+      }
+    }
+  }
+}
+
+function shouldSwitchCollectionAdapter(
+  collection: Record<string, unknown>,
+  oldDefault: string | undefined,
+): boolean {
+  const current =
+    typeof collection.adapter === "string" ? collection.adapter.trim() : "";
+  return !current || Boolean(oldDefault && current === oldDefault);
 }
 
 function applyCollectionPatch(

@@ -273,6 +273,100 @@ describe("CMS API routes", () => {
     expect(stateRepo.writeStateText).not.toHaveBeenCalled();
   });
 
+  it("switches the configured CMS adapter in state repo", async () => {
+    const rootConfig = {
+      path: "cms/config.json",
+      sha: "config-sha",
+      content: JSON.stringify({
+        version: 1,
+        name: "Example CMS",
+        environment: "default",
+        defaultAdapter: "mongodb",
+        adapters: {
+          mongodb: { databaseUriSecret: "DATABASE_URL" },
+        },
+        writePolicy: "enabled",
+        collections: ["collections/lessons.json"],
+      }),
+    };
+    const lessonsConfig = {
+      path: "cms/collections/lessons.json",
+      sha: "lessons-sha",
+      content: JSON.stringify({
+        name: "lessons",
+        label: "Lessons",
+        adapter: "mongodb",
+        writePolicy: "enabled",
+        source: { collection: "lessons", idField: "_id" },
+        operations: {
+          list: true,
+          get: true,
+          search: true,
+          create: true,
+          update: true,
+          delete: true,
+        },
+        fields: [{ name: "_id", type: "id" }],
+        filters: [],
+      }),
+    };
+    stateRepo.readStateText
+      .mockResolvedValueOnce(rootConfig)
+      .mockResolvedValueOnce(lessonsConfig)
+      .mockResolvedValueOnce(rootConfig)
+      .mockResolvedValueOnce(lessonsConfig);
+    service.listCmsCollections.mockResolvedValueOnce({
+      configured: true,
+      version: 1,
+      name: "Example CMS",
+      environment: "default",
+      defaultAdapter: "github",
+      writePolicy: "enabled",
+      permissions: {
+        content: {
+          list: ["viewer", "editor", "admin"],
+          get: ["viewer", "editor", "admin"],
+          search: ["viewer", "editor", "admin"],
+          create: ["editor", "admin"],
+          update: ["editor", "admin"],
+          delete: ["admin"],
+        },
+        schema: { generate: ["admin"], refresh: ["admin"], edit: ["admin"] },
+      },
+      collections: [],
+    });
+
+    const res = await indexPATCH(
+      jsonRequest("https://dash.test/api/kody/cms", "PATCH", {
+        adapter: "github",
+      }),
+    );
+
+    expect(res.status).toBe(200);
+    const write = stateRepo.writeStateFiles.mock.calls[0][0] as {
+      message: string;
+      files: Array<{ path: string; content: string }>;
+    };
+    expect(write.message).toBe("chore(cms): switch CMS adapter");
+    const rootFile = write.files.find(
+      (file: { path: string }) => file.path === "cms/config.json",
+    );
+    expect(JSON.parse(rootFile!.content)).toMatchObject({
+      defaultAdapter: "github",
+      adapters: {
+        mongodb: { databaseUriSecret: "DATABASE_URL" },
+        github: {},
+      },
+    });
+    const lessonFile = write.files.find(
+      (file: { path: string }) => file.path === "cms/collections/lessons.json",
+    );
+    expect(JSON.parse(lessonFile!.content).adapter).toBe("github");
+    await expect(res.json()).resolves.toMatchObject({
+      cms: { defaultAdapter: "github" },
+    });
+  });
+
   it("updates CMS permissions in state repo", async () => {
     const rootConfig = {
       path: "cms/config.json",

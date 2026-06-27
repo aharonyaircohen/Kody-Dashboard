@@ -27,6 +27,7 @@ import {
   RefreshCw,
   Save,
   Search,
+  Settings,
   ShieldCheck,
   Trash2,
   X,
@@ -69,10 +70,12 @@ import {
   fetchCmsDocuments,
   fetchCmsDocumentsByIds,
   generateCmsSchema,
+  saveCmsAdapter,
   saveCmsPermissions,
   updateCmsDocument,
   type CmsAdapterCatalogItem,
   type GenerateCmsSchemaPayload,
+  type SaveCmsAdapterPayload,
   type SaveCmsPermissionsPayload,
 } from "./cms/client";
 import { canWriteOperation, writeDisabledReason } from "./cms/operations";
@@ -209,6 +212,7 @@ function CmsListPage({
 
   const [collectionSearch, setCollectionSearch] = useState("");
   const [permissionsOpen, setPermissionsOpen] = useState(false);
+  const [adapterOpen, setAdapterOpen] = useState(false);
   const [mcpOpen, setMcpOpen] = useState(false);
   const [filterValues, setFilterValues] = useState<FilterValues>({});
   const [sort, setSort] = useState<CmsSortEntry[]>([]);
@@ -262,6 +266,16 @@ function CmsListPage({
     onSuccess: async (cms) => {
       queryClient.setQueryData(cmsQueryKey, cms);
       await queryClient.invalidateQueries({ queryKey: cmsQueryKey });
+    },
+  });
+  const saveAdapterMutation = useMutation({
+    mutationFn: (payload: SaveCmsAdapterPayload) =>
+      saveCmsAdapter(headers, payload),
+    onSuccess: async (cms) => {
+      queryClient.setQueryData(cmsQueryKey, cms);
+      await queryClient.invalidateQueries({ queryKey: cmsQueryKey });
+      await queryClient.invalidateQueries({ queryKey: ["cms-documents"] });
+      setAdapterOpen(false);
     },
   });
 
@@ -429,6 +443,7 @@ function CmsListPage({
             void documentsQuery.refetch();
           }}
           onUpdateSchema={() => setSchemaGenerationRequest({ refresh: true })}
+          onOpenAdapter={() => setAdapterOpen(true)}
           onOpenPermissions={() => setPermissionsOpen(true)}
         />
       }
@@ -507,6 +522,19 @@ function CmsListPage({
             open={mcpOpen}
             config={cmsQuery.data}
             onOpenChange={setMcpOpen}
+          />
+          <CmsAdapterDialog
+            open={adapterOpen}
+            config={cmsQuery.data}
+            adapters={adapters}
+            saving={saveAdapterMutation.isPending}
+            error={
+              saveAdapterMutation.error instanceof Error
+                ? saveAdapterMutation.error.message
+                : null
+            }
+            onOpenChange={setAdapterOpen}
+            onSave={(payload) => saveAdapterMutation.mutate(payload)}
           />
           <CmsPermissionsDialog
             open={permissionsOpen}
@@ -911,6 +939,7 @@ function CmsHeaderActions({
   onOpenMcp,
   onRefresh,
   onUpdateSchema,
+  onOpenAdapter,
   onOpenPermissions,
 }: {
   loading: boolean;
@@ -919,6 +948,7 @@ function CmsHeaderActions({
   onOpenMcp: () => void;
   onRefresh: () => void;
   onUpdateSchema: () => void;
+  onOpenAdapter: () => void;
   onOpenPermissions: () => void;
 }) {
   return (
@@ -935,6 +965,15 @@ function CmsHeaderActions({
         ) : (
           <RefreshCw className="h-4 w-4" />
         )}
+      </Button>
+      <Button
+        variant="outline"
+        size="icon"
+        onClick={onOpenAdapter}
+        aria-label="CMS adapter settings"
+        title="Adapter"
+      >
+        <Settings className="h-4 w-4" />
       </Button>
       <Button
         variant="outline"
@@ -971,6 +1010,120 @@ function CmsHeaderActions({
         </Button>
       ) : null}
     </div>
+  );
+}
+
+function CmsAdapterDialog({
+  open,
+  config,
+  adapters,
+  saving,
+  error,
+  onOpenChange,
+  onSave,
+}: {
+  open: boolean;
+  config: CmsPublicConfig;
+  adapters: CmsAdapterCatalogItem[];
+  saving: boolean;
+  error: string | null;
+  onOpenChange: (open: boolean) => void;
+  onSave: (payload: SaveCmsAdapterPayload) => void;
+}) {
+  const currentAdapter = config.defaultAdapter ?? DEFAULT_CMS_ADAPTER;
+  const availableAdapters = adapters.some(
+    (adapter) => adapter.name === currentAdapter,
+  )
+    ? adapters
+    : [
+        {
+          name: currentAdapter,
+          label: currentAdapter,
+          description: "Current CMS adapter",
+          supportsSchemaGeneration: currentAdapter === DEFAULT_CMS_ADAPTER,
+          htmlUrl: null,
+        },
+        ...adapters,
+      ];
+  const [adapter, setAdapter] = useState(currentAdapter);
+  const selected = findCmsAdapter(availableAdapters, adapter);
+
+  useEffect(() => {
+    if (!open) return;
+    setAdapter(currentAdapter);
+  }, [currentAdapter, open]);
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="max-w-lg">
+        <DialogHeader>
+          <DialogTitle>CMS adapter</DialogTitle>
+          <DialogDescription>
+            Change the adapter used by collections that follow the default.
+          </DialogDescription>
+        </DialogHeader>
+
+        <div className="space-y-4 border-y border-border py-4">
+          <div className="grid gap-2">
+            <div className="text-xs font-medium uppercase text-muted-foreground">
+              Default adapter
+            </div>
+            <Select
+              value={adapter}
+              onValueChange={setAdapter}
+              disabled={saving || availableAdapters.length === 0}
+            >
+              <SelectTrigger aria-label="Default adapter">
+                <SelectValue placeholder="Select adapter" />
+              </SelectTrigger>
+              <SelectContent>
+                {availableAdapters.map((item) => (
+                  <SelectItem key={item.name} value={item.name}>
+                    {item.label}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            {selected?.description ? (
+              <div className="text-xs text-muted-foreground">
+                {selected.description}
+              </div>
+            ) : null}
+          </div>
+
+          {error ? (
+            <div className="rounded border border-destructive/30 bg-destructive/10 px-3 py-2 text-sm text-destructive">
+              {error}
+            </div>
+          ) : null}
+        </div>
+
+        <div className="flex justify-end gap-2">
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            onClick={() => onOpenChange(false)}
+            disabled={saving}
+          >
+            Cancel
+          </Button>
+          <Button
+            type="button"
+            size="sm"
+            onClick={() => onSave({ adapter })}
+            disabled={saving || !adapter || adapter === currentAdapter}
+          >
+            {saving ? (
+              <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+            ) : (
+              <Save className="mr-2 h-4 w-4" />
+            )}
+            Save adapter
+          </Button>
+        </div>
+      </DialogContent>
+    </Dialog>
   );
 }
 

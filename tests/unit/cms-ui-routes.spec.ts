@@ -41,6 +41,17 @@ describe("CMS UI routes", () => {
     expect(client).toContain("createCmsConfig");
   });
 
+  it("offers adapter switching after CMS is configured", () => {
+    const manager = readRepoFile("src/dashboard/lib/components/CmsManager.tsx");
+    const client = readRepoFile("src/dashboard/lib/components/cms/client.ts");
+
+    expect(manager).toContain("CmsAdapterDialog");
+    expect(manager).toContain("Save adapter");
+    expect(manager).toContain("onOpenAdapter");
+    expect(manager).toContain("saveAdapterMutation.mutate");
+    expect(client).toContain("saveCmsAdapter");
+  });
+
   it("offers schema generation when CMS has no collections", () => {
     const manager = readRepoFile("src/dashboard/lib/components/CmsManager.tsx");
     const client = readRepoFile("src/dashboard/lib/components/cms/client.ts");
