@@ -10,6 +10,7 @@
 import type { Octokit } from "@octokit/rest";
 import { writeGitHubFileWithRetry } from "@dashboard/lib/github-contents-write";
 import { getEngineConfig, type KodyConfig } from "./engine/config";
+import { STATE_BRANCH } from "./state-branch";
 
 export interface StateRepoState {
   repo: string;
@@ -188,6 +189,44 @@ export function stateRepoPath(
   return [target.basePath, relative].filter(Boolean).join("/");
 }
 
+async function ensureStateBranch(
+  octokit: Octokit,
+  target: StateRepoTarget,
+): Promise<void> {
+  try {
+    await octokit.git.getRef({
+      owner: target.owner,
+      repo: target.repo,
+      ref: `heads/${STATE_BRANCH}`,
+    });
+    return;
+  } catch (err) {
+    if ((err as { status?: number }).status !== 404) throw err;
+  }
+
+  const repoInfo = await octokit.repos.get({
+    owner: target.owner,
+    repo: target.repo,
+  });
+  const defaultBranch = repoInfo.data.default_branch;
+  const defaultRef = await octokit.git.getRef({
+    owner: target.owner,
+    repo: target.repo,
+    ref: `heads/${defaultBranch}`,
+  });
+
+  try {
+    await octokit.git.createRef({
+      owner: target.owner,
+      repo: target.repo,
+      ref: `refs/heads/${STATE_BRANCH}`,
+      sha: defaultRef.data.object.sha,
+    });
+  } catch (err) {
+    if ((err as { status?: number }).status !== 422) throw err;
+  }
+}
+
 export async function readStateText(
   octokit: Octokit,
   owner: string,
@@ -202,6 +241,7 @@ export async function readStateText(
       owner: target.owner,
       repo: target.repo,
       path,
+      ref: STATE_BRANCH,
       headers: options.headers,
     });
     const data = res.data as ContentFile | ContentFile[];
@@ -238,6 +278,7 @@ export async function readStateFileMetadata(
       owner: target.owner,
       repo: target.repo,
       path,
+      ref: STATE_BRANCH,
     });
     const data = res.data as ContentFile | ContentFile[];
     if (Array.isArray(data) || data.type !== "file" || !data.sha) {
@@ -269,6 +310,7 @@ export async function listStateDirectory(
       owner: target.owner,
       repo: target.repo,
       path: targetPath,
+      ref: STATE_BRANCH,
       headers: options.headers,
     });
     const data = res.data as ContentEntry | ContentEntry[];
@@ -326,10 +368,12 @@ export async function writeStateText({
   maxAttempts?: number;
 }): Promise<{ sha: string | null }> {
   const target = await resolveStateRepo(octokit, owner, repo);
+  await ensureStateBranch(octokit, target);
   const res = await writeGitHubFileWithRetry(octokit, {
     owner: target.owner,
     repo: target.repo,
     path: stateRepoPath(target, path),
+    branch: STATE_BRANCH,
     message,
     content: Buffer.from(content, "utf8").toString("base64"),
     ...(sha ? { sha } : {}),
@@ -358,11 +402,13 @@ export async function writeStateBase64({
   maxAttempts?: number;
 }): Promise<{ sha: string | null; path: string; htmlUrl: string | null }> {
   const target = await resolveStateRepo(octokit, owner, repo);
+  await ensureStateBranch(octokit, target);
   const targetPath = stateRepoPath(target, path);
   const res = await writeGitHubFileWithRetry(octokit, {
     owner: target.owner,
     repo: target.repo,
     path: targetPath,
+    branch: STATE_BRANCH,
     message,
     content: contentBase64,
     ...(sha ? { sha } : {}),
@@ -389,15 +435,11 @@ export async function writeStateFiles({
   }
 
   const target = await resolveStateRepo(octokit, owner, repo);
-  const repoInfo = await octokit.repos.get({
-    owner: target.owner,
-    repo: target.repo,
-  });
-  const branch = repoInfo.data.default_branch;
+  await ensureStateBranch(octokit, target);
   const ref = await octokit.git.getRef({
     owner: target.owner,
     repo: target.repo,
-    ref: `heads/${branch}`,
+    ref: `heads/${STATE_BRANCH}`,
   });
   const baseSha = ref.data.object.sha;
   const baseCommit = await octokit.git.getCommit({
@@ -426,7 +468,7 @@ export async function writeStateFiles({
   await octokit.git.updateRef({
     owner: target.owner,
     repo: target.repo,
-    ref: `heads/${branch}`,
+    ref: `heads/${STATE_BRANCH}`,
     sha: commit.data.sha,
   });
 
@@ -449,10 +491,12 @@ export async function deleteStateFile({
   message: string;
 }): Promise<void> {
   const target = await resolveStateRepo(octokit, owner, repo);
+  await ensureStateBranch(octokit, target);
   await octokit.repos.deleteFile({
     owner: target.owner,
     repo: target.repo,
     path: stateRepoPath(target, path),
+    branch: STATE_BRANCH,
     message,
     sha,
   });
@@ -472,15 +516,11 @@ export async function deleteStateDirectory({
   message: string;
 }): Promise<{ deleted: number }> {
   const target = await resolveStateRepo(octokit, owner, repo);
-  const repoInfo = await octokit.repos.get({
-    owner: target.owner,
-    repo: target.repo,
-  });
-  const branch = repoInfo.data.default_branch;
+  await ensureStateBranch(octokit, target);
   const ref = await octokit.git.getRef({
     owner: target.owner,
     repo: target.repo,
-    ref: `heads/${branch}`,
+    ref: `heads/${STATE_BRANCH}`,
   });
   const baseSha = ref.data.object.sha;
   const baseCommit = await octokit.git.getCommit({
@@ -531,7 +571,7 @@ export async function deleteStateDirectory({
   await octokit.git.updateRef({
     owner: target.owner,
     repo: target.repo,
-    ref: `heads/${branch}`,
+    ref: `heads/${STATE_BRANCH}`,
     sha: commit.data.sha,
   });
 
