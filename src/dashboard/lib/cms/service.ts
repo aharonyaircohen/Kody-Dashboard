@@ -24,6 +24,7 @@ import {
   type CmsAdapter,
   type CmsAdapterContext,
 } from "./adapters";
+import { defaultCmsAdapterSettings } from "./adapter-catalog";
 import { getCmsActorRole } from "./roles";
 import type {
   CmsCollectionConfig,
@@ -303,7 +304,10 @@ function getAdapterContext(
     context: {
       config,
       collection,
-      settings: config.adapters[collection.adapter] ?? {},
+      settings: {
+        ...defaultCmsAdapterSettings(collection.adapter),
+        ...(config.adapters[collection.adapter] ?? {}),
+      },
       store: {
         octokit,
         repoUrl: requestAuth?.storeRepoUrl,

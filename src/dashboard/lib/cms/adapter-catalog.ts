@@ -69,6 +69,7 @@ export function defaultCmsAdapterSettings(
   adapter: string,
 ): Record<string, unknown> {
   if (adapter === "mongodb") return { databaseUriSecret: "DATABASE_URL" };
+  if (adapter === "file") return { rootDir: "cms/content" };
   return {};
 }
 

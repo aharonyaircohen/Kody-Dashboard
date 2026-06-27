@@ -612,13 +612,16 @@ async function buildCmsAdapterFiles(
     !Array.isArray(root.adapters)
       ? { ...(root.adapters as Record<string, unknown>) }
       : {};
-  if (
-    !adapters[adapter] ||
-    typeof adapters[adapter] !== "object" ||
-    Array.isArray(adapters[adapter])
-  ) {
-    adapters[adapter] = defaultCmsAdapterSettings(adapter);
-  }
+  const existingAdapterSettings =
+    adapters[adapter] &&
+    typeof adapters[adapter] === "object" &&
+    !Array.isArray(adapters[adapter])
+      ? (adapters[adapter] as Record<string, unknown>)
+      : {};
+  adapters[adapter] = {
+    ...defaultCmsAdapterSettings(adapter),
+    ...existingAdapterSettings,
+  };
   root.adapters = adapters;
 
   const files = [
