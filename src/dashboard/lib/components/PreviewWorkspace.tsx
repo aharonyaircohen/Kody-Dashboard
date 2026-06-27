@@ -37,7 +37,10 @@ import {
   STATIC_PREVIEW_TTL_MS,
   type PreviewEnvironment,
 } from "../preview-environments";
-import { fetchBranchPreviews } from "../previews/branch-preview-client";
+import {
+  fetchBranchPreviews,
+  mintBranchPreviewUrl,
+} from "../previews/branch-preview-client";
 import { destroyStaticPreview } from "../previews/static-preview-client";
 import {
   deleteRepoView,
@@ -216,6 +219,19 @@ export function PreviewWorkspace({
         (preview) => preview.branch === selectedFlyBranch.branch,
       )
     : null;
+  const branchPreviewTicketQuery = useQuery({
+    queryKey: [
+      "kody-branch-preview-ticket",
+      selectedFlyBranch?.repo,
+      selectedFlyBranch?.branch,
+    ],
+    queryFn: () =>
+      mintBranchPreviewUrl(selectedFlyBranch!.repo, selectedFlyBranch!.branch),
+    enabled: !!selectedFlyBranchMatchesRepo && !!owner && !!repo,
+    staleTime: 15 * 60 * 1000,
+    retry: false,
+  });
+  const signedBranchPreviewUrl = branchPreviewTicketQuery.data?.url ?? null;
   const viewTicketQuery = useQuery({
     queryKey: ["kody-repo-view-ticket", owner, repo, repoViewId],
     queryFn: () => mintRepoViewTicket(repoViewId!),
@@ -224,7 +240,7 @@ export function PreviewWorkspace({
     retry: false,
   });
   const baseUrl = selectedFlyBranch
-    ? (resolvedBranchPreview?.url ?? null)
+    ? (resolvedBranchPreview?.url ?? signedBranchPreviewUrl)
     : selectedEnv?.url && repoViewId
       ? viewTicketQuery.data
         ? tokenizeRepoViewUrl(selectedEnv.url, viewTicketQuery.data.token)
@@ -233,8 +249,11 @@ export function PreviewWorkspace({
   const branchPreviewIsResolving =
     !!selectedFlyBranchMatchesRepo &&
     !resolvedBranchPreview?.url &&
+    !signedBranchPreviewUrl &&
     (branchPreviewsQuery.isLoading ||
       branchPreviewsQuery.isFetching ||
+      branchPreviewTicketQuery.isLoading ||
+      branchPreviewTicketQuery.isFetching ||
       resolvedBranchPreview?.state === "pending" ||
       resolvedBranchPreview?.state === "building" ||
       resolvedBranchPreview?.state === "starting");
@@ -255,14 +274,15 @@ export function PreviewWorkspace({
   }, [viewTicketQuery.error]);
 
   useEffect(() => {
-    if (branchPreviewsQuery.error) {
+    const error = branchPreviewsQuery.error ?? branchPreviewTicketQuery.error;
+    if (error) {
       toast.error(
-        branchPreviewsQuery.error instanceof Error
-          ? branchPreviewsQuery.error.message
+        error instanceof Error
+          ? error.message
           : "Failed to open branch preview",
       );
     }
-  }, [branchPreviewsQuery.error]);
+  }, [branchPreviewsQuery.error, branchPreviewTicketQuery.error]);
 
   const saveMutation = useMutation({
     mutationFn: (next: PreviewEnvironment[]) =>
@@ -309,7 +329,11 @@ export function PreviewWorkspace({
       return;
     }
 
-    const next = addBranchPreviewEnvironment(environments, repoRef, cleanBranch);
+    const next = addBranchPreviewEnvironment(
+      environments,
+      repoRef,
+      cleanBranch,
+    );
     await persist(next);
     const created = next[next.length - 1];
     if (created) selectEnv(created);
@@ -439,7 +463,8 @@ export function PreviewWorkspace({
       <PreviewPane
         baseUrl={baseUrl}
         isResolving={
-          (!!repoViewId && viewTicketQuery.isLoading) || branchPreviewIsResolving
+          (!!repoViewId && viewTicketQuery.isLoading) ||
+          branchPreviewIsResolving
         }
         owner={owner}
         repo={repo}

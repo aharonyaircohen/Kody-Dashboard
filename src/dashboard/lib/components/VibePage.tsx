@@ -44,7 +44,10 @@ import {
   resolveEnvironments,
   type PreviewEnvironment,
 } from "../preview-environments";
-import { fetchBranchPreviews } from "../previews/branch-preview-client";
+import {
+  fetchBranchPreviews,
+  mintBranchPreviewUrl,
+} from "../previews/branch-preview-client";
 import { previewChatContextBlock } from "../chat/preview-context";
 import { tasksApi, getStoredAuth } from "../api";
 import { RateLimitError, NoTokenError, SessionExpiredError } from "../api";
@@ -546,14 +549,34 @@ export function VibePage() {
         (preview) => preview.branch === selectedFlyBranch.branch,
       )
     : null;
+  const branchPreviewTicketQuery = useQuery({
+    queryKey: [
+      "kody-branch-preview-ticket",
+      selectedFlyBranch?.repo,
+      selectedFlyBranch?.branch,
+    ],
+    queryFn: () =>
+      mintBranchPreviewUrl(selectedFlyBranch!.repo, selectedFlyBranch!.branch),
+    enabled:
+      !selectedIssueIsActive &&
+      !!selectedFlyBranchMatchesRepo &&
+      !!ownerForViews &&
+      !!repoForViews,
+    staleTime: 15 * 60 * 1000,
+    retry: false,
+  });
+  const signedBranchPreviewUrl = branchPreviewTicketQuery.data?.url ?? null;
   const selectedEnvironmentUrl = selectedFlyBranch
-    ? (resolvedBranchPreview?.url ?? null)
+    ? (resolvedBranchPreview?.url ?? signedBranchPreviewUrl)
     : (selectedEnv?.url ?? null);
   const branchPreviewIsResolving =
     !!selectedFlyBranchMatchesRepo &&
     !resolvedBranchPreview?.url &&
+    !signedBranchPreviewUrl &&
     (branchPreviewsQuery.isLoading ||
       branchPreviewsQuery.isFetching ||
+      branchPreviewTicketQuery.isLoading ||
+      branchPreviewTicketQuery.isFetching ||
       resolvedBranchPreview?.state === "pending" ||
       resolvedBranchPreview?.state === "building" ||
       resolvedBranchPreview?.state === "starting");
@@ -574,14 +597,15 @@ export function VibePage() {
   }, [selectedEnv, selectedIssueIsActive, setPreviewContext]);
 
   useEffect(() => {
-    if (branchPreviewsQuery.error) {
+    const error = branchPreviewsQuery.error ?? branchPreviewTicketQuery.error;
+    if (error) {
       toast.error(
-        branchPreviewsQuery.error instanceof Error
-          ? branchPreviewsQuery.error.message
+        error instanceof Error
+          ? error.message
           : "Failed to open branch preview",
       );
     }
-  }, [branchPreviewsQuery.error]);
+  }, [branchPreviewsQuery.error, branchPreviewTicketQuery.error]);
 
   const browserIsResolving = selectedIssueIsActive
     ? previewResolving

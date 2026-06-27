@@ -33,6 +33,11 @@ export interface BranchPreviewsResponse {
   flyConfigured: boolean;
 }
 
+export interface BranchPreviewTicket {
+  url: string;
+  expiresAt: number;
+}
+
 function authHeaders(): Record<string, string> {
   const auth = getStoredAuth();
   if (!auth) throw new NoTokenError("No auth");
@@ -96,4 +101,32 @@ export async function fetchBranchPreviews(): Promise<BranchPreviewsResponse> {
         url: typeof p.url === "string" ? p.url : null,
       })),
   };
+}
+
+export async function mintBranchPreviewUrl(
+  repo: string,
+  branch: string,
+): Promise<BranchPreviewTicket> {
+  const params = new URLSearchParams({ repo, branch });
+  const res = await fetch(`/api/kody/previews/ticket?${params.toString()}`, {
+    headers: authHeaders(),
+  });
+  if (res.status === 401) {
+    redirectToLogin();
+    throw new SessionExpiredError("Session expired");
+  }
+  if (!res.ok) {
+    throw new Error(
+      await readErrorMessage(res, "Failed to sign branch preview"),
+    );
+  }
+
+  const body = (await res.json()) as {
+    url?: unknown;
+    expiresAt?: unknown;
+  };
+  if (typeof body.url !== "string" || typeof body.expiresAt !== "number") {
+    throw new Error("Preview ticket response had an unexpected shape");
+  }
+  return { url: body.url, expiresAt: body.expiresAt };
 }

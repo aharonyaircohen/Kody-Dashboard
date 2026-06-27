@@ -35,13 +35,19 @@ describe("GET /api/kody/previews/ticket", () => {
         "https://dash.test/api/kody/previews/ticket?repo=owner/repo&branch=dev",
       ),
     );
-    const body = (await res.json()) as { ticket: string; expiresAt: number };
+    const body = (await res.json()) as {
+      ticket: string;
+      expiresAt: number;
+      url: string;
+    };
 
     expect(res.status).toBe(200);
     expect(body.expiresAt).toBeGreaterThan(Math.floor(Date.now() / 1000));
+    expect(body.url).toContain(".fly.dev/?kp=");
     expect(verifyBranchPreviewTicket(body.ticket, "owner/repo", "dev")).toBe(
       true,
     );
+    expect(new URL(body.url).searchParams.get("kp")).toBe(body.ticket);
   });
 
   it("keeps PR ticket behavior intact", async () => {
@@ -50,9 +56,10 @@ describe("GET /api/kody/previews/ticket", () => {
         "https://dash.test/api/kody/previews/ticket?repo=owner/repo&pr=42",
       ),
     );
-    const body = (await res.json()) as { ticket: string };
+    const body = (await res.json()) as { ticket: string; url: string };
 
     expect(res.status).toBe(200);
+    expect(body.url).toContain(".fly.dev/?kp=");
     expect(verifyPreviewTicket(body.ticket, "owner/repo", 42)).toBe(true);
   });
 

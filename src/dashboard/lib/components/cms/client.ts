@@ -15,6 +15,12 @@ interface CmsIndexResponse {
   message?: string;
 }
 
+interface CmsAdaptersResponse {
+  adapters?: CmsAdapterCatalogItem[];
+  error?: string;
+  message?: string;
+}
+
 interface CmsDocumentResponse {
   document?: CmsDocument;
   error?: string;
@@ -47,6 +53,14 @@ export interface GenerateCmsSchemaPayload {
   refresh?: boolean;
 }
 
+export interface CmsAdapterCatalogItem {
+  name: string;
+  label: string;
+  description: string;
+  supportsSchemaGeneration: boolean;
+  htmlUrl: string | null;
+}
+
 export interface SaveCmsPermissionsPayload {
   permissions?: CmsPermissionsConfig;
   collections: Array<{
@@ -72,6 +86,20 @@ export async function fetchCmsConfig(
   return json.cms;
 }
 
+export async function fetchCmsAdapters(
+  headers: Record<string, string>,
+): Promise<CmsAdapterCatalogItem[]> {
+  const res = await fetch("/api/kody/cms/adapters", {
+    headers,
+    cache: "no-store",
+  });
+  const json = (await res.json().catch(() => ({}))) as CmsAdaptersResponse;
+  if (!res.ok || !json.adapters) {
+    throw new Error(json.message || json.error || `HTTP ${res.status}`);
+  }
+  return json.adapters;
+}
+
 export async function generateCmsSchema(
   headers: Record<string, string>,
   payload: GenerateCmsSchemaPayload,
@@ -91,7 +119,7 @@ export async function generateCmsSchema(
 
 export async function createCmsConfig(
   headers: Record<string, string>,
-  payload: { name?: string },
+  payload: { name?: string; adapter?: string },
 ): Promise<CmsConfigState> {
   const res = await fetch("/api/kody/cms", {
     method: "POST",

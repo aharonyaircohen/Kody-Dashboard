@@ -34,6 +34,10 @@ describe("CMS UI routes", () => {
     expect(manager).toContain("UnconfiguredCmsState");
     expect(manager).toContain("Create CMS config");
     expect(manager).toContain("createConfigMutation.mutate");
+    expect(manager).toContain("selectedAdapter");
+    expect(manager).toContain("onAdapterChange");
+    expect(manager).toContain("CMS adapter");
+    expect(client).toContain("fetchCmsAdapters");
     expect(client).toContain("createCmsConfig");
   });
 

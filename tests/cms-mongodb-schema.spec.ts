@@ -140,4 +140,41 @@ describe("Mongo CMS schema generation", () => {
       storage: { kind: "date" },
     });
   });
+
+  it("writes slugged CMS files for Mongo collections with uppercase names", async () => {
+    mongo.collections.clear();
+    mongo.collections.set("A", [
+      {
+        _id: new ObjectId("64f1a5f6f2a80f3a3a3a3a3c"),
+        title: "Example",
+      },
+    ]);
+
+    const generated = await generateMongoCmsSchemaFiles({
+      uri: "mongodb://localhost/a-guy-dev",
+      databaseUriSecret: "DATABASE_URL",
+      repoName: "A-Guy-Admin",
+      cmsName: "A-Guy CMS",
+      environment: "development",
+      sampleSize: 20,
+      skipCollections: [],
+    });
+
+    const collectionFile = generated.files.find(
+      (file) => file.path === "cms/collections/a.json",
+    );
+    const rootConfig = generated.files.find(
+      (file) => file.path === "cms/config.json",
+    );
+
+    expect(collectionFile).toBeTruthy();
+    expect(JSON.parse(rootConfig?.content ?? "{}")).toMatchObject({
+      collections: ["collections/a.json"],
+    });
+    expect(JSON.parse(collectionFile?.content ?? "{}")).toMatchObject({
+      name: "a",
+      label: "A",
+      source: { collection: "A", idField: "_id" },
+    });
+  });
 });

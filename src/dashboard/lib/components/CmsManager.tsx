@@ -9,7 +9,6 @@ import {
   useRef,
   useState,
 } from "react";
-import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
@@ -21,7 +20,6 @@ import {
   ChevronLeft,
   ChevronRight,
   Database,
-  Layers,
   Loader2,
   Pencil,
   Plug,
@@ -59,11 +57,13 @@ import {
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@dashboard/ui/tabs";
 import { Textarea } from "@dashboard/ui/textarea";
 
+import { ConfirmDialog } from "./ConfirmDialog";
 import { PageHeader } from "./PageShell";
 import {
   createCmsConfig,
   createCmsDocument,
   deleteCmsDocument,
+  fetchCmsAdapters,
   fetchCmsConfig,
   fetchCmsDocument,
   fetchCmsDocuments,
@@ -71,6 +71,7 @@ import {
   generateCmsSchema,
   saveCmsPermissions,
   updateCmsDocument,
+  type CmsAdapterCatalogItem,
   type GenerateCmsSchemaPayload,
   type SaveCmsPermissionsPayload,
 } from "./cms/client";
@@ -96,6 +97,16 @@ import type {
 } from "../cms/types";
 
 const PAGE_SIZE = 25;
+const DEFAULT_CMS_ADAPTER = "mongodb";
+const DEFAULT_CMS_ADAPTERS: CmsAdapterCatalogItem[] = [
+  {
+    name: DEFAULT_CMS_ADAPTER,
+    label: "MongoDB",
+    description: "MongoDB collections",
+    supportsSchemaGeneration: true,
+    htmlUrl: null,
+  },
+];
 
 type FilterValue = {
   operator: CmsFilterOperator;
@@ -202,15 +213,32 @@ function CmsListPage({
   const [filterValues, setFilterValues] = useState<FilterValues>({});
   const [sort, setSort] = useState<CmsSortEntry[]>([]);
   const [offset, setOffset] = useState(0);
+  const [selectedAdapter, setSelectedAdapter] = useState(DEFAULT_CMS_ADAPTER);
+  const [schemaGenerationRequest, setSchemaGenerationRequest] = useState<{
+    refresh?: boolean;
+  } | null>(null);
 
   const cmsQuery = useQuery({
     queryKey: cmsQueryKey,
     queryFn: () => fetchCmsConfig(headers),
     enabled: Boolean(auth),
   });
+  const adaptersQuery = useQuery({
+    queryKey: [
+      "cms-adapters",
+      scope,
+      auth?.storeRepoUrl ?? null,
+      auth?.storeRef ?? null,
+    ],
+    queryFn: () => fetchCmsAdapters(headers),
+    enabled: Boolean(auth),
+  });
   const createConfigMutation = useMutation({
     mutationFn: () =>
-      createCmsConfig(headers, { name: `${auth?.repo ?? "Repo"} CMS` }),
+      createCmsConfig(headers, {
+        name: `${auth?.repo ?? "Repo"} CMS`,
+        adapter: selectedAdapter,
+      }),
     onSuccess: async (cms) => {
       queryClient.setQueryData(cmsQueryKey, cms);
       await queryClient.invalidateQueries({ queryKey: cmsQueryKey });
@@ -243,18 +271,34 @@ function CmsListPage({
     [cmsConfigured, cmsQuery.data?.collections],
   );
   const cmsLoaded = cmsQuery.data !== undefined;
-  const actorRole =
+  const adapters =
+    adaptersQuery.data && adaptersQuery.data.length > 0
+      ? adaptersQuery.data
+      : DEFAULT_CMS_ADAPTERS;
+  const currentCmsAdapter =
     cmsQuery.data?.configured === true
-      ? (cmsQuery.data.actorRole ?? "viewer")
-      : "viewer";
-  const cmsPermissions =
-    cmsQuery.data?.configured === true ? cmsQuery.data.permissions : undefined;
+      ? (cmsQuery.data.defaultAdapter ?? DEFAULT_CMS_ADAPTER)
+      : selectedAdapter;
+  const currentAdapter = findCmsAdapter(adapters, currentCmsAdapter);
+  const schemaGenerationSupported =
+    currentAdapter?.supportsSchemaGeneration === true ||
+    currentCmsAdapter === DEFAULT_CMS_ADAPTER;
 
   const selectedCollection = selectedCollectionName
     ? (collections.find(
         (collection) => collection.name === selectedCollectionName,
       ) ?? null)
     : null;
+
+  useEffect(() => {
+    if (!adaptersQuery.data?.length) return;
+    if (
+      adaptersQuery.data.some((adapter) => adapter.name === selectedAdapter)
+    ) {
+      return;
+    }
+    setSelectedAdapter(adaptersQuery.data[0].name);
+  }, [adaptersQuery.data, selectedAdapter]);
 
   useEffect(() => {
     if (cmsQuery.isLoading || !cmsLoaded) return;
@@ -352,7 +396,10 @@ function CmsListPage({
       >
         <div className="flex flex-1 items-center justify-center overflow-y-auto px-4 py-6 md:px-8">
           <UnconfiguredCmsState
+            adapters={adapters}
+            selectedAdapter={selectedAdapter}
             loading={createConfigMutation.isPending}
+            onAdapterChange={setSelectedAdapter}
             onCreate={() => createConfigMutation.mutate()}
           />
         </div>
@@ -365,7 +412,9 @@ function CmsListPage({
       title="CMS"
       subtitle={
         cmsQuery.data
-          ? `${cmsQuery.data.name} / ${cmsQuery.data.environment}`
+          ? `${cmsQuery.data.name} / ${cmsQuery.data.environment} / ${
+              currentAdapter?.label ?? currentCmsAdapter
+            }`
           : undefined
       }
       error={error}
@@ -373,14 +422,13 @@ function CmsListPage({
         <CmsHeaderActions
           loading={cmsQuery.isFetching || documentsQuery.isFetching}
           schemaLoading={generateSchemaMutation.isPending}
+          schemaSupported={schemaGenerationSupported}
           onOpenMcp={() => setMcpOpen(true)}
           onRefresh={() => {
             void cmsQuery.refetch();
             void documentsQuery.refetch();
           }}
-          onUpdateSchema={() =>
-            generateSchemaMutation.mutate({ refresh: true })
-          }
+          onUpdateSchema={() => setSchemaGenerationRequest({ refresh: true })}
           onOpenPermissions={() => setPermissionsOpen(true)}
         />
       }
@@ -411,8 +459,6 @@ function CmsListPage({
               fetching={documentsQuery.isFetching}
               filterValues={filterValues}
               sort={activeSort}
-              actorRole={actorRole}
-              permissions={cmsPermissions}
               onFilterChange={(next) => {
                 setFilterValues(next);
                 setOffset(0);
@@ -425,24 +471,36 @@ function CmsListPage({
                 if (!selectedCollection) return;
                 router.push(cmsDocumentPath(selectedCollection.name, id));
               }}
-              onCreateDocument={() => {
-                if (!selectedCollection) return;
-                router.push(
-                  `/cms/new/${encodeURIComponent(selectedCollection.name)}`,
-                );
-              }}
               generateSchemaError={
                 generateSchemaMutation.error instanceof Error
                   ? generateSchemaMutation.error.message
                   : null
               }
+              schemaSupported={schemaGenerationSupported}
+              adapterLabel={currentAdapter?.label ?? currentCmsAdapter}
               generatingSchema={generateSchemaMutation.isPending}
-              onGenerateSchema={() => generateSchemaMutation.mutate({})}
+              onGenerateSchema={() => setSchemaGenerationRequest({})}
               onPageChange={setOffset}
             />
           </main>
         </div>
       </CmsRelationProvider>
+      <ConfirmDialog
+        open={schemaGenerationRequest !== null}
+        title={
+          schemaGenerationRequest?.refresh
+            ? "Update CMS schema?"
+            : "Generate CMS schema?"
+        }
+        description="Kody will read the connected database and write the generated CMS config into the state repo. Review any state changes before shipping them."
+        confirmLabel={
+          schemaGenerationRequest?.refresh ? "Update schema" : "Generate schema"
+        }
+        onClose={() => setSchemaGenerationRequest(null)}
+        onConfirm={() =>
+          generateSchemaMutation.mutate(schemaGenerationRequest ?? undefined)
+        }
+      />
       {cmsQuery.data?.configured ? (
         <>
           <CmsMcpDialog
@@ -849,6 +907,7 @@ function CmsRelationProvider({
 function CmsHeaderActions({
   loading,
   schemaLoading,
+  schemaSupported,
   onOpenMcp,
   onRefresh,
   onUpdateSchema,
@@ -856,6 +915,7 @@ function CmsHeaderActions({
 }: {
   loading: boolean;
   schemaLoading: boolean;
+  schemaSupported: boolean;
   onOpenMcp: () => void;
   onRefresh: () => void;
   onUpdateSchema: () => void;
@@ -863,17 +923,6 @@ function CmsHeaderActions({
 }) {
   return (
     <div className="flex items-center gap-2">
-      <Button
-        asChild
-        variant="outline"
-        size="icon"
-        aria-label="Content Model"
-        title="Content Model"
-      >
-        <Link href="/content-model">
-          <Layers className="h-4 w-4" />
-        </Link>
-      </Button>
       <Button
         variant="outline"
         size="icon"
@@ -905,20 +954,22 @@ function CmsHeaderActions({
       >
         <Plug className="h-4 w-4" />
       </Button>
-      <Button
-        variant="outline"
-        size="icon"
-        disabled={schemaLoading}
-        onClick={onUpdateSchema}
-        aria-label="Update CMS schema"
-        title="Update schema"
-      >
-        {schemaLoading ? (
-          <Loader2 className="h-4 w-4 animate-spin" />
-        ) : (
-          <Database className="h-4 w-4" />
-        )}
-      </Button>
+      {schemaSupported ? (
+        <Button
+          variant="outline"
+          size="icon"
+          disabled={schemaLoading}
+          onClick={onUpdateSchema}
+          aria-label="Update CMS schema"
+          title="Update schema"
+        >
+          {schemaLoading ? (
+            <Loader2 className="h-4 w-4 animate-spin" />
+          ) : (
+            <Database className="h-4 w-4" />
+          )}
+        </Button>
+      ) : null}
     </div>
   );
 }
@@ -1703,13 +1754,12 @@ function CollectionWorkspace({
   fetching,
   filterValues,
   sort,
-  actorRole,
-  permissions,
   onFilterChange,
   onSortChange,
   onOpenDocument,
-  onCreateDocument,
   generateSchemaError,
+  schemaSupported,
+  adapterLabel,
   generatingSchema,
   onGenerateSchema,
   onPageChange,
@@ -1723,13 +1773,12 @@ function CollectionWorkspace({
   fetching: boolean;
   filterValues: FilterValues;
   sort: CmsSortEntry[];
-  actorRole: CmsRole;
-  permissions?: CmsPermissionsConfig;
   onFilterChange: (next: FilterValues) => void;
   onSortChange: (next: CmsSortEntry[]) => void;
   onOpenDocument: (id: string) => void;
-  onCreateDocument: () => void;
   generateSchemaError: string | null;
+  schemaSupported: boolean;
+  adapterLabel: string;
   generatingSchema: boolean;
   onGenerateSchema: () => void;
   onPageChange: (offset: number) => void;
@@ -1738,6 +1787,8 @@ function CollectionWorkspace({
     return (
       <GenerateSchemaState
         error={generateSchemaError}
+        schemaSupported={schemaSupported}
+        adapterLabel={adapterLabel}
         loading={generatingSchema}
         onSubmit={onGenerateSchema}
       />
@@ -1779,39 +1830,6 @@ function CollectionWorkspace({
                 Clear
               </Button>
             ) : null}
-            {collection.operations.create ? (
-              <Button
-                type="button"
-                disabled={
-                  !canWriteOperation(
-                    collection,
-                    "create",
-                    actorRole,
-                    permissions,
-                  )
-                }
-                size="sm"
-                title={
-                  canWriteOperation(
-                    collection,
-                    "create",
-                    actorRole,
-                    permissions,
-                  )
-                    ? "New"
-                    : writeDisabledReason(
-                        collection,
-                        "create",
-                        actorRole,
-                        permissions,
-                      )
-                }
-                onClick={onCreateDocument}
-              >
-                <Plus className="mr-2 h-4 w-4" />
-                New
-              </Button>
-            ) : null}
           </div>
         </div>
       </div>
@@ -1843,10 +1861,14 @@ function CollectionWorkspace({
 
 function GenerateSchemaState({
   error,
+  schemaSupported,
+  adapterLabel,
   loading,
   onSubmit,
 }: {
   error: string | null;
+  schemaSupported: boolean;
+  adapterLabel: string;
   loading: boolean;
   onSubmit: () => void;
 }) {
@@ -1856,12 +1878,20 @@ function GenerateSchemaState({
         <div className="text-sm font-medium text-foreground">
           No collections
         </div>
-        <p className="mt-1 text-sm text-muted-foreground">
-          Generate a schema from MongoDB using the `DATABASE_URL` secret.
-        </p>
-        <p className="mt-1 text-xs text-muted-foreground">
-          Kody will write the generated CMS config into the state repo.
-        </p>
+        {schemaSupported ? (
+          <>
+            <p className="mt-1 text-sm text-muted-foreground">
+              Generate a schema from MongoDB using the `DATABASE_URL` secret.
+            </p>
+            <p className="mt-1 text-xs text-muted-foreground">
+              Kody will write the generated CMS config into the state repo.
+            </p>
+          </>
+        ) : (
+          <p className="mt-1 text-sm text-muted-foreground">
+            {adapterLabel} collections are configured in CMS state.
+          </p>
+        )}
 
         {error ? (
           <div className="mt-4 rounded border border-destructive/30 bg-destructive/10 px-3 py-2 text-sm text-destructive">
@@ -1869,16 +1899,18 @@ function GenerateSchemaState({
           </div>
         ) : null}
 
-        <div className="mt-5 flex items-center justify-center gap-2">
-          <Button type="button" onClick={onSubmit} disabled={loading}>
-            {loading ? (
-              <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-            ) : (
-              <Database className="mr-2 h-4 w-4" />
-            )}
-            Generate schema
-          </Button>
-        </div>
+        {schemaSupported ? (
+          <div className="mt-5 flex items-center justify-center gap-2">
+            <Button type="button" onClick={onSubmit} disabled={loading}>
+              {loading ? (
+                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+              ) : (
+                <Database className="mr-2 h-4 w-4" />
+              )}
+              Generate schema
+            </Button>
+          </div>
+        ) : null}
       </div>
     </div>
   );
@@ -3775,12 +3807,20 @@ function LoadingRows() {
 }
 
 function UnconfiguredCmsState({
+  adapters,
+  selectedAdapter,
   loading,
+  onAdapterChange,
   onCreate,
 }: {
+  adapters: CmsAdapterCatalogItem[];
+  selectedAdapter: string;
   loading: boolean;
+  onAdapterChange: (adapter: string) => void;
   onCreate: () => void;
 }) {
+  const selected = findCmsAdapter(adapters, selectedAdapter);
+
   return (
     <div className="flex min-h-[220px] flex-col items-center justify-center px-4 py-8 text-center">
       <div className="text-sm font-medium text-foreground">
@@ -3789,12 +3829,38 @@ function UnconfiguredCmsState({
       <div className="mt-1 max-w-md text-sm text-muted-foreground">
         Create cms/config.json in the state repo to enable this view.
       </div>
+      <div className="mt-4 w-full max-w-xs text-left">
+        <div className="mb-1 text-xs font-medium text-muted-foreground">
+          Adapter
+        </div>
+        <Select
+          value={selectedAdapter}
+          onValueChange={onAdapterChange}
+          disabled={loading || adapters.length === 0}
+        >
+          <SelectTrigger aria-label="CMS adapter">
+            <SelectValue placeholder="Select adapter" />
+          </SelectTrigger>
+          <SelectContent>
+            {adapters.map((adapter) => (
+              <SelectItem key={adapter.name} value={adapter.name}>
+                {adapter.label}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+        {selected?.description ? (
+          <div className="mt-1 text-xs text-muted-foreground">
+            {selected.description}
+          </div>
+        ) : null}
+      </div>
       <Button
         type="button"
         className="mt-4"
         size="sm"
         onClick={onCreate}
-        disabled={loading}
+        disabled={loading || !selectedAdapter}
       >
         {loading ? (
           <Loader2 className="mr-2 h-4 w-4 animate-spin" />
@@ -3816,6 +3882,13 @@ function EmptyState({ title, detail }: { title: string; detail?: string }) {
       ) : null}
     </div>
   );
+}
+
+function findCmsAdapter(
+  adapters: CmsAdapterCatalogItem[],
+  name: string,
+): CmsAdapterCatalogItem | null {
+  return adapters.find((adapter) => adapter.name === name) ?? null;
 }
 
 function buildFilters(

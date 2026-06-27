@@ -162,10 +162,18 @@ async function loadStoreAdapterModule(
   const moduleUrl = await resolveStoreAdapterModuleUrl(name, context);
   let modulePromise = MODULES.get(moduleUrl);
   if (!modulePromise) {
-    modulePromise = import(moduleUrl) as Promise<StoreAdapterModule>;
+    modulePromise = importStoreAdapterModule(moduleUrl);
     MODULES.set(moduleUrl, modulePromise);
   }
   return modulePromise;
+}
+
+function importStoreAdapterModule(
+  moduleUrl: string,
+): Promise<StoreAdapterModule> {
+  return import(
+    /* webpackIgnore: true */ moduleUrl
+  ) as Promise<StoreAdapterModule>;
 }
 
 async function resolveStoreAdapterModuleUrl(

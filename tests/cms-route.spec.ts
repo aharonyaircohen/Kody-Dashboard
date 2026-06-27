@@ -221,7 +221,9 @@ describe("CMS API routes", () => {
   });
 
   it("creates a neutral CMS config in the state repo", async () => {
-    const res = await indexPOST(postRequest({ name: "Example CMS" }));
+    const res = await indexPOST(
+      postRequest({ name: "Example CMS", adapter: "github" }),
+    );
 
     expect(res.status).toBe(201);
     await expect(res.json()).resolves.toMatchObject({
@@ -230,6 +232,7 @@ describe("CMS API routes", () => {
         version: 1,
         name: "Example CMS",
         environment: "default",
+        defaultAdapter: "github",
         writePolicy: "read-only",
         collections: [],
       },
@@ -249,10 +252,25 @@ describe("CMS API routes", () => {
       version: 1,
       name: "Example CMS",
       environment: "default",
+      defaultAdapter: "github",
+      adapters: { github: {} },
       writePolicy: "read-only",
       collections: [],
     });
     expect(auth.verifyActorLogin).not.toHaveBeenCalled();
+  });
+
+  it("rejects unsafe CMS adapter names", async () => {
+    const res = await indexPOST(
+      postRequest({ name: "Example CMS", adapter: "../github" }),
+    );
+
+    expect(res.status).toBe(400);
+    await expect(res.json()).resolves.toMatchObject({
+      error: "invalid_body",
+      message: "adapter name is invalid",
+    });
+    expect(stateRepo.writeStateText).not.toHaveBeenCalled();
   });
 
   it("updates CMS permissions in state repo", async () => {

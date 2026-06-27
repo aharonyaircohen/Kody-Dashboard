@@ -12,6 +12,7 @@ import type {
   CmsSortEntry,
   CmsViewFieldConfig,
 } from "@dashboard/lib/cms/types";
+import { normalizeCmsCollectionSlug } from "@dashboard/lib/cms/config";
 import type { StateRepoWriteFile } from "@dashboard/lib/state-repo";
 
 const SYSTEM_FIELDS = new Set(["_id", "__v", "createdAt", "updatedAt"]);
@@ -93,24 +94,30 @@ export async function generateMongoCmsSchemaFiles(
       const stats = rawStats.get(collectionName);
       if (stats) titleFields.set(collectionName, inferTitleField(stats));
     }
+    const collectionSlugs = buildCollectionSlugMap(collectionNames);
 
     const collectionFiles: StateRepoWriteFile[] = [];
     const collectionRefs: string[] = [];
     for (const collectionName of collectionNames) {
       const stats = rawStats.get(collectionName);
       if (!stats) continue;
+      const collectionSlug =
+        collectionSlugs.get(collectionName) ??
+        normalizeCmsCollectionSlug(collectionName);
       const generated = buildCollectionConfig({
         collectionName,
+        collectionSlug,
         collectionNames,
+        collectionSlugs,
         stats,
         titleFields,
       });
-      const filePath = `cms/collections/${collectionName}.json`;
+      const filePath = `cms/collections/${collectionSlug}.json`;
       collectionFiles.push({
         path: filePath,
         content: toJson(generated),
       });
-      collectionRefs.push(`collections/${collectionName}.json`);
+      collectionRefs.push(`collections/${collectionSlug}.json`);
     }
 
     return {
@@ -150,18 +157,22 @@ export async function generateMongoCmsSchemaFiles(
 
 function buildCollectionConfig({
   collectionName,
+  collectionSlug,
   collectionNames,
+  collectionSlugs,
   stats,
   titleFields,
 }: {
   collectionName: string;
+  collectionSlug: string;
   collectionNames: string[];
+  collectionSlugs: Map<string, string>;
   stats: CollectionStats;
   titleFields: Map<string, string>;
 }): CmsCollectionConfig {
   const titleField = titleFields.get(collectionName);
   const fields = stats.fields.map((fieldStats) =>
-    buildFieldConfig(fieldStats, collectionNames, titleFields),
+    buildFieldConfig(fieldStats, collectionNames, collectionSlugs, titleFields),
   );
   const fieldByName = new Map(fields.map((field) => [field.name, field]));
   const searchFields = inferSearchFields(fields, titleField);
@@ -172,10 +183,10 @@ function buildCollectionConfig({
   const filters = inferFilters(filterFields);
 
   return {
-    name: collectionName,
+    name: collectionSlug,
     label: titleize(collectionName),
     adapter: "mongodb",
-    mcpName: toMcpName(collectionName),
+    mcpName: toMcpName(collectionSlug),
     source: {
       collection: collectionName,
       idField: "_id",
@@ -215,6 +226,7 @@ function buildCollectionConfig({
 function buildFieldConfig(
   fieldStats: FieldStats,
   collectionNames: string[],
+  collectionSlugs: Map<string, string>,
   titleFields: Map<string, string>,
 ): CmsFieldConfig {
   const name = fieldStats.name;
@@ -253,7 +265,9 @@ function buildFieldConfig(
     return {
       ...base,
       type: base.type,
-      target: relationTarget,
+      target:
+        collectionSlugs.get(relationTarget) ??
+        normalizeCmsCollectionSlug(relationTarget),
       storage: {
         kind: base.type === "relationMany" ? "objectIdArray" : "objectId",
       },
@@ -662,6 +676,27 @@ function shouldSkipCollection(
     /^_.*_versions$/.test(name) ||
     name.endsWith("_versions")
   );
+}
+
+function buildCollectionSlugMap(
+  collectionNames: string[],
+): Map<string, string> {
+  const slugs = new Map<string, string>();
+  const used = new Set<string>();
+
+  for (const collectionName of collectionNames) {
+    const baseSlug = normalizeCmsCollectionSlug(collectionName);
+    let slug = baseSlug;
+    let suffix = 2;
+    while (used.has(slug)) {
+      slug = `${baseSlug}-${suffix}`;
+      suffix += 1;
+    }
+    used.add(slug);
+    slugs.set(collectionName, slug);
+  }
+
+  return slugs;
 }
 
 function labelForField(value: string): string {

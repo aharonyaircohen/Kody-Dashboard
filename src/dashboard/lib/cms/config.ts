@@ -99,6 +99,7 @@ const CONTENT_OPERATIONS: CmsContentOperation[] = [
 ];
 
 const SCHEMA_OPERATIONS: CmsSchemaOperation[] = ["generate", "refresh", "edit"];
+const CMS_COLLECTION_SLUG_RE = /^[a-z][a-z0-9_-]*$/;
 
 export const DEFAULT_CMS_PERMISSIONS: {
   content: Record<CmsContentOperation, CmsRole[]>;
@@ -192,11 +193,17 @@ export function getCollection(
   config: CmsRuntimeConfig,
   collectionName: string,
 ): CmsCollectionConfig {
-  const collection = config.collections[collectionName];
+  const collection =
+    config.collections[collectionName] ??
+    config.collections[toCmsCollectionSlugOrNull(collectionName) ?? ""];
   if (!collection) {
     throw new CmsConfigError([`unknown collection: ${collectionName}`]);
   }
   return collection;
+}
+
+export function normalizeCmsCollectionSlug(value: string): string {
+  return toCmsCollectionSlugOrNull(value) ?? "collection";
 }
 
 export function getCollectionIdField(collection: CmsCollectionConfig): string {
@@ -676,13 +683,14 @@ function normalizeCollection(
     return null;
   }
 
-  const name = stringOr(rawCollection.name);
-  if (!name || !/^[A-Za-z0-9_.-]+$/.test(name)) {
+  const rawName = stringOr(rawCollection.name);
+  if (!rawName || !/^[A-Za-z0-9_.-]+$/.test(rawName)) {
     errors.push(
       "collection name must use letters, digits, dashes, underscores, or dots",
     );
     return null;
   }
+  const name = normalizeCmsCollectionSlug(rawName);
   const adapter = stringOr(rawCollection.adapter) ?? defaultAdapter;
   if (!adapter) {
     errors.push(`${name}.adapter required when defaultAdapter is not set`);
@@ -715,7 +723,7 @@ function normalizeCollection(
 
   return {
     name,
-    label: stringOr(rawCollection.label) ?? name,
+    label: stringOr(rawCollection.label) ?? rawName,
     adapter: adapter ?? "",
     mcpName: stringOr(rawCollection.mcpName),
     titleField: stringOr(rawCollection.titleField),
@@ -739,7 +747,10 @@ function normalizeCollection(
       errors,
       { fillDefaults: false },
     ),
-    source: normalizeSource(rawCollection.source),
+    source: normalizeSource(
+      rawCollection.source,
+      rawName !== name ? rawName : undefined,
+    ),
     operations: normalizeOperations(rawCollection.operations),
     defaultSort: normalizeCollectionSort(
       rawCollection.defaultSort,
@@ -1229,10 +1240,15 @@ function normalizeCollectionSort(
   });
 }
 
-function normalizeSource(rawSource: unknown): CmsCollectionConfig["source"] {
-  if (!isRecord(rawSource)) return {};
+function normalizeSource(
+  rawSource: unknown,
+  fallbackCollection?: string,
+): CmsCollectionConfig["source"] {
+  if (!isRecord(rawSource)) {
+    return fallbackCollection ? { collection: fallbackCollection } : {};
+  }
   return {
-    collection: stringOr(rawSource.collection),
+    collection: stringOr(rawSource.collection) ?? fallbackCollection,
     idField: stringOr(rawSource.idField),
     path: stringOr(rawSource.path),
     extension: stringOr(rawSource.extension),
@@ -1418,6 +1434,22 @@ function pruneUndefined<T extends object>(value: T): T {
   return Object.fromEntries(
     Object.entries(value).filter(([, entry]) => entry !== undefined),
   ) as T;
+}
+
+function toCmsCollectionSlugOrNull(value: string): string | null {
+  const slug = value
+    .trim()
+    .replace(/([a-z0-9])([A-Z])/g, "$1-$2")
+    .replace(/[^A-Za-z0-9_-]+/g, "-")
+    .replace(/-+/g, "-")
+    .replace(/^-+|-+$/g, "")
+    .toLowerCase()
+    .replace(/^_+/, "");
+  if (!slug) return null;
+  if (CMS_COLLECTION_SLUG_RE.test(slug)) return slug;
+
+  const prefixed = `collection-${slug}`;
+  return CMS_COLLECTION_SLUG_RE.test(prefixed) ? prefixed : null;
 }
 
 function isSearchableField(field: CmsFieldConfig): boolean {

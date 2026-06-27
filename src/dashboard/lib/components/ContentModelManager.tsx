@@ -1,6 +1,5 @@
 "use client";
 
-import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
@@ -164,9 +163,6 @@ function ContentModelWorkspace() {
         backHref="/cms"
         actions={
           <>
-            <Button asChild variant="outline" size="sm">
-              <Link href="/cms">CMS</Link>
-            </Button>
             <Button
               type="button"
               variant="outline"

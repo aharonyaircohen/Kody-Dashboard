@@ -7,6 +7,7 @@ const stateRepo = vi.hoisted(() => ({
 vi.mock("@dashboard/lib/state-repo", () => stateRepo);
 
 import {
+  getCollection,
   invalidateCmsConfigCache,
   loadCmsConfigFromState,
   normalizeCmsConfig,
@@ -288,6 +289,31 @@ describe("CMS config contract", () => {
       region: "local",
       preview: true,
     });
+  });
+
+  it("normalizes non-slug collection names while preserving the source collection", () => {
+    const config = normalizeCmsConfig({
+      version: 1,
+      defaultAdapter: "mongodb",
+      writePolicy: "enabled",
+      collections: {
+        A: {
+          name: "A",
+          label: "A",
+          source: { collection: "A", idField: "_id" },
+          fields: [{ name: "_id", type: "id" }],
+        },
+      },
+    });
+
+    expect(Object.keys(config.collections)).toEqual(["a"]);
+    expect(config.collections.a).toMatchObject({
+      name: "a",
+      label: "A",
+      source: { collection: "A", idField: "_id" },
+    });
+    expect(getCollection(config, "A")).toBe(config.collections.a);
+    expect(getCollection(config, "a")).toBe(config.collections.a);
   });
 
   it("requires collection adapter when no default adapter is set", () => {

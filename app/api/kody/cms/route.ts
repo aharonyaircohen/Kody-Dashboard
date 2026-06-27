@@ -13,9 +13,14 @@ import { logger } from "@dashboard/lib/logger";
 import {
   assertSchemaOperationAllowed,
   CmsConfigError,
+  DEFAULT_CMS_PERMISSIONS,
   invalidateCmsConfigCache,
   loadCmsConfigFromState,
 } from "@dashboard/lib/cms/config";
+import {
+  defaultCmsAdapterSettings,
+  isValidCmsAdapterName,
+} from "@dashboard/lib/cms/adapter-catalog";
 import {
   CmsRuntimeError,
   listCmsCollections,
@@ -107,6 +112,7 @@ export async function POST(req: NextRequest) {
 
     const payload = await req.json().catch(() => ({}));
     const name = readCmsName(payload, headerAuth.repo);
+    const adapter = readCmsAdapter(payload);
     const existing = await readStateText(
       octokit,
       headerAuth.owner,
@@ -134,8 +140,10 @@ export async function POST(req: NextRequest) {
       version: 1 as const,
       name,
       environment: "default",
+      defaultAdapter: adapter,
       writePolicy: "read-only" as const,
       actorRole,
+      permissions: DEFAULT_CMS_PERMISSIONS,
       collections: [],
     };
 
@@ -149,6 +157,10 @@ export async function POST(req: NextRequest) {
           version: 1,
           name,
           environment: "default",
+          defaultAdapter: adapter,
+          adapters: {
+            [adapter]: defaultCmsAdapterSettings(adapter),
+          },
           writePolicy: "read-only",
           collections: [],
         },
@@ -261,6 +273,21 @@ function readCmsName(payload: unknown, repo: string): string {
     );
   }
   return name;
+}
+
+function readCmsAdapter(payload: unknown): string {
+  const fallback = "mongodb";
+  if (!payload || typeof payload !== "object" || !("adapter" in payload)) {
+    return fallback;
+  }
+  const adapter = String((payload as { adapter?: unknown }).adapter ?? "")
+    .trim()
+    .toLowerCase();
+  if (!adapter) return fallback;
+  if (!isValidCmsAdapterName(adapter)) {
+    throw new CmsRuntimeError("invalid_body", "adapter name is invalid", 400);
+  }
+  return adapter;
 }
 
 const CMS_ROLES = new Set<CmsRole>(["viewer", "editor", "admin"]);
