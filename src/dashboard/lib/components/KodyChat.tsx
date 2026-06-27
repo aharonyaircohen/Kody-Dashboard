@@ -155,7 +155,6 @@ import {
 import { MessageActions } from "./MessageActions";
 import {
   pickVibeRequestIssueNumber,
-  RECENT_VIBE_ISSUE_TTL_MS,
   type RecentVibeIssue,
 } from "../vibe/recent-issue";
 import {
@@ -991,22 +990,11 @@ export function KodyChat({
     if (sessionSidebarPinned) setShowSessionSidebar(true);
   }, [sessionSidebarPinned]);
 
-  const recentVibeIssue = recentVibeIssueRef.current;
-  const keepRecentVibeThread =
-    vibeMode &&
-    selectedTask != null &&
-    recentVibeIssue?.issueNumber === selectedTask.issueNumber &&
-    Date.now() - recentVibeIssue.at <= RECENT_VIBE_ISSUE_TTL_MS;
-
-  // Use session hook for global (non-task) chat. On the Vibe page, the
-  // no-task ("default preview") chat lives in its own bucket so it
-  // doesn't share history with the dashboard chat. If that chat just
-  // created the issue we are now viewing, keep the originating thread
-  // visible instead of swapping to an empty task thread.
+  // Use one session bucket for Vibe. The selected task is request context, not
+  // a separate visible conversation; otherwise issue creation navigates to an
+  // empty task chat and hides the message that created the issue.
   const desiredSessionScope: import("../hooks/useChatSessions").ChatSessionScope =
-    vibeMode && (!selectedTask || keepRecentVibeThread)
-      ? "vibe-default"
-      : "global";
+    vibeMode ? "vibe-default" : "global";
   // Commit scope changes only after they settle. A transient context flip
   // (parent re-render / task refetch momentarily dropping the selection)
   // would otherwise swap useChatSessions to the empty `vibe-default` bucket
@@ -5648,7 +5636,9 @@ export function KodyChat({
                 <>
                   <p className="font-medium">Chat about this task</p>
                   <p className="text-sm mt-1">
-                    Messages will be saved to the task
+                    {vibeMode
+                      ? "Messages stay in this Vibe thread"
+                      : "Messages will be saved to the task"}
                   </p>
                   <p className="text-sm mt-3 font-medium text-foreground">
                     I can help you:

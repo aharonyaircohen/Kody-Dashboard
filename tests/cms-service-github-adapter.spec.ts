@@ -1,5 +1,6 @@
 import { NextRequest } from "next/server";
-import { readFileSync } from "node:fs";
+import { existsSync, lstatSync, readdirSync, readFileSync } from "node:fs";
+import { tmpdir } from "node:os";
 import path from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -60,12 +61,7 @@ describe("CMS service GitHub adapter integration", () => {
     previousStoreRoot = process.env.KODY_STORE_ROOT;
     delete process.env.KODY_CMS_ADAPTERS_ROOT;
     delete process.env.KODY_STORE_ROOT;
-    stateRepo.readStateText.mockImplementation(async (_octokit, _owner, _repo, filePath) => {
-      const content = stateFiles[String(filePath)];
-      return content
-        ? { path: String(filePath), content, sha: `${filePath}-sha` }
-        : null;
-    });
+    mockStateFiles(stateFiles);
   });
 
   afterEach(() => {
@@ -85,7 +81,14 @@ describe("CMS service GitHub adapter integration", () => {
     const req = request();
 
     await expect(
-      listCmsDocuments(req, octokit as never, "A-Guy-educ", "A-Guy-Web", "articles", {}),
+      listCmsDocuments(
+        req,
+        octokit as never,
+        "A-Guy-educ",
+        "A-Guy-Web",
+        "articles",
+        {},
+      ),
     ).resolves.toMatchObject({ docs: [], total: 0 });
 
     const created = await createCmsDocument(
@@ -107,13 +110,27 @@ describe("CMS service GitHub adapter integration", () => {
     });
 
     await expect(
-      getCmsDocument(req, octokit as never, "A-Guy-educ", "A-Guy-Web", "articles", "intro"),
+      getCmsDocument(
+        req,
+        octokit as never,
+        "A-Guy-educ",
+        "A-Guy-Web",
+        "articles",
+        "intro",
+      ),
     ).resolves.toEqual({ id: "intro", title: "Intro", status: "draft" });
 
     await expect(
-      listCmsDocuments(req, octokit as never, "A-Guy-educ", "A-Guy-Web", "articles", {
-        search: { query: "intro" },
-      }),
+      listCmsDocuments(
+        req,
+        octokit as never,
+        "A-Guy-educ",
+        "A-Guy-Web",
+        "articles",
+        {
+          search: { query: "intro" },
+        },
+      ),
     ).resolves.toMatchObject({
       docs: [{ id: "intro", title: "Intro" }],
       total: 1,
@@ -122,11 +139,18 @@ describe("CMS service GitHub adapter integration", () => {
 
   it("updates and deletes GitHub-backed documents through Dashboard service", async () => {
     const req = request();
-    await createCmsDocument(req, octokit as never, "A-Guy-educ", "A-Guy-Web", "articles", {
-      id: "intro",
-      title: "Intro",
-      status: "draft",
-    });
+    await createCmsDocument(
+      req,
+      octokit as never,
+      "A-Guy-educ",
+      "A-Guy-Web",
+      "articles",
+      {
+        id: "intro",
+        title: "Intro",
+        status: "draft",
+      },
+    );
 
     await expect(
       updateCmsDocument(
@@ -141,11 +165,140 @@ describe("CMS service GitHub adapter integration", () => {
     ).resolves.toEqual({ id: "intro", title: "Intro", status: "published" });
 
     await expect(
-      deleteCmsDocument(req, octokit as never, "A-Guy-educ", "A-Guy-Web", "articles", "intro"),
+      deleteCmsDocument(
+        req,
+        octokit as never,
+        "A-Guy-educ",
+        "A-Guy-Web",
+        "articles",
+        "intro",
+      ),
     ).resolves.toBe(true);
     await expect(
-      getCmsDocument(req, octokit as never, "A-Guy-educ", "A-Guy-Web", "articles", "intro"),
+      getCmsDocument(
+        req,
+        octokit as never,
+        "A-Guy-educ",
+        "A-Guy-Web",
+        "articles",
+        "intro",
+      ),
     ).resolves.toBeNull();
+  });
+
+  it("lets remote Store adapters resolve Dashboard package dependencies", async () => {
+    const req = request();
+
+    octokit.seedText(
+      "aharonyaircohen",
+      "kody-company-store",
+      "stable",
+      "cms/adapters/mongodb/index.mjs",
+      [
+        'import { ObjectId } from "mongodb"',
+        "export function createCmsAdapter() {",
+        "  return {",
+        "    async list() {",
+        "      return {",
+        "        docs: [{ _id: new ObjectId('64f1a5f6f2a80f3a3a3a3a3a').toString(), title: 'Intro' }],",
+        "        total: 1,",
+        "        limit: 50,",
+        "        offset: 0,",
+        "      }",
+        "    },",
+        "  }",
+        "}",
+      ].join("\n"),
+    );
+    mockStateFiles(cmsStateFilesForAdapter("mongodb", "Mongo CMS"));
+
+    await expect(
+      listCmsDocuments(
+        req,
+        octokit as never,
+        "A-Guy-educ",
+        "A-Guy-Web",
+        "lessons",
+        {},
+      ),
+    ).resolves.toMatchObject({
+      docs: [{ _id: "64f1a5f6f2a80f3a3a3a3a3a", title: "Intro" }],
+      total: 1,
+    });
+    expect(hasMaterializedNodeModulesLink("mongodb")).toBe(true);
+  });
+
+  it("wraps unexpected remote Store adapter failures as CMS runtime errors", async () => {
+    const req = request();
+
+    octokit.seedText(
+      "aharonyaircohen",
+      "kody-company-store",
+      "stable",
+      "cms/adapters/broken/index.mjs",
+      [
+        "export function createCmsAdapter() {",
+        "  return {",
+        "    async list() {",
+        "      throw new Error('database connection failed')",
+        "    },",
+        "  }",
+        "}",
+      ].join("\n"),
+    );
+    mockStateFiles(cmsStateFilesForAdapter("broken", "Broken CMS"));
+
+    await expect(
+      listCmsDocuments(
+        req,
+        octokit as never,
+        "A-Guy-educ",
+        "A-Guy-Web",
+        "lessons",
+        {},
+      ),
+    ).rejects.toMatchObject({
+      code: "store_adapter_error",
+      status: 500,
+      message: "database connection failed",
+    });
+  });
+
+  it("preserves GitHub status failures thrown by remote Store adapters", async () => {
+    const req = request();
+
+    octokit.seedText(
+      "aharonyaircohen",
+      "kody-company-store",
+      "stable",
+      "cms/adapters/rate-limited/index.mjs",
+      [
+        "export function createCmsAdapter() {",
+        "  return {",
+        "    async list() {",
+        "      const error = new Error('API rate limit exceeded')",
+        "      error.status = 403",
+        "      throw error",
+        "    },",
+        "  }",
+        "}",
+      ].join("\n"),
+    );
+    mockStateFiles(cmsStateFilesForAdapter("rate-limited", "Rate Limited CMS"));
+
+    await expect(
+      listCmsDocuments(
+        req,
+        octokit as never,
+        "A-Guy-educ",
+        "A-Guy-Web",
+        "lessons",
+        {},
+      ),
+    ).rejects.toMatchObject({
+      status: 403,
+      message: "API rate limit exceeded",
+    });
   });
 });
 
@@ -183,6 +336,55 @@ const stateFiles: Record<string, string> = {
   }),
 };
 
+function mockStateFiles(files: Record<string, string>): void {
+  stateRepo.readStateText.mockImplementation(
+    async (_octokit, _owner, _repo, filePath) => {
+      const content = files[String(filePath)];
+      return content
+        ? { path: String(filePath), content, sha: `${filePath}-sha` }
+        : null;
+    },
+  );
+}
+
+function cmsStateFilesForAdapter(
+  adapter: string,
+  name: string,
+): Record<string, string> {
+  return {
+    "cms/config.json": JSON.stringify({
+      version: 1,
+      name,
+      environment: "default",
+      defaultAdapter: adapter,
+      writePolicy: "read-only",
+      collections: ["collections/lessons.json"],
+    }),
+    "cms/collections/lessons.json": JSON.stringify({
+      name: "lessons",
+      label: "Lessons",
+      adapter,
+      source: { collection: "lessons", idField: "_id" },
+      titleField: "title",
+      searchFields: ["title"],
+      writePolicy: "read-only",
+      operations: {
+        list: true,
+        get: true,
+        search: true,
+        create: false,
+        update: false,
+        delete: false,
+      },
+      fields: [
+        { name: "_id", type: "id", readOnly: true },
+        { name: "title", type: "text", required: true },
+      ],
+      filters: [],
+    }),
+  };
+}
+
 function request() {
   return new NextRequest("https://dash.test/api/kody/cms", {
     headers: {
@@ -197,7 +399,33 @@ function request() {
 }
 
 function readStoreFile(filePath: string): string {
-  return readFileSync(path.resolve(process.cwd(), "../kody-store", filePath), "utf8");
+  return readFileSync(
+    path.resolve(process.cwd(), "../kody-store", filePath),
+    "utf8",
+  );
+}
+
+function hasMaterializedNodeModulesLink(adapterName: string): boolean {
+  const root = path.join(tmpdir(), "kody-cms-store-adapters");
+  if (!existsSync(root)) return false;
+
+  for (const hash of readdirSync(root)) {
+    const materializedRoot = path.join(root, hash);
+    const adapterFile = path.join(
+      materializedRoot,
+      "cms/adapters",
+      adapterName,
+      "index.mjs",
+    );
+    if (!existsSync(adapterFile)) continue;
+
+    const nodeModules = path.join(materializedRoot, "node_modules");
+    if (existsSync(nodeModules) && lstatSync(nodeModules).isSymbolicLink()) {
+      return true;
+    }
+  }
+
+  return false;
 }
 
 class FakeOctokit {
@@ -258,10 +486,13 @@ class FakeOctokit {
       content: string;
     }) => {
       this.writes.push(input);
-      this.files.set(`${input.owner}/${input.repo}/${input.branch}/${input.path}`, {
-        content: input.content,
-        sha: "sha-next",
-      });
+      this.files.set(
+        `${input.owner}/${input.repo}/${input.branch}/${input.path}`,
+        {
+          content: input.content,
+          sha: "sha-next",
+        },
+      );
       return { data: { content: { sha: "sha-next" } } };
     },
     deleteFile: async (input: {
@@ -270,7 +501,9 @@ class FakeOctokit {
       path: string;
       branch: string;
     }) => {
-      this.files.delete(`${input.owner}/${input.repo}/${input.branch}/${input.path}`);
+      this.files.delete(
+        `${input.owner}/${input.repo}/${input.branch}/${input.path}`,
+      );
       return { data: {} };
     },
   };

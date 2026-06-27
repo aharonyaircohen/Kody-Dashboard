@@ -2,7 +2,7 @@ import "server-only";
 
 import { createHash } from "node:crypto";
 import { existsSync } from "node:fs";
-import { mkdir, writeFile } from "node:fs/promises";
+import { mkdir, symlink, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { pathToFileURL } from "node:url";
@@ -55,15 +55,9 @@ type StoreCmsAdapter = {
     collectionName: string,
     query?: CmsListQuery,
   ) => Promise<CmsListResult>;
-  listByIds?: (
-    collectionName: string,
-    ids: string[],
-  ) => Promise<CmsDocument[]>;
+  listByIds?: (collectionName: string, ids: string[]) => Promise<CmsDocument[]>;
   get?: (collectionName: string, id: string) => Promise<CmsDocument | null>;
-  create?: (
-    collectionName: string,
-    data: CmsDocument,
-  ) => Promise<CmsDocument>;
+  create?: (collectionName: string, data: CmsDocument) => Promise<CmsDocument>;
   update?: (
     collectionName: string,
     id: string,
@@ -259,7 +253,23 @@ async function materializeRemoteStoreAdapter(
     writeMaterializedFile(root, adapterPath, adapterFile.content),
     writeMaterializedFile(root, contractPath, contractFile.content),
   ]);
+  await linkRuntimeNodeModules(root);
   return pathToFileURL(path.join(root, adapterPath)).href;
+}
+
+async function linkRuntimeNodeModules(root: string): Promise<void> {
+  const runtimeNodeModules = path.resolve(process.cwd(), "node_modules");
+  if (!existsSync(runtimeNodeModules)) return;
+
+  const linkPath = path.join(root, "node_modules");
+  if (existsSync(linkPath)) return;
+
+  try {
+    await symlink(runtimeNodeModules, linkPath, "dir");
+  } catch (error) {
+    if ((error as { code?: string })?.code === "EEXIST") return;
+    throw error;
+  }
 }
 
 async function readStoreFile(
@@ -343,14 +353,29 @@ function parseStoreTarget(
 
 function normalizeStoreAdapterError(error: unknown): Error {
   if (error instanceof CmsAdapterError) return error;
+  if (isRecord(error) && error.name === "CmsAdapterError") {
+    return new CmsAdapterError(
+      stringValue(error.code) ?? "store_adapter_error",
+      sanitizeErrorMessage(error.message),
+      numberValue(error.status) ?? 500,
+    );
+  }
   if (isRecord(error) && error.name === "CmsConfigError") {
     return new CmsAdapterError(
       "store_adapter_error",
-      error.message,
+      sanitizeErrorMessage(error.message),
       400,
     );
   }
-  return error instanceof Error ? error : new Error(String(error));
+  const routeHandledError = toRouteHandledError(error);
+  if (routeHandledError) return routeHandledError;
+  return new CmsAdapterError(
+    "store_adapter_error",
+    sanitizeErrorMessage(
+      error instanceof Error ? error.message : String(error),
+    ),
+    500,
+  );
 }
 
 function assertStoreMethod(
@@ -377,8 +402,47 @@ function stringEnv(name: string): string | null {
   return typeof value === "string" && value.trim() ? value.trim() : null;
 }
 
-function isRecord(value: unknown): value is { name?: unknown; message: string } {
+function isRecord(value: unknown): value is {
+  code?: unknown;
+  message: string;
+  name?: unknown;
+  status?: unknown;
+} {
   return value !== null && typeof value === "object" && "message" in value;
+}
+
+function stringValue(value: unknown): string | null {
+  return typeof value === "string" && value.trim() ? value.trim() : null;
+}
+
+function numberValue(value: unknown): number | null {
+  return typeof value === "number" && Number.isFinite(value) ? value : null;
+}
+
+function toRouteHandledError(error: unknown): Error | null {
+  const message = error instanceof Error ? error.message : String(error);
+  const status =
+    typeof error === "object" && error !== null && "status" in error
+      ? numberValue((error as { status?: unknown }).status)
+      : null;
+  if (
+    status !== 401 &&
+    status !== 403 &&
+    !message.toLowerCase().includes("rate limit")
+  ) {
+    return null;
+  }
+
+  const result = error instanceof Error ? error : new Error(message);
+  if (status != null) Object.assign(result, { status });
+  return result;
+}
+
+function sanitizeErrorMessage(message: string): string {
+  return message.replace(
+    /(mongodb(?:\+srv)?:\/\/)([^:@/\s]+):([^@/\s]+)@/gi,
+    "$1$2:***@",
+  );
 }
 
 export type { CmsAdapter, CmsAdapterContext } from "./types";
