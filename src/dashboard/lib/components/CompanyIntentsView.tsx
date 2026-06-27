@@ -71,6 +71,7 @@ import {
   useRunCompanyIntent,
   useUpdateCompanyIntent,
 } from "../hooks/useCompanyIntents";
+import { useMediaQuery } from "../hooks/useMediaQuery";
 import { EmptyState } from "./EmptyState";
 import { MasterDetailShell } from "./MasterDetailShell";
 
@@ -184,6 +185,7 @@ export function CompanyIntentsView({
   selectedId?: string | null;
 } = {}) {
   const router = useRouter();
+  const autoSelectFirst = useMediaQuery("(min-width: 768px)");
   const { data, error, isFetching, isLoading, refetch } = useCompanyIntents();
   const createIntent = useCreateCompanyIntent();
   const updateIntent = useUpdateCompanyIntent();
@@ -193,6 +195,7 @@ export function CompanyIntentsView({
   const [form, setForm] = useState<IntentFormState>(emptyForm());
 
   const intents = useMemo(() => data ?? [], [data]);
+  const intentsLoaded = data !== undefined;
   const filtered = useMemo(() => {
     const needle = query.trim().toLowerCase();
     if (!needle) return intents;
@@ -213,14 +216,19 @@ export function CompanyIntentsView({
   }, [intents, query]);
 
   useEffect(() => {
+    if (isLoading || !intentsLoaded) return;
     if (filtered.length === 0) {
       if (selectedId) router.replace("/company-intents");
       return;
     }
-    if (!selectedId || !filtered.some((record) => record.id === selectedId)) {
+    if (selectedId && !filtered.some((record) => record.id === selectedId)) {
+      router.replace("/company-intents");
+      return;
+    }
+    if (!selectedId && autoSelectFirst) {
       router.replace(selectionPath("/company-intents", filtered[0]!.id));
     }
-  }, [filtered, router, selectedId]);
+  }, [autoSelectFirst, filtered, intentsLoaded, isLoading, router, selectedId]);
 
   const selectIntent = (id: string | null, replace = false) => {
     const path = id ? selectionPath("/company-intents", id) : "/company-intents";
@@ -228,8 +236,9 @@ export function CompanyIntentsView({
     else router.push(path);
   };
 
-  const selected =
-    filtered.find((record) => record.id === selectedId) ?? filtered[0] ?? null;
+  const selected = selectedId
+    ? (filtered.find((record) => record.id === selectedId) ?? null)
+    : null;
 
   const activeCount = intents.filter(
     (record) => record.intent.status === "active",

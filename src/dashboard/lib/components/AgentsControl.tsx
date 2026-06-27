@@ -48,6 +48,7 @@ import {
   useUpdateAgent,
 } from "../hooks/useAgents";
 import { useGitHubIdentity } from "../hooks/useGitHubIdentity";
+import { useMediaQuery } from "../hooks/useMediaQuery";
 import type { Agent } from "../api";
 import { KODY_CHAT_AGENT } from "../context/frontmatter";
 import { AGENT_TEMPLATE } from "../agent-template";
@@ -101,13 +102,16 @@ export function AgentsControlInner({
   selectedSlug = null,
 }: AgentsControlProps = {}) {
   const router = useRouter();
+  const autoSelectFirst = useMediaQuery("(min-width: 768px)");
   const {
-    data: rawStaff = [],
+    data: fetchedStaff,
     isLoading,
     isFetching,
     refetch,
     error,
   } = useAgents();
+  const rawStaff = useMemo(() => fetchedStaff ?? [], [fetchedStaff]);
+  const staffLoaded = fetchedStaff !== undefined;
 
   // Kody is always first and never removable; repo agent follow (any stray
   // `kody.md` file is dropped so the const wins).
@@ -142,14 +146,19 @@ export function AgentsControlInner({
   }, [agent, search]);
 
   useEffect(() => {
+    if (isLoading || !staffLoaded) return;
     if (agent.length === 0) {
       if (selectedSlug) router.replace("/agents");
       return;
     }
-    if (!selectedSlug || !agent.some((member) => member.slug === selectedSlug)) {
+    if (selectedSlug && !agent.some((member) => member.slug === selectedSlug)) {
+      router.replace("/agents");
+      return;
+    }
+    if (!selectedSlug && autoSelectFirst) {
       router.replace(selectionPath("/agents", agent[0].slug));
     }
-  }, [agent, router, selectedSlug]);
+  }, [agent, autoSelectFirst, isLoading, router, selectedSlug, staffLoaded]);
 
   const selectAgent = (slug: string | null, replace = false) => {
     const path = slug ? selectionPath("/agents", slug) : "/agents";

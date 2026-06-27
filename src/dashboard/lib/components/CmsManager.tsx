@@ -34,6 +34,7 @@ import {
 
 import { AuthGuard } from "@dashboard/lib/auth-guard";
 import { buildAuthHeaders, useAuth } from "@dashboard/lib/auth-context";
+import { useMediaQuery } from "@dashboard/lib/hooks/useMediaQuery";
 import { cn } from "@dashboard/lib/utils";
 import { Badge } from "@dashboard/ui/badge";
 import { Button } from "@dashboard/ui/button";
@@ -185,6 +186,7 @@ function CmsListPage({
   selectedCollectionName?: string | null;
 } = {}) {
   const router = useRouter();
+  const autoSelectFirst = useMediaQuery("(min-width: 1024px)");
   const { auth } = useAuth();
   const queryClient = useQueryClient();
   const headers = useMemo(() => buildAuthHeaders(auth), [auth]);
@@ -237,6 +239,7 @@ function CmsListPage({
     () => (cmsConfigured ? (cmsQuery.data?.collections ?? []) : []),
     [cmsConfigured, cmsQuery.data?.collections],
   );
+  const cmsLoaded = cmsQuery.data !== undefined;
   const actorRole =
     cmsQuery.data?.configured === true
       ? (cmsQuery.data.actorRole ?? "viewer")
@@ -244,27 +247,38 @@ function CmsListPage({
   const cmsPermissions =
     cmsQuery.data?.configured === true ? cmsQuery.data.permissions : undefined;
 
-  const selectedCollection =
-    collections.find(
-      (collection) => collection.name === selectedCollectionName,
-    ) ??
-    collections[0] ??
-    null;
+  const selectedCollection = selectedCollectionName
+    ? (collections.find(
+        (collection) => collection.name === selectedCollectionName,
+      ) ?? null)
+    : null;
 
   useEffect(() => {
+    if (cmsQuery.isLoading || !cmsLoaded) return;
     if (collections.length === 0) {
       if (selectedCollectionName) router.replace("/cms");
       return;
     }
     if (
-      !selectedCollectionName ||
+      selectedCollectionName &&
       !collections.some(
         (collection) => collection.name === selectedCollectionName,
       )
     ) {
+      router.replace("/cms");
+      return;
+    }
+    if (!selectedCollectionName && autoSelectFirst) {
       router.replace(selectionPath("/cms", collections[0].name));
     }
-  }, [collections, router, selectedCollectionName]);
+  }, [
+    autoSelectFirst,
+    cmsLoaded,
+    cmsQuery.isLoading,
+    collections,
+    router,
+    selectedCollectionName,
+  ]);
 
   const selectCollection = (collectionName: string) => {
     router.push(selectionPath("/cms", collectionName));

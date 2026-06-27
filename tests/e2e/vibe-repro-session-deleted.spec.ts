@@ -261,7 +261,7 @@ test.describe("Vibe — REPRO: session deleted on approve", () => {
         `do not plan, do not ask me anything, do NOT start a runner — just create ` +
         `the issue this turn and then stop.`,
     );
-    await input.press("Enter");
+    await page.getByRole("button", { name: "Send message" }).click();
     log(`sent TURN 1 (force-create issue) marker=${marker}`);
 
     // ── 4. Wait for turn 1 stream, then for the ?issue=N navigation. ────
@@ -316,7 +316,7 @@ test.describe("Vibe — REPRO: session deleted on approve", () => {
       .first();
     await input2.waitFor({ state: "visible", timeout: 30_000 });
     await input2.fill("Approved — implement it now. Do not ask again.");
-    await input2.press("Enter");
+    await page.getByRole("button", { name: "Send message" }).click();
     log(
       `sent TURN 2 (approve execution) while scoped to issue ${issueAfterTurn1}`,
     );

@@ -193,7 +193,7 @@ test.describe("Vibe — LIVE full flow against production", () => {
       `Update the homepage welcome text in src/app/(frontend)/page.tsx ` +
         `to "${newWelcomeText}". One-line change. Skip the e2e test update.`,
     );
-    await input.press("Enter");
+    await page.getByRole("button", { name: "Send message" }).click();
 
     // ── 3. Wait for the agent to ask for approval. ─────────────────────
     // The fixed prompt SHOULD make the agent stop after asking, but the
@@ -223,7 +223,7 @@ test.describe("Vibe — LIVE full flow against production", () => {
     // skip this — the agent already went ahead.
     if (!new URL(page.url()).searchParams.get("issue")) {
       await input.fill("approve");
-      await input.press("Enter");
+      await page.getByRole("button", { name: "Send message" }).click();
     }
 
     // Wait for navigation to ?issue=N — proxy for create_* + onIssueCreated.
@@ -349,7 +349,7 @@ test.describe("Vibe — LIVE full flow against production", () => {
         await composer.fill(
           `Now change the welcome text again to "${followupText}". Same file, one-line change.`,
         );
-        await composer.press("Enter");
+        await page.getByRole("button", { name: "Send message" }).click();
 
         const firstRealSha = realCommit!.sha;
         const followupDeadline = Date.now() + 5 * 60_000;

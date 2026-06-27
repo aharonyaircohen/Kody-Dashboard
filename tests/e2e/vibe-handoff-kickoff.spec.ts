@@ -94,7 +94,7 @@ test.describe("REPRO — Vibe chat hand-off delivers the kickoff", () => {
     await input.fill(
       `Change the landing page heading in ${TARGET_FILE} from "Welcome to your new project." to "${want}".`,
     );
-    await input.press("Enter");
+    await page.getByRole("button", { name: "Send message" }).click();
 
     // Approve when asked (or proceed if the agent created the issue directly).
     const approval = page
@@ -110,7 +110,7 @@ test.describe("REPRO — Vibe chat hand-off delivers the kickoff", () => {
     ]).catch(() => {});
     if (!new URL(page.url()).searchParams.get("issue")) {
       await input.fill("approve");
-      await input.press("Enter");
+      await page.getByRole("button", { name: "Send message" }).click();
     }
 
     // Issue created → URL flips to ?issue=N.

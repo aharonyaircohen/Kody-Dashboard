@@ -301,7 +301,7 @@ test.describe("Vibe — unified chat thread on issue create", () => {
       .first();
     await input.waitFor({ state: "visible", timeout: 10_000 });
     await input.fill("please update the landing page text");
-    await input.press("Enter");
+    await page.getByRole("button", { name: "Send message" }).click();
 
     // The Vibe page should navigate to ?issue=9999 after onIssueCreated
     // fires — the issue-creation handler ran AND VibePage listener fired.
@@ -487,7 +487,7 @@ test.describe("Vibe — unified chat thread on issue create", () => {
       .first();
     await input.waitFor({ state: "visible", timeout: 10_000 });
     await input.fill("shape test");
-    await input.press("Enter");
+    await page.getByRole("button", { name: "Send message" }).click();
 
     // The stream is consumed (reply renders) — proves the chat processed
     // the orphan tool-output and chose NOT to treat it as a creation.

@@ -56,6 +56,7 @@ import {
   useRunCapability,
   type CapabilitySummary,
 } from "../hooks/useCapabilities";
+import { useMediaQuery } from "../hooks/useMediaQuery";
 import {
   useCreateManagedGoal,
   useDeleteManagedGoal,
@@ -2252,6 +2253,7 @@ export function ManagedModelsView({
   selectedId?: string | null;
 }) {
   const router = useRouter();
+  const autoSelectFirst = useMediaQuery("(min-width: 768px)");
   const [createOpen, setCreateOpen] = useState(false);
   const [editingGoal, setEditingGoal] = useState<ManagedGoalRecord | null>(
     null,
@@ -2259,12 +2261,14 @@ export function ManagedModelsView({
   const [deleteGoal, setDeleteGoal] = useState<ManagedGoalRecord | null>(null);
   const [search, setSearch] = useState("");
   const {
-    data: goals = [],
+    data: fetchedGoals,
     isLoading,
     isFetching,
     refetch,
     error,
   } = useManagedGoals();
+  const goals = useMemo(() => fetchedGoals ?? [], [fetchedGoals]);
+  const goalsLoaded = fetchedGoals !== undefined;
   const { data: capabilities = [] } = useCapabilities();
   const setGoalState = useSetManagedGoalState();
   const runManagedGoal = useRunManagedGoal();
@@ -2291,14 +2295,27 @@ export function ManagedModelsView({
     : false;
 
   useEffect(() => {
+    if (isLoading || !goalsLoaded) return;
     if (filtered.length === 0) {
       if (selectedId) router.replace(basePath);
       return;
     }
-    if (!selectedId || !filtered.some((goal) => goal.id === selectedId)) {
+    if (selectedId && !filtered.some((goal) => goal.id === selectedId)) {
+      router.replace(basePath);
+      return;
+    }
+    if (!selectedId && autoSelectFirst) {
       router.replace(selectionPath(basePath, filtered[0]!.id));
     }
-  }, [basePath, filtered, router, selectedId]);
+  }, [
+    autoSelectFirst,
+    basePath,
+    filtered,
+    goalsLoaded,
+    isLoading,
+    router,
+    selectedId,
+  ]);
 
   const selectGoal = (id: string | null, replace = false) => {
     const path = id ? selectionPath(basePath, id) : basePath;

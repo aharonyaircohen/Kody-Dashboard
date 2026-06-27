@@ -16,8 +16,6 @@ import {
   ArrowLeft,
   Calendar,
   CheckCircle,
-  CircleDashed,
-  ExternalLink,
   Flag,
   GripVertical,
   Pencil,
@@ -68,10 +66,10 @@ import {
 } from "../hooks/useGoals";
 import { useKodyTasks } from "../hooks";
 import { useGitHubIdentity } from "../hooks/useGitHubIdentity";
+import { useMediaQuery } from "../hooks/useMediaQuery";
 import { tasksApi, type Goal } from "../api";
 import type { KodyTask } from "../types";
 import { GOAL_LABEL_PREFIX } from "../goals";
-import { getGitHubIssueUrl } from "../constants";
 import { ConfirmDialog } from "./ConfirmDialog";
 import { MarkdownEditor } from "./MarkdownEditor";
 import { MarkdownPreview } from "./MarkdownPreview";
@@ -108,6 +106,7 @@ export function GoalControlInner({
 }: {
   titleSlot?: React.ReactNode;
 }) {
+  const autoSelectFirst = useMediaQuery("(min-width: 768px)");
   const {
     data: goals = [],
     isLoading,
@@ -138,10 +137,10 @@ export function GoalControlInner({
   }, [goals, tasks]);
 
   useEffect(() => {
-    if (!selectedId && goals.length > 0) {
+    if (autoSelectFirst && !selectedId && goals.length > 0) {
       setSelectedId(goals[0].id);
     }
-  }, [goals, selectedId]);
+  }, [autoSelectFirst, goals, selectedId]);
 
   const { githubUser } = useGitHubIdentity();
   const deleteMutation = useDeleteGoal(githubUser?.login);
@@ -853,53 +852,6 @@ export function AttachTasksDialog({
         </div>
       </DialogContent>
     </Dialog>
-  );
-}
-
-function TaskGroup({ heading, tasks }: { heading: string; tasks: KodyTask[] }) {
-  return (
-    <div className="space-y-1.5">
-      <div className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wider">
-        {heading}
-      </div>
-      <ul className="divide-y divide-white/[0.04] rounded-lg border border-white/[0.06] bg-white/[0.02]">
-        {tasks.map((task) => {
-          const isDone = task.state === "closed" || task.column === "done";
-          return (
-            <li
-              key={task.issueNumber}
-              className="flex items-center gap-3 px-3 py-2 text-sm"
-            >
-              {isDone ? (
-                <CheckCircle className="w-3.5 h-3.5 text-emerald-400 shrink-0" />
-              ) : (
-                <CircleDashed className="w-3.5 h-3.5 text-muted-foreground shrink-0" />
-              )}
-              <span className="font-mono text-xs text-muted-foreground shrink-0">
-                #{task.issueNumber}
-              </span>
-              <Link
-                {...autoDirProps}
-                href={`/${task.issueNumber}`}
-                className="truncate flex-1 hover:text-sky-400 transition-colors text-start"
-                title={task.title}
-              >
-                {task.title}
-              </Link>
-              <a
-                href={getGitHubIssueUrl(task.issueNumber)}
-                target="_blank"
-                rel="noreferrer"
-                className="text-muted-foreground hover:text-foreground shrink-0"
-                title="Open on GitHub"
-              >
-                <ExternalLink className="w-3 h-3" />
-              </a>
-            </li>
-          );
-        })}
-      </ul>
-    </div>
   );
 }
 

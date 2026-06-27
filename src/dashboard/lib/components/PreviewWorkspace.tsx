@@ -138,6 +138,7 @@ export function PreviewWorkspace({
     () => resolveEnvironments(configQuery.data?.config),
     [configQuery.data],
   );
+  const configLoaded = configQuery.data !== undefined;
 
   // Remember the last-picked environment per repo so /preview restores it.
   const [storedId, setStoredId] = useState<string | null>(null);
@@ -154,6 +155,7 @@ export function PreviewWorkspace({
   // Keep selection valid: default to the stored env or first env when none
   // chosen, or when the chosen one was removed.
   useEffect(() => {
+    if (configQuery.isLoading || !configLoaded) return;
     if (environments.length === 0) {
       if (selectedId) router.replace("/preview");
       return;
@@ -169,7 +171,16 @@ export function PreviewWorkspace({
     const fallback =
       environments.find((env) => env.id === storedId) ?? environments[0]!;
     router.replace(selectionPath("/preview", fallback.id));
-  }, [environments, owner, repo, router, selectedId, storedId]);
+  }, [
+    configLoaded,
+    configQuery.isLoading,
+    environments,
+    owner,
+    repo,
+    router,
+    selectedId,
+    storedId,
+  ]);
 
   const selectEnv = (env: PreviewEnvironment): void => {
     try {

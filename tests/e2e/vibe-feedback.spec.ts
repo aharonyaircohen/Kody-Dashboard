@@ -64,7 +64,7 @@ test.describe("vibe chat — first message is not self-aborted", () => {
       .first();
     await input.waitFor({ state: "visible", timeout: 30_000 });
     await input.fill('Change the landing text to "Kody Tester Repo"');
-    await input.press("Enter");
+    await page.getByRole("button", { name: "Send message" }).click();
 
     // Feedback during the (slow) reasoning/tool phase — never a silent blank.
     await expect(

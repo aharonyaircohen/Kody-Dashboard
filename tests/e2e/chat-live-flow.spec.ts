@@ -153,7 +153,7 @@ test.describe("Chat — Kody Live default flow (mocked runner)", () => {
     const h = await bootRunner(page);
     const composer = page.locator("textarea").first();
     await composer.fill("ping");
-    await composer.press("Enter");
+    await page.getByRole("button", { name: "Send message" }).click();
 
     await expect.poll(() => h.appended(), { timeout: 10_000 }).toBe(true);
     // Payload shape the runner reads off the session JSONL.
@@ -181,7 +181,7 @@ test.describe("Chat — Kody Live default flow (mocked runner)", () => {
     });
     const composer = page.locator("textarea").first();
     await composer.fill("hi");
-    await composer.press("Enter");
+    await page.getByRole("button", { name: "Send message" }).click();
 
     await expect(page.getByText(/boom-append-failure/).first()).toBeVisible({
       timeout: 15_000,
@@ -198,7 +198,7 @@ test.describe("Chat — Kody Live default flow (mocked runner)", () => {
     await bootRunner(page);
     const composer = page.locator("textarea").first();
     await composer.fill("first");
-    await composer.press("Enter");
+    await page.getByRole("button", { name: "Send message" }).click();
     await expect(page.getByText("pong from the runner").first()).toBeVisible({
       timeout: 15_000,
     });

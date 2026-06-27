@@ -159,7 +159,7 @@ test.describe("Kody direct — IDB persistence + multimodal", () => {
     const input = page.getByPlaceholder(/ask kody|kody is waiting/i).first();
     await input.waitFor({ state: "visible", timeout: 10_000 });
     await input.fill("what is this?");
-    await input.press("Enter");
+    await page.getByRole("button", { name: "Send message" }).click();
 
     // Reply rendered → request completed.
     await expect(page.getByText("I see your image.").first()).toBeVisible({

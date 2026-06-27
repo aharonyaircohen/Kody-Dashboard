@@ -204,7 +204,7 @@ test.describe("Kody Live — watchdog + reducer (live)", () => {
     // 6. Send a tiny turn — verifies awaiting phase + the hazard-D fix.
     const input = page.getByPlaceholder(/Ask Kody/i);
     await input.fill("say hi in one word");
-    await input.press("Enter");
+    await page.getByRole("button", { name: "Send message" }).click();
 
     // 7. Typing indicator should appear (TURN_SENT → awaiting).
     await expect(page.getByText(/is thinking/i).first()).toBeVisible({
@@ -700,7 +700,7 @@ test.describe("Kody Live — watchdog + reducer (live)", () => {
     // Send a turn → assistant reply → typing indicator clears.
     const input = page.getByPlaceholder(/Ask Kody/i);
     await input.fill("say hi in one word");
-    await input.press("Enter");
+    await page.getByRole("button", { name: "Send message" }).click();
     await expect(page.getByText(/is thinking/i).first()).toBeVisible({
       timeout: 15_000,
     });

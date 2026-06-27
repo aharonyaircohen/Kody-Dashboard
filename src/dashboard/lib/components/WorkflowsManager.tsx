@@ -38,6 +38,7 @@ import { Input } from "@dashboard/ui/input";
 import { Label } from "@dashboard/ui/label";
 import { Textarea } from "@dashboard/ui/textarea";
 import { useCapabilities } from "../hooks/useCapabilities";
+import { useMediaQuery } from "../hooks/useMediaQuery";
 import {
   useCreateWorkflowDefinition,
   useDeleteWorkflowDefinition,
@@ -117,6 +118,7 @@ function isStoreWorkflow(workflow: WorkflowDefinitionRecord | null): boolean {
 
 export function WorkflowsManager({ selectedId }: WorkflowsManagerProps) {
   const router = useRouter();
+  const autoSelectFirst = useMediaQuery("(min-width: 768px)");
   const [search, setSearch] = useState("");
   const [createOpen, setCreateOpen] = useState(false);
   const [editingWorkflow, setEditingWorkflow] =
@@ -170,12 +172,16 @@ export function WorkflowsManager({ selectedId }: WorkflowsManagerProps) {
       return;
     }
     if (
-      !selectedId ||
+      selectedId &&
       !filtered.some((workflow) => workflow.id === selectedId)
     ) {
+      router.replace(BASE_PATH);
+      return;
+    }
+    if (!selectedId && autoSelectFirst) {
       router.replace(selectionPath(BASE_PATH, filtered[0]!.id));
     }
-  }, [filtered, isLoading, router, selectedId]);
+  }, [autoSelectFirst, filtered, isLoading, router, selectedId]);
 
   const selectWorkflow = (id: string | null, replace = false) => {
     const path = id ? selectionPath(BASE_PATH, id) : BASE_PATH;

@@ -69,6 +69,7 @@ import {
 } from "../hooks/useContextEntries";
 import { useAgents } from "../hooks/useAgents";
 import { useGitHubIdentity } from "../hooks/useGitHubIdentity";
+import { useMediaQuery } from "../hooks/useMediaQuery";
 import type { ContextEntry } from "../api";
 import { KODY_CHAT_AGENT, QA_AGENT, ALL_AGENT } from "../context/frontmatter";
 import { ConfirmDialog } from "./ConfirmDialog";
@@ -192,13 +193,16 @@ export function ContextControlInner({
   selectedSlug = null,
 }: ContextControlProps = {}) {
   const router = useRouter();
+  const autoSelectFirst = useMediaQuery("(min-width: 768px)");
   const {
-    data: entries = [],
+    data: fetchedEntries,
     isLoading,
     isFetching,
     refetch,
     error,
   } = useContextEntries();
+  const entries = useMemo(() => fetchedEntries ?? [], [fetchedEntries]);
+  const entriesLoaded = fetchedEntries !== undefined;
 
   const [showCreate, setShowCreate] = useState(false);
   const [editingEntry, setEditingEntry] = useState<ContextEntry | null>(null);
@@ -261,17 +265,26 @@ export function ContextControlInner({
   );
 
   useEffect(() => {
+    if (isLoading || !entriesLoaded) return;
     if (filtered.length === 0) {
       if (selectedSlug) router.replace("/context");
       return;
     }
-    if (
-      !selectedSlug ||
-      !filtered.some((entry) => entry.slug === selectedSlug)
-    ) {
+    if (selectedSlug && !filtered.some((entry) => entry.slug === selectedSlug)) {
+      router.replace("/context");
+      return;
+    }
+    if (!selectedSlug && autoSelectFirst) {
       router.replace(selectionPath("/context", filtered[0].slug));
     }
-  }, [filtered, router, selectedSlug]);
+  }, [
+    autoSelectFirst,
+    entriesLoaded,
+    filtered,
+    isLoading,
+    router,
+    selectedSlug,
+  ]);
 
   const selectEntry = (slug: string | null, replace = false) => {
     const path = slug ? selectionPath("/context", slug) : "/context";

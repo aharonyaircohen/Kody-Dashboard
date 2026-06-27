@@ -50,6 +50,7 @@ import { EmptyState } from "./EmptyState";
 import { MasterDetailShell } from "./MasterDetailShell";
 import { AuthGuard } from "../auth-guard";
 import { useAuth, buildAuthHeaders } from "../auth-context";
+import { useMediaQuery } from "../hooks/useMediaQuery";
 import {
   COMMON_TOOLS,
   composeProfile,
@@ -379,6 +380,7 @@ function CapabilitiesManagerInner({
   basePath?: string;
 } = {}) {
   const router = useRouter();
+  const autoSelectFirst = useMediaQuery("(min-width: 768px)");
   const { auth } = useAuth();
   const headers: Record<string, string> = {
     "Content-Type": "application/json",
@@ -398,6 +400,7 @@ function CapabilitiesManagerInner({
     staleTime: 30_000,
   });
   const capabilities = useMemo(() => data?.capabilities ?? [], [data]);
+  const capabilitiesLoaded = data !== undefined;
 
   const remove = useMutation({
     mutationFn: (slug: string) => deleteApi(headers, slug, apiBase),
@@ -449,17 +452,30 @@ function CapabilitiesManagerInner({
 
   // Auto-select the first capability on desktop, mirroring the other manager pages.
   useEffect(() => {
+    if (isLoading || !capabilitiesLoaded) return;
     if (capabilities.length === 0) {
       if (selectedSlug) router.replace(basePath);
       return;
     }
     if (
-      !selectedSlug ||
+      selectedSlug &&
       !capabilities.some((action) => action.slug === selectedSlug)
     ) {
+      router.replace(basePath);
+      return;
+    }
+    if (!selectedSlug && autoSelectFirst) {
       router.replace(selectionPath(basePath, capabilities[0].slug));
     }
-  }, [capabilities, basePath, router, selectedSlug]);
+  }, [
+    autoSelectFirst,
+    capabilities,
+    capabilitiesLoaded,
+    basePath,
+    isLoading,
+    router,
+    selectedSlug,
+  ]);
 
   const selectCapability = (slug: string | null, replace = false) => {
     const path = slug ? selectionPath(basePath, slug) : basePath;

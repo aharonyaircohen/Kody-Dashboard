@@ -32,6 +32,7 @@ import {
 } from "@dashboard/ui/dialog";
 import { AuthGuard } from "../auth-guard";
 import { useGitHubIdentity } from "../hooks/useGitHubIdentity";
+import { useMediaQuery } from "../hooks/useMediaQuery";
 import { selectionPath } from "../selection-routing";
 import {
   useCreateMemory,
@@ -104,13 +105,16 @@ function MemoryManagerInner({
   selectedId = null,
 }: MemoryManagerProps) {
   const router = useRouter();
+  const autoSelectFirst = useMediaQuery("(min-width: 768px)");
   const {
-    data: memories = [],
+    data: fetchedMemories,
     isLoading,
     isFetching,
     refetch,
     error,
   } = useMemories();
+  const memories = useMemo(() => fetchedMemories ?? [], [fetchedMemories]);
+  const memoriesLoaded = fetchedMemories !== undefined;
   const { githubUser } = useGitHubIdentity();
   const deleteMutation = useDeleteMemory(githubUser?.login);
 
@@ -147,14 +151,26 @@ function MemoryManagerInner({
   );
 
   useEffect(() => {
+    if (isLoading || !memoriesLoaded) return;
     if (memories.length === 0) {
       if (selectedId) router.replace("/memory");
       return;
     }
-    if (!selectedId || !memories.some((memory) => memory.id === selectedId)) {
+    if (selectedId && !memories.some((memory) => memory.id === selectedId)) {
+      router.replace("/memory");
+      return;
+    }
+    if (!selectedId && autoSelectFirst) {
       router.replace(selectionPath("/memory", memories[0].id));
     }
-  }, [memories, router, selectedId]);
+  }, [
+    autoSelectFirst,
+    isLoading,
+    memories,
+    memoriesLoaded,
+    router,
+    selectedId,
+  ]);
 
   const selectMemory = (id: string | null, replace = false) => {
     const path = id ? selectionPath("/memory", id) : "/memory";

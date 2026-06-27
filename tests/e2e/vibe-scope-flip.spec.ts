@@ -168,7 +168,7 @@ test.describe("Vibe — page must flip to task scope after creating an issue", (
       .first();
     await input.waitFor({ state: "visible", timeout: 10_000 });
     await input.fill("create an issue to tweak the homepage");
-    await input.press("Enter");
+    await page.getByRole("button", { name: "Send message" }).click();
 
     // The page should navigate to the new issue.
     await page.waitForURL(new RegExp(`/vibe\\?issue=${NEW_ISSUE}`), {

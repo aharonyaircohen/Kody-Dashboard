@@ -117,6 +117,34 @@ function findFlexRowRange(
   throw new Error(`flex row #${occurrence} never closed`);
 }
 
+function countBraces(line: string): { opens: number; closes: number } {
+  return {
+    opens: (line.match(/{/g) ?? []).length,
+    closes: (line.match(/}/g) ?? []).length,
+  };
+}
+
+function findConstFunctionRange(
+  lines: string[],
+  functionName: string,
+): { start: number; end: number } {
+  const start = lines.findIndex((line) =>
+    line.includes(`const ${functionName} =`),
+  );
+  expect(start, `${functionName} must exist`).toBeGreaterThan(-1);
+
+  let depth = 0;
+  for (let i = start; i < lines.length; i++) {
+    const { opens, closes } = countBraces(lines[i]);
+    depth += opens - closes;
+    if (i > start && depth === 0) {
+      return { start, end: i };
+    }
+  }
+
+  throw new Error(`${functionName} never closed`);
+}
+
 const SOURCE = readFileSync(KODY_CHAT_PATH, "utf8");
 const SOURCE_LINES = SOURCE.split("\n");
 const COMPOSER_RANGE = findComposerBlockRange(SOURCE_LINES);
@@ -124,6 +152,14 @@ const COMPOSER_LINES = SOURCE_LINES.slice(
   COMPOSER_RANGE.start,
   COMPOSER_RANGE.end + 1,
 );
+const HANDLE_KEY_DOWN_RANGE = findConstFunctionRange(
+  SOURCE_LINES,
+  "handleKeyDown",
+);
+const HANDLE_KEY_DOWN_TEXT = SOURCE_LINES.slice(
+  HANDLE_KEY_DOWN_RANGE.start,
+  HANDLE_KEY_DOWN_RANGE.end + 1,
+).join("\n");
 
 describe("KodyChat composer — two-row layout (issue #65, #131)", () => {
   it("renders a hairline separator between the input row and the action row", () => {
@@ -267,6 +303,12 @@ describe("KodyChat composer — two-row layout (issue #65, #131)", () => {
     );
     expect(COMPOSER_LINES.join("\n")).toContain(
       "Math.min(e.target.scrollHeight, 150)",
+    );
+  });
+
+  it("leaves plain Enter in AI chat to the textarea so it inserts a newline", () => {
+    expect(HANDLE_KEY_DOWN_TEXT).not.toMatch(
+      /if\s*\(\s*e\.key\s*===\s*"Enter"\s*&&\s*!e\.shiftKey\s*\)\s*{[\s\S]*?sendMessage\(\)/,
     );
   });
 });

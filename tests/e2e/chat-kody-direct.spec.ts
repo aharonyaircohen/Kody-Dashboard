@@ -104,7 +104,7 @@ test.describe("Kody direct agent", () => {
     const input = page.getByPlaceholder(/ask kody|kody is waiting/i).first();
     await input.waitFor({ state: "visible", timeout: 10_000 });
     await input.fill("ping");
-    await input.press("Enter");
+    await page.getByRole("button", { name: "Send message" }).click();
 
     // The streamed text lands in an assistant bubble — assert on the text
     // itself rather than a brittle class chain.

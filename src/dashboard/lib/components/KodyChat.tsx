@@ -4933,8 +4933,9 @@ export function KodyChat({
         }
       }
     }
-    // Enter or ⌘/Ctrl+Enter sends; Shift+Enter inserts a newline as usual.
-    if (e.key === "Enter" && !e.shiftKey) {
+    // Terminal mode keeps shell-like Enter submit. AI chat leaves plain
+    // Enter to the textarea so it inserts a newline.
+    if (chatMode === "terminal" && e.key === "Enter" && !e.shiftKey) {
       e.preventDefault();
       sendMessage();
       return;

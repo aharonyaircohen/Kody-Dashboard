@@ -11,6 +11,7 @@
 import { toast } from "sonner";
 import { useRouter } from "next/navigation";
 import {
+  ArrowLeft,
   BookOpen,
   ChevronDown,
   ChevronRight,
@@ -37,6 +38,7 @@ import { Textarea } from "@dashboard/ui/textarea";
 import { cn } from "@dashboard/lib/utils";
 import { AuthGuard } from "../auth-guard";
 import { selectionPathFromParts } from "../selection-routing";
+import { useMediaQuery } from "../hooks/useMediaQuery";
 import {
   useCreateDoc,
   useDeleteDoc,
@@ -179,12 +181,15 @@ export function DocsView({
 
 function DocsViewInner({ embedded = false, selectedPath = null }: DocsViewProps) {
   const router = useRouter();
+  const autoSelectFirst = useMediaQuery("(min-width: 768px)");
   const {
     data: manifest,
     isLoading: manifestLoading,
     refetch: refetchManifest,
   } = useDocsManifest();
-  const docPath = selectedPath ?? firstDocFilePath(manifest?.files);
+  const docPath =
+    selectedPath ?? (autoSelectFirst ? firstDocFilePath(manifest?.files) : null);
+  const hasSelectedDoc = !!docPath;
 
   const {
     data: doc,
@@ -206,20 +211,32 @@ function DocsViewInner({ embedded = false, selectedPath = null }: DocsViewProps)
   const isSaving = createDocMutation.isPending || updateDocMutation.isPending;
 
   useEffect(() => {
+    if (manifestLoading || manifest === undefined) return;
     const firstPath = firstDocFilePath(manifest?.files);
     if (!firstPath) {
       if (selectedPath) router.replace("/docs");
       return;
     }
     if (
-      !selectedPath ||
+      selectedPath &&
       !manifest?.files?.some(
         (file) => file.type === "file" && file.path === selectedPath,
       )
     ) {
+      router.replace("/docs");
+      return;
+    }
+    if (!selectedPath && autoSelectFirst) {
       router.replace(docRoute(firstPath));
     }
-  }, [manifest?.files, router, selectedPath]);
+  }, [
+    autoSelectFirst,
+    manifest,
+    manifest?.files,
+    manifestLoading,
+    router,
+    selectedPath,
+  ]);
 
   const selectDoc = (path: string | null, replace = false) => {
     const route = docRoute(path);
@@ -297,7 +314,7 @@ function DocsViewInner({ embedded = false, selectedPath = null }: DocsViewProps)
   };
 
   const sidebar = (
-    <div className="h-full flex flex-col overflow-hidden border-r border-white/[0.06]">
+    <div className="h-full flex flex-col overflow-hidden md:border-r md:border-white/[0.06]">
       <div className="shrink-0 flex items-center justify-between gap-2 px-4 py-3 border-b border-white/[0.06] bg-black/30">
         <div className="flex items-center gap-2 min-w-0">
           <BookOpen className="w-4 h-4 text-amber-400 shrink-0" />
@@ -338,6 +355,19 @@ function DocsViewInner({ embedded = false, selectedPath = null }: DocsViewProps)
     <div className="h-full flex flex-col overflow-hidden">
       <div className="shrink-0 flex items-center justify-between gap-3 px-4 md:px-6 py-3 border-b border-white/[0.06] bg-black/30">
         <div className="flex items-center gap-2 min-w-0">
+          {docPath ? (
+            <Button
+              type="button"
+              variant="ghost"
+              size="sm"
+              className="md:hidden -ml-2 h-8 px-2 gap-1 text-muted-foreground"
+              onClick={() => selectDoc(null)}
+              aria-label="Back to docs list"
+            >
+              <ArrowLeft className="w-4 h-4" />
+              Docs
+            </Button>
+          ) : null}
           <BookOpen className="w-4 h-4 text-amber-400 shrink-0" />
           <h2 className="text-sm font-medium truncate">{docName}</h2>
         </div>
@@ -457,8 +487,22 @@ function DocsViewInner({ embedded = false, selectedPath = null }: DocsViewProps)
     return (
       <>
         <div className="flex h-full overflow-hidden">
-          {sidebar}
-          <div className="flex-1 min-w-0 overflow-hidden">{main}</div>
+          <div
+            className={cn(
+              "w-full shrink-0 md:w-80",
+              hasSelectedDoc && "hidden md:block",
+            )}
+          >
+            {sidebar}
+          </div>
+          <div
+            className={cn(
+              "flex-1 min-w-0 overflow-hidden",
+              !hasSelectedDoc && "hidden md:block",
+            )}
+          >
+            {main}
+          </div>
         </div>
         {dialogs}
       </>
@@ -469,8 +513,22 @@ function DocsViewInner({ embedded = false, selectedPath = null }: DocsViewProps)
     <div className="h-full flex flex-col overflow-hidden">
       <PageHeader title="Docs" />
       <div className="flex flex-1 min-h-0 overflow-hidden">
-        {sidebar}
-        <div className="flex-1 min-w-0 overflow-hidden">{main}</div>
+        <div
+          className={cn(
+            "w-full shrink-0 md:w-80",
+            hasSelectedDoc && "hidden md:block",
+          )}
+        >
+          {sidebar}
+        </div>
+        <div
+          className={cn(
+            "flex-1 min-w-0 overflow-hidden",
+            !hasSelectedDoc && "hidden md:block",
+          )}
+        >
+          {main}
+        </div>
       </div>
       {dialogs}
     </div>
