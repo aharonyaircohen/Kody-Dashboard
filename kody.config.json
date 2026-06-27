@@ -23,13 +23,15 @@
     "activeGoals": [
       "codebase-health",
       "ci-health",
-      "prs-stay-mergeable"
+      "prs-stay-mergeable",
+      "cms-content-editing"
     ],
     "activeAgents": [
       "ceo"
     ],
     "activeCapabilities": [
-      "capability-call"
+      "capability-call",
+      "cms-content-editor"
     ],
     "activeExecutables": [
       "agent-ask"
@@ -49,9 +51,6 @@
   },
   "defaultExecutable": "classify",
   "defaultPrExecutable": "fix",
-  "executables": {
-    "default": "run"
-  },
   "state": {
     "repo": "https://github.com/aharonyaircohen/kody-state",
     "path": "Kody-Dashboard"
