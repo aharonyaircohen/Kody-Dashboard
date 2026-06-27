@@ -9,6 +9,7 @@ import {
   useRef,
   useState,
 } from "react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
@@ -20,6 +21,7 @@ import {
   ChevronLeft,
   ChevronRight,
   Database,
+  Layers,
   Loader2,
   Pencil,
   Plug,
@@ -76,6 +78,7 @@ import { canWriteOperation, writeDisabledReason } from "./cms/operations";
 import { cmsDocumentEditPath, cmsDocumentPath } from "./cms/paths";
 import { selectionPath } from "../selection-routing";
 import { generateCmsMcpTools } from "@dashboard/lib/cms/mcp";
+import { assertCmsFieldValue } from "@dashboard/lib/cms/validation";
 import type {
   CmsCollectionConfig,
   CmsContentOperation,
@@ -860,6 +863,17 @@ function CmsHeaderActions({
 }) {
   return (
     <div className="flex items-center gap-2">
+      <Button
+        asChild
+        variant="outline"
+        size="icon"
+        aria-label="Content Model"
+        title="Content Model"
+      >
+        <Link href="/content-model">
+          <Layers className="h-4 w-4" />
+        </Link>
+      </Button>
       <Button
         variant="outline"
         size="icon"
@@ -2745,12 +2759,17 @@ function FormFieldControl({
   onChange: (value: CmsFormValue) => void;
 }) {
   const label = view?.label ?? field.label ?? field.name;
+  const description = field.description ?? field.display?.description;
+  const placeholder = field.placeholder ?? field.display?.placeholder;
   const options = field.options?.map(normalizeOption) ?? [];
+  const wide =
+    field.display?.width === "fill" ||
+    ["textarea", "json", "object", "array"].includes(field.type);
 
   if (field.type === "boolean") {
     return (
       <label className="space-y-1">
-        <span className="text-sm font-medium text-foreground">{label}</span>
+        <FormFieldLabel label={label} description={description} />
         <Select
           value={String(value)}
           onValueChange={(next) => onChange(next === "true")}
@@ -2770,10 +2789,10 @@ function FormFieldControl({
   if (field.type === "select" && options.length > 0) {
     return (
       <label className="space-y-1">
-        <span className="text-sm font-medium text-foreground">{label}</span>
+        <FormFieldLabel label={label} description={description} />
         <Select value={String(value)} onValueChange={(next) => onChange(next)}>
           <SelectTrigger className="h-9">
-            <SelectValue />
+            <SelectValue placeholder={placeholder} />
           </SelectTrigger>
           <SelectContent>
             {options.map((option) => (
@@ -2791,7 +2810,7 @@ function FormFieldControl({
     const selected = Array.isArray(value) ? value : [];
     return (
       <div className="space-y-2">
-        <div className="text-sm font-medium text-foreground">{label}</div>
+        <FormFieldLabel label={label} description={description} />
         <div className="flex flex-wrap gap-2">
           {options.map((option) => {
             const checked = selected.includes(option.value);
@@ -2824,10 +2843,10 @@ function FormFieldControl({
       <div
         className={cn(
           "space-y-1",
-          field.type === "relationMany" ? "lg:col-span-2" : "",
+          field.type === "relationMany" || wide ? "lg:col-span-2" : "",
         )}
       >
-        <div className="text-sm font-medium text-foreground">{label}</div>
+        <FormFieldLabel label={label} description={description} />
         <RelationPicker field={field} value={value} onChange={onChange} />
       </div>
     );
@@ -2836,10 +2855,11 @@ function FormFieldControl({
   if (["textarea", "json", "object", "array"].includes(field.type)) {
     return (
       <label className="space-y-1 lg:col-span-2">
-        <span className="text-sm font-medium text-foreground">{label}</span>
+        <FormFieldLabel label={label} description={description} />
         <Textarea
           value={String(value)}
           onChange={(event) => onChange(event.target.value)}
+          placeholder={placeholder}
           className="min-h-28"
         />
       </label>
@@ -2847,8 +2867,8 @@ function FormFieldControl({
   }
 
   return (
-    <label className="space-y-1">
-      <span className="text-sm font-medium text-foreground">{label}</span>
+    <label className={cn("space-y-1", wide ? "lg:col-span-2" : "")}>
+      <FormFieldLabel label={label} description={description} />
       <Input
         type={
           field.type === "number"
@@ -2859,9 +2879,29 @@ function FormFieldControl({
         }
         value={String(value)}
         onChange={(event) => onChange(event.target.value)}
+        placeholder={placeholder}
         className="h-9"
       />
     </label>
+  );
+}
+
+function FormFieldLabel({
+  label,
+  description,
+}: {
+  label: string;
+  description?: string;
+}) {
+  return (
+    <span className="block space-y-1">
+      <span className="block text-sm font-medium text-foreground">{label}</span>
+      {description ? (
+        <span className="block text-xs text-muted-foreground">
+          {description}
+        </span>
+      ) : null}
+    </span>
   );
 }
 
@@ -3376,7 +3416,9 @@ function buildFormPayload(
       continue;
     }
 
-    payload[field.name] = parseFormValue(field, value);
+    const parsed = parseFormValue(field, value);
+    assertCmsFieldValue(field, parsed);
+    payload[field.name] = parsed;
   }
 
   return payload;

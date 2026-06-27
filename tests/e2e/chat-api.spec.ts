@@ -15,13 +15,28 @@ import { test, expect } from "@playwright/test";
 
 const BASE_URL = process.env.BASE_URL ?? "http://localhost:3333";
 const TEST_SESSION_ID = `pw-test-session-${Date.now()}`;
+const TEST_REPO =
+  process.env.E2E_GITHUB_REPO ?? "https://github.com/test-owner/test-repo";
+
+function parseRepo(url: string): { owner: string; repo: string } {
+  try {
+    const u = new URL(url);
+    const parts = u.pathname.replace(/^\//, "").split("/").filter(Boolean);
+    return { owner: parts[0] ?? "test-owner", repo: parts[1] ?? "test-repo" };
+  } catch {
+    return { owner: "test-owner", repo: "test-repo" };
+  }
+}
 
 function authHeaders(): Record<string, string> {
-  // The new auth system reads from x-kody-token header (set by client localStorage auth).
-  // The API routes also fall back to KODY_BOT_TOKEN env var.
-  return process.env.KODY_BOT_TOKEN
-    ? { "x-kody-token": process.env.KODY_BOT_TOKEN }
-    : {};
+  const token = process.env.E2E_GITHUB_TOKEN ?? process.env.KODY_BOT_TOKEN;
+  if (!token) return {};
+  const { owner, repo } = parseRepo(TEST_REPO);
+  return {
+    "x-kody-token": token,
+    "x-kody-owner": owner,
+    "x-kody-repo": repo,
+  };
 }
 
 async function apiGet(
@@ -92,8 +107,7 @@ test.describe("Chat API — trigger endpoint", () => {
     });
   });
 
-  test("POST /api/kody/chat/trigger returns 503 when token missing", async () => {
-    // Request without auth headers
+  test("POST /api/kody/chat/trigger rejects when auth is missing", async () => {
     const res = await fetch(`${BASE_URL}/api/kody/chat/trigger`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -103,16 +117,11 @@ test.describe("Chat API — trigger endpoint", () => {
       }),
     });
 
-    // Without token: 503 — with token: 200 (workflow dispatched) or 404 (wrong repo)
-    if (res.status === 503) {
-      const body = await res.json();
-      expect(body as Record<string, unknown>).toMatchObject({
-        error: expect.stringMatching(/token|configured/i),
-      });
-    } else {
-      // Token was present — should succeed or fail for non-auth reasons
-      expect(res.status).toBeGreaterThanOrEqual(200);
-    }
+    expect(res.status).toBe(401);
+    const body = await res.json();
+    expect(body as Record<string, unknown>).toMatchObject({
+      message: expect.stringMatching(/authenticated|token/i),
+    });
   });
 });
 
@@ -153,6 +162,7 @@ test.describe("Events API — SSE endpoint", () => {
     // so we can assert Content-Type without hanging.
     const res = await fetch(
       `${BASE_URL}/api/kody/events/stream?taskId=${TEST_SESSION_ID}&test=1`,
+      { headers: { ...authHeaders() } },
     );
 
     expect(res.status, `Expected 200, got ${res.status}`).toBe(200);
@@ -171,7 +181,7 @@ test.describe("Events API — POST endpoint", () => {
   test("POST /api/kody/events accepts chat.message payload", async () => {
     const res = await fetch(`${BASE_URL}/api/kody/events`, {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: { "Content-Type": "application/json", ...authHeaders() },
       body: JSON.stringify({
         event: "chat.message",
         payload: {
@@ -185,7 +195,6 @@ test.describe("Events API — POST endpoint", () => {
       }),
     });
 
-    // The events endpoint accepts events without auth (called by engine)
     expect(res.status).toBeGreaterThanOrEqual(200);
     const body = await res.json();
     expect(body as Record<string, unknown>).toMatchObject({ ok: true });
@@ -194,7 +203,7 @@ test.describe("Events API — POST endpoint", () => {
   test("POST /api/kody/events rejects when event is missing", async () => {
     const res = await fetch(`${BASE_URL}/api/kody/events`, {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: { "Content-Type": "application/json", ...authHeaders() },
       body: JSON.stringify({ payload: { runId: "test" } }),
     });
 

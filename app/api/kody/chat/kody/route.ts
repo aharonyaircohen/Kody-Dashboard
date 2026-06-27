@@ -75,7 +75,6 @@ import { createCapabilityTools } from "../tools/capability-tools";
 import { createPlannerTools } from "../tools/planner-tools";
 import { createReleaseTools } from "../tools/release-tools";
 import { createKodyTools } from "../tools/kody-tools";
-import { createVibeTools } from "../tools/vibe-tools";
 import { applyVibeToolPolicy } from "./vibe-tool-policy";
 import { fetchUrlTool } from "../tools/fetch-url";
 import { featureTools } from "../tools/feature-tools";
@@ -863,17 +862,6 @@ export async function POST(req: NextRequest) {
         owner: repo.owner,
         repo: repo.repo,
         actorLogin: verifiedActorLogin,
-      }),
-      // Registered for legacy callers/tests, but stripped from Kody chat by
-      // applyVibeToolPolicy. Kody chat creates/refines issues only.
-      ...createVibeTools({
-        octokit,
-        owner: repo.owner,
-        repo: repo.repo,
-        currentIssueNumber:
-          vibeMode && body.task?.issueNumber != null
-            ? Number(body.task.issueNumber)
-            : undefined,
       }),
       ...(goalPlannerActive && body.goal
         ? createPlannerTools({

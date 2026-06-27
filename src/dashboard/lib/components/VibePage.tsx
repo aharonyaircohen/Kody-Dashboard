@@ -58,6 +58,7 @@ import { KodyHeader } from "./KodyHeader";
 import { MobileMenu } from "./MobileMenu";
 import { SimpleTooltip } from "./SimpleTooltip";
 import { TaskDetail } from "./TaskDetail";
+import { VibeRunButton } from "./VibeRunButton";
 
 // Optimistic pins for just-created issues, kept at MODULE scope (not a
 // component ref) so they survive a VibePage remount. Navigating to
@@ -216,6 +217,7 @@ export function VibePage() {
     // changes (the module-map mutation alone isn't observable).
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedIssueNumber, tasks, pinnedRev]);
+  const selectedIssueIsActive = selectedIssueNumber !== null;
 
   // Drop pins for issues that have now appeared in the real fetch.
   // We do this outside the memo so render stays pure.
@@ -531,7 +533,7 @@ export function VibePage() {
     queryKey: ["kody-branch-previews", ownerForViews, repoForViews],
     queryFn: fetchBranchPreviews,
     enabled:
-      !selectedTask &&
+      !selectedIssueIsActive &&
       !!selectedFlyBranchMatchesRepo &&
       !!ownerForViews &&
       !!repoForViews,
@@ -557,19 +559,19 @@ export function VibePage() {
       resolvedBranchPreview?.state === "starting");
   const legacyFallbackPreviewUrl =
     !selectedEnv && !hasExplicitEnvironments ? defaultPreviewUrl : "";
-  const fallbackPreviewUrl = !selectedTask
+  const fallbackPreviewUrl = !selectedIssueIsActive
     ? (selectedEnvironmentUrl ?? (legacyFallbackPreviewUrl.trim() || null))
     : null;
   const baseUrl = activePreviewUrl ?? fallbackPreviewUrl;
 
   useEffect(() => {
-    if (selectedTask) {
+    if (selectedIssueIsActive) {
       setPreviewContext(null);
       return;
     }
     setPreviewContext(previewChatContextBlock(selectedEnv));
     return () => setPreviewContext(null);
-  }, [selectedEnv, selectedTask, setPreviewContext]);
+  }, [selectedEnv, selectedIssueIsActive, setPreviewContext]);
 
   useEffect(() => {
     if (branchPreviewsQuery.error) {
@@ -581,7 +583,7 @@ export function VibePage() {
     }
   }, [branchPreviewsQuery.error]);
 
-  const browserIsResolving = selectedTask
+  const browserIsResolving = selectedIssueIsActive
     ? previewResolving
     : branchPreviewIsResolving;
 
@@ -686,7 +688,7 @@ export function VibePage() {
               />
             }
             emptyState={
-              !selectedTask ? (
+              !selectedIssueIsActive ? (
                 <div className="h-full flex items-center justify-center p-6">
                   {configQuery.isLoading ? (
                     <Loader2 className="w-5 h-5 animate-spin text-zinc-500" />
@@ -729,7 +731,7 @@ export function VibePage() {
                     </div>
                   )}
                 </div>
-              ) : (
+              ) : selectedIssueNumber !== null ? (
                 <div className="h-full flex flex-col items-center justify-center gap-3 text-center px-6">
                   {/* If the vault is locked, a Fly preview can never resolve —
                       say so (with the raw error) instead of a silent blank. */}
@@ -740,10 +742,19 @@ export function VibePage() {
                   <p className="text-sm text-zinc-300">No preview yet</p>
                   <p className="text-xs text-zinc-500 max-w-md">
                     Once a PR is opened for this issue, its preview will appear
-                    here. Use the chat to start.
+                    here.
                   </p>
+                  <VibeRunButton
+                    issueNumber={selectedIssueNumber}
+                    column={selectedTask?.column}
+                    onDispatched={() =>
+                      queryClient.invalidateQueries({
+                        queryKey: ["kody-tasks"],
+                      })
+                    }
+                  />
                 </div>
-              )
+              ) : null
             }
           />
 

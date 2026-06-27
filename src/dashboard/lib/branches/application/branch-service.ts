@@ -6,9 +6,8 @@
  *   created, synced, and torn down. Talks to `BranchRepo` for GitHub
  *   side-effects; never touches Octokit directly.
  *
- *   Replaces the inline branch logic previously embedded in
- *   `app/api/kody/chat/tools/vibe-tools.ts`. Callers are now routes/tools
- *   that compose `BranchService` calls — the god-function is gone.
+ *   Replaces inline branch orchestration. Callers are now routes/tools that
+ *   compose `BranchService` calls instead of carrying GitHub policy inline.
  */
 import { isProtectedBranch } from "../domain/protected-branches";
 import { buildBranchName, slugifyTitle } from "../domain/branch-name";

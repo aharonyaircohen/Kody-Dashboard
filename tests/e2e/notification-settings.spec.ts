@@ -9,10 +9,11 @@
  *
  * Auth is injected via localStorage (no login flow), mirroring
  * chat-kody-direct.spec.ts. Browser notification permission is granted on the
- * context so the push toggle can reach a real off/on state rather than
- * "denied". Read-only: this test makes no product-code changes; it only reads
- * UI state and toggles a per-type checkbox (which the app persists best-effort
- * to /api/notifications/preferences).
+ * context so the push toggle can reach a real off/on state when the browser
+ * allows it. Headless Chrome can still report "Blocked", which is also an
+ * explicit state. Read-only: this test makes no product-code changes; it only
+ * reads UI state and toggles a per-type checkbox (which the app persists
+ * best-effort to /api/notifications/preferences).
  */
 
 import { test, expect, type Page } from "@playwright/test";
@@ -20,16 +21,29 @@ import { test, expect, type Page } from "@playwright/test";
 const BASE_URL =
   process.env.BASE_URL ?? "https://kody-dashboard-aguy.vercel.app";
 const TEST_TOKEN = process.env.E2E_GITHUB_TOKEN ?? "ghp_placeholder";
+const TEST_REPO =
+  process.env.E2E_GITHUB_REPO ?? "https://github.com/test-owner/test-repo";
 
 const ARTIFACT_DIR = "test-artifacts/notification-settings";
 
+function parseRepo(url: string): { owner: string; repo: string } {
+  try {
+    const u = new URL(url);
+    const parts = u.pathname.replace(/^\//, "").split("/").filter(Boolean);
+    return { owner: parts[0] ?? "test-owner", repo: parts[1] ?? "test-repo" };
+  } catch {
+    return { owner: "test-owner", repo: "test-repo" };
+  }
+}
+
 async function injectAuth(page: Page): Promise<void> {
+  const { owner, repo } = parseRepo(TEST_REPO);
   await page.evaluate(
     (auth) => localStorage.setItem("kody_auth", JSON.stringify(auth)),
     {
-      repoUrl: "https://github.com/A-Guy-educ/A-Guy",
-      owner: "A-Guy-educ",
-      repo: "A-Guy",
+      repoUrl: TEST_REPO,
+      owner,
+      repo,
       token: TEST_TOKEN,
       user: { login: "aguyaharonyair", avatar_url: "", id: 1 },
       loggedInAt: Date.now(),
@@ -88,7 +102,7 @@ test.describe("Notification Settings — push toggle + per-type switches", () =>
       fullPage: false,
     });
 
-    // 3) Push toggle shows a CLEAR On/Off state label (the fix). The push row
+    // 3) Push toggle shows a CLEAR status label (the fix). The push row
     //    label is "Mobile / push notifications". Depending on the headless
     //    environment the status may be off/on/needs-pwa/unsupported/etc; the
     //    user's actual complaint was the *missing explicit state label*, so we
@@ -111,15 +125,18 @@ test.describe("Notification Settings — push toggle + per-type switches", () =>
 
     // The push-row right-hand content (whatever status it resolved to).
     const pushStatusText = await pushRow.innerText().catch(() => "");
+    const normalizedPushStatus = pushStatusText.replace(/\s+/g, " ").trim();
+    const hasBlocked = /\bBlocked\b/.test(normalizedPushStatus);
 
-    // Assert the explicit On/Off LABEL is rendered (off→"Off"+Enable,
-    // on→"On"+Disable). This is the regression we're guarding.
-    const hasExplicitState = (hasOff && hasEnable) || (hasOn && hasDisable);
+    // Assert an explicit state label is rendered. This is the regression
+    // we're guarding; headless Chrome can legitimately resolve to Blocked.
+    const hasExplicitState =
+      (hasOff && hasEnable) || (hasOn && hasDisable) || hasBlocked;
 
     // Attach diagnostics so the report can state exactly what was seen.
     test.info().annotations.push({
       type: "push-toggle-state",
-      description: `offLabel=${hasOff} onLabel=${hasOn} enableBtn=${hasEnable} disableBtn=${hasDisable} | rowText="${pushStatusText.replace(/\s+/g, " ").trim()}"`,
+      description: `offLabel=${hasOff} onLabel=${hasOn} blockedLabel=${hasBlocked} enableBtn=${hasEnable} disableBtn=${hasDisable} | rowText="${normalizedPushStatus}"`,
     });
 
     await page.screenshot({
@@ -129,7 +146,7 @@ test.describe("Notification Settings — push toggle + per-type switches", () =>
 
     expect(
       hasExplicitState,
-      `Expected explicit "Off"+Enable or "On"+Disable state on the push row, but saw: "${pushStatusText.replace(/\s+/g, " ").trim()}"`,
+      `Expected explicit "Off"+Enable, "On"+Disable, or "Blocked" state on the push row, but saw: "${normalizedPushStatus}"`,
     ).toBe(true);
 
     // If it's "off" + Enable, try clicking Enable to see if it transitions.

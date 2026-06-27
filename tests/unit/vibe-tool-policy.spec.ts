@@ -22,7 +22,6 @@ function sampleTools(): Record<string, string> {
     kody_run_issue: "t",
     kody_fix_pr: "t",
     request_release: "t",
-    vibe_start_execution: "t",
     remote_exec: "t",
     remote_write: "t",
     remote_read: "t",
@@ -76,6 +75,6 @@ describe("applyVibeToolPolicy", () => {
     const input = sampleTools();
     applyVibeToolPolicy(input, { vibeMode: true, hasCurrentTask: true });
     expect(input.create_enhancement).toBe("t");
-    expect(input.vibe_start_execution).toBe("t");
+    expect(input.remote_exec).toBe("t");
   });
 });

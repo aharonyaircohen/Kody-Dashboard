@@ -21,12 +21,12 @@ const service = vi.hoisted(() => ({
         {
           name: "lessons",
           label: "Lessons",
-          adapter: "mongodb",
+          adapter: "github",
           mcpName: "lessons",
           searchFields: ["title"],
           writePolicy: "enabled",
           permissions: {},
-          source: { collection: "lessons", idField: "_id" },
+          source: { path: "content/lessons", idField: "id", extension: "json" },
           operations: {
             list: true,
             get: true,
@@ -37,8 +37,17 @@ const service = vi.hoisted(() => ({
           },
           defaultSort: [],
           fields: [
-            { name: "_id", type: "id", readOnly: true },
-            { name: "title", type: "text", required: true },
+            { name: "id", type: "id", readOnly: true },
+            {
+              name: "title",
+              type: "text",
+              label: "Title",
+              description: "Public lesson title",
+              placeholder: "Intro to algebra",
+              required: true,
+              display: { role: "primary", width: "fill" },
+              validation: { minLength: 3 },
+            },
           ],
           filters: [],
         },
@@ -86,6 +95,43 @@ describe("CMS chat tools", () => {
       "cms_get_document",
       "cms_mutate_document",
     ]);
+
+    const collections = await tools.cms_list_collections.execute?.(
+      {},
+      { toolCallId: "call-0", messages: [] },
+    );
+
+    expect(collections).toMatchObject({
+      collections: [
+        {
+          name: "lessons",
+          adapter: "github",
+          source: { path: "content/lessons", idField: "id", extension: "json" },
+          storage: {
+            kind: "github-json",
+            path: "content/lessons",
+            idField: "id",
+            extension: "json",
+            branch: "kody-state",
+          },
+          writePolicy: "enabled",
+          operations: { create: true, update: true, delete: true },
+          fields: [
+            { name: "id", type: "id", readOnly: true },
+            {
+              name: "title",
+              type: "text",
+              label: "Title",
+              description: "Public lesson title",
+              placeholder: "Intro to algebra",
+              required: true,
+              display: { role: "primary", width: "fill" },
+              validation: { minLength: 3 },
+            },
+          ],
+        },
+      ],
+    });
 
     const result = await tools.cms_list_documents.execute?.(
       { collection: "lessons", q: "intro", limit: 10 },

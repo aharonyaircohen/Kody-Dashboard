@@ -3,7 +3,10 @@ import "server-only";
 import type { NextRequest } from "next/server";
 import type { Octokit } from "@octokit/rest";
 
+import { getRequestAuth } from "@dashboard/lib/auth";
 import { getSecret } from "@dashboard/lib/vault/get-secret";
+import { resolveStateRepo } from "@dashboard/lib/state-repo";
+import { STATE_BRANCH } from "@dashboard/lib/state-branch";
 import {
   assertReadOperationAllowed,
   assertWriteOperationAllowed,
@@ -84,7 +87,14 @@ export async function listCmsDocuments(
     config.permissions,
   );
 
-  const { adapter, context } = getAdapterContext(req, config, collection);
+  const { adapter, context } = getAdapterContext(
+    req,
+    octokit,
+    owner,
+    repo,
+    config,
+    collection,
+  );
 
   if (query.ids && query.ids.length > 0) {
     const docs = await callCmsAdapter(() =>
@@ -126,7 +136,14 @@ export async function getCmsDocument(
   const actorRole = await getCmsActorRole(req, octokit, owner, repo);
   assertReadOperationAllowed(collection, "get", actorRole, config.permissions);
 
-  const { adapter, context } = getAdapterContext(req, config, collection);
+  const { adapter, context } = getAdapterContext(
+    req,
+    octokit,
+    owner,
+    repo,
+    config,
+    collection,
+  );
   return callCmsAdapter(() => adapter.get(context, id));
 }
 
@@ -154,7 +171,14 @@ export async function createCmsDocument(
     config.permissions,
   );
 
-  const { adapter, context } = getAdapterContext(req, config, collection);
+  const { adapter, context } = getAdapterContext(
+    req,
+    octokit,
+    owner,
+    repo,
+    config,
+    collection,
+  );
   return callCmsAdapter(() => adapter.create(context, data));
 }
 
@@ -183,7 +207,14 @@ export async function updateCmsDocument(
     config.permissions,
   );
 
-  const { adapter, context } = getAdapterContext(req, config, collection);
+  const { adapter, context } = getAdapterContext(
+    req,
+    octokit,
+    owner,
+    repo,
+    config,
+    collection,
+  );
   return callCmsAdapter(() => adapter.update(context, id, data));
 }
 
@@ -211,7 +242,14 @@ export async function deleteCmsDocument(
     config.permissions,
   );
 
-  const { adapter, context } = getAdapterContext(req, config, collection);
+  const { adapter, context } = getAdapterContext(
+    req,
+    octokit,
+    owner,
+    repo,
+    config,
+    collection,
+  );
   return callCmsAdapter(() => adapter.delete(context, id));
 }
 
@@ -244,6 +282,9 @@ function hasSearchQuery(query: CmsListQuery): boolean {
 
 function getAdapterContext(
   req: NextRequest,
+  octokit: Octokit,
+  owner: string,
+  repo: string,
   config: CmsRuntimeConfig,
   collection: CmsCollectionConfig,
 ): { adapter: CmsAdapter; context: CmsAdapterContext } {
@@ -255,6 +296,7 @@ function getAdapterContext(
       400,
     );
   }
+  const requestAuth = getRequestAuth(req);
 
   return {
     adapter,
@@ -262,7 +304,22 @@ function getAdapterContext(
       config,
       collection,
       settings: config.adapters[collection.adapter] ?? {},
+      store: {
+        octokit,
+        repoUrl: requestAuth?.storeRepoUrl,
+        ref: requestAuth?.storeRef,
+      },
       getSecret: (name) => getSecret(name, { req }),
+      getStateRepository: async () => {
+        const target = await resolveStateRepo(octokit, owner, repo);
+        return {
+          octokit,
+          owner: target.owner,
+          repo: target.repo,
+          branch: STATE_BRANCH,
+          basePath: target.basePath,
+        };
+      },
     },
   };
 }

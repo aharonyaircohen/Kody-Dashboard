@@ -34,27 +34,48 @@ function parseRepo(url: string): { owner: string; repo: string } {
 async function injectAuth(page: Page): Promise<void> {
   const { owner, repo } = parseRepo(TEST_REPO);
   await page.evaluate(
-    (auth) => localStorage.setItem("kody_auth", JSON.stringify(auth)),
+    ({ auth, owner, repo }) => {
+      const repoKey = `${owner.toLowerCase()}/${repo.toLowerCase()}`;
+      localStorage.setItem("kody_auth", JSON.stringify(auth));
+      localStorage.setItem(
+        `kody-default-chat-entry:${repoKey}`,
+        "kody:test/model",
+      );
+      localStorage.removeItem(`kody-sessions-v3:${repoKey}`);
+      localStorage.removeItem("kody-sessions-v3");
+    },
     {
-      repoUrl: TEST_REPO,
+      auth: {
+        repoUrl: TEST_REPO,
+        owner,
+        repo,
+        token: TEST_TOKEN,
+        user: { login: "idb-e2e", avatar_url: "", id: 1 },
+        loggedInAt: Date.now(),
+      },
       owner,
       repo,
-      token: TEST_TOKEN,
-      user: { login: "idb-e2e", avatar_url: "", id: 1 },
-      loggedInAt: Date.now(),
     },
   );
 }
 
 async function selectKodyAgent(page: Page): Promise<void> {
-  const trigger = page
-    .locator("button")
-    .filter({ hasText: /Kody(\s|$)|Brain/ })
-    .first();
+  const selected = page.getByRole("button", { name: /Kody Test/i }).first();
+  try {
+    await selected.waitFor({ state: "visible", timeout: 10_000 });
+    return;
+  } catch {
+  }
+
+  const chat = page.locator('[aria-label="Kody chat"]');
+  const trigger = chat.locator('button[aria-haspopup="listbox"]').first();
   await trigger.click();
-  const listbox = page.getByRole("listbox");
+  const listbox = page
+    .getByRole("listbox")
+    .filter({ has: page.getByRole("option", { name: /Kody Test/i }) });
   await listbox.waitFor({ state: "visible", timeout: 5_000 });
-  await listbox.getByRole("option", { name: /^Kody\b/ }).click();
+  await listbox.getByRole("option", { name: /Kody Test/i }).click();
+  await selected.waitFor({ state: "visible", timeout: 5_000 });
 }
 
 /** Read the count of records in the IDB attachment store from the page. */
@@ -156,10 +177,13 @@ test.describe("Kody direct — IDB persistence + multimodal", () => {
     });
 
     // Type and send a question about the image.
-    const input = page.getByPlaceholder(/ask kody|kody is waiting/i).first();
-    await input.waitFor({ state: "visible", timeout: 10_000 });
+    const input = page.locator('[aria-label="Kody chat"] textarea').first();
+    await expect(input).toBeEditable({ timeout: 10_000 });
     await input.fill("what is this?");
-    await page.getByRole("button", { name: "Send message" }).click();
+    await page
+      .locator('[aria-label="Kody chat"]')
+      .getByRole("button", { name: "Send message" })
+      .click();
 
     // Reply rendered → request completed.
     await expect(page.getByText("I see your image.").first()).toBeVisible({

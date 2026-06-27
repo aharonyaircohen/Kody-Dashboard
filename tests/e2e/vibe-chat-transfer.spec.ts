@@ -1,9 +1,9 @@
 /**
  * @fileoverview End-to-end verification for the unified-chat-thread behavior
  * on issue creation (issue #66). When a `create_*` / `report_bug` tool
- * returns a new issue number, the chat thread must STAY in the global
- * session store (`kody-sessions-v3:<owner>/<repo>`) — the page navigates
- * to `?issue=N`, but the conversation continues uninterrupted. The
+ * returns a new issue number, the Vibe default chat thread must stay visible
+ * after the page navigates to `?issue=N`, but the conversation continues
+ * uninterrupted. The
  * per-scope system-prompt block (`## Current task = #N`) on the next
  * turn signals the scope change to the model.
  *
@@ -14,8 +14,8 @@
  * a text-delta + a tool-input-available + a tool-output-available chunk
  * whose output is `{ number: 9999, title: ..., url: ... }`. The chat
  * component detects the new issue number, the host page navigates, and
- * the global session now carries the system-prompt flag for the next
- * turn — but no per-task migration runs.
+ * the same visible session carries the conversation into the selected issue
+ * view — but no per-task migration runs.
  */
 
 import { test, expect, type Page } from "@playwright/test";
@@ -41,36 +41,67 @@ function parseRepo(url: string): { owner: string; repo: string } {
 async function injectAuth(page: Page): Promise<void> {
   const { owner, repo } = parseRepo(TEST_REPO);
   await page.evaluate(
-    (auth) => localStorage.setItem("kody_auth", JSON.stringify(auth)),
+    ({ auth, owner, repo }) => {
+      const repoKey = `${owner.toLowerCase()}/${repo.toLowerCase()}`;
+      localStorage.setItem("kody_auth", JSON.stringify(auth));
+      localStorage.setItem(
+        `kody-default-chat-entry:${repoKey}`,
+        "kody:chat-model-pro",
+      );
+      localStorage.removeItem(`kody-sessions-v3:${repoKey}`);
+      localStorage.removeItem("kody-sessions-v3");
+    },
     {
-      repoUrl: TEST_REPO,
       owner,
       repo,
-      token: TEST_TOKEN,
-      user: { login: "unified-e2e", avatar_url: "", id: 1 },
-      loggedInAt: Date.now(),
+      auth: {
+        repoUrl: TEST_REPO,
+        owner,
+        repo,
+        token: TEST_TOKEN,
+        user: { login: "unified-e2e", avatar_url: "", id: 1 },
+        loggedInAt: Date.now(),
+      },
     },
   );
+}
+
+function chatRail(page: Page) {
+  return page.locator('[aria-label="Kody chat"]');
+}
+
+function chatInput(page: Page) {
+  return chatRail(page).locator("textarea").first();
+}
+
+async function sendChatMessage(page: Page, text: string): Promise<void> {
+  const input = chatInput(page);
+  await expect(input).toBeEditable({ timeout: 10_000 });
+  await input.fill(text);
+  await chatRail(page).getByRole("button", { name: "Send message" }).click();
 }
 
 function sseBody(events: unknown[]): string {
   return events.map((e) => `data: ${JSON.stringify(e)}\n\n`).join("");
 }
 
-const GLOBAL_SESSIONS_KEY = (ownerRepo: string): string =>
-  `kody-sessions-v3:${ownerRepo}`;
+const normalizedOwnerRepo = (ownerRepo: string): string =>
+  ownerRepo.toLowerCase();
 
-async function readGlobalSessions(
+const GLOBAL_SESSIONS_KEY = (ownerRepo: string): string =>
+  `kody-sessions-v3:${normalizedOwnerRepo(ownerRepo)}`;
+
+const VIBE_DEFAULT_SESSIONS_KEY = (ownerRepo: string): string =>
+  `kody-sessions-v3-vibe-default:${normalizedOwnerRepo(ownerRepo)}`;
+
+async function readSessions(
   page: Page,
-  ownerRepo: string,
+  storageKey: string,
 ): Promise<{
   activeId: string;
   messagesById: Record<string, Array<{ role: string; text: string }>>;
 }> {
-  const raw = await page.evaluate(
-    (k) => localStorage.getItem(k),
-    GLOBAL_SESSIONS_KEY(ownerRepo),
-  );
+  const raw = await page.evaluate((k) => localStorage.getItem(k), storageKey);
   if (!raw) return { activeId: "", messagesById: {} };
   const parsed = JSON.parse(raw) as {
     activeSessionId: string;
@@ -82,6 +113,17 @@ async function readGlobalSessions(
   };
 }
 
+async function readConversationMessages(
+  page: Page,
+  ownerRepo: string,
+): Promise<Array<{ role: string; text: string }>> {
+  const stores = await Promise.all([
+    readSessions(page, VIBE_DEFAULT_SESSIONS_KEY(ownerRepo)),
+    readSessions(page, GLOBAL_SESSIONS_KEY(ownerRepo)),
+  ]);
+  return stores.flatMap((store) => store.messagesById[store.activeId] ?? []);
+}
+
 test.describe("Vibe — unified chat thread on issue create", () => {
   test.beforeEach(async ({ page }) => {
     await page.goto(`${BASE_URL}/login`);
@@ -89,7 +131,7 @@ test.describe("Vibe — unified chat thread on issue create", () => {
     await injectAuth(page);
   });
 
-  test("issue-creation tool result keeps the thread in the global session and navigates to the new issue", async ({
+  test("issue-creation tool result keeps the Vibe thread visible and navigates to the new issue", async ({
     page,
   }) => {
     const NEW_ISSUE = 9999;
@@ -173,48 +215,31 @@ test.describe("Vibe — unified chat thread on issue create", () => {
       }),
     );
 
-    let interactiveStartCalled = false;
-    let interactiveStartBody: { content?: string } | null = null;
-    await page.route(
-      "**/api/kody/chat/interactive/start*",
-      async (route, req) => {
-        interactiveStartCalled = true;
-        try {
-          interactiveStartBody = JSON.parse(req.postData() ?? "{}") as {
-            content?: string;
-          };
-        } catch {
-          /* ignore */
-        }
-        await route.fulfill({
-          status: 200,
-          contentType: "application/json",
-          body: JSON.stringify({
-            ok: true,
-            taskId: String(NEW_ISSUE),
-            mode: "interactive",
-            target: {
-              owner: "test-owner",
-              repo: "test-repo",
-              branch: "main",
-              workflow: "kody.yml",
-            },
-          }),
-        });
-      },
-    );
-    await page.route("**/api/kody/chat/interactive/append", (route) =>
-      route.fulfill({
+    let executeCalled = false;
+    await page.route("**/api/kody/vibe/execute", async (route) => {
+      executeCalled = true;
+      const body = route.request().postDataJSON() as { issueNumber?: number };
+      expect(body.issueNumber).toBe(NEW_ISSUE);
+      await route.fulfill({
         status: 200,
         contentType: "application/json",
-        body: JSON.stringify({ ok: true }),
+        body: JSON.stringify({
+          ok: true,
+          issueNumber: NEW_ISSUE,
+          runner: "fly",
+          machineId: "machine-test",
+          sessionId: `vibe-issue-${NEW_ISSUE}-test`,
+        }),
+      });
+    });
+    await page.route("**/api/kody/chat/interactive/**", (route) =>
+      route.fulfill({
+        status: 404,
+        contentType: "application/json",
+        body: JSON.stringify({ error: "legacy interactive path disabled" }),
       }),
     );
 
-    // Two tool calls in sequence: create_enhancement (returns the new
-    // issue number) + vibe_start_execution (returns a switch_agent
-    // directive that flips the chat to kody-live). This is the production
-    // shape of the post-create turn.
     await page.route("**/api/kody/chat/kody", async (route) => {
       const events = [
         { type: "text-delta", delta: "I'll create the issue now.\n" },
@@ -238,30 +263,7 @@ test.describe("Vibe — unified chat thread on issue create", () => {
             note: "Done.",
           },
         },
-        {
-          type: "tool-input-available",
-          toolCallId: "call_2",
-          toolName: "vibe_start_execution",
-          input: { issueNumber: NEW_ISSUE, targetAgent: "kody-live" },
-        },
-        {
-          type: "tool-output-available",
-          toolCallId: "call_2",
-          output: {
-            action: "switch_agent",
-            agentId: "kody-live",
-            agentName: "Kody Live",
-            reason: "Vibe execution started.",
-            autoKickoff: "Implement issue now.",
-            autoKickoffIssueNumber: NEW_ISSUE,
-            branch: `${NEW_ISSUE}-update-landing-page-text`,
-            prNumber: 12345,
-            prUrl: `https://github.com/${owner}/${repo}/pull/12345`,
-            reused: false,
-            note: "Handed off.",
-          },
-        },
-        { type: "text-delta", delta: "Created and handed off." },
+        { type: "text-delta", delta: "Created the issue." },
       ];
       await route.fulfill({
         status: 200,
@@ -282,26 +284,7 @@ test.describe("Vibe — unified chat thread on issue create", () => {
       return;
     }
 
-    const trigger = page
-      .locator("button")
-      .filter({ hasText: /Kody(\s|$)|Brain/ })
-      .first();
-    await trigger.click();
-    const listbox = page.getByRole("listbox");
-    await listbox.waitFor({ state: "visible", timeout: 5_000 });
-    await listbox
-      .getByRole("option", { name: /Chat Model Pro/ })
-      .click()
-      .catch(async () => {
-        await listbox.getByRole("option").first().click();
-      });
-
-    const input = page
-      .getByPlaceholder(/ask kody|kody is waiting|ask about/i)
-      .first();
-    await input.waitFor({ state: "visible", timeout: 10_000 });
-    await input.fill("please update the landing page text");
-    await page.getByRole("button", { name: "Send message" }).click();
+    await sendChatMessage(page, "please update the landing page text");
 
     // The Vibe page should navigate to ?issue=9999 after onIssueCreated
     // fires — the issue-creation handler ran AND VibePage listener fired.
@@ -309,24 +292,37 @@ test.describe("Vibe — unified chat thread on issue create", () => {
       timeout: 15_000,
     });
 
-    // The conversation must stay in the GLOBAL session store, not migrate
-    // to a per-task localStorage key. Active session must contain both
-    // the user turn and the assistant turn.
-    const global = await readGlobalSessions(page, ownerRepo);
-    expect(
-      global.activeId,
-      "global session store must have an active session after the turn",
-    ).toBeTruthy();
-    const activeMessages = global.messagesById[global.activeId] ?? [];
+    // The conversation must stay in a chat session store, not migrate to a
+    // per-task localStorage key. Active session must contain both the user
+    // turn and the assistant turn.
+    let activeMessages: Array<{ role: string; text: string }> = [];
+    await expect
+      .poll(
+        async () => {
+          activeMessages = await readConversationMessages(page, ownerRepo);
+          return activeMessages.map((m) => m.role).join(",");
+        },
+        { timeout: 5_000, intervals: [250] },
+      )
+      .toContain("assistant");
     const activeRoles = activeMessages.map((m) => m.role);
     expect(
       activeRoles,
-      "global session must contain user + assistant turns",
+      "chat session must contain user + assistant turns",
     ).toEqual(expect.arrayContaining(["user", "assistant"]));
     const userMsg = activeMessages.find((m) => m.role === "user");
     expect(userMsg?.text).toContain("update the landing page text");
     const assistantMsg = activeMessages.find((m) => m.role === "assistant");
-    expect(assistantMsg?.text).toContain("Created and handed off.");
+    expect(assistantMsg?.text).toContain("Created the issue.");
+
+    const runButton = page.getByRole("button", {
+      name: /run kody on this issue/i,
+    });
+    await expect(runButton).toBeVisible({ timeout: 15_000 });
+    await runButton.click();
+    await expect
+      .poll(() => executeCalled, { timeout: 5_000 })
+      .toBe(true);
 
     // The thread must NOT have been migrated to a per-task localStorage
     // entry — that was the old behavior (#66 unified thread). A
@@ -343,30 +339,18 @@ test.describe("Vibe — unified chat thread on issue create", () => {
     }, NEW_ISSUE);
     expect(
       migratedKey,
-      "no per-task kody-task-chat-* entry should be written — thread stays global",
+      "no per-task kody-task-chat-* entry should be written",
     ).toBeNull();
 
-    // Regression: the auto-kickoff still dispatches the runner. The
-    // useEffect waits for `selectedAgentId === 'kody-live'` AND
-    // `context.kind === 'task'` to both land before firing sendText
-    // with the autoKickoff string. Without this assertion the unified
-    // thread could be passing while the kickoff silently no-ops.
-    await expect
-      .poll(() => interactiveStartCalled, { timeout: 20_000 })
-      .toBe(true);
-    await expect
-      .poll(() => interactiveStartBody?.content ?? "", { timeout: 20_000 })
-      .toContain("Implement issue now.");
-
     // Finally — the unified thread is visible: the user can see the
-    // assistant turn (now in the global session) on /vibe?issue=9999.
+    // assistant turn on /vibe?issue=9999.
     await expect(
-      page.getByText("Created and handed off.").first(),
-      "global session messages remain rendered on the new issue page",
+      page.getByText("Created the issue.").first(),
+      "chat session messages remain rendered on the new issue page",
     ).toBeVisible({ timeout: 15_000 });
   });
 
-  test("issue-shaped output with no recognized tool name does NOT navigate and leaves the global session intact", async ({
+  test("issue-shaped output with no recognized tool name does NOT navigate and leaves the Vibe session intact", async ({
     page,
   }) => {
     const NEW_ISSUE = 7777;
@@ -473,21 +457,7 @@ test.describe("Vibe — unified chat thread on issue create", () => {
       return;
     }
 
-    const trigger = page
-      .locator("button")
-      .filter({ hasText: /Kody(\s|$)|Brain/ })
-      .first();
-    await trigger.click();
-    const listbox = page.getByRole("listbox");
-    await listbox.waitFor({ state: "visible", timeout: 5_000 });
-    await listbox.getByRole("option", { name: /Chat Model Pro/ }).click();
-
-    const input = page
-      .getByPlaceholder(/ask kody|kody is waiting|ask about/i)
-      .first();
-    await input.waitFor({ state: "visible", timeout: 10_000 });
-    await input.fill("shape test");
-    await page.getByRole("button", { name: "Send message" }).click();
+    await sendChatMessage(page, "shape test");
 
     // The stream is consumed (reply renders) — proves the chat processed
     // the orphan tool-output and chose NOT to treat it as a creation.
@@ -512,10 +482,9 @@ test.describe("Vibe — unified chat thread on issue create", () => {
       "a name-less issue-shaped output must NOT trigger any thread migration",
     ).toBeNull();
 
-    // Global session should hold the original user turn + the (non-creating)
+    // Chat session should hold the original user turn + the (non-creating)
     // assistant turn.
-    const global = await readGlobalSessions(page, ownerRepo);
-    const activeMessages = global.messagesById[global.activeId] ?? [];
+    const activeMessages = await readConversationMessages(page, ownerRepo);
     expect(activeMessages.length).toBeGreaterThanOrEqual(2);
     expect(activeMessages[0]?.text).toBe("shape test");
     expect(activeMessages[1]?.text).toBe("ok");

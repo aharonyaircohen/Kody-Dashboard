@@ -140,6 +140,7 @@ import { VoiceButton } from "./VoiceButton";
 import { VoiceChatOverlay } from "./VoiceChatOverlay";
 import { useChatSessions } from "../hooks/useChatSessions";
 import { useKodyActionState } from "../hooks/useKodyActionState";
+import { useMediaQuery } from "../hooks/useMediaQuery";
 import { SessionSidebar } from "./SessionSidebar";
 import { ToolCallList, ThinkingPanel, ReasoningPanel } from "./ToolCallCard";
 import { parseReasoning, stripReasoning } from "../chat/reasoning";
@@ -152,9 +153,9 @@ import {
   type StaffMentionTrigger,
 } from "../mentions/agent-mentions";
 import { MessageActions } from "./MessageActions";
-import { VibeRunButton } from "./VibeRunButton";
 import {
   pickVibeRequestIssueNumber,
+  RECENT_VIBE_ISSUE_TTL_MS,
   type RecentVibeIssue,
 } from "../vibe/recent-issue";
 import {
@@ -465,6 +466,7 @@ export function KodyChat({
   // and never remounts after Settings saves a Brain config — the dropdown
   // entry wouldn't appear until a full page reload.
   const { auth } = useAuth();
+  const isDesktop = useMediaQuery("(min-width: 768px)");
   // Slash command list (builtins + state repo `commands/*.md`).
   // Stale-while-revalidate keeps autocomplete instant; the API itself
   // is cached on the server side via the GitHub client.
@@ -621,18 +623,9 @@ export function KodyChat({
       )
       .slice(0, 6);
   }, [agentMentionTrigger, repoAgents]);
-  // Vibe auto-kickoff. When `vibe_start_execution` returns a
-  // SwitchAgentDirective with `autoKickoff`, the dashboard records the
-  // message + target issue number here so a useEffect can dispatch it
-  // *after* the agent flip AND `context.task.issueNumber` matches the
-  // target. Without the issue-number gate, the kickoff fires the moment
-  // context flips to any task scope — typically the previously-viewed
-  // issue, because the tasks query hasn't refetched yet — and the
-  // runner gets dispatched against the wrong sessionId (symptom seen
-  // in prod: workflow_dispatch logs show `vibe-<oldIssue>-...` and the
-  // new issue's PR stays empty).
-  // Vibe auto-kickoff queue lives in the live-session reducer (see below);
-  // these named getters keep read sites readable.
+  // Generic switch-agent auto-kickoff queue lives in the live-session reducer.
+  // Vibe execution does not use this path; it is owned by the Vibe page's
+  // `/api/kody/vibe/execute` workflow.
   // What to show in the header — when a gateway model is active, prefer
   // its label over the static `kody` agent name.
   const currentEntry =
@@ -998,12 +991,22 @@ export function KodyChat({
     if (sessionSidebarPinned) setShowSessionSidebar(true);
   }, [sessionSidebarPinned]);
 
+  const recentVibeIssue = recentVibeIssueRef.current;
+  const keepRecentVibeThread =
+    vibeMode &&
+    selectedTask != null &&
+    recentVibeIssue?.issueNumber === selectedTask.issueNumber &&
+    Date.now() - recentVibeIssue.at <= RECENT_VIBE_ISSUE_TTL_MS;
+
   // Use session hook for global (non-task) chat. On the Vibe page, the
   // no-task ("default preview") chat lives in its own bucket so it
-  // doesn't share history with the dashboard chat — selecting an issue
-  // still swaps over to per-task chat as usual.
+  // doesn't share history with the dashboard chat. If that chat just
+  // created the issue we are now viewing, keep the originating thread
+  // visible instead of swapping to an empty task thread.
   const desiredSessionScope: import("../hooks/useChatSessions").ChatSessionScope =
-    vibeMode && !selectedTask ? "vibe-default" : "global";
+    vibeMode && (!selectedTask || keepRecentVibeThread)
+      ? "vibe-default"
+      : "global";
   // Commit scope changes only after they settle. A transient context flip
   // (parent re-render / task refetch momentarily dropping the selection)
   // would otherwise swap useChatSessions to the empty `vibe-default` bucket
@@ -3608,12 +3611,8 @@ export function KodyChat({
                   "output" in chunk
                 ) {
                   const name = toolNameById.get(chunk.toolCallId);
-                  // Any tool may emit a switch directive — not just
-                  // `switch_agent`. `vibe_start_execution` embeds one in its
-                  // output so the runner hand-off doesn't depend on the
-                  // model also calling `switch_agent` (it often skips it
-                  // and just narrates "handed off"). Match by shape, not
-                  // by tool name.
+                  // Any tool may emit a switch directive — match by shape,
+                  // not by tool name, so UI tools can remain thin.
                   if (isSwitchAgentDirective(chunk.output)) {
                     // Defer the dispatch — see comment on pendingSwitchAgent.
                     pendingSwitchAgent = chunk.output;
@@ -4395,12 +4394,9 @@ export function KodyChat({
     rehydrateForScope(nextScope);
   }, [context, vibeMode, rehydrateForScope]);
 
-  // Vibe auto-kickoff. `vibe_start_execution` returns a SwitchAgentDirective
-  // with `autoKickoff` set; the switch handler stashes that string in
-  // `pendingKickoff`. We wait here for the new runner agent AND the new
-  // task scope to both land before firing — without either, the runner
-  // gets the wrong primer (FRESH instead of FOLLOW-UP) and either idles or
-  // opens a second issue.
+  // Generic switch-agent auto-kickoff. The switch handler stashes an
+  // optional kickoff string in `pendingKickoff`; we wait here for the new
+  // runner agent AND matching task scope to both land before firing.
   //
   // ORDERING NOTE — this useEffect MUST come after `rehydrateForScope`
   // above. When context first flips from null → task on a fresh issue,
@@ -4933,9 +4929,13 @@ export function KodyChat({
         }
       }
     }
-    // Terminal mode keeps shell-like Enter submit. AI chat leaves plain
-    // Enter to the textarea so it inserts a newline.
-    if (chatMode === "terminal" && e.key === "Enter" && !e.shiftKey) {
+    // Desktop AI chat and terminal keep Enter-to-send. Mobile AI chat leaves
+    // plain Enter to the textarea so the soft keyboard inserts a newline.
+    if (
+      (chatMode === "terminal" || isDesktop) &&
+      e.key === "Enter" &&
+      !e.shiftKey
+    ) {
       e.preventDefault();
       sendMessage();
       return;
@@ -5063,10 +5063,6 @@ export function KodyChat({
       return newMessages;
     });
   };
-
-  // The "Run Kody on #N" affordance for vibe mode lives in VibeRunButton.
-  // It owns its own state + dispatch path (spawns a Fly Machine directly
-  // into agent mode, bypassing GH Actions orchestration).
 
   // Both `kody-live` (GH Actions) and `kody-live-fly` (Fly Machines) use
   // the same interactive session model, so they share this UI state.
@@ -6083,16 +6079,6 @@ export function KodyChat({
           }`}
         >
           <div>
-            {/* Vibe mode: explicit one-shot execution action. Sits with the
-              composer so the executor handoff feels like a chat affordance
-              rather than a UI button parked elsewhere. Hides itself once
-              any work has started. */}
-            {chatMode === "ai" &&
-            vibeMode &&
-            context?.kind === "task" &&
-            !isKodyLive ? (
-              <VibeRunButton task={context.task} />
-            ) : null}
             {/* Kody Live status dot — compact indicator above the composer.
               Color encodes state; hover for full detail + links. Restart
               affordance only surfaces on stuck/error. */}

@@ -32,9 +32,12 @@
 import { test, expect, type Page } from "@playwright/test";
 
 const BASE_URL =
-  process.env.BASE_URL_OVERRIDE ?? "https://kody-dashboard-aguy.vercel.app";
+  process.env.BASE_URL ??
+  process.env.BASE_URL_OVERRIDE ??
+  "https://kody-dashboard-aguy.vercel.app";
 const TEST_TOKEN = process.env.E2E_GITHUB_TOKEN ?? "";
 const TEST_REPO = process.env.E2E_GITHUB_REPO ?? "";
+const VIBE_DEFAULT_SCOPE = "vibe-default";
 
 function parseRepo(url: string): { owner: string; repo: string } {
   try {
@@ -52,30 +55,77 @@ async function injectAuth(
   repo: string,
 ): Promise<void> {
   await page.evaluate(
-    (auth) => window.localStorage.setItem("kody_auth", JSON.stringify(auth)),
+    ({ auth, owner, repo }) => {
+      const repoKey = `${owner.toLowerCase()}/${repo.toLowerCase()}`;
+      window.localStorage.setItem("kody_auth", JSON.stringify(auth));
+      window.localStorage.setItem(
+        `kody-default-chat-entry:${repoKey}`,
+        "kody-live-fly",
+      );
+    },
     {
-      repoUrl: TEST_REPO,
       owner,
       repo,
-      token: TEST_TOKEN,
-      user: { login: "watchdog-e2e", avatar_url: "", id: 1 },
-      loggedInAt: Date.now(),
+      auth: {
+        repoUrl: TEST_REPO,
+        owner,
+        repo,
+        token: TEST_TOKEN,
+        user: { login: "watchdog-e2e", avatar_url: "", id: 1 },
+        loggedInAt: Date.now(),
+      },
     },
   );
 }
 
-async function ghFetch<T = unknown>(path: string): Promise<T> {
+async function ghFetch<T = unknown>(
+  path: string,
+  init?: RequestInit,
+): Promise<T> {
   const res = await fetch(`https://api.github.com${path}`, {
+    ...init,
     headers: {
       Authorization: `Bearer ${TEST_TOKEN}`,
       Accept: "application/vnd.github+json",
       "X-GitHub-Api-Version": "2022-11-28",
+      ...(init?.headers ?? {}),
     },
   });
   if (!res.ok) {
     throw new Error(`GitHub ${path} → ${res.status} ${await res.text()}`);
   }
   return res.json() as Promise<T>;
+}
+
+interface TasksResponse {
+  tasks: Array<{ issueNumber: number }>;
+}
+
+async function dashboardTaskIssueNumbers(
+  owner: string,
+  repo: string,
+  count: number,
+): Promise<number[]> {
+  const res = await fetch(`${BASE_URL}/api/kody/tasks?view=all`, {
+    headers: {
+      "x-kody-token": TEST_TOKEN,
+      "x-kody-owner": owner,
+      "x-kody-repo": repo,
+      "x-kody-user-login": "watchdog-e2e",
+      Accept: "application/json",
+    },
+  });
+  if (!res.ok) {
+    throw new Error(
+      `Dashboard tasks ${owner}/${repo} → ${res.status} ${await res.text()}`,
+    );
+  }
+  const data = (await res.json()) as TasksResponse;
+  return data.tasks
+    .map((task) => task.issueNumber)
+    .filter((issueNumber) => Number.isFinite(issueNumber) && issueNumber > 0)
+    .slice(0, count)
+    .map((issueNumber) => issueNumber);
 }
 
 interface WorkflowRun {
@@ -129,20 +179,75 @@ async function cancelRun(
   }
 }
 
-/** Read the live phase the reducer is currently in, via banner text. */
+function chatRail(page: Page) {
+  return page.locator('[aria-label="Kody chat"]');
+}
+
+async function expectVibeIssueScope(
+  page: Page,
+  issueNumber: number,
+): Promise<void> {
+  await expect(
+    chatRail(page).getByText(`#${issueNumber}`, { exact: true }),
+  ).toBeVisible({ timeout: 30_000 });
+}
+
+function phaseDot(page: Page, phase: string) {
+  return chatRail(page).locator(`[aria-label="Live runner: ${phase}"]`);
+}
+
+async function expectLivePhase(
+  page: Page,
+  phase: string,
+  timeout = 15_000,
+): Promise<void> {
+  await expect(phaseDot(page, phase)).toBeVisible({ timeout });
+}
+
+async function waitForLivePhase(
+  page: Page,
+  phases: string[],
+  timeout = 20_000,
+): Promise<void> {
+  await expect
+    .poll(
+      async () => {
+        for (const phase of phases) {
+          if ((await phaseDot(page, phase).count()) > 0) return phase;
+        }
+        return "unknown";
+      },
+      { timeout },
+    )
+    .toMatch(new RegExp(`^(${phases.join("|")})$`));
+}
+
+async function clickBootRunner(page: Page): Promise<void> {
+  await chatRail(page)
+    .getByRole("button", { name: /Boot runner|Start/i })
+    .click();
+}
+
+async function clickStopIfVisible(page: Page): Promise<void> {
+  const stop = chatRail(page).getByRole("button", { name: /Stop run|Stop/i });
+  if (await stop.isVisible().catch(() => false)) {
+    await stop.click();
+  }
+}
+
+/** Read the live phase the reducer is currently in, via the status dot. */
 async function readPhaseFromBanner(page: Page): Promise<string> {
-  // Try each phase's signature text in priority order.
-  const checks: Array<[string, RegExp]> = [
-    ["stuck", /Runner stuck/i],
-    ["error", /Restart/i],
-    ["ready", /Live runner ready/i],
-    ["booting", /elapsed/i],
-    ["awaiting", /Live runner is processing/i],
-    ["ended", /Live runner ended/i],
-    ["idle", /Live runner is offline/i],
+  const checks = [
+    "stuck",
+    "error",
+    "ready",
+    "booting",
+    "awaiting",
+    "ended",
+    "idle",
   ];
-  for (const [phase, rx] of checks) {
-    const count = await page.locator("body").getByText(rx).count();
+  for (const phase of checks) {
+    const count = await phaseDot(page, phase).count();
     if (count > 0) return phase;
   }
   return "unknown";
@@ -179,50 +284,21 @@ test.describe("Kody Live — watchdog + reducer (live)", () => {
     const viewport = await page.viewportSize();
     test.skip((viewport?.width ?? 1280) < 768, "chat rail hidden on mobile");
 
-    // 2. Confirm idle banner.
-    await expect(
-      page.getByText(/Live runner is offline|Click Start to warm up/i),
-    ).toBeVisible({ timeout: 15_000 });
+    await expectLivePhase(page, "idle");
 
-    // 3. Click the composer's primary button (which is 'Start' when
-    //    kody-live is selected + composer is empty + state is idle).
-    const startButton = page.getByRole("button", { name: /^Start$/ });
-    await expect(startButton).toBeVisible({ timeout: 10_000 });
-    await startButton.click();
-
-    // 4. Booting banner shows up almost immediately (reducer dispatches
-    //    START synchronously).
-    await expect(page.getByText(/elapsed|Watching .* → Actions/i)).toBeVisible({
-      timeout: 10_000,
-    });
-
-    // 5. Wait for chat.ready → green ready banner. Cold GHA can be slow.
-    await expect(page.getByText(/Live runner ready/i)).toBeVisible({
-      timeout: 180_000,
-    });
+    await clickBootRunner(page);
+    await expectLivePhase(page, "booting", 10_000);
+    await expectLivePhase(page, "ready", 180_000);
 
     // 6. Send a tiny turn — verifies awaiting phase + the hazard-D fix.
     const input = page.getByPlaceholder(/Ask Kody/i);
     await input.fill("say hi in one word");
-    await page.getByRole("button", { name: "Send message" }).click();
+    await chatRail(page).getByRole("button", { name: "Send message" }).click();
 
-    // 7. Typing indicator should appear (TURN_SENT → awaiting).
-    await expect(page.getByText(/is thinking/i).first()).toBeVisible({
-      timeout: 15_000,
-    });
+    await expectLivePhase(page, "awaiting", 15_000);
+    await expectLivePhase(page, "ready", 180_000);
 
-    // 8. Wait for reply (MESSAGE_RECEIVED → ready). The typing indicator
-    //    must disappear (this is the hazard-D regression check).
-    await expect(page.getByText(/is thinking/i).first()).toBeHidden({
-      timeout: 180_000,
-    });
-    await expect(page.getByText(/Live runner ready/i)).toBeVisible();
-
-    // 9. End the session cleanly so the runner releases minutes.
-    const stopButton = page.getByRole("button", { name: /^Stop$/ });
-    if (await stopButton.isVisible().catch(() => false)) {
-      await stopButton.click();
-    }
+    await clickStopIfVisible(page);
 
     // 10. Final phase should be idle/ended.
     const final = await readPhaseFromBanner(page);
@@ -269,12 +345,12 @@ test.describe("Kody Live — watchdog + reducer (live)", () => {
     // Seed a stale live-session record under the same key the dashboard
     // reads on mount: `kody-live-sessions:<owner>/<repo>` (lowercased).
     await page.evaluate(
-      ([sessionId, ownerArg, repoArg]) => {
+      ([sessionId, ownerArg, repoArg, scope]) => {
         const key = `kody-live-sessions:${ownerArg.toLowerCase()}/${repoArg.toLowerCase()}`;
         window.localStorage.setItem(
           key,
           JSON.stringify({
-            global: {
+            [scope]: {
               sessionId,
               state: "booting",
               startedAt: Date.now() - 200_000, // older than 150s deadline
@@ -283,7 +359,7 @@ test.describe("Kody Live — watchdog + reducer (live)", () => {
           }),
         );
       },
-      [ZOMBIE_SESSION_ID, owner, repo] as const,
+      [ZOMBIE_SESSION_ID, owner, repo, VIBE_DEFAULT_SCOPE] as const,
     );
 
     // Sanity check: verify both keys persist before we navigate. Playwright
@@ -313,26 +389,18 @@ test.describe("Kody Live — watchdog + reducer (live)", () => {
     await page.waitForLoadState("domcontentloaded");
 
     // Verify the seeded record survived the navigation.
-    const storageAfter = await page.evaluate(() => ({
-      auth: window.localStorage.getItem("kody_auth"),
-      sessions: Object.fromEntries(
-        Object.keys(window.localStorage)
-          .filter((k) => k.startsWith("kody-live-sessions"))
-          .map((k) => [k, window.localStorage.getItem(k)]),
+    const storageAfterKeys = await page.evaluate(() =>
+      Object.keys(window.localStorage).filter((k) =>
+        k.startsWith("kody-live-sessions"),
       ),
-    }));
-    // eslint-disable-next-line no-console
-    console.log("After nav storage:", JSON.stringify(storageAfter, null, 2));
+    );
+    expect(storageAfterKeys.length).toBeGreaterThan(0);
 
     const viewport = await page.viewportSize();
     test.skip((viewport?.width ?? 1280) < 768, "chat rail hidden on mobile");
 
     // 1. Should rehydrate as booting (so the watchdog effect fires).
-    await expect(
-      page.getByText(
-        /elapsed|Almost ready|Warming up|Installing|Setting up|Queueing/i,
-      ),
-    ).toBeVisible({ timeout: 15_000 });
+    await expectLivePhase(page, "booting", 15_000);
 
     // 2. Watchdog fires after the booting deadline (~150s). On rehydrate
     //    the reducer resets lastEventAt to Date.now() (so the runner gets
@@ -341,9 +409,7 @@ test.describe("Kody Live — watchdog + reducer (live)", () => {
     //    how old our seeded startedAt is. /status then returns
     //    runnerAlive=false (no events file + clientLastEventAt old
     //    enough) and STATUS_RESULT flips the reducer to 'stuck'.
-    await expect(page.getByText(/Runner stuck/i)).toBeVisible({
-      timeout: 200_000,
-    });
+    await expectLivePhase(page, "stuck", 200_000);
     await expect(page.getByRole("button", { name: /^Restart$/ })).toBeVisible();
 
     // We deliberately do NOT click Restart here — that would spawn a
@@ -368,12 +434,12 @@ test.describe("Kody Live — watchdog + reducer (live)", () => {
     await page.goto(`${BASE_URL}/login`);
     await injectAuth(page, owner, repo);
     await page.evaluate(
-      ([sessionId, ownerArg, repoArg]) => {
+      ([sessionId, ownerArg, repoArg, scope]) => {
         const key = `kody-live-sessions:${ownerArg.toLowerCase()}/${repoArg.toLowerCase()}`;
         window.localStorage.setItem(
           key,
           JSON.stringify({
-            global: {
+            [scope]: {
               sessionId,
               state: "booting",
               startedAt: Date.now() - 200_000,
@@ -382,7 +448,7 @@ test.describe("Kody Live — watchdog + reducer (live)", () => {
           }),
         );
       },
-      [ZOMBIE_SESSION_ID, owner, repo] as const,
+      [ZOMBIE_SESSION_ID, owner, repo, VIBE_DEFAULT_SCOPE] as const,
     );
     await page.goto(`${BASE_URL}/vibe`);
     await page.waitForLoadState("domcontentloaded");
@@ -391,9 +457,7 @@ test.describe("Kody Live — watchdog + reducer (live)", () => {
     test.skip((viewport?.width ?? 1280) < 768, "chat rail hidden on mobile");
 
     // Wait for the stuck banner to appear (watchdog cycle, ~150s).
-    await expect(page.getByText(/Runner stuck/i)).toBeVisible({
-      timeout: 200_000,
-    });
+    await expectLivePhase(page, "stuck", 200_000);
     const restart = page.getByRole("button", { name: /^Restart$/ });
     await expect(restart).toBeVisible();
 
@@ -403,11 +467,7 @@ test.describe("Kody Live — watchdog + reducer (live)", () => {
     //   2. await startInteractiveSession() which dispatches START — phase → 'booting'
     // Net effect: the booting banner appears within seconds.
     await restart.click();
-    await expect(
-      page.getByText(
-        /elapsed|Almost ready|Warming up|Installing|Setting up|Queueing/i,
-      ),
-    ).toBeVisible({ timeout: 20_000 });
+    await expectLivePhase(page, "booting", 20_000);
 
     // Cancel the GHA run that the rebound spawned, so we don't leave it
     // burning minutes idle. Best-effort — the run list query might race
@@ -433,9 +493,11 @@ test.describe("Kody Live — watchdog + reducer (live)", () => {
     testInfo.setTimeout(60_000);
     const { owner, repo } = parseRepo(TEST_REPO);
 
-    // Use an existing open issue in the tester repo. Validated at the
-    // top of this run via `gh issues --state open`.
-    const ISSUE_NUMBER = 3425;
+    const [ISSUE_NUMBER] = await dashboardTaskIssueNumbers(owner, repo, 1);
+    if (!ISSUE_NUMBER) {
+      test.skip(true, "Tester repo has no open issues for vibe scope");
+      return;
+    }
     const ZOMBIE_SESSION_ID = `vibe-${ISSUE_NUMBER}-${Date.now()}`;
 
     await page.goto(`${BASE_URL}/login`);
@@ -465,16 +527,14 @@ test.describe("Kody Live — watchdog + reducer (live)", () => {
     const viewport = await page.viewportSize();
     test.skip((viewport?.width ?? 1280) < 768, "chat rail hidden on mobile");
 
+    await expectVibeIssueScope(page, ISSUE_NUMBER);
+
     // The dashboard should:
     //   1. Read context from ?issue=N → context.kind = 'task'
     //   2. With vibeMode=true (vibe page), getLiveScopeKey → 'vibe-N'
     //   3. rehydrateForScope('vibe-N') → REHYDRATE_RESTORED with our seed
-    //   4. phase='booting' → booting banner visible
-    await expect(
-      page.getByText(
-        /elapsed|Almost ready|Warming up|Installing|Setting up|Queueing/i,
-      ),
-    ).toBeVisible({ timeout: 20_000 });
+    //   4. phase='booting' (or watchdog already moved it to stuck)
+    await waitForLivePhase(page, ["booting", "stuck"], 20_000);
 
     // Verify the storage key shape — confirms scope is 'vibe-N', not 'global'.
     const storage = await page.evaluate(() => {
@@ -501,8 +561,14 @@ test.describe("Kody Live — watchdog + reducer (live)", () => {
     testInfo.setTimeout(90_000);
     const { owner, repo } = parseRepo(TEST_REPO);
 
-    const ISSUE_A = 3425;
-    const ISSUE_B = 3421;
+    const [ISSUE_A, ISSUE_B] = await dashboardTaskIssueNumbers(owner, repo, 2);
+    if (!ISSUE_A || !ISSUE_B) {
+      test.skip(
+        true,
+        "Tester repo needs at least two open issues for scope switching",
+      );
+      return;
+    }
     const SESSION_A = `vibe-${ISSUE_A}-${Date.now()}-aaa`;
     const SESSION_B = `vibe-${ISSUE_B}-${Date.now()}-bbb`;
 
@@ -539,11 +605,8 @@ test.describe("Kody Live — watchdog + reducer (live)", () => {
     const viewport = await page.viewportSize();
     test.skip((viewport?.width ?? 1280) < 768, "chat rail hidden on mobile");
 
-    await expect(
-      page.getByText(
-        /elapsed|Almost ready|Warming up|Installing|Setting up|Queueing/i,
-      ),
-    ).toBeVisible({ timeout: 20_000 });
+    await expectVibeIssueScope(page, ISSUE_A);
+    await waitForLivePhase(page, ["booting", "stuck"], 20_000);
 
     // ── Navigate to issue B without going through Stop/End.
     await page.goto(`${BASE_URL}/vibe?issue=${ISSUE_B}`);
@@ -551,20 +614,14 @@ test.describe("Kody Live — watchdog + reducer (live)", () => {
 
     // Should rehydrate the B scope (different sessionId), not leak A's
     // session into B's view.
-    await expect(
-      page.getByText(
-        /elapsed|Almost ready|Warming up|Installing|Setting up|Queueing/i,
-      ),
-    ).toBeVisible({ timeout: 20_000 });
+    await expectVibeIssueScope(page, ISSUE_B);
+    await waitForLivePhase(page, ["booting", "stuck"], 20_000);
 
     // ── Back to A — its session must still be there.
     await page.goto(`${BASE_URL}/vibe?issue=${ISSUE_A}`);
     await page.waitForLoadState("domcontentloaded");
-    await expect(
-      page.getByText(
-        /elapsed|Almost ready|Warming up|Installing|Setting up|Queueing/i,
-      ),
-    ).toBeVisible({ timeout: 20_000 });
+    await expectVibeIssueScope(page, ISSUE_A);
+    await waitForLivePhase(page, ["booting", "stuck"], 20_000);
 
     const finalStorage = await page.evaluate(() => {
       const key = Object.keys(window.localStorage).find((k) =>
@@ -603,24 +660,14 @@ test.describe("Kody Live — watchdog + reducer (live)", () => {
     const viewport = await page.viewportSize();
     test.skip((viewport?.width ?? 1280) < 768, "chat rail hidden on mobile");
 
-    await expect(
-      page.getByText(/Live runner is offline|Click Start to warm up/i),
-    ).toBeVisible({ timeout: 15_000 });
-    await page.getByRole("button", { name: /^Start$/ }).click();
-    await expect(page.getByText(/elapsed|Watching .* → Actions/i)).toBeVisible({
-      timeout: 10_000,
-    });
+    await expectLivePhase(page, "idle");
+    await clickBootRunner(page);
+    await expectLivePhase(page, "booting", 10_000);
 
     // The runner must still reach 'ready' via the 3s poll loop alone.
-    await expect(page.getByText(/Live runner ready/i)).toBeVisible({
-      timeout: 180_000,
-    });
+    await expectLivePhase(page, "ready", 180_000);
 
-    // Cleanup.
-    const stop = page.getByRole("button", { name: /^Stop$/ });
-    if (await stop.isVisible().catch(() => false)) {
-      await stop.click();
-    }
+    await clickStopIfVisible(page);
   });
 
   test("Kody Live (Fly) runtime: full soft path on the alternate runner", async ({
@@ -680,40 +727,22 @@ test.describe("Kody Live — watchdog + reducer (live)", () => {
     }
     await flyOption.click();
 
-    // From here on, the flow is the same as the GHA soft path.
-    await expect(
-      page.getByText(/Live runner is offline|Click Start to warm up/i),
-    ).toBeVisible({ timeout: 15_000 });
-    await page.getByRole("button", { name: /^Start$/ }).click();
-    await expect(
-      page.getByText(
-        /elapsed|Spawning Fly|Cloning repo|Starting engine|Almost ready/i,
-      ),
-    ).toBeVisible({ timeout: 10_000 });
+    await expectLivePhase(page, "idle");
+    await clickBootRunner(page);
+    await expectLivePhase(page, "booting", 10_000);
 
     // Fly boot is faster than GHA — typically 30-50s — but allow 120s
     // for cold image pulls.
-    await expect(page.getByText(/Live runner ready/i)).toBeVisible({
-      timeout: 120_000,
-    });
+    await expectLivePhase(page, "ready", 120_000);
 
     // Send a turn → assistant reply → typing indicator clears.
     const input = page.getByPlaceholder(/Ask Kody/i);
     await input.fill("say hi in one word");
-    await page.getByRole("button", { name: "Send message" }).click();
-    await expect(page.getByText(/is thinking/i).first()).toBeVisible({
-      timeout: 15_000,
-    });
-    await expect(page.getByText(/is thinking/i).first()).toBeHidden({
-      timeout: 180_000,
-    });
-    await expect(page.getByText(/Live runner ready/i)).toBeVisible();
+    await chatRail(page).getByRole("button", { name: "Send message" }).click();
+    await expectLivePhase(page, "awaiting", 15_000);
+    await expectLivePhase(page, "ready", 180_000);
 
-    // Cleanup.
-    const stop = page.getByRole("button", { name: /^Stop$/ });
-    if (await stop.isVisible().catch(() => false)) {
-      await stop.click();
-    }
+    await clickStopIfVisible(page);
   });
 
   test("Tab refresh during a ready session preserves the session (no silent drop)", async ({
@@ -738,16 +767,10 @@ test.describe("Kody Live — watchdog + reducer (live)", () => {
     test.skip((viewport?.width ?? 1280) < 768, "chat rail hidden on mobile");
 
     // Boot a real runner to 'ready'.
-    await expect(
-      page.getByText(/Live runner is offline|Click Start to warm up/i),
-    ).toBeVisible({ timeout: 15_000 });
-    await page.getByRole("button", { name: /^Start$/ }).click();
-    await expect(page.getByText(/elapsed|Watching .* → Actions/i)).toBeVisible({
-      timeout: 10_000,
-    });
-    await expect(page.getByText(/Live runner ready/i)).toBeVisible({
-      timeout: 180_000,
-    });
+    await expectLivePhase(page, "idle");
+    await clickBootRunner(page);
+    await expectLivePhase(page, "booting", 10_000);
+    await expectLivePhase(page, "ready", 180_000);
 
     // Capture the session id so we can verify the same one comes back.
     const beforeStorage = await page.evaluate(() => {
@@ -758,10 +781,10 @@ test.describe("Kody Live — watchdog + reducer (live)", () => {
     });
     expect(beforeStorage).toBeTruthy();
     const beforeMap = JSON.parse(beforeStorage as string) as {
-      global?: { sessionId: string; state: string };
+      [VIBE_DEFAULT_SCOPE]?: { sessionId: string; state: string };
     };
-    expect(beforeMap.global?.state).toBe("ready");
-    const sessionIdBefore = beforeMap.global?.sessionId;
+    expect(beforeMap[VIBE_DEFAULT_SCOPE]?.state).toBe("ready");
+    const sessionIdBefore = beforeMap[VIBE_DEFAULT_SCOPE]?.sessionId;
     expect(sessionIdBefore).toBeTruthy();
 
     // ── The actual regression check: reload the page. ──
@@ -777,20 +800,14 @@ test.describe("Kody Live — watchdog + reducer (live)", () => {
     });
     expect(afterStorage, "session record must survive reload").toBeTruthy();
     const afterMap = JSON.parse(afterStorage as string) as {
-      global?: { sessionId: string };
+      [VIBE_DEFAULT_SCOPE]?: { sessionId: string };
     };
-    expect(afterMap.global?.sessionId).toBe(sessionIdBefore);
+    expect(afterMap[VIBE_DEFAULT_SCOPE]?.sessionId).toBe(sessionIdBefore);
 
     // The banner should rehydrate to 'ready' (poll will re-confirm via
     // the events file). Give it a moment for poll/SSE to reconnect.
-    await expect(page.getByText(/Live runner ready/i)).toBeVisible({
-      timeout: 30_000,
-    });
+    await expectLivePhase(page, "ready", 30_000);
 
-    // Clean up: end the session.
-    const stop = page.getByRole("button", { name: /^Stop$/ });
-    if (await stop.isVisible().catch(() => false)) {
-      await stop.click();
-    }
+    await clickStopIfVisible(page);
   });
 });

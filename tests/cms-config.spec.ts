@@ -466,6 +466,99 @@ describe("CMS config contract", () => {
     ]);
   });
 
+  it("normalizes field display hints, validation rules, and table view aliases", () => {
+    const config = normalizeCmsConfig({
+      version: 1,
+      defaultAdapter: "memory",
+      collections: {
+        lessons: {
+          name: "lessons",
+          views: {
+            table: {
+              pageSize: 25,
+              fields: ["title", { name: "status", sortable: false }],
+            },
+            detail: { fields: ["title", "status"] },
+            form: { fields: ["title", "status"] },
+          },
+          fields: [
+            {
+              name: "title",
+              type: "text",
+              label: "Title",
+              description: "Public lesson title",
+              placeholder: "Intro to algebra",
+              display: {
+                role: "primary",
+                width: "fill",
+                format: "text",
+              },
+              validation: {
+                minLength: 3,
+                maxLength: 80,
+                pattern: "^[A-Z].+",
+              },
+            },
+            {
+              name: "status",
+              type: "select",
+              options: ["draft", "published"],
+              display: {
+                role: "meta",
+                width: "sm",
+              },
+            },
+          ],
+        },
+      },
+    });
+
+    expect(config.collections.lessons.fields[0]).toMatchObject({
+      name: "title",
+      description: "Public lesson title",
+      placeholder: "Intro to algebra",
+      display: {
+        role: "primary",
+        width: "fill",
+        format: "text",
+      },
+      validation: {
+        minLength: 3,
+        maxLength: 80,
+        pattern: "^[A-Z].+",
+      },
+    });
+    expect(config.collections.lessons.views?.table).toEqual(
+      config.collections.lessons.views?.list,
+    );
+    expect(config.collections.lessons.views?.table?.fields).toEqual([
+      { name: "title", role: "primary", format: "text", width: "fill" },
+      { name: "status", role: "meta", width: "sm", sortable: false },
+    ]);
+  });
+
+  it("rejects invalid field display and validation metadata", () => {
+    expect(() =>
+      normalizeCmsConfig({
+        version: 1,
+        defaultAdapter: "memory",
+        collections: {
+          lessons: {
+            name: "lessons",
+            fields: [
+              {
+                name: "title",
+                type: "text",
+                display: { width: "huge" },
+                validation: { pattern: "[" },
+              },
+            ],
+          },
+        },
+      }),
+    ).toThrow(/display\.width is invalid.*validation\.pattern is invalid/s);
+  });
+
   it("rejects invalid field storage metadata", () => {
     expect(() =>
       normalizeCmsConfig({

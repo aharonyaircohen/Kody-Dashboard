@@ -100,7 +100,7 @@ vi.mock("@dashboard/lib/auth", () => auth);
 vi.mock("@dashboard/lib/github-client", () => github);
 vi.mock("@dashboard/lib/cms/service", () => service);
 vi.mock("@dashboard/lib/state-repo", () => stateRepo);
-vi.mock("@dashboard/lib/cms/adapters/mongodb-schema", () => mongoSchema);
+vi.mock("@dashboard/lib/cms/schema/mongodb", () => mongoSchema);
 vi.mock("@dashboard/lib/vault/get-secret", () => vault);
 
 import {

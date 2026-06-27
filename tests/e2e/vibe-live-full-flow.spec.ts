@@ -1,8 +1,8 @@
 /**
  * @fileoverview LIVE end-to-end verification of the full vibe flow against
  * production. This is NOT mocked — it talks to the real chat model, the
- * real /api/kody/chat/interactive/start (which dispatches a real GitHub
- * Actions run), and waits for the real runner to commit and push.
+ * real /api/kody/vibe/execute endpoint, and waits for the real runner to
+ * commit and push.
  *
  * @testFramework playwright
  * @domain e2e-live
@@ -14,9 +14,9 @@
  *      question — does NOT preemptively call create_* in the same turn.
  *      (Regression for the "approval ask must be the LAST action" rule.)
  *   4. We send "approve". The agent then calls create_enhancement (or a
- *      sibling) AND vibe_start_execution. The URL flips to ?issue=N.
- *   5. The kickoff useEffect dispatches /api/kody/chat/interactive/start
- *      (workflow_dispatch fired). Verified via network capture.
+ *      sibling). The URL flips to ?issue=N.
+ *   5. The Vibe page run action dispatches /api/kody/vibe/execute.
+ *      Verified via network capture.
  *   6. We poll the GitHub API for new commits on the PR branch beyond
  *      the initial "vibe: start session" placeholder. Timeout: 6 minutes
  *      (covers ~90s GHA boot + ~2-3min for the agent to read, edit, push).
@@ -142,14 +142,14 @@ test.describe("Vibe — LIVE full flow against production", () => {
     const viewport = await page.viewportSize();
     test.skip((viewport?.width ?? 1280) < 768, "chat rail hidden on mobile");
 
-    // ── Capture interactive-start network calls for assertion 5. ────────
-    let interactiveStartCalled = false;
+    // ── Capture Vibe execution network calls for assertion 5. ───────────
+    let vibeExecuteCalled = false;
     page.on("request", (req) => {
       if (
-        req.url().includes("/api/kody/chat/interactive/start") &&
+        req.url().includes("/api/kody/vibe/execute") &&
         req.method() === "POST"
       ) {
-        interactiveStartCalled = true;
+        vibeExecuteCalled = true;
       }
     });
 
@@ -193,7 +193,10 @@ test.describe("Vibe — LIVE full flow against production", () => {
       `Update the homepage welcome text in src/app/(frontend)/page.tsx ` +
         `to "${newWelcomeText}". One-line change. Skip the e2e test update.`,
     );
-    await page.getByRole("button", { name: "Send message" }).click();
+    await page
+      .locator('[aria-label="Kody chat"]')
+      .getByRole("button", { name: "Send message" })
+      .click();
 
     // ── 3. Wait for the agent to ask for approval. ─────────────────────
     // The fixed prompt SHOULD make the agent stop after asking, but the
@@ -223,12 +226,15 @@ test.describe("Vibe — LIVE full flow against production", () => {
     // skip this — the agent already went ahead.
     if (!new URL(page.url()).searchParams.get("issue")) {
       await input.fill("approve");
-      await page.getByRole("button", { name: "Send message" }).click();
+      await page
+        .locator('[aria-label="Kody chat"]')
+        .getByRole("button", { name: "Send message" })
+        .click();
     }
 
     // Wait for navigation to ?issue=N — proxy for create_* + onIssueCreated.
     // Generous timeout because the model with a full tool-call chain
-    // (research → create_* → vibe_start_execution) can take 2-3 min.
+    // (research → create_*) can take 2-3 min.
     await page.waitForURL(/\/vibe\?issue=\d+/, { timeout: 300_000 });
     const issueUrl = new URL(page.url());
     const issueNumber = Number.parseInt(
@@ -237,9 +243,15 @@ test.describe("Vibe — LIVE full flow against production", () => {
     );
     expect(issueNumber, "created issue number").toBeGreaterThan(0);
 
-    // ── 5. Verify interactive/start was hit (kickoff dispatched). ──────
+    const runButton = page.getByRole("button", {
+      name: /run kody on this issue/i,
+    });
+    await expect(runButton).toBeVisible({ timeout: 60_000 });
+    await runButton.click();
+
+    // ── 5. Verify /vibe/execute was hit (kickoff dispatched). ──────────
     await expect
-      .poll(() => interactiveStartCalled, { timeout: 60_000 })
+      .poll(() => vibeExecuteCalled, { timeout: 60_000 })
       .toBe(true);
 
     // ── 6. Find the PR for this issue and poll for a real commit. ──────
@@ -349,7 +361,10 @@ test.describe("Vibe — LIVE full flow against production", () => {
         await composer.fill(
           `Now change the welcome text again to "${followupText}". Same file, one-line change.`,
         );
-        await page.getByRole("button", { name: "Send message" }).click();
+        await page
+          .locator('[aria-label="Kody chat"]')
+          .getByRole("button", { name: "Send message" })
+          .click();
 
         const firstRealSha = realCommit!.sha;
         const followupDeadline = Date.now() + 5 * 60_000;

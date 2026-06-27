@@ -22,16 +22,37 @@ function parseRepo(url: string) {
 async function injectAuth(page: Page) {
   const { owner, repo } = parseRepo(TEST_REPO);
   await page.evaluate(
-    (a) => localStorage.setItem("kody_auth", JSON.stringify(a)),
+    ({ auth, owner, repo }) => {
+      const repoKey = `${owner.toLowerCase()}/${repo.toLowerCase()}`;
+      localStorage.setItem("kody_auth", JSON.stringify(auth));
+      localStorage.setItem(
+        `kody-default-chat-entry:${repoKey}`,
+        "kody:chat-model-pro",
+      );
+      localStorage.removeItem(`kody-sessions-v3:${repoKey}`);
+      localStorage.removeItem("kody-sessions-v3");
+    },
     {
-      repoUrl: TEST_REPO,
       owner,
       repo,
-      token: TEST_TOKEN,
-      user: { login: "e2e", avatar_url: "x", id: 1 },
-      loggedInAt: Date.now(),
+      auth: {
+        repoUrl: TEST_REPO,
+        owner,
+        repo,
+        token: TEST_TOKEN,
+        user: { login: "e2e", avatar_url: "x", id: 1 },
+        loggedInAt: Date.now(),
+      },
     },
   );
+}
+
+function chatRail(page: Page) {
+  return page.locator('[aria-label="Kody chat"]');
+}
+
+function chatInput(page: Page) {
+  return chatRail(page).locator("textarea").first();
 }
 
 test.describe("vibe chat — first message is not self-aborted", () => {
@@ -49,6 +70,37 @@ test.describe("vibe chat — first message is not self-aborted", () => {
       )
         aborted = true;
     });
+    await page.route("**/api/kody/models*", (route) =>
+      route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify({
+          models: [
+            {
+              id: "chat-model-pro",
+              provider: "example",
+              modelName: "chat-model-pro",
+              label: "Chat Model Pro",
+              apiKeySecret: "MY_API_KEY",
+              baseURL: "https://api.example.com/v1/",
+              protocol: "openai",
+              enabled: true,
+              isDefault: true,
+            },
+          ],
+        }),
+      }),
+    );
+    await page.route("**/api/kody/chat/kody", async (route) => {
+      await new Promise((resolve) => setTimeout(resolve, 1_500));
+      await route.fulfill({
+        status: 200,
+        headers: { "content-type": "text/event-stream" },
+        body:
+          'data: {"type":"text-delta","delta":"Kody Tester Repo reply rendered."}\n\n' +
+          "data: [DONE]\n\n",
+      });
+    });
 
     await page.goto(`${BASE_URL}/login`);
     await page.waitForLoadState("domcontentloaded");
@@ -59,12 +111,10 @@ test.describe("vibe chat — first message is not self-aborted", () => {
     const viewport = await page.viewportSize();
     test.skip((viewport?.width ?? 1280) < 768, "chat rail hidden on mobile");
 
-    const input = page
-      .getByPlaceholder(/ask kody|kody is waiting|ask about/i)
-      .first();
-    await input.waitFor({ state: "visible", timeout: 30_000 });
+    const input = chatInput(page);
+    await expect(input).toBeEditable({ timeout: 30_000 });
     await input.fill('Change the landing text to "Kody Tester Repo"');
-    await page.getByRole("button", { name: "Send message" }).click();
+    await chatRail(page).getByRole("button", { name: "Send message" }).click();
 
     // Feedback during the (slow) reasoning/tool phase — never a silent blank.
     await expect(

@@ -6,6 +6,7 @@ import type {
   CmsListResult,
   CmsRuntimeConfig,
 } from "../types";
+import type { Octokit } from "@octokit/rest";
 
 export class CmsAdapterError extends Error {
   readonly code: string;
@@ -24,6 +25,18 @@ export interface CmsAdapterContext {
   collection: CmsCollectionConfig;
   settings: CmsAdapterSettings;
   getSecret: (name: string) => Promise<string | null>;
+  store?: {
+    octokit: Octokit;
+    repoUrl?: string;
+    ref?: string;
+  };
+  getStateRepository?: () => Promise<{
+    octokit: Octokit;
+    owner: string;
+    repo: string;
+    branch: string;
+    basePath: string;
+  }>;
 }
 
 export interface CmsAdapter {

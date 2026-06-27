@@ -36,7 +36,7 @@ vi.mock("mongodb", async () => {
   };
 });
 
-import { generateMongoCmsSchemaFiles } from "@dashboard/lib/cms/adapters/mongodb-schema";
+import { generateMongoCmsSchemaFiles } from "@dashboard/lib/cms/schema/mongodb";
 
 describe("Mongo CMS schema generation", () => {
   it("emits storage metadata for ObjectId, dates, arrays, and string ID relations", async () => {

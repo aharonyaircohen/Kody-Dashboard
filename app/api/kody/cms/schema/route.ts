@@ -17,7 +17,7 @@ import {
   invalidateCmsConfigCache,
   loadCmsConfigFromState,
 } from "@dashboard/lib/cms/config";
-import { generateMongoCmsSchemaFiles } from "@dashboard/lib/cms/adapters/mongodb-schema";
+import { generateMongoCmsSchemaFiles } from "@dashboard/lib/cms/schema/mongodb";
 import {
   CmsRuntimeError,
   listCmsCollections,

@@ -38,10 +38,12 @@ import { MarkdownPreview } from "./MarkdownPreview";
 type EditorMode = "write" | "preview" | "split";
 
 interface MarkdownEditorProps {
+  id?: string;
   value: string;
   onChange: (next: string) => void;
   placeholder?: string;
   rows?: number;
+  autoFocus?: boolean;
   disabled?: boolean;
   className?: string;
   /** Optional override for preview empty-state message */
@@ -49,10 +51,12 @@ interface MarkdownEditorProps {
 }
 
 export function MarkdownEditor({
+  id,
   value,
   onChange,
   placeholder,
   rows = 8,
+  autoFocus,
   disabled,
   className,
   emptyPreview = "*Nothing to preview*",
@@ -156,11 +160,13 @@ export function MarkdownEditor({
 
   const editor = (
     <Textarea
+      id={id}
       ref={textareaRef}
       value={value}
       onChange={(e) => onChange(e.target.value)}
       placeholder={placeholder}
       rows={rows}
+      autoFocus={autoFocus}
       disabled={disabled}
       dir="auto"
       className="font-mono text-sm resize-y max-h-[50vh] text-start"

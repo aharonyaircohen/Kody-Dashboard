@@ -1,7 +1,7 @@
 /**
  * @fileoverview E2E for the DEFAULT chat path — Kody Live. The composer is
  *   disabled until the runner is "ready", so a turn is a two-step flow:
- *     Start → interactive/start → poll events/poll for `chat.ready`
+ *     Boot runner → interactive/start → poll events/poll for `chat.ready`
  *       → composer enables → type → interactive/append
  *       → poll returns `chat.message` → assistant bubble renders.
  *
@@ -9,7 +9,7 @@
  *   interactive/append) so it runs without GitHub or a real runner. This
  *   replaces the older chat-ui-mocked spec, which mocked the /trigger + SSE
  *   flow the default UI no longer drives (so it could never find the
- *   now-Start-gated composer).
+ *   now-boot-gated composer).
  *
  * Runs against a deployed BASE_URL; skips without E2E_GITHUB_TOKEN and on
  * mobile viewports.
@@ -38,14 +38,24 @@ function parseRepo(url: string): { owner: string; repo: string } {
 async function injectAuth(page: Page): Promise<void> {
   const { owner, repo } = parseRepo(TEST_REPO);
   await page.evaluate(
-    (auth) => localStorage.setItem("kody_auth", JSON.stringify(auth)),
+    ({ auth, owner, repo }) => {
+      const repoKey = `${owner.toLowerCase()}/${repo.toLowerCase()}`;
+      localStorage.setItem("kody_auth", JSON.stringify(auth));
+      localStorage.setItem(`kody-default-chat-entry:${repoKey}`, "kody-live");
+      localStorage.removeItem(`kody-sessions-v3:${repoKey}`);
+      localStorage.removeItem("kody-sessions-v3");
+    },
     {
-      repoUrl: TEST_REPO,
       owner,
       repo,
-      token: TEST_TOKEN,
-      user: { login: "ui-mock-test", avatar_url: "", id: 1 },
-      loggedInAt: Date.now(),
+      auth: {
+        repoUrl: TEST_REPO,
+        owner,
+        repo,
+        token: TEST_TOKEN,
+        user: { login: "ui-mock-test", avatar_url: "", id: 1 },
+        loggedInAt: Date.now(),
+      },
     },
   );
 }
@@ -119,14 +129,22 @@ async function bootRunner(
       body: ndjson(events),
     });
   });
+  await page.route("**/api/kody/secrets/FLY_API_TOKEN/value", (route) =>
+    route.fulfill({
+      status: 404,
+      contentType: "application/json",
+      body: JSON.stringify({ error: "not_found" }),
+    }),
+  );
 
   await page.goto(BASE_URL);
   await page.waitForLoadState("domcontentloaded");
 
-  const composer = page.locator("textarea").first();
+  const chat = page.locator('[aria-label="Kody chat"]');
+  const composer = chat.locator("textarea").first();
   await composer.waitFor({ state: "visible", timeout: 15_000 });
   await expect(composer).toBeDisabled(); // idle kody-live
-  await page.getByRole("button", { name: "Start" }).first().click();
+  await chat.getByRole("button", { name: /Boot runner|Start/i }).click();
   await expect(composer).toBeEnabled({ timeout: 15_000 });
 
   return { appendBody: () => lastBody, appended: () => appended };
@@ -151,9 +169,12 @@ test.describe("Chat — Kody Live default flow (mocked runner)", () => {
       return test.skip(true, "chat hidden on mobile");
 
     const h = await bootRunner(page);
-    const composer = page.locator("textarea").first();
+    const composer = page.locator('[aria-label="Kody chat"] textarea').first();
     await composer.fill("ping");
-    await page.getByRole("button", { name: "Send message" }).click();
+    await page
+      .locator('[aria-label="Kody chat"]')
+      .getByRole("button", { name: "Send message" })
+      .click();
 
     await expect.poll(() => h.appended(), { timeout: 10_000 }).toBe(true);
     // Payload shape the runner reads off the session JSONL.
@@ -179,9 +200,12 @@ test.describe("Chat — Kody Live default flow (mocked runner)", () => {
           body: JSON.stringify({ error: "boom-append-failure" }),
         }),
     });
-    const composer = page.locator("textarea").first();
+    const composer = page.locator('[aria-label="Kody chat"] textarea').first();
     await composer.fill("hi");
-    await page.getByRole("button", { name: "Send message" }).click();
+    await page
+      .locator('[aria-label="Kody chat"]')
+      .getByRole("button", { name: "Send message" })
+      .click();
 
     await expect(page.getByText(/boom-append-failure/).first()).toBeVisible({
       timeout: 15_000,
@@ -196,9 +220,12 @@ test.describe("Chat — Kody Live default flow (mocked runner)", () => {
       return test.skip(true, "chat hidden on mobile");
 
     await bootRunner(page);
-    const composer = page.locator("textarea").first();
+    const composer = page.locator('[aria-label="Kody chat"] textarea').first();
     await composer.fill("first");
-    await page.getByRole("button", { name: "Send message" }).click();
+    await page
+      .locator('[aria-label="Kody chat"]')
+      .getByRole("button", { name: "Send message" })
+      .click();
     await expect(page.getByText("pong from the runner").first()).toBeVisible({
       timeout: 15_000,
     });

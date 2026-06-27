@@ -1,14 +1,12 @@
 /**
- * @fileoverview REPRODUCTION — Bug: the Vibe chat hand-off never delivers the
- *   "do the work" kickoff turn to the runner, so the runner boots, idles, and
- *   the preview PR stays empty. Drives the REAL UI flow (chat → plan → approve
- *   → issue + draft PR → switch to runner → autoKickoff), captures whether the
- *   runner-start and the kickoff turn (/interactive/append) actually fire, and
- *   asserts a real change lands on the PR.
+ * @fileoverview REPRODUCTION — Bug: the Vibe hand-off never delivers the
+ *   selected issue to the runner, so the issue is filed but implementation
+ *   never starts. Drives the REAL UI flow (chat → plan → issue → Vibe run
+ *   action), captures whether /api/kody/vibe/execute fires, and asserts a
+ *   real change lands on the PR.
  *
- *   Unlike the backend repro, this exercises the dashboard's client hand-off
- *   (the autoKickoff useEffect + sendText), which is where the gap is.
- *   Expect it to FAIL until the kickoff is delivered. No product code touched.
+ *   Unlike the backend repro, this exercises the dashboard's client hand-off:
+ *   chat owns issue creation, while the Vibe page owns execution dispatch.
  *
  *   BASE_URL=https://kody-dashboard-sable.vercel.app pnpm test:e2e vibe-handoff-kickoff
  *
@@ -63,18 +61,12 @@ test.describe("REPRO — Vibe chat hand-off delivers the kickoff", () => {
   test("chat → run → a real change lands on the PR", async ({ page }) => {
     test.setTimeout(12 * 60_000);
 
-    // Capture the hand-off network calls.
-    let startFlyCalled = false;
-    let appendCalled = false;
-    const appendBodies: string[] = [];
+    // Capture the hand-off network call.
+    let executeCalled = false;
     page.on("request", (r) => {
       const u = r.url();
       if (r.method() !== "POST") return;
-      if (u.includes("/api/kody/chat/interactive/start")) startFlyCalled = true;
-      if (u.includes("/api/kody/chat/interactive/append")) {
-        appendCalled = true;
-        appendBodies.push((r.postData() ?? "").slice(0, 200));
-      }
+      if (u.includes("/api/kody/vibe/execute")) executeCalled = true;
     });
 
     await page.goto(`${BASE_URL}/login`);
@@ -94,7 +86,10 @@ test.describe("REPRO — Vibe chat hand-off delivers the kickoff", () => {
     await input.fill(
       `Change the landing page heading in ${TARGET_FILE} from "Welcome to your new project." to "${want}".`,
     );
-    await page.getByRole("button", { name: "Send message" }).click();
+    await page
+      .locator('[aria-label="Kody chat"]')
+      .getByRole("button", { name: "Send message" })
+      .click();
 
     // Approve when asked (or proceed if the agent created the issue directly).
     const approval = page
@@ -110,7 +105,10 @@ test.describe("REPRO — Vibe chat hand-off delivers the kickoff", () => {
     ]).catch(() => {});
     if (!new URL(page.url()).searchParams.get("issue")) {
       await input.fill("approve");
-      await page.getByRole("button", { name: "Send message" }).click();
+      await page
+        .locator('[aria-label="Kody chat"]')
+        .getByRole("button", { name: "Send message" })
+        .click();
     }
 
     // Issue created → URL flips to ?issue=N.
@@ -119,12 +117,16 @@ test.describe("REPRO — Vibe chat hand-off delivers the kickoff", () => {
     // eslint-disable-next-line no-console
     console.log(`[repro-handoff] issue #${issueNumber}`);
 
-    // Give the hand-off time to fire start + the kickoff append.
-    await page.waitForTimeout(45_000);
+    const runButton = page.getByRole("button", {
+      name: /run kody on this issue/i,
+    });
+    await expect(runButton).toBeVisible({ timeout: 60_000 });
+    await runButton.click();
+    await expect
+      .poll(() => executeCalled, { timeout: 30_000 })
+      .toBe(true);
     // eslint-disable-next-line no-console
-    console.log(
-      `[repro-handoff] startFlyCalled=${startFlyCalled} appendCalled=${appendCalled} appends=${appendBodies.length}`,
-    );
+    console.log(`[repro-handoff] executeCalled=${executeCalled}`);
 
     // Find the PR for this issue and poll for a real change to the target file.
     let prNumber = 0;
@@ -152,12 +154,12 @@ test.describe("REPRO — Vibe chat hand-off delivers the kickoff", () => {
 
     // eslint-disable-next-line no-console
     console.log(
-      `[repro-handoff] PR #${prNumber} landed=${landed} startFly=${startFlyCalled} append=${appendCalled}`,
+      `[repro-handoff] PR #${prNumber} landed=${landed} execute=${executeCalled}`,
     );
     expect(
       landed,
       `chat hand-off must deliver the kickoff and land the change on PR #${prNumber}. ` +
-        `startFlyCalled=${startFlyCalled} appendCalled=${appendCalled}. Empty PR reproduces the bug.`,
+        `executeCalled=${executeCalled}. Empty PR reproduces the bug.`,
     ).toBe(true);
   });
 });

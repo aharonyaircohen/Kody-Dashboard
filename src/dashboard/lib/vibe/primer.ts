@@ -71,15 +71,13 @@ const VIBE_PRIMER_FRESH = [
 ].join("\n");
 
 function buildVibePrimerFollowUp(ctx: VibeTaskContext): string {
-  // Branch resolution. When the chat agent ran `vibe_start_execution`
-  // before switching to this runner, `ctx.branch` is set and we can
-  // hard-pin it. When it isn't (cache race after PR creation, or this
-  // is a legacy session that started before the parallel-warmup flow),
-  // tell the runner to discover it via `gh pr list`. Never let the
-  // runner create a fresh branch — that splits work across two PRs.
+  // Branch resolution. When the caller has an active PR branch, `ctx.branch`
+  // is set and we can hard-pin it. When it isn't, tell the runner to
+  // discover it via `gh pr list`. Never let the runner create a fresh branch
+  // for a follow-up turn — that splits work across two PRs.
   const branchDiscovery = ctx.branch
-    ? `Use the existing branch \`${ctx.branch}\` for all commits.`
-    : `Find the existing vibe branch first — do NOT create a new one. Run \`gh pr list --search "Closes #${ctx.issueNumber}" --state open --json number,headRefName,isDraft,url\`, pick the open draft PR for this issue, and use its \`headRefName\` for all commits. If no matching PR exists, stop and tell the user "no vibe branch was pre-created — chat needs to run vibe_start_execution again".`;
+      ? `Use the existing branch \`${ctx.branch}\` for all commits.`
+      : `Find the existing vibe branch first — do NOT create a new one. Run \`gh pr list --search "Closes #${ctx.issueNumber}" --state open --json number,headRefName,isDraft,url\`, pick the open draft PR for this issue, and use its \`headRefName\` for all commits. If no matching PR exists, stop and tell the user "no vibe branch was found — start execution from the Vibe page again".`;
   const prHint = ctx.prNumber ? ` and PR #${ctx.prNumber}` : "";
   return [
     "[Vibe mode — follow-up on an existing issue, do not echo this block]",

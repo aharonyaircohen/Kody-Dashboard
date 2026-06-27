@@ -6,9 +6,8 @@
  * Diagnostic, not a clean assertion test. Drives the REAL flow against the
  * deployed dashboard with the REAL configured model (MiniMax — the default),
  * and TEES the /api/kody/chat/kody SSE stream so every tool call + tool
- * output is logged. That output is what tells us whether `vibe_start_execution`
- * returned a switch-agent directive or errored — the difference between a
- * working hand-off and "session deleted, nothing happened".
+ * output is logged. Execution itself is a Vibe-page action that calls
+ * /api/kody/vibe/execute, keeping issue creation and runner dispatch separate.
  *
  * Run: RUN_REAL_E2E=1 with E2E_GITHUB_TOKEN + E2E_GITHUB_REPO + BASE_URL set
  * (all live in .env). Gated off otherwise.
@@ -202,11 +201,7 @@ test.describe("Vibe — REPRO: session deleted on approve", () => {
     page.on("request", (req) => {
       if (req.method() !== "POST") return;
       const p = new URL(req.url()).pathname;
-      const isDispatch =
-        p.endsWith("/interactive/start") ||
-        p.endsWith("/interactive/start-fly") ||
-        p.endsWith("/interactive/append") ||
-        p.endsWith("/vibe/execute");
+      const isDispatch = p.endsWith("/vibe/execute");
       if (isDispatch) {
         dispatchCalls++;
         dispatchEndpoints.push(p);
@@ -261,7 +256,10 @@ test.describe("Vibe — REPRO: session deleted on approve", () => {
         `do not plan, do not ask me anything, do NOT start a runner — just create ` +
         `the issue this turn and then stop.`,
     );
-    await page.getByRole("button", { name: "Send message" }).click();
+    await page
+      .locator('[aria-label="Kody chat"]')
+      .getByRole("button", { name: "Send message" })
+      .click();
     log(`sent TURN 1 (force-create issue) marker=${marker}`);
 
     // ── 4. Wait for turn 1 stream, then for the ?issue=N navigation. ────
@@ -309,20 +307,16 @@ test.describe("Vibe — REPRO: session deleted on approve", () => {
       `composer placeholder before TURN 2 (after polling): "${placeholderAtT2}"`,
     );
 
-    // TURN 2 — approve execution while ALREADY scoped to issue N. THIS is
-    // where the user reports the session vanishing and nothing happening.
-    const input2 = page
-      .getByPlaceholder(/ask kody|kody is waiting|ask about/i)
-      .first();
-    await input2.waitFor({ state: "visible", timeout: 30_000 });
-    await input2.fill("Approved — implement it now. Do not ask again.");
-    await page.getByRole("button", { name: "Send message" }).click();
-    log(
-      `sent TURN 2 (approve execution) while scoped to issue ${issueAfterTurn1}`,
-    );
+    // TURN 2 — approve execution through the Vibe page workflow action.
+    const runButton = page.getByRole("button", {
+      name: /run kody on this issue/i,
+    });
+    await expect(runButton).toBeVisible({ timeout: 60_000 });
+    await runButton.click();
+    log(`clicked Vibe run action for issue ${issueAfterTurn1}`);
     await expect
-      .poll(() => streamCompletions, { timeout: 300_000, intervals: [2_000] })
-      .toBeGreaterThanOrEqual(2);
+      .poll(() => dispatchCalls, { timeout: 60_000, intervals: [1_000] })
+      .toBeGreaterThan(0);
     await page.waitForTimeout(6_000);
     const bubblesAfterT2 = (
       await page
@@ -385,32 +379,28 @@ test.describe("Vibe — REPRO: session deleted on approve", () => {
       "an issue should have been created (URL ?issue=N)",
     ).toBeGreaterThan(0);
 
-    // The thread is unified (issue #66): the conversation lives in the
-    // global session store `kody-sessions-v3:<owner>/<repo>`, NOT in a
-    // per-task `kody-task-chat-*` entry. The previous bug repro looked
-    // for a per-task entry; that path was the cause of the "session
-    // deleted" symptom (migrating into a fresh per-task key that hadn't
-    // hydrated yet). Now we look at the global store — the assistant
-    // turn for the new issue should be there.
-    const globalKey = `kody-sessions-v3:${owner}/${repo}`;
-    const globalRaw = await page.evaluate(
+    // The no-task Vibe conversation stays in the Vibe default session bucket
+    // through the issue-selection transition. It must not be moved into a
+    // per-task key or lost when /vibe?issue=N loads.
+    const vibeKey = `kody-sessions-v3-vibe-default:${owner.toLowerCase()}/${repo.toLowerCase()}`;
+    const vibeRaw = await page.evaluate(
       (k) => localStorage.getItem(k),
-      globalKey,
+      vibeKey,
     );
-    const globalStore = globalRaw
-      ? (JSON.parse(globalRaw) as {
+    const vibeStore = vibeRaw
+      ? (JSON.parse(vibeRaw) as {
           activeSessionId: string;
           messages: Record<string, Array<{ role: string; text: string }>>;
         })
       : null;
-    const activeId = globalStore?.activeSessionId ?? "";
-    const activeMsgs = globalStore?.messages[activeId] ?? [];
+    const activeId = vibeStore?.activeSessionId ?? "";
+    const activeMsgs = vibeStore?.messages[activeId] ?? [];
     log(
-      `globalKey=${globalKey} activeId=${activeId} activeMsgs=${activeMsgs.length}`,
+      `vibeKey=${vibeKey} activeId=${activeId} activeMsgs=${activeMsgs.length}`,
     );
     expect(
       activeMsgs.length,
-      `global session must hold the conversation — empty/missing = session deleted`,
+      `Vibe session must hold the conversation — empty/missing = session deleted`,
     ).toBeGreaterThan(0);
     expect(
       dispatchCalls,

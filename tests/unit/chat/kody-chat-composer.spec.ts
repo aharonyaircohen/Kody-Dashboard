@@ -306,9 +306,12 @@ describe("KodyChat composer — two-row layout (issue #65, #131)", () => {
     );
   });
 
-  it("leaves plain Enter in AI chat to the textarea so it inserts a newline", () => {
-    expect(HANDLE_KEY_DOWN_TEXT).not.toMatch(
-      /if\s*\(\s*e\.key\s*===\s*"Enter"\s*&&\s*!e\.shiftKey\s*\)\s*{[\s\S]*?sendMessage\(\)/,
+  it("only leaves plain Enter in AI chat to the textarea on mobile", () => {
+    expect(SOURCE).toContain(
+      'const isDesktop = useMediaQuery("(min-width: 768px)")',
+    );
+    expect(HANDLE_KEY_DOWN_TEXT).toMatch(
+      /\(\s*chatMode\s*===\s*"terminal"\s*\|\|\s*isDesktop\s*\)[\s\S]*?e\.key\s*===\s*"Enter"[\s\S]*?sendMessage\(\)/,
     );
   });
 });

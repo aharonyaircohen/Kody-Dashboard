@@ -165,6 +165,13 @@ export const PRIMARY_NAV_ITEMS: readonly SettingsNavItem[] = [
     description: "Configured content collections.",
     tint: "text-emerald-300 bg-emerald-500/10",
   },
+  {
+    href: "/content-model",
+    label: "Content Model",
+    icon: Layers,
+    description: "Schema resources and fields.",
+    tint: "text-emerald-300 bg-emerald-500/10",
+  },
   PREVIEW_NAV_ITEM,
 ] as const;
 
@@ -458,6 +465,7 @@ export const VIBE_MODE_SECTIONS: readonly SettingsNavSection[] = [
       navItemForHref("/messages"),
       navItemForHref("/reports"),
       navItemForHref("/cms"),
+      navItemForHref("/content-model"),
       navItemForHref("/docs"),
       navItemForHref("/changelog"),
     ],
@@ -478,6 +486,7 @@ export const ENGINEER_MODE_SECTIONS: readonly SettingsNavSection[] = [
       navItemForHref("/messages"),
       navItemForHref("/reports"),
       navItemForHref("/cms"),
+      navItemForHref("/content-model"),
       navItemForHref("/files"),
       navItemForHref("/docs"),
       navItemForHref("/changelog"),

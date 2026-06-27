@@ -91,7 +91,10 @@ test.describe("Real chat flow @real", () => {
 
     const triggerPromise = page.waitForRequest("**/api/kody/chat/trigger");
     await input.fill(`Reply with exactly "pong ${marker}" and nothing else.`);
-    await page.getByRole("button", { name: "Send message" }).click();
+    await page
+      .locator('[aria-label="Kody chat"]')
+      .getByRole("button", { name: "Send message" })
+      .click();
     const triggerReq = await triggerPromise;
     const triggerBody = JSON.parse(triggerReq.postData() ?? "{}") as {
       taskId?: string;

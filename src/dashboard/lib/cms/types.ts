@@ -82,13 +82,33 @@ export interface CmsFieldStorageConfig {
   kind: CmsFieldStorageKind;
 }
 
+export interface CmsFieldDisplayConfig {
+  description?: string;
+  placeholder?: string;
+  role?: CmsViewFieldRole;
+  format?: CmsViewFieldFormat;
+  width?: CmsViewFieldWidth;
+}
+
+export interface CmsFieldValidationConfig {
+  min?: number;
+  max?: number;
+  minLength?: number;
+  maxLength?: number;
+  pattern?: string;
+}
+
 export interface CmsFieldConfig {
   name: string;
   type: CmsFieldType;
   label?: string;
+  description?: string;
+  placeholder?: string;
   required?: boolean;
   readOnly?: boolean;
   hidden?: boolean;
+  display?: CmsFieldDisplayConfig;
+  validation?: CmsFieldValidationConfig;
   options?: Array<string | CmsFieldOption>;
   target?: string;
   valueField?: string;
@@ -148,6 +168,7 @@ export interface CmsFormViewConfig {
 }
 
 export interface CmsCollectionViewsConfig {
+  table?: CmsListViewConfig;
   list?: CmsListViewConfig;
   detail?: CmsDetailViewConfig;
   form?: CmsFormViewConfig;

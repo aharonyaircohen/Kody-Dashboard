@@ -24,7 +24,6 @@ describe("vibe system prompt — issue-only boundary", () => {
 
     expect(prompt).toMatch(/issue \*\*already exists\*\*/i);
     expect(prompt).toMatch(/do not start work from chat/i);
-    expect(prompt).not.toContain("vibe_start_execution");
     expect(prompt).toMatch(/do not open a draft PR/i);
     expect(prompt).not.toMatch(/targetAgent|Runner availability/i);
   });
@@ -37,6 +36,5 @@ describe("vibe system prompt — issue-only boundary", () => {
 
     expect(prompt).toMatch(/Stop after issue creation/i);
     expect(prompt).toMatch(/Reply with the issue number, title, and URL/i);
-    expect(prompt).not.toContain("vibe_start_execution");
   });
 });

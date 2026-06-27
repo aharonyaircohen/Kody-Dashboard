@@ -265,7 +265,6 @@ describe("POST /api/kody/chat/kody", () => {
 
     expect(prompt).toMatch(/Stop after issue creation/i);
     expect(prompt).toMatch(/Kody chat opens issues only/i);
-    expect(prompt).not.toContain("vibe_start_execution");
     expect(prompt).not.toContain("targetAgent");
   });
 

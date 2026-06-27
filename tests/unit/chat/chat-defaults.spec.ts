@@ -127,7 +127,6 @@ describe("chat-defaults bundle", () => {
       "app/api/kody/chat/tools/inbox-tools.ts",
       "app/api/kody/chat/tools/release-tools.ts",
       "app/api/kody/chat/tools/planner-tools.ts",
-      "app/api/kody/chat/tools/vibe-tools.ts",
       "app/api/kody/chat/tools/memory-tools.ts",
       "app/api/kody/chat/tools/macros-tools.ts",
       "app/api/kody/chat/tools/remote-tools.ts",
@@ -332,12 +331,10 @@ describe("composeChatPrompt", () => {
     expect(prompt).toContain("### create-issue");
     expect(prompt).toContain("### create-capability");
     expect(prompt).toContain("### create-agent");
-    expect(prompt).toContain("### vibe");
     expect(prompt).toContain("### memory");
     // Tools allowlist.
     expect(prompt).toContain("## Tools available");
     expect(prompt).toContain("`github_search_code`");
-    expect(prompt).not.toContain("`vibe_start_execution`");
     expect(prompt).not.toContain("`kody_run_issue`");
     expect(prompt).not.toContain("`remote_write`");
   });

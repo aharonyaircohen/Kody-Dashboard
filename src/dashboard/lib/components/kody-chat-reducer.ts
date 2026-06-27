@@ -49,7 +49,7 @@ export interface LiveSessionState {
   lastEventAt: number | null;
   /** Human-readable reason when phase is 'error' or 'stuck'. */
   errorMessage: string | null;
-  /** Vibe auto-kickoff queued by SwitchAgentDirective; fired once gates pass. */
+  /** Optional switch-agent kickoff queued by SwitchAgentDirective. */
   pendingKickoff: PendingKickoff | null;
 }
 

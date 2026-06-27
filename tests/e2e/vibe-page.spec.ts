@@ -175,7 +175,7 @@ test.describe("Vibe page — header", () => {
   test("refresh button kicks off a tasks refetch", async ({ page }) => {
     await gotoVibe(page, { waitForTasks: true });
     const refresh = page
-      .getByRole("button", { name: /refresh|reload/i })
+      .getByRole("button", { name: "Refresh", exact: true })
       .first();
     const visible = await refresh
       .waitFor({ state: "visible", timeout: 3_000 })
@@ -187,15 +187,19 @@ test.describe("Vibe page — header", () => {
       test.skip(true, "No refresh button found on header — selector drift?");
       return;
     }
+    await expect(refresh).toBeEnabled();
     // Listen for the next /api/kody/tasks request the click triggers.
-    const respPromise = page.waitForResponse(
-      (resp) =>
-        resp.url().includes("/api/kody/tasks") &&
-        resp.request().method() === "GET",
-      { timeout: 8_000 },
-    );
-    await refresh.click();
-    const resp = await respPromise.catch(() => null);
+    const [resp] = await Promise.all([
+      page
+        .waitForResponse(
+          (candidate) =>
+            candidate.url().includes("/api/kody/tasks") &&
+            candidate.request().method() === "GET",
+          { timeout: 8_000 },
+        )
+        .catch(() => null),
+      refresh.click(),
+    ]);
     expect(
       resp,
       "Refresh did not trigger /api/kody/tasks fetch",

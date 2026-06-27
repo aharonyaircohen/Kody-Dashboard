@@ -30,7 +30,6 @@ import { Button } from "@dashboard/ui/button";
 import { Card, CardContent } from "@dashboard/ui/card";
 import { Input } from "@dashboard/ui/input";
 import { Label } from "@dashboard/ui/label";
-import { Textarea } from "@dashboard/ui/textarea";
 import {
   Dialog,
   DialogContent,
@@ -41,6 +40,7 @@ import {
 import { ConfirmDialog } from "./ConfirmDialog";
 import { AuthGuard } from "../auth-guard";
 import { useAuth, buildAuthHeaders } from "../auth-context";
+import { MarkdownEditor } from "./MarkdownEditor";
 
 interface CommandRow {
   slug: string;
@@ -545,12 +545,11 @@ function CommandEditor({
             <Label htmlFor="command-body" className="text-xs">
               Body
             </Label>
-            <Textarea
+            <MarkdownEditor
               id="command-body"
               value={body}
-              onChange={(e) => setBody(e.target.value)}
+              onChange={setBody}
               placeholder="Explain $ARGUMENTS in this codebase…"
-              className="font-mono text-xs"
               rows={8}
               autoFocus
             />

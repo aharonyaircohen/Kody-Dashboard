@@ -30,30 +30,48 @@ function parseRepo(url: string): { owner: string; repo: string } {
 async function injectAuth(page: Page): Promise<void> {
   const { owner, repo } = parseRepo(TEST_REPO);
   await page.evaluate(
-    (auth) => localStorage.setItem("kody_auth", JSON.stringify(auth)),
+    ({ auth, owner, repo }) => {
+      const repoKey = `${owner.toLowerCase()}/${repo.toLowerCase()}`;
+      localStorage.setItem("kody_auth", JSON.stringify(auth));
+      localStorage.setItem(
+        `kody-default-chat-entry:${repoKey}`,
+        "kody:test/model",
+      );
+      localStorage.removeItem(`kody-sessions-v3:${repoKey}`);
+      localStorage.removeItem("kody-sessions-v3");
+    },
     {
-      repoUrl: TEST_REPO,
+      auth: {
+        repoUrl: TEST_REPO,
+        owner,
+        repo,
+        token: TEST_TOKEN,
+        user: { login: "kody-e2e", avatar_url: "", id: 1 },
+        loggedInAt: Date.now(),
+      },
       owner,
       repo,
-      token: TEST_TOKEN,
-      user: { login: "kody-e2e", avatar_url: "", id: 1 },
-      loggedInAt: Date.now(),
     },
   );
 }
 
 async function selectKodyAgent(page: Page): Promise<void> {
-  // Agent switcher button shows the current agent's name. The dropdown
-  // uses role=listbox / role=option (not a menu), so target the Kody
-  // option inside the listbox rather than getByRole('menuitem').
-  const trigger = page
-    .locator("button")
-    .filter({ hasText: /Kody(\s|$)|Brain/ })
-    .first();
+  const selected = page.getByRole("button", { name: /Kody Test/i }).first();
+  try {
+    await selected.waitFor({ state: "visible", timeout: 10_000 });
+    return;
+  } catch {
+  }
+
+  const chat = page.locator('[aria-label="Kody chat"]');
+  const trigger = chat.locator('button[aria-haspopup="listbox"]').first();
   await trigger.click();
-  const listbox = page.getByRole("listbox");
+  const listbox = page
+    .getByRole("listbox")
+    .filter({ has: page.getByRole("option", { name: /Kody Test/i }) });
   await listbox.waitFor({ state: "visible", timeout: 5_000 });
-  await listbox.getByRole("option", { name: /^Kody\b/ }).click();
+  await listbox.getByRole("option", { name: /Kody Test/i }).click();
+  await selected.waitFor({ state: "visible", timeout: 5_000 });
 }
 
 test.describe("Kody direct agent", () => {
@@ -101,10 +119,13 @@ test.describe("Kody direct agent", () => {
 
     await selectKodyAgent(page);
 
-    const input = page.getByPlaceholder(/ask kody|kody is waiting/i).first();
-    await input.waitFor({ state: "visible", timeout: 10_000 });
+    const input = page.locator('[aria-label="Kody chat"] textarea').first();
+    await expect(input).toBeEditable({ timeout: 10_000 });
     await input.fill("ping");
-    await page.getByRole("button", { name: "Send message" }).click();
+    await page
+      .locator('[aria-label="Kody chat"]')
+      .getByRole("button", { name: "Send message" })
+      .click();
 
     // The streamed text lands in an assistant bubble — assert on the text
     // itself rather than a brittle class chain.

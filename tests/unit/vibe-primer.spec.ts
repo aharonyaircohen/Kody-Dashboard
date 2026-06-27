@@ -84,7 +84,8 @@ describe("buildVibePrimer — follow-up WITHOUT a known branch", () => {
   });
 
   it("instructs the runner to stop if no matching vibe PR exists (rather than fork work)", () => {
-    expect(primer).toContain("no vibe branch was pre-created");
+    expect(primer).toContain("no vibe branch was found");
+    expect(primer).toContain("start execution from the Vibe page again");
   });
 
   it("omits a PR-number hint when none was provided", () => {

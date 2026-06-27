@@ -26,10 +26,9 @@ export interface SwitchAgentDirective {
   reason: string;
   /**
    * Optional kickoff message. When set, the client auto-sends this string
-   * as the first user message under the new agent after the switch. Used
-   * by `vibe_start_execution` to immediately ask the runner to implement
-   * the issue — without it the runner just idles after the agent flip,
-   * waiting for the user to type something, and the draft PR stays empty.
+   * as the first user message under the new agent after the switch. This is
+   * kept as a generic switch-agent affordance; Vibe execution uses the
+   * dedicated `/api/kody/vibe/execute` workflow instead.
    */
   autoKickoff?: string;
   /**

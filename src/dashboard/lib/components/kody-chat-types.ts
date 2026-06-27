@@ -145,11 +145,9 @@ export interface KodyChatProps {
    */
   lockedAgentId?: AgentId;
   /**
-   * Vibe mode — when true, every dispatch to the engine has a short
-   * "vibe primer" prepended to the last user message server-side. The
-   * primer tells Kody to research → create an issue with the plan →
-   * confirm with the user → implement and open a PR. No engine change
-   * needed; the dashboard injects context. Set by ChatRailShell on /vibe.
+   * Vibe mode — keeps chat focused on research, planning, and issue creation
+   * for the Vibe page. Execution is owned by the Vibe page workflow, which
+   * calls `/api/kody/vibe/execute` for the selected issue.
    */
   vibeMode?: boolean;
   /**

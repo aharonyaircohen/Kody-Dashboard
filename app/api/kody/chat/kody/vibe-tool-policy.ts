@@ -23,7 +23,6 @@ export const VIBE_DISPATCH_TOOLS: readonly string[] = [
 /** Implementation-start/write tools — never available to Kody chat. */
 export const KODY_CHAT_IMPLEMENTATION_TOOLS: readonly string[] = [
   ...VIBE_DISPATCH_TOOLS,
-  "vibe_start_execution",
   "remote_exec",
   "remote_write",
 ];

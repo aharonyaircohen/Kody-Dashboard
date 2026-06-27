@@ -1,4 +1,5 @@
 import type {
+  CmsCollectionConfig,
   CmsCollectionOperations,
   CmsConfigState,
   CmsDocument,
@@ -33,6 +34,13 @@ interface CmsSchemaResponse {
   message?: string;
 }
 
+interface CmsModelResponse {
+  cms?: CmsConfigState;
+  collection?: CmsCollectionConfig;
+  error?: string;
+  message?: string;
+}
+
 export interface GenerateCmsSchemaPayload {
   adapter: "mongodb";
   name?: string;
@@ -46,6 +54,11 @@ export interface SaveCmsPermissionsPayload {
     permissions: CmsPermissionsConfig;
     operations?: Pick<CmsCollectionOperations, "create" | "update" | "delete">;
   }>;
+}
+
+export interface SaveCmsModelResourcePayload {
+  collection: CmsCollectionConfig;
+  originalName?: string | null;
 }
 
 export async function fetchCmsConfig(
@@ -104,6 +117,23 @@ export async function saveCmsPermissions(
     body: JSON.stringify(payload),
   });
   const json = (await res.json().catch(() => ({}))) as CmsIndexResponse;
+  if (!res.ok || !json.cms) {
+    throw new Error(json.message || json.error || `HTTP ${res.status}`);
+  }
+  return json.cms;
+}
+
+export async function saveCmsModelResource(
+  headers: Record<string, string>,
+  payload: SaveCmsModelResourcePayload,
+): Promise<CmsConfigState> {
+  const res = await fetch("/api/kody/cms/model", {
+    method: "PATCH",
+    headers: { ...headers, "content-type": "application/json" },
+    cache: "no-store",
+    body: JSON.stringify(payload),
+  });
+  const json = (await res.json().catch(() => ({}))) as CmsModelResponse;
   if (!res.ok || !json.cms) {
     throw new Error(json.message || json.error || `HTTP ${res.status}`);
   }

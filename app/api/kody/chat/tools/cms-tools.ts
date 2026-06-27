@@ -203,18 +203,60 @@ function toCollectionSummary(collection: CmsCollectionConfig) {
     name: collection.name,
     label: collection.label,
     adapter: collection.adapter,
+    source: collection.source,
+    storage: describeCollectionStorage(collection),
     titleField: collection.titleField,
     searchFields: collection.searchFields,
+    writePolicy: collection.writePolicy,
+    permissions: collection.permissions,
     operations: collection.operations,
     fields: collection.fields.map((field) => ({
       name: field.name,
       type: field.type,
       label: field.label,
+      description: field.description,
+      placeholder: field.placeholder,
       required: field.required,
       readOnly: field.readOnly,
       hidden: field.hidden,
+      display: field.display,
+      validation: field.validation,
       target: field.target,
     })),
+  };
+}
+
+function describeCollectionStorage(collection: CmsCollectionConfig) {
+  const path =
+    collection.source.path ??
+    collection.source.collection ??
+    collection.name;
+  const idField = collection.source.idField ?? "_id";
+  const extension = collection.source.extension ?? "json";
+
+  if (collection.adapter === "github") {
+    return {
+      kind: "github-json",
+      path,
+      idField,
+      extension,
+      branch: "kody-state",
+    };
+  }
+
+  if (collection.adapter === "file") {
+    return {
+      kind: "file-json",
+      path,
+      idField,
+      extension,
+    };
+  }
+
+  return {
+    kind: "adapter",
+    collection: path,
+    idField,
   };
 }
 

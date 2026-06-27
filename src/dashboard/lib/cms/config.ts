@@ -9,8 +9,10 @@ import type {
   CmsCollectionOperations,
   CmsCollectionViewsConfig,
   CmsFieldConfig,
+  CmsFieldDisplayConfig,
   CmsFieldStorageKind,
   CmsFieldType,
+  CmsFieldValidationConfig,
   CmsFilterConfig,
   CmsFilterOperator,
   CmsPublicConfig,
@@ -842,27 +844,37 @@ function normalizeViews(
 ): CmsCollectionViewsConfig | undefined {
   const views: CmsCollectionViewsConfig = {};
   const raw = isRecord(rawViews) ? rawViews : {};
+  const rawTable = isRecord(raw.table)
+    ? raw.table
+    : isRecord(raw.list)
+      ? raw.list
+      : undefined;
+  const tableLabel = isRecord(raw.table)
+    ? `${label}.table.fields`
+    : `${label}.list.fields`;
 
-  const list = normalizeViewFields(
-    isRecord(raw.list) ? raw.list.fields : undefined,
+  const table = normalizeViewFields(
+    rawTable?.fields,
     fields,
-    `${label}.list.fields`,
+    tableLabel,
     errors,
   );
-  if (list.length > 0) {
-    views.list = {
-      fields: list,
-      pageSize: normalizePageSize(
-        isRecord(raw.list) ? raw.list.pageSize : undefined,
-      ),
+  if (table.length > 0) {
+    const listView = {
+      fields: table,
+      pageSize: normalizePageSize(rawTable?.pageSize),
     };
+    views.table = listView;
+    views.list = listView;
   } else if (legacyListFields?.length) {
-    views.list = {
+    const listView = {
       fields: legacyListFields.map((name, index) => ({
         name,
-        role: index === 0 ? "primary" : "secondary",
+        role: index === 0 ? ("primary" as const) : ("secondary" as const),
       })),
     };
+    views.table = listView;
+    views.list = listView;
   }
 
   const detail = normalizeViewFields(
@@ -897,11 +909,11 @@ function normalizeViewFields(
     return [];
   }
 
-  const fieldNames = new Set(fields.map((field) => field.name));
+  const fieldsByName = new Map(fields.map((field) => [field.name, field]));
   const viewFields: CmsViewFieldConfig[] = [];
 
   for (const rawField of rawFields) {
-    const viewField = normalizeViewField(rawField, fieldNames, label, errors);
+    const viewField = normalizeViewField(rawField, fieldsByName, label, errors);
     if (!viewField) continue;
     if (!viewFields.some((field) => field.name === viewField.name)) {
       viewFields.push(viewField);
@@ -913,7 +925,7 @@ function normalizeViewFields(
 
 function normalizeViewField(
   rawField: unknown,
-  fieldNames: Set<string>,
+  fieldsByName: Map<string, CmsFieldConfig>,
   label: string,
   errors: string[],
 ): CmsViewFieldConfig | null {
@@ -926,20 +938,30 @@ function normalizeViewField(
 
   if (!name) return null;
 
-  if (!fieldNames.has(name)) {
+  const field = fieldsByName.get(name);
+  if (!field) {
     errors.push(`${label} references unknown field: ${name}`);
     return null;
   }
 
-  if (!isRecord(rawField)) return { name };
+  const fieldDisplay = field.display;
+
+  if (!isRecord(rawField)) {
+    return {
+      name,
+      role: fieldDisplay?.role,
+      format: fieldDisplay?.format,
+      width: fieldDisplay?.width,
+    };
+  }
 
   return {
     name,
     label: stringOr(rawField.label),
-    role: enumOr(rawField.role, VIEW_FIELD_ROLES),
+    role: enumOr(rawField.role, VIEW_FIELD_ROLES) ?? fieldDisplay?.role,
     display: enumOr(rawField.display, VIEW_FIELD_DISPLAYS),
-    format: enumOr(rawField.format, VIEW_FIELD_FORMATS),
-    width: enumOr(rawField.width, VIEW_FIELD_WIDTHS),
+    format: enumOr(rawField.format, VIEW_FIELD_FORMATS) ?? fieldDisplay?.format,
+    width: enumOr(rawField.width, VIEW_FIELD_WIDTHS) ?? fieldDisplay?.width,
     sortable:
       typeof rawField.sortable === "boolean" ? rawField.sortable : undefined,
   };
@@ -981,9 +1003,21 @@ function normalizeFields(
       name,
       type: type as CmsFieldType,
       label: stringOr(rawField.label),
+      description: stringOr(rawField.description),
+      placeholder: stringOr(rawField.placeholder),
       required: booleanOr(rawField.required),
       readOnly: booleanOr(rawField.readOnly),
       hidden: booleanOr(rawField.hidden),
+      display: normalizeFieldDisplay(
+        rawField.display,
+        `${label}.${name}.display`,
+        errors,
+      ),
+      validation: normalizeFieldValidation(
+        rawField.validation,
+        `${label}.${name}.validation`,
+        errors,
+      ),
       options: normalizeOptions(rawField.options),
       target: stringOr(rawField.target),
       valueField: stringOr(rawField.valueField),
@@ -996,6 +1030,106 @@ function normalizeFields(
     });
   }
   return fields;
+}
+
+function normalizeFieldDisplay(
+  rawDisplay: unknown,
+  label: string,
+  errors: string[],
+): CmsFieldDisplayConfig | undefined {
+  if (rawDisplay == null) return undefined;
+  if (!isRecord(rawDisplay)) {
+    errors.push(`${label} must be an object`);
+    return undefined;
+  }
+
+  const display: CmsFieldDisplayConfig = {
+    description: stringOr(rawDisplay.description),
+    placeholder: stringOr(rawDisplay.placeholder),
+    role: enumOr(rawDisplay.role, VIEW_FIELD_ROLES),
+    format: enumOr(rawDisplay.format, VIEW_FIELD_FORMATS),
+    width: enumOr(rawDisplay.width, VIEW_FIELD_WIDTHS),
+  };
+
+  if (rawDisplay.role != null && !display.role) {
+    errors.push(`${label}.role is invalid`);
+  }
+  if (rawDisplay.format != null && !display.format) {
+    errors.push(`${label}.format is invalid`);
+  }
+  if (rawDisplay.width != null && !display.width) {
+    errors.push(`${label}.width is invalid`);
+  }
+
+  return pruneUndefined(display);
+}
+
+function normalizeFieldValidation(
+  rawValidation: unknown,
+  label: string,
+  errors: string[],
+): CmsFieldValidationConfig | undefined {
+  if (rawValidation == null) return undefined;
+  if (!isRecord(rawValidation)) {
+    errors.push(`${label} must be an object`);
+    return undefined;
+  }
+
+  const validation: CmsFieldValidationConfig = {};
+  const min = finiteNumberOr(rawValidation.min);
+  const max = finiteNumberOr(rawValidation.max);
+  const minLength = integerOr(rawValidation.minLength);
+  const maxLength = integerOr(rawValidation.maxLength);
+  const pattern = stringOr(rawValidation.pattern);
+
+  if (rawValidation.min != null) {
+    if (min == null) errors.push(`${label}.min must be a number`);
+    else validation.min = min;
+  }
+  if (rawValidation.max != null) {
+    if (max == null) errors.push(`${label}.max must be a number`);
+    else validation.max = max;
+  }
+  if (min != null && max != null && min > max) {
+    errors.push(`${label}.min must be less than or equal to max`);
+  }
+
+  if (rawValidation.minLength != null) {
+    if (minLength == null || minLength < 0) {
+      errors.push(`${label}.minLength must be a non-negative integer`);
+    } else {
+      validation.minLength = minLength;
+    }
+  }
+  if (rawValidation.maxLength != null) {
+    if (maxLength == null || maxLength < 0) {
+      errors.push(`${label}.maxLength must be a non-negative integer`);
+    } else {
+      validation.maxLength = maxLength;
+    }
+  }
+  if (
+    minLength != null &&
+    maxLength != null &&
+    minLength >= 0 &&
+    maxLength >= 0 &&
+    minLength > maxLength
+  ) {
+    errors.push(`${label}.minLength must be less than or equal to maxLength`);
+  }
+
+  if (pattern) {
+    try {
+      new RegExp(pattern);
+      validation.pattern = pattern;
+    } catch {
+      errors.push(`${label}.pattern is invalid`);
+    }
+  } else if (rawValidation.pattern != null) {
+    errors.push(`${label}.pattern must be a non-empty string`);
+  }
+
+  return Object.keys(validation).length > 0 ? validation : undefined;
 }
 
 function normalizeFieldStorage(
@@ -1268,6 +1402,22 @@ function enumOr<T extends string>(
 
 function booleanOr(value: unknown, fallback = false): boolean {
   return typeof value === "boolean" ? value : fallback;
+}
+
+function finiteNumberOr(value: unknown): number | undefined {
+  const number = Number(value);
+  return Number.isFinite(number) ? number : undefined;
+}
+
+function integerOr(value: unknown): number | undefined {
+  const number = Number(value);
+  return Number.isInteger(number) ? number : undefined;
+}
+
+function pruneUndefined<T extends object>(value: T): T {
+  return Object.fromEntries(
+    Object.entries(value).filter(([, entry]) => entry !== undefined),
+  ) as T;
 }
 
 function isSearchableField(field: CmsFieldConfig): boolean {
