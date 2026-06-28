@@ -294,6 +294,7 @@ export function toPublicCmsConfig(
     writePolicy: config.writePolicy,
     actorRole,
     permissions: config.permissions,
+    adapters: config.adapters,
     collections: Object.values(config.collections),
   };
 }

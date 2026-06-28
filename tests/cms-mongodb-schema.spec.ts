@@ -177,4 +177,38 @@ describe("Mongo CMS schema generation", () => {
       source: { collection: "A", idField: "_id" },
     });
   });
+
+  it("preserves skipped collections when generating schema", async () => {
+    mongo.collections.clear();
+    mongo.collections.set("A", [{ _id: new ObjectId(), title: "Hidden" }]);
+    mongo.collections.set("Lessons", [
+      { _id: new ObjectId(), title: "Visible" },
+    ]);
+
+    const generated = await generateMongoCmsSchemaFiles({
+      uri: "mongodb://localhost/a-guy-dev",
+      databaseUriSecret: "DATABASE_URL",
+      repoName: "A-Guy-Admin",
+      cmsName: "A-Guy CMS",
+      environment: "development",
+      sampleSize: 20,
+      skipCollections: ["A"],
+    });
+
+    expect(
+      generated.files.some((file) => file.path === "cms/collections/a.json"),
+    ).toBe(false);
+    expect(
+      generated.files.some(
+        (file) => file.path === "cms/collections/lessons.json",
+      ),
+    ).toBe(true);
+    const rootConfig = generated.files.find(
+      (file) => file.path === "cms/config.json",
+    );
+    expect(JSON.parse(rootConfig?.content ?? "{}")).toMatchObject({
+      schemaGeneration: { skipCollections: ["A"] },
+      collections: ["collections/lessons.json"],
+    });
+  });
 });

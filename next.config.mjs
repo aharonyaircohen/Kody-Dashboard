@@ -10,6 +10,25 @@ const nextConfig = {
   env: {
     NEXT_PUBLIC_APP_VERSION: pkg.version,
   },
+  async redirects() {
+    return [
+      {
+        source: "/cms/:path*",
+        destination: "/content/entries/:path*",
+        permanent: false,
+      },
+      {
+        source: "/content-model",
+        destination: "/content/models",
+        permanent: false,
+      },
+      {
+        source: "/cms-config",
+        destination: "/content/settings",
+        permanent: false,
+      },
+    ];
+  },
   experimental: {
     // Turbopack's persistent dev cache has grown pathologically large locally.
     turbopackFileSystemCacheForDev: false,

@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import {
   carryPreviewAuthParams,
+  hasPreviewAuthParams,
   rebasePreviewAuthUrl,
   stripPreviewAuthParams,
 } from "@dashboard/lib/preview-auth-url";
@@ -31,6 +32,14 @@ describe("preview auth URL helpers", () => {
         "https://kp-test.fly.dev/start?locale=he&kp=secret#top",
       ),
     ).toBe("https://kp-test.fly.dev/start?locale=he#top");
+  });
+
+  it("detects protected Fly preview URLs", () => {
+    expect(hasPreviewAuthParams("https://kp-test.fly.dev/?kp=secret")).toBe(
+      true,
+    );
+    expect(hasPreviewAuthParams("https://kp-test.fly.dev/")).toBe(false);
+    expect(hasPreviewAuthParams("https://example.com/?kp=secret")).toBe(false);
   });
 
   it("uses a fresh ticket while preserving the current preview path", () => {

@@ -224,6 +224,7 @@ export interface CmsPublicConfig {
   writePolicy: CmsWritePolicy;
   actorRole?: CmsRole;
   permissions: CmsPermissionsConfig;
+  adapters?: Record<string, CmsAdapterSettings>;
   collections: CmsCollectionConfig[];
 }
 

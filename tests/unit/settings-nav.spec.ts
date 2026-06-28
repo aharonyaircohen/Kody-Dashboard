@@ -64,6 +64,17 @@ describe("settings navigation", () => {
     expect(navLabelForPath("/terminal")).toBeNull();
   });
 
+  it("groups content entries, models, and settings into one side-panel section", () => {
+    expect(sectionHrefs(SETTINGS_NAV_SECTIONS, "Content")).toEqual([
+      "/content/entries",
+      "/content/models",
+      "/content/settings",
+    ]);
+    expect(navLabelForPath("/content/entries")).toBe("Entries");
+    expect(navLabelForPath("/content/models")).toBe("Models");
+    expect(navLabelForPath("/content/settings")).toBe("Settings");
+  });
+
   it("keeps every desktop engineer side-panel route reachable on mobile", () => {
     const mobileHrefs = new Set(allHrefs(MOBILE_NAV_SECTIONS));
 
@@ -87,5 +98,20 @@ describe("settings navigation", () => {
       "/vibe",
       "/preview",
     ]);
+  });
+
+  it("keeps Views active for selected saved preview routes", () => {
+    const previewHref = "/preview";
+    const previewItem = sectionHrefs(ENGINEER_MODE_SECTIONS, PRIMARY_VIEW_TITLE)
+      .map((href) =>
+        ENGINEER_MODE_SECTIONS.flatMap((section) => section.items).find(
+          (item) => item.href === href,
+        ),
+      )
+      .find((item) => item?.href === previewHref);
+
+    expect(previewItem?.label).toBe("Views");
+    expect(previewItem?.exact).toBeUndefined();
+    expect(navLabelForPath("/preview/dev-4ojw")).toBe("Views");
   });
 });

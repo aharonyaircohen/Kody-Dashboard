@@ -103,7 +103,6 @@ export const PREVIEW_NAV_ITEM: SettingsNavItem = {
   href: "/preview",
   label: "Views",
   icon: MonitorPlay,
-  exact: true,
   description:
     "View any environment — Production, Staging, Dev — with saved paths, device sizes, and element-pick into chat.",
   tint: "text-sky-300 bg-sky-500/10",
@@ -158,20 +157,6 @@ export const PRIMARY_NAV_ITEMS: readonly SettingsNavItem[] = [
     description: "Outputs from capability runs.",
     tint: "text-sky-300 bg-sky-500/10",
   },
-  {
-    href: "/cms",
-    label: "CMS",
-    icon: Database,
-    description: "Configured content collections.",
-    tint: "text-emerald-300 bg-emerald-500/10",
-  },
-  {
-    href: "/content-model",
-    label: "Content Model",
-    icon: Layers,
-    description: "Schema resources and fields.",
-    tint: "text-emerald-300 bg-emerald-500/10",
-  },
   PREVIEW_NAV_ITEM,
 ] as const;
 
@@ -182,6 +167,33 @@ export interface SettingsNavSection {
 }
 
 export const SETTINGS_NAV_SECTIONS: readonly SettingsNavSection[] = [
+  {
+    title: "Content",
+    items: [
+      {
+        href: "/content/entries",
+        label: "Entries",
+        icon: Database,
+        description: "Browse and edit content entries.",
+        tint: "text-emerald-300 bg-emerald-500/10",
+      },
+      {
+        href: "/content/models",
+        label: "Models",
+        icon: Layers,
+        description: "Define content collections and fields.",
+        tint: "text-emerald-300 bg-emerald-500/10",
+      },
+      {
+        href: "/content/settings",
+        label: "Settings",
+        icon: Settings2,
+        exact: true,
+        description: "Adapter, schema, permissions, and MCP settings.",
+        tint: "text-cyan-300 bg-cyan-500/10",
+      },
+    ],
+  },
   {
     title: "Fly",
     items: [
@@ -238,8 +250,7 @@ export const SETTINGS_NAV_SECTIONS: readonly SettingsNavSection[] = [
         href: "/agents",
         label: "Agents",
         icon: Users,
-        description:
-          "Agent identities that execute your capabilities.",
+        description: "Agent identities that execute your capabilities.",
         tint: "text-violet-300 bg-violet-500/10",
       },
 
@@ -464,12 +475,11 @@ export const VIBE_MODE_SECTIONS: readonly SettingsNavSection[] = [
       navItemForHref("/todos"),
       navItemForHref("/messages"),
       navItemForHref("/reports"),
-      navItemForHref("/cms"),
-      navItemForHref("/content-model"),
       navItemForHref("/docs"),
       navItemForHref("/changelog"),
     ],
   },
+  settingsSection("Content"),
 ];
 
 export const ENGINEER_MODE_SECTIONS: readonly SettingsNavSection[] = [
@@ -485,13 +495,12 @@ export const ENGINEER_MODE_SECTIONS: readonly SettingsNavSection[] = [
       navItemForHref("/todos"),
       navItemForHref("/messages"),
       navItemForHref("/reports"),
-      navItemForHref("/cms"),
-      navItemForHref("/content-model"),
       navItemForHref("/files"),
       navItemForHref("/docs"),
       navItemForHref("/changelog"),
     ],
   },
+  settingsSection("Content"),
   settingsSection("Monitoring"),
   settingsSection("Fly"),
   settingsSection("Agent"),

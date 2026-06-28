@@ -72,11 +72,16 @@ export interface SaveCmsPermissionsPayload {
 
 export interface SaveCmsAdapterPayload {
   adapter: string;
+  adapterSettings?: Record<string, unknown>;
 }
 
 export interface SaveCmsModelResourcePayload {
   collection: CmsCollectionConfig;
   originalName?: string | null;
+}
+
+export interface DeleteCmsModelResourcePayload {
+  name: string;
 }
 
 export async function fetchCmsConfig(
@@ -178,6 +183,23 @@ export async function saveCmsModelResource(
 ): Promise<CmsConfigState> {
   const res = await fetch("/api/kody/cms/model", {
     method: "PATCH",
+    headers: { ...headers, "content-type": "application/json" },
+    cache: "no-store",
+    body: JSON.stringify(payload),
+  });
+  const json = (await res.json().catch(() => ({}))) as CmsModelResponse;
+  if (!res.ok || !json.cms) {
+    throw new Error(json.message || json.error || `HTTP ${res.status}`);
+  }
+  return json.cms;
+}
+
+export async function deleteCmsModelResource(
+  headers: Record<string, string>,
+  payload: DeleteCmsModelResourcePayload,
+): Promise<CmsConfigState> {
+  const res = await fetch("/api/kody/cms/model", {
+    method: "DELETE",
     headers: { ...headers, "content-type": "application/json" },
     cache: "no-store",
     body: JSON.stringify(payload),

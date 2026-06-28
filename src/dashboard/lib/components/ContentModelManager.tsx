@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   Database,
@@ -28,11 +28,16 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@dashboard/ui/select";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@dashboard/ui/tabs";
 import { Textarea } from "@dashboard/ui/textarea";
 
+import { ConfirmDialog } from "./ConfirmDialog";
 import { PageHeader } from "./PageShell";
-import { fetchCmsConfig, saveCmsModelResource } from "./cms/client";
+import { CONTENT_ENTRIES_PATH } from "./cms/paths";
+import {
+  deleteCmsModelResource,
+  fetchCmsConfig,
+  saveCmsModelResource,
+} from "./cms/client";
 import {
   CMS_MODEL_FIELD_TYPES,
   cleanCmsModelName,
@@ -56,6 +61,11 @@ const EMPTY_HEADERS: Record<string, string> = {};
 const NEW_RESOURCE_KEY = "__new_resource__";
 const NO_TARGET_VALUE = "__no_target__";
 
+interface SaveCmsModelVariables {
+  draft: CmsModelResourceDraft;
+  originalName: string | null;
+}
+
 export function ContentModelManager() {
   return (
     <AuthGuard>
@@ -75,9 +85,29 @@ function ContentModelWorkspace() {
   const queryKey = ["cms-config", scope] as const;
 
   const [selectedName, setSelectedName] = useState<string | null>(null);
+  const [selectedFieldKey, setSelectedFieldKey] = useState<string | null>(null);
+  const [deleteTargetName, setDeleteTargetName] = useState<string | null>(null);
   const [search, setSearch] = useState("");
-  const [draft, setDraft] = useState<CmsModelResourceDraft>(() =>
+  const [draft, setDraftState] = useState<CmsModelResourceDraft>(() =>
     newCmsModelResourceDraft(),
+  );
+  const draftRef = useRef(draft);
+  const [draftDirty, setDraftDirty] = useState(false);
+  const [draftSourceName, setDraftSourceName] = useState<string | null>(null);
+
+  const replaceDraft = useCallback(
+    (
+      nextDraft: CmsModelResourceDraft,
+      options: { dirty?: boolean; sourceName?: string | null } = {},
+    ) => {
+      draftRef.current = nextDraft;
+      setDraftState(nextDraft);
+      setDraftDirty(options.dirty ?? true);
+      if (Object.prototype.hasOwnProperty.call(options, "sourceName")) {
+        setDraftSourceName(options.sourceName ?? null);
+      }
+    },
+    [],
   );
 
   const cmsQuery = useQuery({
@@ -104,6 +134,10 @@ function ContentModelWorkspace() {
       ? (collections.find((collection) => collection.name === selectedName) ??
         null)
       : null;
+  const deleteTarget = deleteTargetName
+    ? (collections.find((collection) => collection.name === deleteTargetName) ??
+      null)
+    : null;
 
   useEffect(() => {
     if (selectedName || collections.length === 0) return;
@@ -112,8 +146,27 @@ function ContentModelWorkspace() {
 
   useEffect(() => {
     if (!selectedCollection) return;
-    setDraft(cmsModelResourceDraftFromCollection(selectedCollection));
-  }, [selectedCollection]);
+    if (draftDirty && draftSourceName === selectedCollection.name) return;
+    const nextDraft = cmsModelResourceDraftFromCollection(selectedCollection);
+    replaceDraft(nextDraft, {
+      dirty: false,
+      sourceName: selectedCollection.name,
+    });
+    setSelectedFieldKey(nextDraft.fields[0]?.key ?? null);
+  }, [draftDirty, draftSourceName, replaceDraft, selectedCollection]);
+
+  useEffect(() => {
+    if (draft.fields.length === 0) {
+      if (selectedFieldKey) setSelectedFieldKey(null);
+      return;
+    }
+    if (
+      !selectedFieldKey ||
+      !draft.fields.some((field) => field.key === selectedFieldKey)
+    ) {
+      setSelectedFieldKey(draft.fields[0].key);
+    }
+  }, [draft.fields, selectedFieldKey]);
 
   const validationIssues = useMemo(
     () =>
@@ -126,15 +179,35 @@ function ContentModelWorkspace() {
   );
 
   const saveMutation = useMutation({
-    mutationFn: (nextDraft: CmsModelResourceDraft) =>
+    mutationFn: ({ draft: nextDraft, originalName }: SaveCmsModelVariables) =>
       saveCmsModelResource(headers, {
         collection: cmsCollectionFromModelDraft(nextDraft),
-        originalName: isCreating ? null : selectedCollection?.name,
+        originalName,
       }),
-    onSuccess: async (cms) => {
+    onSuccess: async (cms, saved) => {
+      const savedName = saved.draft.name.trim();
+      const savedCollection =
+        cms.configured === true
+          ? (cms.collections.find(
+              (collection) => collection.name === savedName,
+            ) ?? null)
+          : null;
+      const nextDraft = savedCollection
+        ? cmsModelResourceDraftFromCollection(savedCollection)
+        : saved.draft;
+
       queryClient.setQueryData(queryKey, cms);
+      setSelectedName(savedName);
+      replaceDraft(nextDraft, {
+        dirty: false,
+        sourceName: savedName || null,
+      });
+      setSelectedFieldKey((currentKey) =>
+        currentKey && nextDraft.fields.some((field) => field.key === currentKey)
+          ? currentKey
+          : (nextDraft.fields[0]?.key ?? null),
+      );
       await queryClient.invalidateQueries({ queryKey });
-      setSelectedName(draft.name.trim());
       toast.success("Content model saved");
     },
     onError: (error) => {
@@ -143,16 +216,41 @@ function ContentModelWorkspace() {
       );
     },
   });
+  const deleteMutation = useMutation({
+    mutationFn: (name: string) => deleteCmsModelResource(headers, { name }),
+    onSuccess: (cms) => {
+      queryClient.setQueryData(queryKey, cms);
+      const nextCollections = cms.configured === true ? cms.collections : [];
+      const nextName = nextCollections[0]?.name ?? null;
+      setSelectedName(nextName);
+      if (!nextName) {
+        replaceDraft(newCmsModelResourceDraft(), {
+          dirty: false,
+          sourceName: null,
+        });
+        setSelectedFieldKey(null);
+      }
+      toast.success("Content model deleted");
+    },
+    onError: (error) => {
+      toast.error(
+        error instanceof Error
+          ? error.message
+          : "Failed to delete content model",
+      );
+    },
+  });
 
   const loading = cmsQuery.isLoading;
   const error =
     cmsQuery.error instanceof Error ? cmsQuery.error.message : undefined;
   const canSave = validationIssues.length === 0;
+  const originalName = isCreating ? null : (selectedCollection?.name ?? null);
 
   return (
     <div className="flex h-full min-h-0 flex-col bg-black/95 text-white/90">
       <PageHeader
-        title="Content Model"
+        title="Models"
         icon={Database}
         iconClassName="text-emerald-300"
         subtitle={
@@ -160,7 +258,7 @@ function ContentModelWorkspace() {
             ? `${collections.length} resources`
             : undefined
         }
-        backHref="/cms"
+        backHref={CONTENT_ENTRIES_PATH}
         actions={
           <>
             <Button
@@ -181,7 +279,12 @@ function ContentModelWorkspace() {
             <Button
               type="button"
               size="sm"
-              onClick={() => saveMutation.mutate(draft)}
+              onClick={() =>
+                saveMutation.mutate({
+                  draft: draftRef.current,
+                  originalName,
+                })
+              }
               disabled={!canSave || saveMutation.isPending}
             >
               {saveMutation.isPending ? (
@@ -211,7 +314,12 @@ function ContentModelWorkspace() {
               size="sm"
               onClick={() => {
                 setSelectedName(NEW_RESOURCE_KEY);
-                setDraft(newCmsModelResourceDraft());
+                const nextDraft = newCmsModelResourceDraft();
+                replaceDraft(nextDraft, {
+                  dirty: false,
+                  sourceName: NEW_RESOURCE_KEY,
+                });
+                setSelectedFieldKey(null);
               }}
             >
               <Plus className="mr-2 h-4 w-4" />
@@ -276,51 +384,59 @@ function ContentModelWorkspace() {
           </div>
         </aside>
 
-        <main className="min-h-0 overflow-y-auto">
-          <Tabs defaultValue="fields" className="flex min-h-full flex-col">
-            <div className="flex shrink-0 items-center justify-between gap-3 border-b border-border px-4 py-3">
-              <div className="min-w-0">
-                <div className="truncate text-base font-semibold">
-                  {draft.label.trim() || draft.name.trim() || "New resource"}
-                </div>
-                <div className="mt-1 flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
-                  {draft.name ? <span>{draft.name}</span> : null}
-                  <Badge variant="outline">{draft.fields.length} fields</Badge>
-                </div>
-              </div>
-              <TabsList className="h-9">
-                <TabsTrigger value="fields">Fields</TabsTrigger>
-                <TabsTrigger value="preview">Preview</TabsTrigger>
-              </TabsList>
-            </div>
-
-            <TabsContent value="fields" className="m-0 flex-1">
-              <ResourceFieldsEditor
-                draft={draft}
-                collections={collections}
-                validationIssues={validationIssues}
-                onChange={setDraft}
-              />
-            </TabsContent>
-            <TabsContent value="preview" className="m-0 flex-1">
-              <ResourcePreview draft={draft} />
-            </TabsContent>
-          </Tabs>
+        <main className="min-h-0 overflow-hidden">
+          <ResourceBuilder
+            draft={draft}
+            collections={collections}
+            validationIssues={validationIssues}
+            selectedFieldKey={selectedFieldKey}
+            onSelectedFieldChange={setSelectedFieldKey}
+            canDeleteResource={Boolean(selectedCollection)}
+            deleteResourceLoading={deleteMutation.isPending}
+            onDeleteResource={() => {
+              if (selectedCollection)
+                setDeleteTargetName(selectedCollection.name);
+            }}
+            onChange={replaceDraft}
+          />
         </main>
       </div>
+      <ConfirmDialog
+        open={deleteTargetName !== null}
+        title="Delete resource?"
+        description={`This removes "${
+          deleteTarget?.label ?? deleteTargetName ?? "this resource"
+        }" from the content schema. It does not delete content documents.`}
+        confirmLabel="Delete resource"
+        variant="destructive"
+        onClose={() => setDeleteTargetName(null)}
+        onConfirm={() => {
+          if (deleteTargetName) deleteMutation.mutate(deleteTargetName);
+        }}
+      />
     </div>
   );
 }
 
-function ResourceFieldsEditor({
+function ResourceBuilder({
   draft,
   collections,
   validationIssues,
+  selectedFieldKey,
+  onSelectedFieldChange,
+  canDeleteResource,
+  deleteResourceLoading,
+  onDeleteResource,
   onChange,
 }: {
   draft: CmsModelResourceDraft;
   collections: CmsCollectionConfig[];
   validationIssues: CmsModelValidationIssue[];
+  selectedFieldKey: string | null;
+  onSelectedFieldChange: (key: string | null) => void;
+  canDeleteResource: boolean;
+  deleteResourceLoading: boolean;
+  onDeleteResource: () => void;
   onChange: (draft: CmsModelResourceDraft) => void;
 }) {
   const resourceOptions = useMemo(() => {
@@ -347,11 +463,24 @@ function ResourceFieldsEditor({
     });
   };
 
-  const removeField = (key: string) => {
+  const addField = () => {
+    const field = newCmsModelFieldDraft(draft.fields.length);
     onChange({
       ...draft,
-      fields: draft.fields.filter((field) => field.key !== key),
+      fields: [...draft.fields, field],
     });
+    onSelectedFieldChange(field.key);
+  };
+
+  const removeField = (key: string) => {
+    const fields = draft.fields.filter((field) => field.key !== key);
+    onChange({
+      ...draft,
+      fields,
+    });
+    if (selectedFieldKey === key) {
+      onSelectedFieldChange(fields[0]?.key ?? null);
+    }
   };
 
   const issuesByField = useMemo(() => {
@@ -366,18 +495,96 @@ function ResourceFieldsEditor({
     return result;
   }, [validationIssues]);
   const resourceIssues = validationIssues.filter((issue) => !issue.fieldKey);
+  const selectedField =
+    draft.fields.find((field) => field.key === selectedFieldKey) ?? null;
 
   return (
-    <div className="space-y-4 p-4">
+    <div className="flex h-full min-h-0 flex-col overflow-hidden">
+      <ResourceSettingsBar
+        draft={draft}
+        canDeleteResource={canDeleteResource}
+        deleteResourceLoading={deleteResourceLoading}
+        onDeleteResource={onDeleteResource}
+        onChange={onChange}
+      />
+
       {resourceIssues.length > 0 ? (
-        <div className="rounded border border-destructive/40 bg-destructive/10 px-3 py-2 text-sm text-destructive">
+        <div className="shrink-0 border-b border-destructive/30 bg-destructive/10 px-4 py-2 text-sm text-destructive">
           {resourceIssues.map((issue) => (
             <div key={issue.message}>{issue.message}</div>
           ))}
         </div>
       ) : null}
 
-      <section className="grid gap-3 border-b border-border pb-4 md:grid-cols-3">
+      <div className="grid min-h-0 flex-1 grid-cols-1 xl:grid-cols-[minmax(0,1fr)_380px]">
+        <FieldsTable
+          fields={draft.fields}
+          selectedFieldKey={selectedFieldKey}
+          issuesByField={issuesByField}
+          onAddField={addField}
+          onRemoveField={removeField}
+          onSelectField={onSelectedFieldChange}
+        />
+        <aside className="flex min-h-0 flex-col overflow-y-auto border-t border-border bg-background/40 xl:border-l xl:border-t-0">
+          <FieldInspector
+            field={selectedField}
+            resources={resourceOptions}
+            issues={
+              selectedField ? (issuesByField.get(selectedField.key) ?? []) : []
+            }
+            onUpdateField={updateField}
+            onRemoveField={removeField}
+          />
+          <div className="border-t border-border">
+            <ResourcePreview draft={draft} />
+          </div>
+        </aside>
+      </div>
+    </div>
+  );
+}
+
+function ResourceSettingsBar({
+  draft,
+  canDeleteResource,
+  deleteResourceLoading,
+  onDeleteResource,
+  onChange,
+}: {
+  draft: CmsModelResourceDraft;
+  canDeleteResource: boolean;
+  deleteResourceLoading: boolean;
+  onDeleteResource: () => void;
+  onChange: (draft: CmsModelResourceDraft) => void;
+}) {
+  return (
+    <div className="shrink-0 border-b border-border bg-background/80 px-4 py-3">
+      <div className="mb-3 flex min-w-0 flex-wrap items-center justify-between gap-2">
+        <div className="flex min-w-0 flex-wrap items-center gap-2">
+          <div className="min-w-0 truncate text-base font-semibold">
+            {draft.label.trim() || draft.name.trim() || "New resource"}
+          </div>
+          <Badge variant="outline">{draft.fields.length} fields</Badge>
+        </div>
+        {canDeleteResource ? (
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            onClick={onDeleteResource}
+            disabled={deleteResourceLoading}
+            aria-label="Delete resource"
+          >
+            {deleteResourceLoading ? (
+              <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+            ) : (
+              <Trash2 className="mr-2 h-4 w-4" />
+            )}
+            Delete
+          </Button>
+        ) : null}
+      </div>
+      <div className="grid gap-3 md:grid-cols-3">
         <FieldShell label="Name">
           <Input
             value={draft.name}
@@ -419,191 +626,343 @@ function ResourceFieldsEditor({
             className="h-9"
           />
         </FieldShell>
-      </section>
+      </div>
+    </div>
+  );
+}
 
-      <section className="space-y-3">
-        <div className="flex items-center justify-between gap-2">
-          <div className="text-sm font-medium">Fields</div>
-          <Button
-            type="button"
-            variant="outline"
-            size="sm"
-            onClick={() =>
-              onChange({
-                ...draft,
-                fields: [
-                  ...draft.fields,
-                  newCmsModelFieldDraft(draft.fields.length),
-                ],
+function FieldsTable({
+  fields,
+  selectedFieldKey,
+  issuesByField,
+  onAddField,
+  onRemoveField,
+  onSelectField,
+}: {
+  fields: CmsModelFieldDraft[];
+  selectedFieldKey: string | null;
+  issuesByField: Map<string, string[]>;
+  onAddField: () => void;
+  onRemoveField: (key: string) => void;
+  onSelectField: (key: string) => void;
+}) {
+  return (
+    <section className="flex min-h-0 flex-col overflow-hidden">
+      <div className="flex shrink-0 items-center justify-between gap-2 border-b border-border px-4 py-3">
+        <div>
+          <div className="text-sm font-medium text-foreground">Fields</div>
+          <div className="text-xs text-muted-foreground">
+            {fields.length} configured
+          </div>
+        </div>
+        <Button type="button" variant="outline" size="sm" onClick={onAddField}>
+          <Plus className="mr-2 h-4 w-4" />
+          Add field
+        </Button>
+      </div>
+
+      <div className="min-h-0 flex-1 overflow-auto">
+        {fields.length === 0 ? (
+          <div className="flex min-h-[220px] items-center justify-center px-4 text-sm text-muted-foreground">
+            No fields yet.
+          </div>
+        ) : (
+          <div className="min-w-[780px]">
+            <div className="grid grid-cols-[minmax(190px,1.3fr)_minmax(130px,1fr)_120px_170px_minmax(150px,1fr)_44px] border-b border-border bg-muted/40 px-4 py-2 text-xs font-semibold uppercase text-muted-foreground">
+              <div>Field</div>
+              <div>Slug</div>
+              <div>Type</div>
+              <div>Flags</div>
+              <div>Details</div>
+              <div />
+            </div>
+            {fields.map((field) => {
+              const selected = selectedFieldKey === field.key;
+              const issues = issuesByField.get(field.key) ?? [];
+              return (
+                <div
+                  key={field.key}
+                  role="button"
+                  tabIndex={0}
+                  onClick={() => onSelectField(field.key)}
+                  onKeyDown={(event) => {
+                    if (event.key === "Enter" || event.key === " ") {
+                      event.preventDefault();
+                      onSelectField(field.key);
+                    }
+                  }}
+                  className={cn(
+                    "grid cursor-pointer grid-cols-[minmax(190px,1.3fr)_minmax(130px,1fr)_120px_170px_minmax(150px,1fr)_44px] items-center border-b border-border px-4 py-3 text-sm outline-none transition",
+                    selected
+                      ? "bg-primary/15 text-foreground"
+                      : "text-muted-foreground hover:bg-muted/60 hover:text-foreground",
+                  )}
+                >
+                  <div className="min-w-0">
+                    <div className="truncate font-medium">
+                      {field.label || field.name || "Untitled field"}
+                    </div>
+                    {issues.length > 0 ? (
+                      <div className="mt-1 text-xs text-destructive">
+                        {issues.length} issue{issues.length === 1 ? "" : "s"}
+                      </div>
+                    ) : null}
+                  </div>
+                  <div className="truncate font-mono text-xs">
+                    {field.name || "-"}
+                  </div>
+                  <div>{fieldTypeLabel(field.type)}</div>
+                  <FieldFlagBadges field={field} />
+                  <div className="truncate text-xs">{fieldDetail(field)}</div>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="icon"
+                    onClick={(event) => {
+                      event.stopPropagation();
+                      onRemoveField(field.key);
+                    }}
+                    aria-label={`Remove ${field.label || field.name || "field"}`}
+                  >
+                    <Trash2 className="h-4 w-4" />
+                  </Button>
+                </div>
+              );
+            })}
+          </div>
+        )}
+      </div>
+    </section>
+  );
+}
+
+function FieldInspector({
+  field,
+  resources,
+  issues,
+  onUpdateField,
+  onRemoveField,
+}: {
+  field: CmsModelFieldDraft | null;
+  resources: { name: string; label: string }[];
+  issues: string[];
+  onUpdateField: (key: string, patch: Partial<CmsModelFieldDraft>) => void;
+  onRemoveField: (key: string) => void;
+}) {
+  if (!field) {
+    return (
+      <section className="shrink-0 px-4 py-8 text-center text-sm text-muted-foreground">
+        Select a field to edit its settings.
+      </section>
+    );
+  }
+
+  return (
+    <section className="shrink-0 space-y-4 p-4">
+      <div className="flex min-w-0 items-start justify-between gap-3">
+        <div className="min-w-0">
+          <div className="truncate text-sm font-medium text-foreground">
+            {field.label || field.name || "Untitled field"}
+          </div>
+          <div className="mt-1 text-xs text-muted-foreground">
+            {fieldTypeLabel(field.type)}
+          </div>
+        </div>
+        <Button
+          type="button"
+          variant="ghost"
+          size="icon"
+          onClick={() => onRemoveField(field.key)}
+          aria-label={`Remove ${field.label || field.name || "field"}`}
+        >
+          <Trash2 className="h-4 w-4" />
+        </Button>
+      </div>
+
+      {issues.length > 0 ? (
+        <div className="rounded border border-destructive/40 bg-destructive/10 px-3 py-2 text-sm text-destructive">
+          {issues.map((message) => (
+            <div key={message}>{message}</div>
+          ))}
+        </div>
+      ) : null}
+
+      <div className="grid gap-3">
+        <FieldShell label="Name">
+          <Input
+            value={field.name}
+            onChange={(event) =>
+              onUpdateField(field.key, {
+                name: cleanCmsModelName(event.target.value),
+              })
+            }
+            className="h-9"
+          />
+        </FieldShell>
+        <FieldShell label="Label">
+          <Input
+            value={field.label}
+            onChange={(event) =>
+              onUpdateField(field.key, { label: event.target.value })
+            }
+            className="h-9"
+          />
+        </FieldShell>
+        <FieldShell label="Type">
+          <Select
+            value={field.type}
+            onValueChange={(value) =>
+              onUpdateField(field.key, {
+                type: value as CmsModelFieldDraft["type"],
               })
             }
           >
-            <Plus className="mr-2 h-4 w-4" />
-            Add field
-          </Button>
-        </div>
-
-        <div className="space-y-2">
-          {draft.fields.map((field) => (
-            <div
-              key={field.key}
-              className="grid gap-3 rounded border border-border bg-background/60 p-3 xl:grid-cols-[minmax(120px,1fr)_minmax(120px,1fr)_150px_220px_40px]"
-            >
-              <FieldShell label="Name">
-                <Input
-                  value={field.name}
-                  onChange={(event) =>
-                    updateField(field.key, {
-                      name: cleanCmsModelName(event.target.value),
-                    })
-                  }
-                  className="h-9"
-                />
-              </FieldShell>
-              <FieldShell label="Label">
-                <Input
-                  value={field.label}
-                  onChange={(event) =>
-                    updateField(field.key, { label: event.target.value })
-                  }
-                  className="h-9"
-                />
-              </FieldShell>
-              <FieldShell label="Type">
-                <Select
-                  value={field.type}
-                  onValueChange={(value) =>
-                    updateField(field.key, {
-                      type: value as CmsModelFieldDraft["type"],
-                    })
-                  }
-                >
-                  <SelectTrigger className="h-9">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {CMS_MODEL_FIELD_TYPES.map((type) => (
-                      <SelectItem key={type.value} value={type.value}>
-                        {type.label}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </FieldShell>
-              <div className="grid grid-cols-3 gap-2 pt-6">
-                <CheckControl
-                  label="Required"
-                  checked={field.required}
-                  onChange={(checked) =>
-                    updateField(field.key, { required: checked })
-                  }
-                />
-                <CheckControl
-                  label="Read only"
-                  checked={field.readOnly}
-                  onChange={(checked) =>
-                    updateField(field.key, { readOnly: checked })
-                  }
-                />
-                <CheckControl
-                  label="Hidden"
-                  checked={field.hidden}
-                  onChange={(checked) =>
-                    updateField(field.key, { hidden: checked })
-                  }
-                />
-              </div>
-              <div className="flex items-end justify-end">
-                <Button
-                  type="button"
-                  variant="ghost"
-                  size="icon"
-                  onClick={() => removeField(field.key)}
-                  aria-label={`Remove ${field.label || field.name}`}
-                >
-                  <Trash2 className="h-4 w-4" />
-                </Button>
-              </div>
-              {(field.type === "select" || field.type === "multiSelect") && (
-                <FieldShell label="Options" className="xl:col-span-5">
-                  <Textarea
-                    value={field.optionsText}
-                    onChange={(event) =>
-                      updateField(field.key, {
-                        optionsText: event.target.value,
-                      })
-                    }
-                    placeholder="draft, live"
-                    className="min-h-20"
-                  />
-                </FieldShell>
-              )}
-              {(field.type === "relation" || field.type === "relationMany") && (
-                <div className="grid gap-3 xl:col-span-5 xl:grid-cols-3">
-                  <FieldShell label="Target resource">
-                    <Select
-                      value={field.target || NO_TARGET_VALUE}
-                      onValueChange={(value) =>
-                        updateField(field.key, {
-                          target: value === NO_TARGET_VALUE ? "" : value,
-                        })
-                      }
-                    >
-                      <SelectTrigger className="h-9">
-                        <SelectValue placeholder="Select resource" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value={NO_TARGET_VALUE}>
-                          Select resource
-                        </SelectItem>
-                        {resourceOptions.map((resource) => (
-                          <SelectItem key={resource.name} value={resource.name}>
-                            {resource.label}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  </FieldShell>
-                  <FieldShell label="Value field">
-                    <Input
-                      value={field.valueField}
-                      onChange={(event) =>
-                        updateField(field.key, {
-                          valueField: cleanCmsModelName(event.target.value),
-                        })
-                      }
-                      placeholder="_id"
-                      className="h-9"
-                    />
-                  </FieldShell>
-                  <FieldShell label="Label field">
-                    <Input
-                      value={field.labelField}
-                      onChange={(event) =>
-                        updateField(field.key, {
-                          labelField: cleanCmsModelName(event.target.value),
-                        })
-                      }
-                      placeholder="title"
-                      className="h-9"
-                    />
-                  </FieldShell>
-                </div>
-              )}
-              {(issuesByField.get(field.key) ?? []).map((message) => (
-                <div
-                  key={message}
-                  className="text-sm text-destructive xl:col-span-5"
-                >
-                  {message}
-                </div>
+            <SelectTrigger className="h-9">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              {CMS_MODEL_FIELD_TYPES.map((type) => (
+                <SelectItem key={type.value} value={type.value}>
+                  {type.label}
+                </SelectItem>
               ))}
-            </div>
-          ))}
+            </SelectContent>
+          </Select>
+        </FieldShell>
+      </div>
+
+      <div className="grid gap-2 border-y border-border py-3">
+        <CheckControl
+          label="Required"
+          checked={field.required}
+          onChange={(checked) =>
+            onUpdateField(field.key, { required: checked })
+          }
+        />
+        <CheckControl
+          label="Read only"
+          checked={field.readOnly}
+          onChange={(checked) =>
+            onUpdateField(field.key, { readOnly: checked })
+          }
+        />
+        <CheckControl
+          label="Hidden"
+          checked={field.hidden}
+          onChange={(checked) => onUpdateField(field.key, { hidden: checked })}
+        />
+      </div>
+
+      {(field.type === "select" || field.type === "multiSelect") && (
+        <FieldShell label="Options">
+          <Textarea
+            value={field.optionsText}
+            onChange={(event) =>
+              onUpdateField(field.key, { optionsText: event.target.value })
+            }
+            placeholder="draft, live"
+            className="min-h-24"
+          />
+        </FieldShell>
+      )}
+
+      {(field.type === "relation" || field.type === "relationMany") && (
+        <div className="grid gap-3">
+          <FieldShell label="Target resource">
+            <Select
+              value={field.target || NO_TARGET_VALUE}
+              onValueChange={(value) =>
+                onUpdateField(field.key, {
+                  target: value === NO_TARGET_VALUE ? "" : value,
+                })
+              }
+            >
+              <SelectTrigger className="h-9">
+                <SelectValue placeholder="Select resource" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value={NO_TARGET_VALUE}>Select resource</SelectItem>
+                {resources.map((resource) => (
+                  <SelectItem key={resource.name} value={resource.name}>
+                    {resource.label}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </FieldShell>
+          <FieldShell label="Value field">
+            <Input
+              value={field.valueField}
+              onChange={(event) =>
+                onUpdateField(field.key, {
+                  valueField: cleanCmsModelName(event.target.value),
+                })
+              }
+              placeholder="_id"
+              className="h-9"
+            />
+          </FieldShell>
+          <FieldShell label="Label field">
+            <Input
+              value={field.labelField}
+              onChange={(event) =>
+                onUpdateField(field.key, {
+                  labelField: cleanCmsModelName(event.target.value),
+                })
+              }
+              placeholder="title"
+              className="h-9"
+            />
+          </FieldShell>
         </div>
-      </section>
+      )}
+    </section>
+  );
+}
+
+function FieldFlagBadges({ field }: { field: CmsModelFieldDraft }) {
+  const flags = [
+    field.required ? "Required" : null,
+    field.readOnly ? "Read only" : null,
+    field.hidden ? "Hidden" : null,
+  ].filter(Boolean);
+
+  if (flags.length === 0) {
+    return <span className="text-xs text-muted-foreground">Default</span>;
+  }
+
+  return (
+    <div className="flex min-w-0 flex-wrap gap-1">
+      {flags.map((flag) => (
+        <Badge key={flag} variant="outline" className="text-[11px]">
+          {flag}
+        </Badge>
+      ))}
     </div>
   );
+}
+
+function fieldTypeLabel(type: CmsModelFieldDraft["type"]): string {
+  return (
+    CMS_MODEL_FIELD_TYPES.find((option) => option.value === type)?.label ?? type
+  );
+}
+
+function fieldDetail(field: CmsModelFieldDraft): string {
+  if (field.type === "select" || field.type === "multiSelect") {
+    const options = field.optionsText
+      .split(/[\n,]+/)
+      .map((option) => option.trim())
+      .filter(Boolean);
+    if (options.length === 0) return "No options";
+    return `${options.length} option${options.length === 1 ? "" : "s"}`;
+  }
+
+  if (field.type === "relation" || field.type === "relationMany") {
+    return field.target ? `Links to ${field.target}` : "No target";
+  }
+
+  return field.placeholder || field.description || "-";
 }
 
 function ResourcePreview({ draft }: { draft: CmsModelResourceDraft }) {

@@ -72,6 +72,86 @@ async function mockAdapters(page: Page): Promise<void> {
 }
 
 test.describe("CMS adapter setup", () => {
+  test("renders documents for the selected content collection", async ({
+    page,
+  }, testInfo) => {
+    test.skip(
+      testInfo.project.name !== "chromium",
+      "One desktop flow is enough for the content entries contract.",
+    );
+
+    let requestedPath: string | null = null;
+
+    await seedAuth(page);
+    await mockIdentity(page);
+    await mockAdapters(page);
+    await page.route("**/api/kody/cms", async (route) => {
+      await route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify({
+          cms: {
+            configured: true,
+            version: 1,
+            name: "widgets CMS",
+            environment: "default",
+            defaultAdapter: "mongodb",
+            writePolicy: "read-only",
+            permissions: {},
+            adapters: {
+              mongodb: { databaseUriSecret: "DATABASE_URL" },
+            },
+            collections: [
+              {
+                name: "lessons",
+                label: "Lessons",
+                adapter: "mongodb",
+                source: { collection: "lessons", idField: "_id" },
+                searchFields: [],
+                defaultSort: [],
+                fields: [
+                  { name: "_id", type: "id", label: "ID" },
+                  { name: "title", type: "text", label: "Title" },
+                ],
+                filters: [],
+                views: {
+                  list: {
+                    fields: [{ field: "title" }],
+                    pageSize: 25,
+                  },
+                },
+              },
+            ],
+          },
+        }),
+      });
+    });
+    await page.route("**/api/kody/cms/lessons?**", async (route) => {
+      requestedPath = new URL(route.request().url()).pathname;
+      await route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify({
+          docs: [{ _id: "lesson-1", title: "Intro lesson" }],
+          total: 1,
+          limit: 25,
+          offset: 0,
+        }),
+      });
+    });
+
+    await page.goto("/content/entries/lessons", {
+      waitUntil: "domcontentloaded",
+    });
+
+    await expect(page.getByRole("heading", { name: "Entries" })).toBeVisible({
+      timeout: 10_000,
+    });
+    await expect(page.getByText("Intro lesson")).toBeVisible();
+    await expect(page.getByText("No items")).toHaveCount(0);
+    expect(requestedPath).toBe("/api/kody/cms/lessons");
+  });
+
   test("creates CMS config with the selected Store adapter", async ({
     page,
   }, testInfo) => {
@@ -114,14 +194,14 @@ test.describe("CMS adapter setup", () => {
       });
     });
 
-    await page.goto("/cms", { waitUntil: "domcontentloaded" });
-    await expect(page.getByRole("heading", { name: "CMS" })).toBeVisible({
+    await page.goto("/content/entries", { waitUntil: "domcontentloaded" });
+    await expect(page.getByRole("heading", { name: "Entries" })).toBeVisible({
       timeout: 10_000,
     });
 
-    await page.getByRole("combobox", { name: "CMS adapter" }).click();
+    await page.getByRole("combobox", { name: "Content adapter" }).click();
     await page.getByRole("option", { name: "GitHub JSON" }).click();
-    await page.getByRole("button", { name: "Create CMS config" }).click();
+    await page.getByRole("button", { name: "Create content config" }).click();
 
     await expect.poll(() => createdBody?.adapter).toBe("github");
   });
@@ -164,12 +244,13 @@ test.describe("CMS adapter setup", () => {
       });
     });
 
-    await page.goto("/cms", { waitUntil: "domcontentloaded" });
-    await expect(page.getByRole("heading", { name: "CMS" })).toBeVisible({
+    await page.goto("/content/settings", { waitUntil: "domcontentloaded" });
+    await expect(
+      page.getByRole("heading", { name: "Content Settings" }),
+    ).toBeVisible({
       timeout: 10_000,
     });
 
-    await page.getByRole("button", { name: "CMS adapter settings" }).click();
     await page.getByRole("combobox", { name: "Default adapter" }).click();
     await page.getByRole("option", { name: "GitHub JSON" }).click();
     await page.getByRole("button", { name: "Save adapter" }).click();

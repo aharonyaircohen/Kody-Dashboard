@@ -32,6 +32,7 @@ import {
 } from "@dashboard/lib/state-repo";
 import { getCmsActorRole } from "@dashboard/lib/cms/roles";
 import type {
+  CmsAdapterSettings,
   CmsCollectionOperations,
   CmsContentOperation,
   CmsPermissionsConfig,
@@ -229,6 +230,9 @@ export async function PATCH(req: NextRequest) {
     const adapter = isCmsAdapterPatch(rawPayload)
       ? readRequiredCmsAdapter(rawPayload)
       : null;
+    const adapterSettings = adapter
+      ? readCmsAdapterSettings(rawPayload)
+      : undefined;
     const files = adapter
       ? await buildCmsAdapterFiles(
           octokit,
@@ -236,6 +240,7 @@ export async function PATCH(req: NextRequest) {
           headerAuth.repo,
           config.defaultAdapter,
           adapter,
+          adapterSettings,
         )
       : await buildCmsPermissionFiles(
           octokit,
@@ -250,7 +255,7 @@ export async function PATCH(req: NextRequest) {
       repo: headerAuth.repo,
       files,
       message: adapter
-        ? "chore(cms): switch CMS adapter"
+        ? "chore(cms): update CMS adapter"
         : "chore(cms): update CMS permissions",
     });
 
@@ -321,6 +326,26 @@ function isCmsAdapterPatch(payload: unknown): boolean {
   return Boolean(
     payload && typeof payload === "object" && "adapter" in payload,
   );
+}
+
+function readCmsAdapterSettings(
+  payload: unknown,
+): CmsAdapterSettings | undefined {
+  if (!payload || typeof payload !== "object") return undefined;
+  if (!("adapterSettings" in payload)) return undefined;
+  const settings = (payload as { adapterSettings?: unknown }).adapterSettings;
+  if (
+    !settings ||
+    typeof settings !== "object" ||
+    Array.isArray(settings)
+  ) {
+    throw new CmsRuntimeError(
+      "invalid_body",
+      "adapterSettings must be an object",
+      400,
+    );
+  }
+  return { ...(settings as CmsAdapterSettings) };
 }
 
 const CMS_ROLES = new Set<CmsRole>(["viewer", "editor", "admin"]);
@@ -582,6 +607,7 @@ async function buildCmsAdapterFiles(
   repo: string,
   previousDefaultAdapter: string | undefined,
   adapter: string,
+  adapterSettings: CmsAdapterSettings | undefined = undefined,
 ) {
   if (!octokit)
     throw new CmsRuntimeError("no_user_token", "No user token", 401);
@@ -618,10 +644,11 @@ async function buildCmsAdapterFiles(
     !Array.isArray(adapters[adapter])
       ? (adapters[adapter] as Record<string, unknown>)
       : {};
-  adapters[adapter] = {
+  adapters[adapter] = normalizeCmsAdapterSettings(adapter, {
     ...defaultCmsAdapterSettings(adapter),
     ...existingAdapterSettings,
-  };
+    ...(adapterSettings ?? {}),
+  });
   root.adapters = adapters;
 
   const files = [
@@ -642,6 +669,26 @@ async function buildCmsAdapterFiles(
     content: `${JSON.stringify(root, null, 2)}\n`,
   };
   return files;
+}
+
+function normalizeCmsAdapterSettings(
+  adapter: string,
+  settings: CmsAdapterSettings,
+): CmsAdapterSettings {
+  if (adapter === "file") {
+    const rootDir = stringSetting(settings.rootDir).trim() || "cms/content";
+    return { ...settings, rootDir };
+  }
+  if (adapter === "mongodb") {
+    const databaseUriSecret =
+      stringSetting(settings.databaseUriSecret).trim() || "DATABASE_URL";
+    return { ...settings, databaseUriSecret };
+  }
+  return settings;
+}
+
+function stringSetting(value: unknown): string {
+  return typeof value === "string" ? value : "";
 }
 
 async function applyAdapterToDefaultCollections(

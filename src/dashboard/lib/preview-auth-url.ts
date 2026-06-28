@@ -33,6 +33,16 @@ export function stripPreviewAuthParams(
   return parsed.toString();
 }
 
+export function hasPreviewAuthParams(
+  url: string | null | undefined,
+  baseUrl?: string,
+): boolean {
+  if (!url) return false;
+  const parsed = parseUrl(url, baseUrl);
+  if (!parsed || !isFlyPreviewUrl(parsed)) return false;
+  return parsed.searchParams.has(PREVIEW_TICKET_PARAM);
+}
+
 export function carryPreviewAuthParams(
   authSourceUrl: string | null | undefined,
   targetUrl: string | null | undefined,

@@ -1,16 +1,4 @@
-import { CmsCreateManager } from "@dashboard/lib/components/CmsManager";
-
-import { buildKodyMetadata } from "../../../../metadata";
-
-export const dynamic = "force-static";
-export const revalidate = false;
-export const fetchCache = "force-cache";
-
-export const metadata = buildKodyMetadata({
-  title: "CMS - Kody Operations Dashboard",
-  description: "Create configured CMS content from Kody state.",
-  path: "/cms",
-});
+import { redirect } from "next/navigation";
 
 export default async function CmsCreateRoute({
   params,
@@ -18,6 +6,7 @@ export default async function CmsCreateRoute({
   params: Promise<{ collection: string }>;
 }) {
   const { collection } = await params;
-
-  return <CmsCreateManager collectionName={decodeURIComponent(collection)} />;
+  redirect(
+    `/content/entries/new/${encodeURIComponent(decodeURIComponent(collection))}`,
+  );
 }

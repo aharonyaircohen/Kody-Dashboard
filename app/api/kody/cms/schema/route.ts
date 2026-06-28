@@ -22,7 +22,11 @@ import {
   CmsRuntimeError,
   listCmsCollections,
 } from "@dashboard/lib/cms/service";
-import { readStateText, writeStateFiles } from "@dashboard/lib/state-repo";
+import {
+  readStateText,
+  writeStateFiles,
+  type StateRepoWriteFile,
+} from "@dashboard/lib/state-repo";
 import { getSecret } from "@dashboard/lib/vault/get-secret";
 import { getCmsActorRole } from "@dashboard/lib/cms/roles";
 
@@ -82,6 +86,11 @@ export async function POST(req: NextRequest) {
       headerAuth.owner,
       headerAuth.repo,
     );
+    const rawConfig = await readCmsConfigRoot(
+      octokit,
+      headerAuth.owner,
+      headerAuth.repo,
+    );
     if (currentConfig) {
       assertSchemaOperationAllowed(
         currentConfig,
@@ -97,11 +106,7 @@ export async function POST(req: NextRequest) {
         },
       );
     }
-    const schemaAlreadyHasCollections = await cmsSchemaHasCollections(
-      octokit,
-      headerAuth.owner,
-      headerAuth.repo,
-    );
+    const schemaAlreadyHasCollections = cmsSchemaHasCollections(rawConfig);
     if (schemaAlreadyHasCollections && !payload.refresh) {
       return NextResponse.json(
         {
@@ -124,6 +129,10 @@ export async function POST(req: NextRequest) {
       );
     }
 
+    const skipCollections = mergeStringLists(
+      readSchemaGenerationSkipCollections(rawConfig),
+      payload.skipCollections,
+    );
     const generated = await generateMongoCmsSchemaFiles({
       uri,
       databaseUriSecret: CMS_DATABASE_URL_SECRET,
@@ -131,7 +140,7 @@ export async function POST(req: NextRequest) {
       cmsName: payload.name ?? `${headerAuth.repo} CMS`,
       environment: payload.environment,
       sampleSize: payload.sampleSize,
-      skipCollections: payload.skipCollections,
+      skipCollections,
     });
     if (generated.collectionCount < 1) {
       throw new CmsRuntimeError(
@@ -145,7 +154,10 @@ export async function POST(req: NextRequest) {
       octokit,
       owner: headerAuth.owner,
       repo: headerAuth.repo,
-      files: generated.files,
+      files: preserveSchemaGenerationSkipCollections(
+        generated.files,
+        skipCollections,
+      ),
       message: payload.refresh
         ? "chore(cms): update CMS schema"
         : "chore(cms): generate CMS schema",
@@ -200,17 +212,17 @@ function parseGenerateSchemaPayload(
     name: stringValue(body.name) ?? `${repo} CMS`,
     refresh: body.refresh === true,
     sampleSize: DEFAULT_SCHEMA_SAMPLE_SIZE,
-    skipCollections: [],
+    skipCollections: stringArrayValue(body.skipCollections),
   };
 }
 
-async function cmsSchemaHasCollections(
+async function readCmsConfigRoot(
   octokit: Octokit,
   owner: string,
   repo: string,
-): Promise<boolean> {
+): Promise<Record<string, unknown> | null> {
   const file = await readStateText(octokit, owner, repo, "cms/config.json");
-  if (!file) return false;
+  if (!file) return null;
 
   let config: unknown;
   try {
@@ -223,11 +235,66 @@ async function cmsSchemaHasCollections(
     );
   }
 
-  if (!isRecord(config)) return false;
+  return isRecord(config) ? config : null;
+}
+
+function cmsSchemaHasCollections(config: Record<string, unknown> | null) {
+  if (!config) return false;
   const collections = config.collections;
   if (Array.isArray(collections)) return collections.length > 0;
   if (isRecord(collections)) return Object.keys(collections).length > 0;
   return false;
+}
+
+function readSchemaGenerationSkipCollections(
+  config: Record<string, unknown> | null,
+): string[] {
+  if (!config || !isRecord(config.schemaGeneration)) return [];
+  const skipCollections = config.schemaGeneration.skipCollections;
+  if (!Array.isArray(skipCollections)) return [];
+  return skipCollections.flatMap((entry) => {
+    const value = stringValue(entry);
+    return value ? [value] : [];
+  });
+}
+
+function mergeStringLists(...lists: string[][]): string[] {
+  return [...new Set(lists.flatMap((list) => list.map((item) => item.trim())))]
+    .filter(Boolean)
+    .sort((left, right) => left.localeCompare(right));
+}
+
+function preserveSchemaGenerationSkipCollections(
+  files: StateRepoWriteFile[],
+  skipCollections: string[],
+): StateRepoWriteFile[] {
+  if (skipCollections.length === 0) return files;
+  return files.map((file) => {
+    if (file.path !== "cms/config.json") return file;
+    let config: unknown;
+    try {
+      config = JSON.parse(file.content);
+    } catch {
+      return file;
+    }
+    if (!isRecord(config)) return file;
+    return {
+      ...file,
+      content: `${JSON.stringify(
+        {
+          ...config,
+          schemaGeneration: {
+            ...(isRecord(config.schemaGeneration)
+              ? config.schemaGeneration
+              : {}),
+            skipCollections,
+          },
+        },
+        null,
+        2,
+      )}\n`,
+    };
+  });
 }
 
 function handleSchemaError(error: unknown): NextResponse {
@@ -249,6 +316,14 @@ function stringValue(value: unknown): string | undefined {
   if (typeof value !== "string") return undefined;
   const trimmed = value.trim();
   return trimmed.length > 0 ? trimmed : undefined;
+}
+
+function stringArrayValue(value: unknown): string[] {
+  if (!Array.isArray(value)) return [];
+  return value.flatMap((entry) => {
+    const text = stringValue(entry);
+    return text ? [text] : [];
+  });
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {

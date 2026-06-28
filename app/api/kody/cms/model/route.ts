@@ -14,8 +14,11 @@ import {
   CmsConfigError,
   invalidateCmsConfigCache,
   loadCmsConfigFromState,
+  toPublicCmsConfig,
 } from "@dashboard/lib/cms/config";
 import {
+  assertCmsModelResourceDeletable,
+  buildDeleteCmsModelFiles,
   buildCmsModelFiles,
   sanitizeCmsModelCollectionPayload,
 } from "@dashboard/lib/cms/model/server";
@@ -24,7 +27,7 @@ import {
   CmsRuntimeError,
   listCmsCollections,
 } from "@dashboard/lib/cms/service";
-import { writeStateFiles } from "@dashboard/lib/state-repo";
+import { deleteStateFile, writeStateFiles } from "@dashboard/lib/state-repo";
 import { logger } from "@dashboard/lib/logger";
 
 export const runtime = "nodejs";
@@ -116,6 +119,97 @@ export async function PATCH(req: NextRequest) {
   }
 }
 
+export async function DELETE(req: NextRequest) {
+  const authResult = await requireKodyAuth(req);
+  if (authResult instanceof NextResponse) return authResult;
+
+  const headerAuth = getRequestAuth(req);
+  if (!headerAuth) {
+    return NextResponse.json({ error: "no_repo_context" }, { status: 400 });
+  }
+
+  setGitHubContext(
+    headerAuth.owner,
+    headerAuth.repo,
+    headerAuth.token,
+    headerAuth.storeRepoUrl,
+    headerAuth.storeRef,
+  );
+
+  try {
+    const octokit = await getUserOctokit(req);
+    if (!octokit) {
+      return NextResponse.json({ error: "no_user_token" }, { status: 401 });
+    }
+
+    const existingConfig = await loadCmsConfigFromState(
+      octokit,
+      headerAuth.owner,
+      headerAuth.repo,
+    );
+    const actorRole = await getCmsActorRole(
+      req,
+      octokit,
+      headerAuth.owner,
+      headerAuth.repo,
+    );
+    if (!existingConfig) {
+      throw new CmsConfigError(["CMS is not configured"], {
+        code: "cms_not_configured",
+        status: 404,
+      });
+    }
+    assertSchemaOperationAllowed(existingConfig, "edit", actorRole);
+
+    const payload = await req.json().catch(() => ({}));
+    const name = resourceNameFromPayload(payload);
+    assertCmsModelResourceDeletable(
+      String(name ?? "").trim(),
+      Object.values(existingConfig.collections),
+    );
+    const plan = await buildDeleteCmsModelFiles({
+      octokit,
+      owner: headerAuth.owner,
+      repo: headerAuth.repo,
+      name,
+    });
+
+    await writeStateFiles({
+      octokit,
+      owner: headerAuth.owner,
+      repo: headerAuth.repo,
+      files: plan.files,
+      message: `chore(cms): delete ${plan.name} schema`,
+    });
+    if (plan.deleteFile) {
+      await deleteStateFile({
+        octokit,
+        owner: headerAuth.owner,
+        repo: headerAuth.repo,
+        path: plan.deleteFile.path,
+        sha: plan.deleteFile.sha,
+        message: `chore(cms): delete ${plan.name} schema file`,
+      });
+    }
+    invalidateCmsConfigCache(headerAuth.owner, headerAuth.repo);
+
+    const nextCollections = { ...existingConfig.collections };
+    delete nextCollections[plan.name];
+    const cms = toPublicCmsConfig(
+      { ...existingConfig, collections: nextCollections },
+      actorRole,
+    );
+    return NextResponse.json(
+      { cms, deleted: true },
+      { headers: NO_STORE_HEADERS },
+    );
+  } catch (error) {
+    return handleModelError(error);
+  } finally {
+    clearGitHubContext();
+  }
+}
+
 function originalNameFromPayload(payload: unknown): string | null | undefined {
   if (!payload || typeof payload !== "object" || Array.isArray(payload)) {
     return undefined;
@@ -128,6 +222,13 @@ function originalNameFromPayload(payload: unknown): string | null | undefined {
   if (typeof value !== "string") return undefined;
   const trimmed = value.trim();
   return trimmed.length > 0 ? trimmed : undefined;
+}
+
+function resourceNameFromPayload(payload: unknown): unknown {
+  if (!payload || typeof payload !== "object" || Array.isArray(payload)) {
+    return undefined;
+  }
+  return (payload as { name?: unknown }).name;
 }
 
 function handleModelError(error: unknown): NextResponse {

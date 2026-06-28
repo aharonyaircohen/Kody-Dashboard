@@ -31,6 +31,7 @@ import {
   ShieldCheck,
   Trash2,
   X,
+  type LucideIcon,
 } from "lucide-react";
 
 import { AuthGuard } from "@dashboard/lib/auth-guard";
@@ -79,12 +80,18 @@ import {
   type SaveCmsPermissionsPayload,
 } from "./cms/client";
 import { canWriteOperation, writeDisabledReason } from "./cms/operations";
-import { cmsDocumentEditPath, cmsDocumentPath } from "./cms/paths";
+import {
+  CONTENT_ENTRIES_PATH,
+  CONTENT_SETTINGS_PATH,
+  cmsDocumentEditPath,
+  cmsDocumentPath,
+} from "./cms/paths";
 import { selectionPath } from "../selection-routing";
 import { generateCmsMcpTools } from "@dashboard/lib/cms/mcp";
 import { assertCmsFieldValue } from "@dashboard/lib/cms/validation";
 import type {
   CmsCollectionConfig,
+  CmsAdapterSettings,
   CmsContentOperation,
   CmsDocument,
   CmsFieldConfig,
@@ -197,27 +204,24 @@ export function CmsCreateManager({
   );
 }
 
-function CmsListPage({
-  selectedCollectionName = null,
-}: {
-  selectedCollectionName?: string | null;
-} = {}) {
-  const router = useRouter();
-  const autoSelectFirst = useMediaQuery("(min-width: 1024px)");
+export function CmsConfigManager() {
+  return (
+    <AuthGuard>
+      <CmsConfigPage />
+    </AuthGuard>
+  );
+}
+
+function CmsConfigPage() {
   const { auth } = useAuth();
   const queryClient = useQueryClient();
   const headers = useMemo(() => buildAuthHeaders(auth), [auth]);
   const scope = `${auth?.owner ?? ""}/${auth?.repo ?? ""}`;
   const cmsQueryKey = ["cms-config", scope] as const;
 
-  const [collectionSearch, setCollectionSearch] = useState("");
-  const [permissionsOpen, setPermissionsOpen] = useState(false);
-  const [adapterOpen, setAdapterOpen] = useState(false);
-  const [mcpOpen, setMcpOpen] = useState(false);
-  const [filterValues, setFilterValues] = useState<FilterValues>({});
-  const [sort, setSort] = useState<CmsSortEntry[]>([]);
-  const [offset, setOffset] = useState(0);
   const [selectedAdapter, setSelectedAdapter] = useState(DEFAULT_CMS_ADAPTER);
+  const [permissionsOpen, setPermissionsOpen] = useState(false);
+  const [mcpOpen, setMcpOpen] = useState(false);
   const [schemaGenerationRequest, setSchemaGenerationRequest] = useState<{
     refresh?: boolean;
   } | null>(null);
@@ -248,12 +252,9 @@ function CmsListPage({
       await queryClient.invalidateQueries({ queryKey: cmsQueryKey });
     },
   });
-  const generateSchemaMutation = useMutation({
-    mutationFn: (options?: { refresh?: boolean }) =>
-      generateCmsSchema(
-        headers,
-        buildGenerateSchemaPayload(auth?.repo, options),
-      ),
+  const saveAdapterMutation = useMutation({
+    mutationFn: (payload: SaveCmsAdapterPayload) =>
+      saveCmsAdapter(headers, payload),
     onSuccess: async (cms) => {
       queryClient.setQueryData(cmsQueryKey, cms);
       await queryClient.invalidateQueries({ queryKey: cmsQueryKey });
@@ -266,16 +267,220 @@ function CmsListPage({
     onSuccess: async (cms) => {
       queryClient.setQueryData(cmsQueryKey, cms);
       await queryClient.invalidateQueries({ queryKey: cmsQueryKey });
+      setPermissionsOpen(false);
     },
   });
-  const saveAdapterMutation = useMutation({
-    mutationFn: (payload: SaveCmsAdapterPayload) =>
-      saveCmsAdapter(headers, payload),
+  const generateSchemaMutation = useMutation({
+    mutationFn: (options?: { refresh?: boolean }) =>
+      generateCmsSchema(
+        headers,
+        buildGenerateSchemaPayload(auth?.repo, options),
+      ),
     onSuccess: async (cms) => {
       queryClient.setQueryData(cmsQueryKey, cms);
       await queryClient.invalidateQueries({ queryKey: cmsQueryKey });
       await queryClient.invalidateQueries({ queryKey: ["cms-documents"] });
-      setAdapterOpen(false);
+      setSchemaGenerationRequest(null);
+    },
+  });
+
+  const adapters =
+    adaptersQuery.data && adaptersQuery.data.length > 0
+      ? adaptersQuery.data
+      : DEFAULT_CMS_ADAPTERS;
+  const config = cmsQuery.data?.configured === true ? cmsQuery.data : null;
+  const currentCmsAdapter = config?.defaultAdapter ?? selectedAdapter;
+  const currentAdapter = findCmsAdapter(adapters, currentCmsAdapter);
+  const schemaGenerationSupported =
+    currentAdapter?.supportsSchemaGeneration === true ||
+    currentCmsAdapter === DEFAULT_CMS_ADAPTER;
+
+  useEffect(() => {
+    if (!adaptersQuery.data?.length) return;
+    if (
+      adaptersQuery.data.some((adapter) => adapter.name === selectedAdapter)
+    ) {
+      return;
+    }
+    setSelectedAdapter(adaptersQuery.data[0].name);
+  }, [adaptersQuery.data, selectedAdapter]);
+
+  useEffect(() => {
+    if (!config?.defaultAdapter) return;
+    setSelectedAdapter(config.defaultAdapter);
+  }, [config?.defaultAdapter]);
+
+  const error =
+    cmsQuery.error instanceof Error
+      ? cmsQuery.error.message
+      : adaptersQuery.error instanceof Error
+        ? adaptersQuery.error.message
+        : saveAdapterMutation.error instanceof Error
+          ? saveAdapterMutation.error.message
+          : savePermissionsMutation.error instanceof Error
+            ? savePermissionsMutation.error.message
+            : generateSchemaMutation.error instanceof Error
+              ? generateSchemaMutation.error.message
+              : createConfigMutation.error instanceof Error
+                ? createConfigMutation.error.message
+                : null;
+
+  if (cmsQuery.data?.configured === false) {
+    return (
+      <CmsShell
+        title="Content Settings"
+        subtitle="Not configured"
+        actions={null}
+        error={error}
+      >
+        <div className="flex flex-1 items-center justify-center overflow-y-auto px-4 py-6 md:px-8">
+          <UnconfiguredCmsState
+            adapters={adapters}
+            selectedAdapter={selectedAdapter}
+            loading={createConfigMutation.isPending}
+            onAdapterChange={setSelectedAdapter}
+            onCreate={() => createConfigMutation.mutate()}
+          />
+        </div>
+      </CmsShell>
+    );
+  }
+
+  return (
+    <CmsShell
+      title="Content Settings"
+      subtitle={
+        config
+          ? `${config.name} / ${config.environment} / ${
+              currentAdapter?.label ?? currentCmsAdapter
+            }`
+          : undefined
+      }
+      error={error}
+      actions={
+        <CmsHeaderActions
+          loading={cmsQuery.isFetching || adaptersQuery.isFetching}
+          onRefresh={() => {
+            void cmsQuery.refetch();
+            void adaptersQuery.refetch();
+          }}
+        />
+      }
+    >
+      <div className="min-h-0 flex-1 overflow-y-auto px-4 py-4 md:px-6">
+        {config ? (
+          <div className="mx-auto grid max-w-5xl gap-4">
+            <CmsAdapterSettingsPanel
+              config={config}
+              adapters={adapters}
+              saving={saveAdapterMutation.isPending}
+              onSave={(payload) => saveAdapterMutation.mutate(payload)}
+            />
+            <CmsSchemaPanel
+              config={config}
+              adapterLabel={currentAdapter?.label ?? currentCmsAdapter}
+              supported={schemaGenerationSupported}
+              loading={generateSchemaMutation.isPending}
+              onRequest={setSchemaGenerationRequest}
+            />
+            <CmsPermissionsPanel
+              config={config}
+              saving={savePermissionsMutation.isPending}
+              onOpen={() => setPermissionsOpen(true)}
+            />
+            <CmsMcpPanel config={config} onOpen={() => setMcpOpen(true)} />
+          </div>
+        ) : (
+          <LoadingRows />
+        )}
+      </div>
+
+      {config ? (
+        <>
+          <ConfirmDialog
+            open={schemaGenerationRequest !== null}
+            title={
+              schemaGenerationRequest?.refresh
+                ? "Update content schema?"
+                : "Generate content schema?"
+            }
+            description="Kody will read the connected database and write the generated content config into the state repo. Review any state changes before shipping them."
+            confirmLabel={
+              schemaGenerationRequest?.refresh
+                ? "Update schema"
+                : "Generate schema"
+            }
+            onClose={() => setSchemaGenerationRequest(null)}
+            onConfirm={() =>
+              generateSchemaMutation.mutate(schemaGenerationRequest ?? {})
+            }
+          />
+          <CmsPermissionsDialog
+            open={permissionsOpen}
+            config={config}
+            saving={savePermissionsMutation.isPending}
+            error={
+              savePermissionsMutation.error instanceof Error
+                ? savePermissionsMutation.error.message
+                : null
+            }
+            onOpenChange={setPermissionsOpen}
+            onSave={(payload) => savePermissionsMutation.mutate(payload)}
+          />
+          <CmsMcpDialog
+            open={mcpOpen}
+            config={config}
+            onOpenChange={setMcpOpen}
+          />
+        </>
+      ) : null}
+    </CmsShell>
+  );
+}
+
+function CmsListPage({
+  selectedCollectionName = null,
+}: {
+  selectedCollectionName?: string | null;
+} = {}) {
+  const router = useRouter();
+  const autoSelectFirst = useMediaQuery("(min-width: 1024px)");
+  const { auth } = useAuth();
+  const queryClient = useQueryClient();
+  const headers = useMemo(() => buildAuthHeaders(auth), [auth]);
+  const scope = `${auth?.owner ?? ""}/${auth?.repo ?? ""}`;
+  const cmsQueryKey = ["cms-config", scope] as const;
+
+  const [collectionSearch, setCollectionSearch] = useState("");
+  const [filterValues, setFilterValues] = useState<FilterValues>({});
+  const [sort, setSort] = useState<CmsSortEntry[]>([]);
+  const [offset, setOffset] = useState(0);
+  const [selectedAdapter, setSelectedAdapter] = useState(DEFAULT_CMS_ADAPTER);
+
+  const cmsQuery = useQuery({
+    queryKey: cmsQueryKey,
+    queryFn: () => fetchCmsConfig(headers),
+    enabled: Boolean(auth),
+  });
+  const adaptersQuery = useQuery({
+    queryKey: [
+      "cms-adapters",
+      scope,
+      auth?.storeRepoUrl ?? null,
+      auth?.storeRef ?? null,
+    ],
+    queryFn: () => fetchCmsAdapters(headers),
+    enabled: Boolean(auth),
+  });
+  const createConfigMutation = useMutation({
+    mutationFn: () =>
+      createCmsConfig(headers, {
+        name: `${auth?.repo ?? "Repo"} CMS`,
+        adapter: selectedAdapter,
+      }),
+    onSuccess: async (cms) => {
+      queryClient.setQueryData(cmsQueryKey, cms);
+      await queryClient.invalidateQueries({ queryKey: cmsQueryKey });
     },
   });
 
@@ -294,15 +499,19 @@ function CmsListPage({
       ? (cmsQuery.data.defaultAdapter ?? DEFAULT_CMS_ADAPTER)
       : selectedAdapter;
   const currentAdapter = findCmsAdapter(adapters, currentCmsAdapter);
-  const schemaGenerationSupported =
-    currentAdapter?.supportsSchemaGeneration === true ||
-    currentCmsAdapter === DEFAULT_CMS_ADAPTER;
-
   const selectedCollection = selectedCollectionName
     ? (collections.find(
         (collection) => collection.name === selectedCollectionName,
       ) ?? null)
     : null;
+  const selectedCollectionAdapterName =
+    selectedCollection?.adapter ?? currentCmsAdapter;
+  const selectedCollectionAdapter = findCmsAdapter(
+    adapters,
+    selectedCollectionAdapterName,
+  );
+  const selectedCollectionAdapterLabel =
+    selectedCollectionAdapter?.label ?? selectedCollectionAdapterName;
 
   useEffect(() => {
     if (!adaptersQuery.data?.length) return;
@@ -317,7 +526,7 @@ function CmsListPage({
   useEffect(() => {
     if (cmsQuery.isLoading || !cmsLoaded) return;
     if (collections.length === 0) {
-      if (selectedCollectionName) router.replace("/cms");
+      if (selectedCollectionName) router.replace(CONTENT_ENTRIES_PATH);
       return;
     }
     if (
@@ -326,11 +535,11 @@ function CmsListPage({
         (collection) => collection.name === selectedCollectionName,
       )
     ) {
-      router.replace("/cms");
+      router.replace(CONTENT_ENTRIES_PATH);
       return;
     }
     if (!selectedCollectionName && autoSelectFirst) {
-      router.replace(selectionPath("/cms", collections[0].name));
+      router.replace(selectionPath(CONTENT_ENTRIES_PATH, collections[0].name));
     }
   }, [
     autoSelectFirst,
@@ -342,7 +551,7 @@ function CmsListPage({
   ]);
 
   const selectCollection = (collectionName: string) => {
-    router.push(selectionPath("/cms", collectionName));
+    router.push(selectionPath(CONTENT_ENTRIES_PATH, collectionName));
   };
 
   useEffect(() => {
@@ -390,16 +599,14 @@ function CmsListPage({
   const error =
     cmsQuery.error instanceof Error
       ? cmsQuery.error.message
-      : generateSchemaMutation.error instanceof Error
-        ? generateSchemaMutation.error.message
-        : documentsQuery.error instanceof Error
+      : documentsQuery.error instanceof Error
           ? documentsQuery.error.message
           : null;
 
   if (cmsQuery.data?.configured === false) {
     return (
       <CmsShell
-        title="CMS"
+        title="Entries"
         subtitle="Not configured"
         actions={null}
         error={
@@ -423,7 +630,7 @@ function CmsListPage({
 
   return (
     <CmsShell
-      title="CMS"
+      title="Entries"
       subtitle={
         cmsQuery.data
           ? `${cmsQuery.data.name} / ${cmsQuery.data.environment} / ${
@@ -435,16 +642,10 @@ function CmsListPage({
       actions={
         <CmsHeaderActions
           loading={cmsQuery.isFetching || documentsQuery.isFetching}
-          schemaLoading={generateSchemaMutation.isPending}
-          schemaSupported={schemaGenerationSupported}
-          onOpenMcp={() => setMcpOpen(true)}
           onRefresh={() => {
             void cmsQuery.refetch();
             void documentsQuery.refetch();
           }}
-          onUpdateSchema={() => setSchemaGenerationRequest({ refresh: true })}
-          onOpenAdapter={() => setAdapterOpen(true)}
-          onOpenPermissions={() => setPermissionsOpen(true)}
         />
       }
     >
@@ -486,70 +687,13 @@ function CmsListPage({
                 if (!selectedCollection) return;
                 router.push(cmsDocumentPath(selectedCollection.name, id));
               }}
-              generateSchemaError={
-                generateSchemaMutation.error instanceof Error
-                  ? generateSchemaMutation.error.message
-                  : null
-              }
-              schemaSupported={schemaGenerationSupported}
-              adapterLabel={currentAdapter?.label ?? currentCmsAdapter}
-              generatingSchema={generateSchemaMutation.isPending}
-              onGenerateSchema={() => setSchemaGenerationRequest({})}
+              adapterLabel={selectedCollectionAdapterLabel}
+              onOpenConfig={() => router.push(CONTENT_SETTINGS_PATH)}
               onPageChange={setOffset}
             />
           </main>
         </div>
       </CmsRelationProvider>
-      <ConfirmDialog
-        open={schemaGenerationRequest !== null}
-        title={
-          schemaGenerationRequest?.refresh
-            ? "Update CMS schema?"
-            : "Generate CMS schema?"
-        }
-        description="Kody will read the connected database and write the generated CMS config into the state repo. Review any state changes before shipping them."
-        confirmLabel={
-          schemaGenerationRequest?.refresh ? "Update schema" : "Generate schema"
-        }
-        onClose={() => setSchemaGenerationRequest(null)}
-        onConfirm={() =>
-          generateSchemaMutation.mutate(schemaGenerationRequest ?? undefined)
-        }
-      />
-      {cmsQuery.data?.configured ? (
-        <>
-          <CmsMcpDialog
-            open={mcpOpen}
-            config={cmsQuery.data}
-            onOpenChange={setMcpOpen}
-          />
-          <CmsAdapterDialog
-            open={adapterOpen}
-            config={cmsQuery.data}
-            adapters={adapters}
-            saving={saveAdapterMutation.isPending}
-            error={
-              saveAdapterMutation.error instanceof Error
-                ? saveAdapterMutation.error.message
-                : null
-            }
-            onOpenChange={setAdapterOpen}
-            onSave={(payload) => saveAdapterMutation.mutate(payload)}
-          />
-          <CmsPermissionsDialog
-            open={permissionsOpen}
-            config={cmsQuery.data}
-            saving={savePermissionsMutation.isPending}
-            error={
-              savePermissionsMutation.error instanceof Error
-                ? savePermissionsMutation.error.message
-                : null
-            }
-            onOpenChange={setPermissionsOpen}
-            onSave={(payload) => savePermissionsMutation.mutate(payload)}
-          />
-        </>
-      ) : null}
     </CmsShell>
   );
 }
@@ -634,7 +778,7 @@ function CmsItemPage({
     onSuccess: async () => {
       setDeleteOpen(false);
       await queryClient.invalidateQueries({ queryKey: ["cms-documents"] });
-      router.push("/cms");
+      router.push(CONTENT_ENTRIES_PATH);
     },
   });
   const mutationError =
@@ -661,7 +805,7 @@ function CmsItemPage({
             type="button"
             variant="outline"
             size="sm"
-            onClick={() => router.push("/cms")}
+            onClick={() => router.push(CONTENT_ENTRIES_PATH)}
           >
             <ArrowLeft className="mr-2 h-4 w-4" />
             List
@@ -766,7 +910,7 @@ function CmsCreatePage({ collectionName }: { collectionName: string }) {
     onSuccess: async (document) => {
       await queryClient.invalidateQueries({ queryKey: ["cms-documents"] });
       if (!collection) {
-        router.push("/cms");
+        router.push(CONTENT_ENTRIES_PATH);
         return;
       }
       const id = getDocumentId(document, collection.source.idField ?? "_id");
@@ -791,7 +935,7 @@ function CmsCreatePage({ collectionName }: { collectionName: string }) {
           type="button"
           variant="outline"
           size="sm"
-          onClick={() => router.push("/cms")}
+          onClick={() => router.push(CONTENT_ENTRIES_PATH)}
         >
           <ArrowLeft className="mr-2 h-4 w-4" />
           List
@@ -830,7 +974,7 @@ function CmsCreatePage({ collectionName }: { collectionName: string }) {
             collection={collection}
             saving={createMutation.isPending}
             onSubmit={(payload) => createMutation.mutate(payload)}
-            onCancel={() => router.push("/cms")}
+            onCancel={() => router.push(CONTENT_ENTRIES_PATH)}
           />
         </CmsRelationProvider>
       )}
@@ -932,102 +1076,47 @@ function CmsRelationProvider({
   );
 }
 
-function CmsHeaderActions({
-  loading,
-  schemaLoading,
-  schemaSupported,
-  onOpenMcp,
-  onRefresh,
-  onUpdateSchema,
-  onOpenAdapter,
-  onOpenPermissions,
+function CmsConfigSection({
+  title,
+  description,
+  icon: Icon,
+  actions,
+  children,
 }: {
-  loading: boolean;
-  schemaLoading: boolean;
-  schemaSupported: boolean;
-  onOpenMcp: () => void;
-  onRefresh: () => void;
-  onUpdateSchema: () => void;
-  onOpenAdapter: () => void;
-  onOpenPermissions: () => void;
+  title: string;
+  description: string;
+  icon: LucideIcon;
+  actions?: React.ReactNode;
+  children: React.ReactNode;
 }) {
   return (
-    <div className="flex items-center gap-2">
-      <Button
-        variant="outline"
-        size="icon"
-        onClick={onRefresh}
-        aria-label="Refresh CMS"
-        title="Refresh"
-      >
-        {loading ? (
-          <Loader2 className="h-4 w-4 animate-spin" />
-        ) : (
-          <RefreshCw className="h-4 w-4" />
-        )}
-      </Button>
-      <Button
-        variant="outline"
-        size="icon"
-        onClick={onOpenAdapter}
-        aria-label="CMS adapter settings"
-        title="Adapter"
-      >
-        <Settings className="h-4 w-4" />
-      </Button>
-      <Button
-        variant="outline"
-        size="icon"
-        onClick={onOpenPermissions}
-        aria-label="CMS permissions"
-        title="Permissions"
-      >
-        <ShieldCheck className="h-4 w-4" />
-      </Button>
-      <Button
-        variant="outline"
-        size="icon"
-        onClick={onOpenMcp}
-        aria-label="CMS MCP"
-        title="MCP"
-      >
-        <Plug className="h-4 w-4" />
-      </Button>
-      {schemaSupported ? (
-        <Button
-          variant="outline"
-          size="icon"
-          disabled={schemaLoading}
-          onClick={onUpdateSchema}
-          aria-label="Update CMS schema"
-          title="Update schema"
-        >
-          {schemaLoading ? (
-            <Loader2 className="h-4 w-4 animate-spin" />
-          ) : (
-            <Database className="h-4 w-4" />
-          )}
-        </Button>
-      ) : null}
-    </div>
+    <section className="rounded border border-border bg-card/40">
+      <div className="flex flex-col gap-3 border-b border-border px-4 py-4 md:flex-row md:items-start md:justify-between">
+        <div className="flex min-w-0 gap-3">
+          <Icon className="mt-0.5 h-4 w-4 shrink-0 text-primary" />
+          <div className="min-w-0">
+            <h2 className="text-sm font-semibold text-foreground">{title}</h2>
+            <p className="mt-1 text-sm text-muted-foreground">{description}</p>
+          </div>
+        </div>
+        {actions ? (
+          <div className="flex shrink-0 items-center gap-2">{actions}</div>
+        ) : null}
+      </div>
+      <div className="px-4 py-4">{children}</div>
+    </section>
   );
 }
 
-function CmsAdapterDialog({
-  open,
+function CmsAdapterSettingsPanel({
   config,
   adapters,
   saving,
-  error,
-  onOpenChange,
   onSave,
 }: {
-  open: boolean;
   config: CmsPublicConfig;
   adapters: CmsAdapterCatalogItem[];
   saving: boolean;
-  error: string | null;
-  onOpenChange: (open: boolean) => void;
   onSave: (payload: SaveCmsAdapterPayload) => void;
 }) {
   const currentAdapter = config.defaultAdapter ?? DEFAULT_CMS_ADAPTER;
@@ -1039,91 +1128,367 @@ function CmsAdapterDialog({
         {
           name: currentAdapter,
           label: currentAdapter,
-          description: "Current CMS adapter",
+          description: "Current content adapter",
           supportsSchemaGeneration: currentAdapter === DEFAULT_CMS_ADAPTER,
           htmlUrl: null,
         },
         ...adapters,
       ];
+
   const [adapter, setAdapter] = useState(currentAdapter);
+  const [databaseUriSecret, setDatabaseUriSecret] = useState("DATABASE_URL");
+  const [rootDir, setRootDir] = useState("cms/content");
   const selected = findCmsAdapter(availableAdapters, adapter);
+  const selectedSettings = cmsAdapterSettings(config, adapter);
+  const nextSettings = editableCmsAdapterSettings(adapter, {
+    databaseUriSecret,
+    rootDir,
+  });
+  const settingsChanged = !sameJson(nextSettings, selectedSettings);
+  const adapterChanged = adapter !== currentAdapter;
+  const rootDirInvalid = adapter === "file" && rootDir.trim() === "";
+  const databaseSecretInvalid =
+    adapter === "mongodb" && databaseUriSecret.trim() === "";
 
   useEffect(() => {
-    if (!open) return;
     setAdapter(currentAdapter);
-  }, [currentAdapter, open]);
+  }, [currentAdapter]);
+
+  useEffect(() => {
+    const settings = cmsAdapterSettings(config, adapter);
+    setDatabaseUriSecret(
+      stringCmsSetting(settings.databaseUriSecret) || "DATABASE_URL",
+    );
+    setRootDir(stringCmsSetting(settings.rootDir) || "cms/content");
+  }, [adapter, config]);
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-lg">
-        <DialogHeader>
-          <DialogTitle>CMS adapter</DialogTitle>
-          <DialogDescription>
-            Change the adapter used by collections that follow the default.
-          </DialogDescription>
-        </DialogHeader>
-
-        <div className="space-y-4 border-y border-border py-4">
-          <div className="grid gap-2">
-            <div className="text-xs font-medium uppercase text-muted-foreground">
-              Default adapter
-            </div>
-            <Select
-              value={adapter}
-              onValueChange={setAdapter}
-              disabled={saving || availableAdapters.length === 0}
-            >
-              <SelectTrigger aria-label="Default adapter">
-                <SelectValue placeholder="Select adapter" />
-              </SelectTrigger>
-              <SelectContent>
-                {availableAdapters.map((item) => (
-                  <SelectItem key={item.name} value={item.name}>
-                    {item.label}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-            {selected?.description ? (
-              <div className="text-xs text-muted-foreground">
-                {selected.description}
-              </div>
-            ) : null}
+    <CmsConfigSection
+      title="Adapter"
+      description="Select the default content adapter and edit its stored settings."
+      icon={Settings}
+      actions={
+        <Button
+          type="button"
+          size="sm"
+          disabled={
+            saving ||
+            !adapter ||
+            (!adapterChanged && !settingsChanged) ||
+            rootDirInvalid ||
+            databaseSecretInvalid
+          }
+          onClick={() => onSave({ adapter, adapterSettings: nextSettings })}
+        >
+          {saving ? (
+            <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+          ) : (
+            <Save className="mr-2 h-4 w-4" />
+          )}
+          Save adapter
+        </Button>
+      }
+    >
+      <div className="grid gap-4 lg:grid-cols-[minmax(220px,0.8fr)_minmax(0,1.2fr)]">
+        <div className="grid gap-2">
+          <div className="text-xs font-medium uppercase text-muted-foreground">
+            Default adapter
           </div>
-
-          {error ? (
-            <div className="rounded border border-destructive/30 bg-destructive/10 px-3 py-2 text-sm text-destructive">
-              {error}
+          <Select
+            value={adapter}
+            onValueChange={setAdapter}
+            disabled={saving || availableAdapters.length === 0}
+          >
+            <SelectTrigger aria-label="Default adapter">
+              <SelectValue placeholder="Select adapter" />
+            </SelectTrigger>
+            <SelectContent>
+              {availableAdapters.map((item) => (
+                <SelectItem key={item.name} value={item.name}>
+                  {item.label}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+          {selected?.description ? (
+            <div className="text-xs text-muted-foreground">
+              {selected.description}
             </div>
           ) : null}
         </div>
 
-        <div className="flex justify-end gap-2">
-          <Button
-            type="button"
-            variant="outline"
-            size="sm"
-            onClick={() => onOpenChange(false)}
-            disabled={saving}
-          >
-            Cancel
-          </Button>
-          <Button
-            type="button"
-            size="sm"
-            onClick={() => onSave({ adapter })}
-            disabled={saving || !adapter || adapter === currentAdapter}
-          >
-            {saving ? (
-              <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-            ) : (
-              <Save className="mr-2 h-4 w-4" />
-            )}
-            Save adapter
-          </Button>
+        <div className="grid gap-3">
+          <div>
+            <div className="text-xs font-medium uppercase text-muted-foreground">
+              Adapter settings
+            </div>
+            <div className="mt-1 text-xs text-muted-foreground">
+              These values are written to cms/config.json.
+            </div>
+          </div>
+
+          {adapter === "mongodb" ? (
+            <label className="grid gap-1">
+              <span className="text-sm font-medium text-foreground">
+                databaseUriSecret
+              </span>
+              <Input
+                value={databaseUriSecret}
+                onChange={(event) =>
+                  setDatabaseUriSecret(event.target.value)
+                }
+                placeholder="DATABASE_URL"
+                disabled={saving}
+              />
+              <span className="text-xs text-muted-foreground">
+                Secret name that stores the MongoDB connection string.
+              </span>
+            </label>
+          ) : adapter === "file" ? (
+            <label className="grid gap-1">
+              <span className="text-sm font-medium text-foreground">
+                rootDir
+              </span>
+              <Input
+                value={rootDir}
+                onChange={(event) => setRootDir(event.target.value)}
+                placeholder="cms/content"
+                disabled={saving}
+              />
+              <span className="text-xs text-muted-foreground">
+                Folder used by the file adapter. Collection file paths stay in
+                Models.
+              </span>
+            </label>
+          ) : (
+            <div className="rounded border border-border bg-muted/30 px-3 py-3 text-sm text-muted-foreground">
+              This adapter has no editable settings in Dashboard yet.
+            </div>
+          )}
         </div>
-      </DialogContent>
-    </Dialog>
+      </div>
+    </CmsConfigSection>
+  );
+}
+
+function CmsSchemaPanel({
+  config,
+  adapterLabel,
+  supported,
+  loading,
+  onRequest,
+}: {
+  config: CmsPublicConfig;
+  adapterLabel: string;
+  supported: boolean;
+  loading: boolean;
+  onRequest: (request: { refresh?: boolean }) => void;
+}) {
+  const hasCollections = config.collections.length > 0;
+
+  return (
+    <CmsConfigSection
+      title="Schema"
+      description="Generate or update the content schema from the configured source."
+      icon={Database}
+      actions={
+        <Button
+          type="button"
+          size="sm"
+          disabled={loading || !supported}
+          onClick={() => onRequest(hasCollections ? { refresh: true } : {})}
+        >
+          {loading ? (
+            <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+          ) : (
+            <Database className="mr-2 h-4 w-4" />
+          )}
+          {hasCollections ? "Update schema" : "Generate schema"}
+        </Button>
+      }
+    >
+      <div className="grid gap-2 text-sm text-muted-foreground">
+        {supported ? (
+          <>
+            <p>
+              MongoDB schema generation uses the `DATABASE_URL` secret and
+              writes cms/config.json changes to the state repo.
+            </p>
+            <p>
+              Current schema has {config.collections.length.toLocaleString()}{" "}
+              collections.
+            </p>
+          </>
+        ) : (
+          <p>{adapterLabel} does not expose schema generation yet.</p>
+        )}
+      </div>
+    </CmsConfigSection>
+  );
+}
+
+function CmsPermissionsPanel({
+  config,
+  saving,
+  onOpen,
+}: {
+  config: CmsPublicConfig;
+  saving: boolean;
+  onOpen: () => void;
+}) {
+  const actorRole = config.actorRole ?? "viewer";
+
+  return (
+    <CmsConfigSection
+      title="Permissions"
+      description="Set global content write policy and collection exceptions."
+      icon={ShieldCheck}
+      actions={
+        <Button type="button" size="sm" disabled={saving} onClick={onOpen}>
+          <ShieldCheck className="mr-2 h-4 w-4" />
+          Edit permissions
+        </Button>
+      }
+    >
+      <div className="grid gap-2 text-sm text-muted-foreground">
+        <p>Current role: {actorRole}</p>
+        <p>
+          {config.collections.length.toLocaleString()} collections can inherit
+          the default policy or define overrides.
+        </p>
+      </div>
+    </CmsConfigSection>
+  );
+}
+
+function CmsMcpPanel({
+  config,
+  onOpen,
+}: {
+  config: CmsPublicConfig;
+  onOpen: () => void;
+}) {
+  const endpoint =
+    typeof window === "undefined"
+      ? "/api/kody/cms/mcp"
+      : `${window.location.origin}/api/kody/cms/mcp`;
+  const toolCount = generateCmsMcpTools(config).length;
+
+  return (
+    <CmsConfigSection
+      title="MCP Tools"
+      description="Connection details for generated content tools."
+      icon={Plug}
+      actions={
+        <Button type="button" variant="outline" size="sm" onClick={onOpen}>
+          <Plug className="mr-2 h-4 w-4" />
+          Open details
+        </Button>
+      }
+    >
+      <div className="grid gap-3">
+        <div className="grid gap-1">
+          <div className="text-xs font-medium uppercase text-muted-foreground">
+            Endpoint
+          </div>
+          <div className="flex min-w-0 items-center gap-2">
+            <code className="min-w-0 flex-1 truncate rounded border border-border bg-muted px-3 py-2 text-sm text-foreground">
+              {endpoint}
+            </code>
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={() => void navigator.clipboard?.writeText(endpoint)}
+            >
+              Copy
+            </Button>
+          </div>
+        </div>
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+          <CmsConfigStat label="Transport" value="HTTP" />
+          <CmsConfigStat label="Tools" value={String(toolCount)} />
+          <CmsConfigStat
+            label="Collections"
+            value={String(config.collections.length)}
+          />
+        </div>
+      </div>
+    </CmsConfigSection>
+  );
+}
+
+function CmsConfigStat({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="rounded border border-border bg-muted/30 px-3 py-2">
+      <div className="text-xs font-medium uppercase text-muted-foreground">
+        {label}
+      </div>
+      <div className="mt-1 text-sm text-foreground">{value}</div>
+    </div>
+  );
+}
+
+function cmsAdapterSettings(
+  config: CmsPublicConfig,
+  adapter: string,
+): CmsAdapterSettings {
+  return {
+    ...defaultCmsAdapterSettingsForUi(adapter),
+    ...((config.adapters ?? {})[adapter] ?? {}),
+  };
+}
+
+function defaultCmsAdapterSettingsForUi(adapter: string): CmsAdapterSettings {
+  if (adapter === "mongodb") return { databaseUriSecret: "DATABASE_URL" };
+  if (adapter === "file") return { rootDir: "cms/content" };
+  return {};
+}
+
+function editableCmsAdapterSettings(
+  adapter: string,
+  draft: { databaseUriSecret: string; rootDir: string },
+): CmsAdapterSettings {
+  if (adapter === "mongodb") {
+    return { databaseUriSecret: draft.databaseUriSecret.trim() };
+  }
+  if (adapter === "file") {
+    return { rootDir: draft.rootDir.trim() };
+  }
+  return {};
+}
+
+function stringCmsSetting(value: unknown): string {
+  return typeof value === "string" ? value : "";
+}
+
+function sameJson(a: unknown, b: unknown): boolean {
+  return JSON.stringify(a) === JSON.stringify(b);
+}
+
+function CmsHeaderActions({
+  loading,
+  onRefresh,
+}: {
+  loading: boolean;
+  onRefresh: () => void;
+}) {
+  return (
+    <div className="flex items-center gap-2">
+      <Button
+        variant="outline"
+        size="icon"
+        onClick={onRefresh}
+        aria-label="Refresh content"
+        title="Refresh"
+      >
+        {loading ? (
+          <Loader2 className="h-4 w-4 animate-spin" />
+        ) : (
+          <RefreshCw className="h-4 w-4" />
+        )}
+      </Button>
+    </div>
   );
 }
 
@@ -1163,9 +1528,9 @@ function CmsMcpDialog({
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-2xl">
         <DialogHeader>
-          <DialogTitle>CMS MCP</DialogTitle>
+          <DialogTitle>MCP Tools</DialogTitle>
           <DialogDescription>
-            Schema-generated CMS tools for the current repo.
+            Generated content tools for the current repo.
           </DialogDescription>
         </DialogHeader>
 
@@ -1416,7 +1781,7 @@ function CmsPermissionsDialog({
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="flex max-h-[82vh] max-w-4xl flex-col overflow-hidden">
         <DialogHeader>
-          <DialogTitle>CMS permissions</DialogTitle>
+          <DialogTitle>Content permissions</DialogTitle>
           <DialogDescription>
             Set the default CMS access policy once. Use collection overrides
             only for exceptions.
@@ -1825,7 +2190,7 @@ function CollectionRail({
 
   return (
     <aside
-      aria-label="CMS collections"
+      aria-label="Content collections"
       className="flex min-h-0 flex-col border-border"
     >
       <div className="shrink-0 border-b border-border px-4 py-3">
@@ -1910,11 +2275,8 @@ function CollectionWorkspace({
   onFilterChange,
   onSortChange,
   onOpenDocument,
-  generateSchemaError,
-  schemaSupported,
   adapterLabel,
-  generatingSchema,
-  onGenerateSchema,
+  onOpenConfig,
   onPageChange,
 }: {
   collection: CmsCollectionConfig | null;
@@ -1929,21 +2291,15 @@ function CollectionWorkspace({
   onFilterChange: (next: FilterValues) => void;
   onSortChange: (next: CmsSortEntry[]) => void;
   onOpenDocument: (id: string) => void;
-  generateSchemaError: string | null;
-  schemaSupported: boolean;
   adapterLabel: string;
-  generatingSchema: boolean;
-  onGenerateSchema: () => void;
+  onOpenConfig: () => void;
   onPageChange: (offset: number) => void;
 }) {
   if (!collection) {
     return (
       <GenerateSchemaState
-        error={generateSchemaError}
-        schemaSupported={schemaSupported}
         adapterLabel={adapterLabel}
-        loading={generatingSchema}
-        onSubmit={onGenerateSchema}
+        onOpenConfig={onOpenConfig}
       />
     );
   }
@@ -1951,7 +2307,6 @@ function CollectionWorkspace({
   const filtersActive = Object.values(filterValues).some(
     (filter) => !isBlankFilterValue(filter.value),
   );
-
   return (
     <>
       <div className="shrink-0 border-b border-border">
@@ -1967,6 +2322,7 @@ function CollectionWorkspace({
             </div>
             <div className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-muted-foreground">
               <span>{collection.name}</span>
+              <span>{adapterLabel}</span>
               <span>{total.toLocaleString()} items</span>
             </div>
           </div>
@@ -1991,6 +2347,7 @@ function CollectionWorkspace({
         <DocumentTable
           collection={collection}
           documents={documents}
+          adapterLabel={adapterLabel}
           loading={loading}
           filterValues={filterValues}
           sort={sort}
@@ -2013,17 +2370,11 @@ function CollectionWorkspace({
 }
 
 function GenerateSchemaState({
-  error,
-  schemaSupported,
   adapterLabel,
-  loading,
-  onSubmit,
+  onOpenConfig,
 }: {
-  error: string | null;
-  schemaSupported: boolean;
   adapterLabel: string;
-  loading: boolean;
-  onSubmit: () => void;
+  onOpenConfig: () => void;
 }) {
   return (
     <div className="flex min-h-0 flex-1 items-center justify-center overflow-y-auto px-4 py-6 md:px-8">
@@ -2031,39 +2382,15 @@ function GenerateSchemaState({
         <div className="text-sm font-medium text-foreground">
           No collections
         </div>
-        {schemaSupported ? (
-          <>
-            <p className="mt-1 text-sm text-muted-foreground">
-              Generate a schema from MongoDB using the `DATABASE_URL` secret.
-            </p>
-            <p className="mt-1 text-xs text-muted-foreground">
-              Kody will write the generated CMS config into the state repo.
-            </p>
-          </>
-        ) : (
-          <p className="mt-1 text-sm text-muted-foreground">
-            {adapterLabel} collections are configured in CMS state.
-          </p>
-        )}
-
-        {error ? (
-          <div className="mt-4 rounded border border-destructive/30 bg-destructive/10 px-3 py-2 text-sm text-destructive">
-            {error}
-          </div>
-        ) : null}
-
-        {schemaSupported ? (
-          <div className="mt-5 flex items-center justify-center gap-2">
-            <Button type="button" onClick={onSubmit} disabled={loading}>
-              {loading ? (
-                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-              ) : (
-                <Database className="mr-2 h-4 w-4" />
-              )}
-              Generate schema
-            </Button>
-          </div>
-        ) : null}
+        <p className="mt-1 text-sm text-muted-foreground">
+          {adapterLabel} collections are configured in content state.
+        </p>
+        <div className="mt-5 flex items-center justify-center gap-2">
+          <Button type="button" onClick={onOpenConfig}>
+            <Settings className="mr-2 h-4 w-4" />
+            Open settings
+          </Button>
+        </div>
       </div>
     </div>
   );
@@ -2479,6 +2806,7 @@ function buildRelationBatches(
 function DocumentTable({
   collection,
   documents,
+  adapterLabel,
   loading,
   filterValues,
   sort,
@@ -2488,6 +2816,7 @@ function DocumentTable({
 }: {
   collection: CmsCollectionConfig;
   documents: CmsDocument[];
+  adapterLabel: string;
   loading: boolean;
   filterValues: FilterValues;
   sort: CmsSortEntry[];
@@ -2497,6 +2826,12 @@ function DocumentTable({
 }) {
   const relationContext = useContext(CmsRelationContext);
   const fields = useMemo(() => listViewFields(collection), [collection]);
+  const filtersActive = Object.values(filterValues).some(
+    (filter) => !isBlankFilterValue(filter.value),
+  );
+  const emptyDetail = filtersActive
+    ? "Try a different filter."
+    : `No items returned from ${adapterLabel}. Check Content Settings if this collection should use another adapter.`;
   const filtersByField = useMemo(
     () => new Map(collection.filters.map((filter) => [filter.field, filter])),
     [collection.filters],
@@ -2649,7 +2984,7 @@ function DocumentTable({
         {loading ? (
           <LoadingRows />
         ) : documents.length === 0 ? (
-          <EmptyState title="No items" detail="Try a different filter." />
+          <EmptyState title="No items" detail={emptyDetail} />
         ) : (
           documents.map((document) => {
             const id = getDocumentId(document, idField);
@@ -3892,7 +4227,7 @@ function RelationLink({
       onClick={(event) => {
         event.stopPropagation();
         router.push(
-          `/cms/${encodeURIComponent(targetCollection.name)}/${encodeURIComponent(id)}`,
+          cmsDocumentPath(targetCollection.name, id),
         );
       }}
       className={cn(
@@ -3977,7 +4312,7 @@ function UnconfiguredCmsState({
   return (
     <div className="flex min-h-[220px] flex-col items-center justify-center px-4 py-8 text-center">
       <div className="text-sm font-medium text-foreground">
-        CMS is not configured
+        Content is not configured
       </div>
       <div className="mt-1 max-w-md text-sm text-muted-foreground">
         Create cms/config.json in the state repo to enable this view.
@@ -3991,7 +4326,7 @@ function UnconfiguredCmsState({
           onValueChange={onAdapterChange}
           disabled={loading || adapters.length === 0}
         >
-          <SelectTrigger aria-label="CMS adapter">
+          <SelectTrigger aria-label="Content adapter">
             <SelectValue placeholder="Select adapter" />
           </SelectTrigger>
           <SelectContent>
@@ -4020,7 +4355,7 @@ function UnconfiguredCmsState({
         ) : (
           <Plus className="mr-2 h-4 w-4" />
         )}
-        Create CMS config
+        Create content config
       </Button>
     </div>
   );

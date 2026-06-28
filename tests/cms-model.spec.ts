@@ -5,7 +5,10 @@ import {
   cmsModelResourceDraftFromCollection,
   validateCmsModelDraft,
 } from "@dashboard/lib/cms/model/draft";
-import { sanitizeCmsModelCollectionPayload } from "@dashboard/lib/cms/model/server";
+import {
+  sanitizeCmsModelCollectionPayload,
+  sortCmsCollectionEntries,
+} from "@dashboard/lib/cms/model/server";
 import type { CmsCollectionConfig } from "@dashboard/lib/cms/types";
 
 const chapters: CmsCollectionConfig = {
@@ -147,5 +150,19 @@ describe("CMS model draft rules", () => {
       labelField: "title",
       storage: { kind: "objectId" },
     });
+  });
+
+  it("sorts collection refs when adding a resource", () => {
+    expect(
+      sortCmsCollectionEntries([
+        "collections/lessons.json",
+        "collections/authors.json",
+        "collections/chapters.json",
+      ]),
+    ).toEqual([
+      "collections/authors.json",
+      "collections/chapters.json",
+      "collections/lessons.json",
+    ]);
   });
 });

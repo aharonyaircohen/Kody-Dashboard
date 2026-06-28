@@ -1,13 +1,4 @@
-import { CmsManager } from "@dashboard/lib/components/CmsManager";
-import { buildKodyMetadata } from "../../../metadata";
-
-export const dynamic = "force-dynamic";
-
-export const metadata = buildKodyMetadata({
-  title: "CMS Collection - Kody Operations Dashboard",
-  description: "Browse a selected configured CMS collection.",
-  path: "/cms",
-});
+import { redirect } from "next/navigation";
 
 export default async function CmsCollectionPage({
   params,
@@ -15,5 +6,7 @@ export default async function CmsCollectionPage({
   params: Promise<{ collection: string }>;
 }) {
   const { collection } = await params;
-  return <CmsManager selectedCollectionName={decodeURIComponent(collection)} />;
+  redirect(
+    `/content/entries/${encodeURIComponent(decodeURIComponent(collection))}`,
+  );
 }

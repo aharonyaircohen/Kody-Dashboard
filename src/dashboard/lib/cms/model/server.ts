@@ -2,7 +2,11 @@ import "server-only";
 
 import type { Octokit } from "@octokit/rest";
 
-import { CmsConfigError, normalizeCmsConfig } from "@dashboard/lib/cms/config";
+import {
+  CmsConfigError,
+  normalizeCmsCollectionSlug,
+  normalizeCmsConfig,
+} from "@dashboard/lib/cms/config";
 import { CmsRuntimeError } from "@dashboard/lib/cms/service";
 import type {
   CmsCollectionConfig,
@@ -23,6 +27,10 @@ import {
 } from "./draft";
 
 const CMS_DATABASE_URL_SECRET = "DATABASE_URL";
+const CMS_MODEL_COLLECTION_SORT_COLLATOR = new Intl.Collator("en", {
+  numeric: true,
+  sensitivity: "base",
+});
 
 export interface SanitizeCmsModelPayloadOptions {
   existingCollections: CmsCollectionConfig[];
@@ -201,6 +209,81 @@ export async function buildCmsModelFiles({
   return files;
 }
 
+export async function buildDeleteCmsModelFiles({
+  octokit,
+  owner,
+  repo,
+  name,
+}: {
+  octokit: Octokit;
+  owner: string;
+  repo: string;
+  name: unknown;
+}): Promise<{
+  files: Array<{ path: string; content: string }>;
+  deleteFile: { path: string; sha: string } | null;
+  name: string;
+}> {
+  const resourceName = cleanSlug(name, "resource name");
+  const configFile = await readStateText(
+    octokit,
+    owner,
+    repo,
+    "cms/config.json",
+  );
+  if (!configFile) {
+    throw new CmsConfigError(["missing state file: cms/config.json"], {
+      code: "cms_not_configured",
+      status: 404,
+    });
+  }
+
+  const root = parseJsonRecord(configFile.content, "cms/config.json");
+  const deletePlan = await removeCollectionRef(
+    octokit,
+    owner,
+    repo,
+    root,
+    resourceName,
+  );
+  appendSchemaGenerationSkipCollections(root, deletePlan.skipCollections);
+
+  return {
+    files: [
+      {
+        path: "cms/config.json",
+        content: `${JSON.stringify(root, null, 2)}\n`,
+      },
+    ],
+    deleteFile: deletePlan.deleteFile,
+    name: resourceName,
+  };
+}
+
+export function assertCmsModelResourceDeletable(
+  name: string,
+  collections: CmsCollectionConfig[],
+): void {
+  const references = collections
+    .filter((collection) => collection.name !== name)
+    .filter((collection) =>
+      collection.fields.some(
+        (field) =>
+          (field.type === "relation" || field.type === "relationMany") &&
+          field.target === name,
+      ),
+    )
+    .map((collection) => collection.name);
+
+  if (references.length > 0) {
+    throw new CmsRuntimeError(
+      "invalid_body",
+      `resource is referenced by: ${references.join(", ")}`,
+      409,
+    );
+  }
+}
+
 function sanitizeFields(
   input: unknown,
   options: {
@@ -288,6 +371,7 @@ async function upsertCollectionRef(
   const rawCollections = root.collections;
   if (isRecord(rawCollections)) {
     rawCollections[collection.name] = collection;
+    root.collections = sortCmsCollectionRecord(rawCollections);
     return null;
   }
 
@@ -311,12 +395,221 @@ async function upsertCollectionRef(
   }
 
   const ref = `collections/${collection.name}.json`;
-  root.collections = [
+  root.collections = sortCmsCollectionEntries([
     ...collectionRefs.filter((entry) => entry !== ref),
     ...inlineCollections,
     ref,
-  ];
+  ]);
   return `cms/${ref}`;
+}
+
+async function removeCollectionRef(
+  octokit: Octokit,
+  owner: string,
+  repo: string,
+  root: Record<string, unknown>,
+  name: string,
+): Promise<{
+  deleteFile: { path: string; sha: string } | null;
+  skipCollections: string[];
+}> {
+  const rawCollections = root.collections;
+  if (isRecord(rawCollections)) {
+    const removedEntries = Object.entries(rawCollections).filter(
+      ([key, value]) => collectionRecordEntryMatches(key, value, name),
+    );
+    const next = Object.fromEntries(
+      Object.entries(rawCollections).filter(
+        ([key, value]) => !collectionRecordEntryMatches(key, value, name),
+      ),
+    );
+    if (Object.keys(next).length === Object.keys(rawCollections).length) {
+      throw new CmsRuntimeError(
+        "not_found",
+        `resource not found: ${name}`,
+        404,
+      );
+    }
+    root.collections = sortCmsCollectionRecord(next);
+    return {
+      deleteFile: null,
+      skipCollections: removedEntries.flatMap(([key, value]) =>
+        collectionSkipNames(value, key, name),
+      ),
+    };
+  }
+
+  const entries = Array.isArray(rawCollections) ? rawCollections : [];
+  const removedInlineEntries = entries.filter((entry) =>
+    collectionRecordEntryMatches(name, entry, name),
+  );
+  const inlineCollections = entries.filter(
+    (entry) =>
+      isRecord(entry) && !collectionRecordEntryMatches(name, entry, name),
+  );
+  const removedInline =
+    inlineCollections.length !== entries.filter(isRecord).length;
+  const collectionRefs = entries.filter(
+    (entry): entry is string => typeof entry === "string",
+  );
+  const keptRefs: string[] = [];
+  let deleteFile: { path: string; sha: string } | null = null;
+  let removedRef = false;
+  const skipCollections = removedInlineEntries.flatMap((entry) =>
+    collectionSkipNames(entry, name, name),
+  );
+
+  for (const ref of collectionRefs) {
+    const path = `cms/${ref}`;
+    const file = await readStateText(octokit, owner, repo, path);
+    let existing: Record<string, unknown> | null = null;
+    let matches = collectionNameMatches(cmsCollectionNameFromKey(ref), name);
+    if (!matches && file) {
+      existing = parseJsonRecord(file.content, path);
+      matches = collectionRecordEntryMatches(ref, existing, name);
+    } else if (file) {
+      existing = parseJsonRecord(file.content, path);
+    }
+
+    if (matches) {
+      removedRef = true;
+      if (file?.sha) deleteFile = { path, sha: file.sha };
+      skipCollections.push(...collectionSkipNames(existing, ref, name));
+      continue;
+    }
+
+    keptRefs.push(ref);
+  }
+
+  if (!removedInline && !removedRef) {
+    throw new CmsRuntimeError("not_found", `resource not found: ${name}`, 404);
+  }
+
+  root.collections = sortCmsCollectionEntries([
+    ...keptRefs,
+    ...inlineCollections,
+  ]);
+  return { deleteFile, skipCollections };
+}
+
+function collectionRecordEntryMatches(
+  key: string,
+  value: unknown,
+  name: string,
+): boolean {
+  if (collectionNameMatches(cmsCollectionNameFromKey(key) ?? key, name)) {
+    return true;
+  }
+  if (isRecord(value)) {
+    const source = isRecord(value.source) ? value.source : {};
+    return [
+      stringValue(value.name),
+      stringValue(source.collection),
+      stringValue(value.mcpName),
+    ].some((candidate) => collectionNameMatches(candidate, name));
+  }
+  if (typeof value === "string") {
+    return (
+      collectionNameMatches(cmsCollectionNameFromKey(value), name) ||
+      collectionNameMatches(value, name)
+    );
+  }
+  return false;
+}
+
+function collectionSkipNames(
+  value: unknown,
+  key: string,
+  fallbackName: string,
+): string[] {
+  const names = new Set<string>();
+  const fallback = cmsCollectionNameFromKey(key) ?? fallbackName;
+  if (fallback) names.add(fallback);
+  if (fallbackName) names.add(fallbackName);
+  if (isRecord(value)) {
+    const source = isRecord(value.source) ? value.source : {};
+    const sourceCollection = stringValue(source.collection);
+    const name = stringValue(value.name);
+    if (sourceCollection) names.add(sourceCollection);
+    if (name) names.add(name);
+  }
+  return [...names].filter(Boolean);
+}
+
+function cmsCollectionNameFromKey(key: string): string | null {
+  const trimmed = key.trim();
+  if (!trimmed) return null;
+  return trimmed.replace(/^collections\//, "").replace(/\.json$/i, "");
+}
+
+function collectionNameMatches(
+  candidate: string | null | undefined,
+  name: string,
+): boolean {
+  if (!candidate) return false;
+  return candidate === name || normalizeCmsCollectionSlug(candidate) === name;
+}
+
+function appendSchemaGenerationSkipCollections(
+  root: Record<string, unknown>,
+  collections: string[],
+): void {
+  const next = new Set<string>(readSchemaGenerationSkipCollections(root));
+  for (const collection of collections) {
+    const trimmed = collection.trim();
+    if (trimmed) next.add(trimmed);
+  }
+  if (next.size === 0) return;
+  root.schemaGeneration = {
+    ...(isRecord(root.schemaGeneration) ? root.schemaGeneration : {}),
+    skipCollections: [...next].sort((left, right) =>
+      CMS_MODEL_COLLECTION_SORT_COLLATOR.compare(left, right),
+    ),
+  };
+}
+
+function readSchemaGenerationSkipCollections(
+  root: Record<string, unknown>,
+): string[] {
+  if (!isRecord(root.schemaGeneration)) return [];
+  const raw = root.schemaGeneration.skipCollections;
+  if (!Array.isArray(raw)) return [];
+  return raw.flatMap((entry) => {
+    const value = stringValue(entry);
+    return value ? [value] : [];
+  });
+}
+
+export function sortCmsCollectionEntries(entries: unknown[]): unknown[] {
+  return [...entries].sort((left, right) =>
+    CMS_MODEL_COLLECTION_SORT_COLLATOR.compare(
+      cmsCollectionEntrySortKey(left),
+      cmsCollectionEntrySortKey(right),
+    ),
+  );
+}
+
+function sortCmsCollectionRecord(
+  collections: Record<string, unknown>,
+): Record<string, unknown> {
+  return Object.fromEntries(
+    Object.entries(collections).sort(([left], [right]) =>
+      CMS_MODEL_COLLECTION_SORT_COLLATOR.compare(left, right),
+    ),
+  );
+}
+
+function cmsCollectionEntrySortKey(entry: unknown): string {
+  if (typeof entry === "string") {
+    return entry
+      .replace(/^collections\//, "")
+      .replace(/\.json$/i, "")
+      .trim();
+  }
+  if (isRecord(entry)) {
+    return stringValue(entry.label) ?? stringValue(entry.name) ?? "";
+  }
+  return "";
 }
 
 function applyRelationConfig(

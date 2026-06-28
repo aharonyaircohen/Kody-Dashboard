@@ -11,12 +11,14 @@ import {
 
 describe("github background polling route policy", () => {
   it("keeps CMS free of GitHub issue/task polling", () => {
-    expect(routeShowsGitHubIssuesOrTasks("/cms")).toBe(false);
-    expect(shouldPollChatGoalsForRoute("/cms")).toBe(false);
-    expect(shouldPollInboxFeedForRoute("/cms")).toBe(false);
-    expect(shouldEnableSidebarInboxBadgeData("/cms")).toBe(false);
-    expect(shouldEnableSidebarMessagesBadgeData("/cms")).toBe(false);
-    expect(shouldEnableSidebarReportsBadgeData("/cms")).toBe(false);
+    for (const route of ["/cms", "/content/entries", "/content/settings"]) {
+      expect(routeShowsGitHubIssuesOrTasks(route)).toBe(false);
+      expect(shouldPollChatGoalsForRoute(route)).toBe(false);
+      expect(shouldPollInboxFeedForRoute(route)).toBe(false);
+      expect(shouldEnableSidebarInboxBadgeData(route)).toBe(false);
+      expect(shouldEnableSidebarMessagesBadgeData(route)).toBe(false);
+      expect(shouldEnableSidebarReportsBadgeData(route)).toBe(false);
+    }
   });
 
   it("keeps live polling on routes that show task or issue data", () => {

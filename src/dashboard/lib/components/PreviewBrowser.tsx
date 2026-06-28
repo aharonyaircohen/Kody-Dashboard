@@ -36,6 +36,7 @@ import type {
 } from "../picker/PreviewInspector";
 import {
   carryPreviewAuthParams,
+  hasPreviewAuthParams,
   rebasePreviewAuthUrl,
   stripPreviewAuthParams,
 } from "../preview-auth-url";
@@ -204,11 +205,45 @@ export function PreviewBrowser({
   const [viewportMenuOpen, setViewportMenuOpen] = useState(false);
   const browserInputFocusedRef = useRef(false);
   const activePreviewUrlRef = useRef<string | null>(null);
+  const previewAuthSourceUrlRef = useRef<string | null>(null);
   const pageProbe = useElementPicker({ onSelect: () => {} });
   const { available: pageProbeAvailable, collectPage: collectPreviewPage } =
     pageProbe;
 
   const previewUrl = useMemo(() => baseUrl, [baseUrl]);
+
+  const getPreviewAuthSourceUrl = useCallback((): string | null => {
+    if (typeof window === "undefined") {
+      return activePreviewUrlRef.current ?? previewUrl;
+    }
+
+    const absolutePreviewUrl = toAbsolutePreviewUrl(previewUrl);
+    if (
+      absolutePreviewUrl &&
+      hasPreviewAuthParams(absolutePreviewUrl, window.location.origin)
+    ) {
+      return absolutePreviewUrl;
+    }
+
+    return (
+      previewAuthSourceUrlRef.current ??
+      activePreviewUrlRef.current ??
+      absolutePreviewUrl
+    );
+  }, [previewUrl]);
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    if (!previewUrl) {
+      previewAuthSourceUrlRef.current = null;
+      return;
+    }
+
+    const absolutePreviewUrl = toAbsolutePreviewUrl(previewUrl);
+    if (hasPreviewAuthParams(absolutePreviewUrl, window.location.origin)) {
+      previewAuthSourceUrlRef.current = absolutePreviewUrl;
+    }
+  }, [previewUrl]);
 
   useEffect(() => {
     if (!previewUrl) {
@@ -230,8 +265,21 @@ export function PreviewBrowser({
     previousBaseUrlRef.current = baseUrl;
   }, [baseUrl, previewUrl, showBrowserChrome]);
 
-  const activePreviewUrl =
+  const rawActivePreviewUrl =
     browserHistory.entries[browserHistory.index] ?? previewUrl;
+  const activePreviewUrl = useMemo(() => {
+    if (!rawActivePreviewUrl || typeof window === "undefined") {
+      return rawActivePreviewUrl;
+    }
+
+    return (
+      carryPreviewAuthParams(
+        getPreviewAuthSourceUrl(),
+        rawActivePreviewUrl,
+        window.location.origin,
+      ) ?? rawActivePreviewUrl
+    );
+  }, [getPreviewAuthSourceUrl, rawActivePreviewUrl]);
   activePreviewUrlRef.current = activePreviewUrl;
 
   const previewLoadKey = activePreviewUrl
@@ -254,13 +302,13 @@ export function PreviewBrowser({
         typeof window === "undefined"
           ? nextUrl
           : (carryPreviewAuthParams(
-              activePreviewUrlRef.current,
+              getPreviewAuthSourceUrl(),
               nextUrl,
               window.location.origin,
             ) ?? nextUrl);
       setBrowserHistory((state) => pushBrowserHistory(state, authedUrl));
     },
-    [],
+    [getPreviewAuthSourceUrl],
   );
 
   useEffect(() => {
@@ -401,7 +449,7 @@ export function PreviewBrowser({
       typeof window === "undefined"
         ? nextUrl
         : (carryPreviewAuthParams(
-            activePreviewUrlRef.current,
+            getPreviewAuthSourceUrl(),
             nextUrl,
             window.location.origin,
           ) ?? nextUrl);
@@ -425,6 +473,12 @@ export function PreviewBrowser({
               );
 
         if (refreshedUrl) {
+          if (
+            typeof window !== "undefined" &&
+            hasPreviewAuthParams(refreshedUrl, window.location.origin)
+          ) {
+            previewAuthSourceUrlRef.current = refreshedUrl;
+          }
           activePreviewUrlRef.current = refreshedUrl;
           setBrowserUrl(toBrowserAddress(refreshedUrl));
           setBrowserHistory((state) =>

@@ -145,6 +145,15 @@ export async function generateMongoCmsSchemaFiles(
             environmentFile: `environments/${options.environment}.json`,
             defaultAdapter: "mongodb",
             writePolicy: "enabled",
+            ...(options.skipCollections.length > 0
+              ? {
+                  schemaGeneration: {
+                    skipCollections: [...options.skipCollections].sort(
+                      (left, right) => left.localeCompare(right),
+                    ),
+                  },
+                }
+              : {}),
             collections: collectionRefs,
           }),
         },
@@ -673,6 +682,7 @@ function shouldSkipCollection(
 ): boolean {
   return (
     skipCollections.has(name) ||
+    skipCollections.has(normalizeCmsCollectionSlug(name)) ||
     /^_.*_versions$/.test(name) ||
     name.endsWith("_versions")
   );
