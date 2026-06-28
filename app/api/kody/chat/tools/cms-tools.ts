@@ -21,6 +21,7 @@ import type {
   CmsConfigState,
   CmsDocument,
   CmsListQuery,
+  CmsListResult,
   CmsSortEntry,
 } from "@dashboard/lib/cms/types";
 
@@ -69,7 +70,11 @@ const listDocumentsInput = collectionInput.extend({
 });
 
 const documentInput = collectionInput.extend({
-  id: z.string().trim().min(1).describe("Document id."),
+  id: z
+    .string()
+    .trim()
+    .min(1)
+    .describe("Document id. Use the cmsDocumentId from cms_list_documents."),
 });
 
 export async function createCmsTools({
@@ -106,16 +111,26 @@ export async function createCmsTools({
 
     cms_list_documents: tool({
       description:
-        "List or search CMS documents through the same Dashboard CMS service, Content Entries source, and configured collection adapter.",
+        "List or search CMS documents through the same Dashboard CMS service, Content Entries source, and configured collection adapter. Each returned document includes cmsDocumentId; use that exact value for cms_get_document or mutations.",
       inputSchema: listDocumentsInput,
-      execute: async (input) =>
-        listCmsDocuments(req, octokit, owner, repo, input.collection, {
-          search: input.q ? { query: input.q } : undefined,
-          filters: input.filters as CmsListQuery["filters"],
-          sort: input.sort as CmsSortEntry[] | undefined,
-          limit: input.limit,
-          offset: input.offset,
-        }),
+      execute: async (input) => {
+        const collection = findCollection(cms, input.collection);
+        const result = await listCmsDocuments(
+          req,
+          octokit,
+          owner,
+          repo,
+          collection.name,
+          {
+            search: input.q ? { query: input.q } : undefined,
+            filters: input.filters as CmsListQuery["filters"],
+            sort: input.sort as CmsSortEntry[] | undefined,
+            limit: input.limit,
+            offset: input.offset,
+          },
+        );
+        return annotateListResult(collection, result);
+      },
     }),
 
     cms_get_document: tool({
@@ -194,7 +209,52 @@ function toMutationOperationsTuple(
 
 function describeMutationTool(operations: CmsWriteOperation[]): string {
   const actions = operations.join(", ");
-  return `${actions} one CMS document through the same Dashboard CMS service, Content Entries source, and configured collection adapter.`;
+  return `${actions} one CMS document through the same Dashboard CMS service, Content Entries source, and configured collection adapter. For update/delete, use the cmsDocumentId from cms_list_documents.`;
+}
+
+function annotateListResult(
+  collection: CmsCollectionConfig,
+  result: CmsListResult,
+) {
+  const idField = getCollectionIdField(collection);
+  return {
+    ...result,
+    collection: collection.name,
+    idField,
+    docs: result.docs.map((document) => annotateDocument(collection, document)),
+  };
+}
+
+function annotateDocument(
+  collection: CmsCollectionConfig,
+  document: CmsDocument,
+): CmsDocument {
+  const cmsDocumentId = getCmsDocumentId(collection, document);
+  return cmsDocumentId ? { ...document, cmsDocumentId } : document;
+}
+
+function getCmsDocumentId(
+  collection: CmsCollectionConfig,
+  document: CmsDocument,
+): string | null {
+  return stringifyCmsDocumentId(
+    document[getCollectionIdField(collection)] ?? document.id ?? document._id,
+  );
+}
+
+function getCollectionIdField(collection: CmsCollectionConfig): string {
+  return collection.source.idField ?? "_id";
+}
+
+function stringifyCmsDocumentId(value: unknown): string | null {
+  if (typeof value === "string") {
+    const id = value.trim();
+    return id ? id : null;
+  }
+  if (typeof value === "number" || typeof value === "boolean") {
+    return String(value);
+  }
+  return null;
 }
 
 async function mutateCmsDocument({
@@ -255,10 +315,19 @@ async function mutateCmsDocument({
 }
 
 function normalizeCmsDocumentIdInput(input: string): string {
-  const trimmed = input.trim();
+  const trimmed = stripWrappingQuotes(input.trim());
   const withoutQuery = trimmed.split(/[?#]/, 1)[0] ?? trimmed;
   const path = parseDocumentPath(withoutQuery);
-  return path ?? withoutQuery;
+  return path ?? parseDocumentIdSegment(withoutQuery) ?? withoutQuery;
+}
+
+function stripWrappingQuotes(value: string): string {
+  let current = value;
+  for (;;) {
+    const next = current.replace(/^[`'"]+|[`'"]+$/g, "").trim();
+    if (next === current) return current;
+    current = next;
+  }
 }
 
 function parseDocumentPath(value: string): string | null {
@@ -275,6 +344,14 @@ function parseDocumentPath(value: string): string | null {
   const idPart = parts[entriesIndex + 3];
   if (!idPart || idPart === "new") return null;
   return idPart === "edit" ? (parts[entriesIndex + 2] ?? null) : idPart;
+}
+
+function parseDocumentIdSegment(value: string): string | null {
+  const parts = value.split("/").filter(Boolean).map(decodePathPart);
+  if (parts.length < 2) return null;
+  const lastPart = parts[parts.length - 1];
+  if (!lastPart || lastPart === "new") return null;
+  return lastPart === "edit" ? (parts[parts.length - 2] ?? null) : lastPart;
 }
 
 function urlPathname(value: string): string | null {
@@ -298,7 +375,8 @@ function findCollection(
   collectionName: string,
 ): CmsCollectionConfig {
   const collection = cms.collections.find(
-    (candidate) => candidate.name === collectionName,
+    (candidate) =>
+      candidate.name === collectionName || candidate.mcpName === collectionName,
   );
   if (!collection) throw new Error(`unknown CMS collection: ${collectionName}`);
   return collection;

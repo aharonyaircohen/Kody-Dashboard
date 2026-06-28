@@ -139,7 +139,8 @@ describe("CMS chat tools", () => {
     );
 
     expect(result).toMatchObject({
-      docs: [{ _id: "1", title: "Intro" }],
+      idField: "id",
+      docs: [{ _id: "1", title: "Intro", cmsDocumentId: "1" }],
       total: 1,
     });
     expect(service.listCmsDocuments).toHaveBeenCalledWith(
@@ -202,6 +203,13 @@ describe("CMS chat tools", () => {
       },
       { toolCallId: "call-query", messages: [] },
     );
+    await tools.cms_get_document.execute?.(
+      {
+        collection: "courses",
+        id: "`64f1a5f6f2a80f3a3a3a3a3a/edit?collectionSearch=course`",
+      },
+      { toolCallId: "call-partial-edit", messages: [] },
+    );
     await tools.cms_mutate_document.execute?.(
       {
         collection: "courses",
@@ -223,6 +231,15 @@ describe("CMS chat tools", () => {
     );
     expect(service.getCmsDocument).toHaveBeenNthCalledWith(
       2,
+      req,
+      expect.anything(),
+      "A-Guy-educ",
+      "A-Guy-Admin",
+      "courses",
+      "64f1a5f6f2a80f3a3a3a3a3a",
+    );
+    expect(service.getCmsDocument).toHaveBeenNthCalledWith(
+      3,
       req,
       expect.anything(),
       "A-Guy-educ",
