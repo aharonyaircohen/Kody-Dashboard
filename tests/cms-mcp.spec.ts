@@ -76,6 +76,21 @@ describe("CMS MCP tool generation", () => {
     ]);
 
     const createTool = tools.find((tool) => tool.name === "cms_create_lessons");
+    const listTool = tools.find((tool) => tool.name === "cms_list_lessons");
+    const getTool = tools.find((tool) => tool.name === "cms_get_lessons");
+    const updateTool = tools.find((tool) => tool.name === "cms_update_lessons");
+
+    expect(listTool?.description).toContain("cmsDocumentId");
+    expect(getTool?.inputSchema).toMatchObject({
+      properties: {
+        id: { description: expect.stringContaining("cmsDocumentId") },
+      },
+    });
+    expect(updateTool?.inputSchema).toMatchObject({
+      properties: {
+        id: { description: expect.stringContaining("cmsDocumentId") },
+      },
+    });
     expect(createTool?.inputSchema).toMatchObject({
       type: "object",
       properties: {

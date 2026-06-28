@@ -22,8 +22,14 @@ import {
   updateCmsDocument,
 } from "@dashboard/lib/cms/service";
 import { CmsConfigError } from "@dashboard/lib/cms/config";
+import {
+  annotateCmsDocument,
+  annotateCmsListResult,
+  normalizeCmsDocumentIdInput,
+} from "@dashboard/lib/cms/document-ids";
 import { generateCmsMcpTools, resolveCmsMcpTool } from "@dashboard/lib/cms/mcp";
 import type {
+  CmsCollectionConfig,
   CmsConfigState,
   CmsDocument,
   CmsListQuery,
@@ -195,12 +201,13 @@ async function callCmsTool(
   }
 
   if (ref.action === "list") {
-    return listCmsDocuments(
+    const collection = findCollection(cms, ref.collection);
+    const result = await listCmsDocuments(
       req,
       context.octokit,
       context.owner,
       context.repo,
-      ref.collection,
+      collection.name,
       {
         filters: filtersValue(args.filters),
         search:
@@ -212,22 +219,28 @@ async function callCmsTool(
         offset: numberValue(args.offset),
       },
     );
+    return annotateCmsListResult(collection, result);
   }
 
   if (ref.action === "get") {
+    const collection = findCollection(cms, ref.collection);
     return {
-      document: await getCmsDocument(
-        req,
-        context.octokit,
-        context.owner,
-        context.repo,
-        ref.collection,
-        requiredString(args.id, "id"),
+      document: annotateCmsDocument(
+        collection,
+        await getCmsDocument(
+          req,
+          context.octokit,
+          context.owner,
+          context.repo,
+          collection.name,
+          normalizeCmsDocumentIdInput(requiredString(args.id, "id")),
+        ),
       ),
     };
   }
 
   if (ref.action === "create") {
+    const collection = findCollection(cms, ref.collection);
     const actorResult = await verifyActorLogin(req, undefined);
     if (actorResult instanceof NextResponse) {
       throw new CmsRuntimeError(
@@ -237,18 +250,22 @@ async function callCmsTool(
       );
     }
     return {
-      document: await createCmsDocument(
-        req,
-        context.octokit,
-        context.owner,
-        context.repo,
-        ref.collection,
-        documentValue(args.data),
+      document: annotateCmsDocument(
+        collection,
+        await createCmsDocument(
+          req,
+          context.octokit,
+          context.owner,
+          context.repo,
+          collection.name,
+          documentValue(args.data),
+        ),
       ),
     };
   }
 
   if (ref.action === "update") {
+    const collection = findCollection(cms, ref.collection);
     const actorResult = await verifyActorLogin(req, undefined);
     if (actorResult instanceof NextResponse) {
       throw new CmsRuntimeError(
@@ -258,18 +275,22 @@ async function callCmsTool(
       );
     }
     return {
-      document: await updateCmsDocument(
-        req,
-        context.octokit,
-        context.owner,
-        context.repo,
-        ref.collection,
-        requiredString(args.id, "id"),
-        documentValue(args.data),
+      document: annotateCmsDocument(
+        collection,
+        await updateCmsDocument(
+          req,
+          context.octokit,
+          context.owner,
+          context.repo,
+          collection.name,
+          normalizeCmsDocumentIdInput(requiredString(args.id, "id")),
+          documentValue(args.data),
+        ),
       ),
     };
   }
 
+  const collection = findCollection(cms, ref.collection);
   const actorResult = await verifyActorLogin(req, undefined);
   if (actorResult instanceof NextResponse) {
     throw new CmsRuntimeError(
@@ -284,8 +305,8 @@ async function callCmsTool(
       context.octokit,
       context.owner,
       context.repo,
-      ref.collection,
-      requiredString(args.id, "id"),
+      collection.name,
+      normalizeCmsDocumentIdInput(requiredString(args.id, "id")),
     ),
   };
 }
@@ -370,4 +391,17 @@ function sortValue(value: unknown): CmsSortEntry[] | undefined {
       } satisfies CmsSortEntry,
     ];
   });
+}
+
+function findCollection(
+  cms: Extract<CmsConfigState, { configured: true }>,
+  collectionName: string,
+): CmsCollectionConfig {
+  const collection = cms.collections.find(
+    (candidate) => candidate.name === collectionName,
+  );
+  if (!collection) {
+    throw new CmsConfigError([`unknown CMS collection: ${collectionName}`]);
+  }
+  return collection;
 }

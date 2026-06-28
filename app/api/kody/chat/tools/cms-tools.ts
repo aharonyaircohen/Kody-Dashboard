@@ -9,6 +9,10 @@ import {
   type CmsWriteOperation,
 } from "@dashboard/lib/cms/permissions";
 import {
+  annotateCmsListResult,
+  normalizeCmsDocumentIdInput,
+} from "@dashboard/lib/cms/document-ids";
+import {
   createCmsDocument,
   deleteCmsDocument,
   getCmsDocument,
@@ -21,7 +25,6 @@ import type {
   CmsConfigState,
   CmsDocument,
   CmsListQuery,
-  CmsListResult,
   CmsSortEntry,
 } from "@dashboard/lib/cms/types";
 
@@ -129,7 +132,7 @@ export async function createCmsTools({
             offset: input.offset,
           },
         );
-        return annotateListResult(collection, result);
+        return annotateCmsListResult(collection, result);
       },
     }),
 
@@ -212,51 +215,6 @@ function describeMutationTool(operations: CmsWriteOperation[]): string {
   return `${actions} one CMS document through the same Dashboard CMS service, Content Entries source, and configured collection adapter. For update/delete, use the cmsDocumentId from cms_list_documents.`;
 }
 
-function annotateListResult(
-  collection: CmsCollectionConfig,
-  result: CmsListResult,
-) {
-  const idField = getCollectionIdField(collection);
-  return {
-    ...result,
-    collection: collection.name,
-    idField,
-    docs: result.docs.map((document) => annotateDocument(collection, document)),
-  };
-}
-
-function annotateDocument(
-  collection: CmsCollectionConfig,
-  document: CmsDocument,
-): CmsDocument {
-  const cmsDocumentId = getCmsDocumentId(collection, document);
-  return cmsDocumentId ? { ...document, cmsDocumentId } : document;
-}
-
-function getCmsDocumentId(
-  collection: CmsCollectionConfig,
-  document: CmsDocument,
-): string | null {
-  return stringifyCmsDocumentId(
-    document[getCollectionIdField(collection)] ?? document.id ?? document._id,
-  );
-}
-
-function getCollectionIdField(collection: CmsCollectionConfig): string {
-  return collection.source.idField ?? "_id";
-}
-
-function stringifyCmsDocumentId(value: unknown): string | null {
-  if (typeof value === "string") {
-    const id = value.trim();
-    return id ? id : null;
-  }
-  if (typeof value === "number" || typeof value === "boolean") {
-    return String(value);
-  }
-  return null;
-}
-
 async function mutateCmsDocument({
   req,
   octokit,
@@ -312,62 +270,6 @@ async function mutateCmsDocument({
       id,
     ),
   };
-}
-
-function normalizeCmsDocumentIdInput(input: string): string {
-  const trimmed = stripWrappingQuotes(input.trim());
-  const withoutQuery = trimmed.split(/[?#]/, 1)[0] ?? trimmed;
-  const path = parseDocumentPath(withoutQuery);
-  return path ?? parseDocumentIdSegment(withoutQuery) ?? withoutQuery;
-}
-
-function stripWrappingQuotes(value: string): string {
-  let current = value;
-  for (;;) {
-    const next = current.replace(/^[`'"]+|[`'"]+$/g, "").trim();
-    if (next === current) return current;
-    current = next;
-  }
-}
-
-function parseDocumentPath(value: string): string | null {
-  const path =
-    value.startsWith("http://") || value.startsWith("https://")
-      ? urlPathname(value)
-      : value;
-  if (!path || !path.includes("/content/entries/")) return null;
-
-  const parts = path.split("/").filter(Boolean).map(decodePathPart);
-  const entriesIndex = parts.findIndex(
-    (part, index) => part === "content" && parts[index + 1] === "entries",
-  );
-  const idPart = parts[entriesIndex + 3];
-  if (!idPart || idPart === "new") return null;
-  return idPart === "edit" ? (parts[entriesIndex + 2] ?? null) : idPart;
-}
-
-function parseDocumentIdSegment(value: string): string | null {
-  const parts = value.split("/").filter(Boolean).map(decodePathPart);
-  if (parts.length < 2) return null;
-  const lastPart = parts[parts.length - 1];
-  if (!lastPart || lastPart === "new") return null;
-  return lastPart === "edit" ? (parts[parts.length - 2] ?? null) : lastPart;
-}
-
-function urlPathname(value: string): string | null {
-  try {
-    return new URL(value).pathname;
-  } catch {
-    return null;
-  }
-}
-
-function decodePathPart(value: string): string {
-  try {
-    return decodeURIComponent(value);
-  } catch {
-    return value;
-  }
 }
 
 function findCollection(

@@ -52,7 +52,9 @@ const service = vi.hoisted(() => ({
     limit: 50,
     offset: 0,
   })),
-  getCmsDocument: vi.fn(async () => null),
+  getCmsDocument: vi.fn(
+    async (): Promise<Record<string, unknown> | null> => null,
+  ),
   createCmsDocument: vi.fn(async () => ({ _id: "new-id", title: "Created" })),
   updateCmsDocument: vi.fn(async () => ({ _id: "1", title: "Updated" })),
   deleteCmsDocument: vi.fn(async () => true),
@@ -1435,7 +1437,9 @@ describe("CMS API routes", () => {
       id: 2,
       result: {
         structuredContent: {
-          docs: [{ _id: "1", title: "Intro" }],
+          collection: "lessons",
+          idField: "_id",
+          docs: [{ _id: "1", title: "Intro", cmsDocumentId: "1" }],
           total: 1,
           limit: 10,
           offset: 0,
@@ -1453,6 +1457,78 @@ describe("CMS API routes", () => {
         search: { query: "intro" },
         limit: 10,
       }),
+    );
+  });
+
+  it("normalizes CMS MCP document ids before get calls", async () => {
+    service.listCmsCollections.mockResolvedValueOnce({
+      configured: true,
+      version: 1,
+      name: "Example CMS",
+      environment: "default",
+      writePolicy: "enabled",
+      actorRole: "admin",
+      permissions: {},
+      collections: [
+        {
+          name: "courses",
+          label: "Courses",
+          adapter: "mongodb",
+          mcpName: "courses",
+          searchFields: ["title"],
+          writePolicy: "enabled",
+          permissions: {},
+          source: { collection: "courses", idField: "_id" },
+          operations: {
+            list: true,
+            get: true,
+            search: true,
+            create: true,
+            update: true,
+            delete: true,
+          },
+          defaultSort: [],
+          fields: [
+            { name: "_id", type: "id", readOnly: true },
+            { name: "title", type: "text", required: true },
+          ],
+          filters: [],
+        },
+      ],
+    });
+    service.getCmsDocument.mockResolvedValueOnce({ _id: "1", title: "Intro" });
+
+    const res = await mcpPOST(
+      jsonRequest("https://dash.test/api/kody/cms/mcp", "POST", {
+        jsonrpc: "2.0",
+        id: 3,
+        method: "tools/call",
+        params: {
+          name: "cms_get_courses",
+          arguments: {
+            id: "`6a408b5d4a2dd57df6b116ea/edit?collectionSearch=course`",
+          },
+        },
+      }),
+    );
+
+    expect(res.status).toBe(200);
+    await expect(res.json()).resolves.toMatchObject({
+      jsonrpc: "2.0",
+      id: 3,
+      result: {
+        structuredContent: {
+          document: { _id: "1", title: "Intro", cmsDocumentId: "1" },
+        },
+      },
+    });
+    expect(service.getCmsDocument).toHaveBeenCalledWith(
+      expect.any(NextRequest),
+      expect.anything(),
+      "A-Guy-educ",
+      "A-Guy-Web",
+      "courses",
+      "6a408b5d4a2dd57df6b116ea",
     );
   });
 });

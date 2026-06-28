@@ -33,7 +33,7 @@ export function generateCmsMcpTools(config: CmsPublicConfig): CmsMcpTool[] {
     if (collection.operations.list) {
       tools.push({
         name: `cms_list_${slug}`,
-        description: `List ${collection.label} CMS documents.`,
+        description: `List ${collection.label} CMS documents. Each returned document includes cmsDocumentId; use that exact value for get, update, or delete.`,
         inputSchema: objectSchema({
           q: { type: "string", description: "Optional search query." },
           filters: {
@@ -59,7 +59,12 @@ export function generateCmsMcpTools(config: CmsPublicConfig): CmsMcpTool[] {
         name: `cms_get_${slug}`,
         description: `Get one ${collection.label} CMS document by id.`,
         inputSchema: objectSchema(
-          { id: { type: "string", description: "Document id." } },
+          {
+            id: {
+              type: "string",
+              description: "Document id. Use the cmsDocumentId from list.",
+            },
+          },
           ["id"],
         ),
       });
@@ -80,7 +85,10 @@ export function generateCmsMcpTools(config: CmsPublicConfig): CmsMcpTool[] {
         description: `Update one ${collection.label} CMS document by id.`,
         inputSchema: objectSchema(
           {
-            id: { type: "string", description: "Document id." },
+            id: {
+              type: "string",
+              description: "Document id. Use the cmsDocumentId from list.",
+            },
             data: documentSchema(collection, { requireId: false }),
           },
           ["id", "data"],
@@ -92,7 +100,12 @@ export function generateCmsMcpTools(config: CmsPublicConfig): CmsMcpTool[] {
         name: `cms_delete_${slug}`,
         description: `Delete one ${collection.label} CMS document by id.`,
         inputSchema: objectSchema(
-          { id: { type: "string", description: "Document id." } },
+          {
+            id: {
+              type: "string",
+              description: "Document id. Use the cmsDocumentId from list.",
+            },
+          },
           ["id"],
         ),
       });
