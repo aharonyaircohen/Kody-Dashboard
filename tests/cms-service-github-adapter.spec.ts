@@ -1,5 +1,12 @@
 import { NextRequest } from "next/server";
-import { existsSync, lstatSync, readdirSync, readFileSync } from "node:fs";
+import {
+  existsSync,
+  lstatSync,
+  mkdtempSync,
+  readdirSync,
+  readFileSync,
+  rmSync,
+} from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
@@ -273,6 +280,69 @@ describe("CMS service GitHub adapter integration", () => {
     expect(hasMaterializedNodeModulesLink("mongodb")).toBe(true);
   });
 
+  it("resolves remote Store adapter dependencies when cwd has no node_modules", async () => {
+    const req = request("no-node-modules");
+    const previousCwd = process.cwd();
+    const tempCwd = mkdtempSync(path.join(tmpdir(), "kody-cms-cwd-"));
+
+    octokit.seedText(
+      "aharonyaircohen",
+      "kody-company-store",
+      "no-node-modules",
+      "cms/adapters/github/index.mjs",
+      readStoreFile("cms/adapters/github/index.mjs"),
+    );
+    octokit.seedText(
+      "aharonyaircohen",
+      "kody-company-store",
+      "no-node-modules",
+      "cms/contract/index.mjs",
+      readStoreFile("cms/contract/index.mjs"),
+    );
+    octokit.seedText(
+      "aharonyaircohen",
+      "kody-company-store",
+      "no-node-modules",
+      "cms/adapters/mongodb/index.mjs",
+      [
+        'import { ObjectId } from "mongodb"',
+        "export function createCmsAdapter() {",
+        "  return {",
+        "    async list() {",
+        "      return {",
+        "        docs: [{ _id: new ObjectId('64f1a5f6f2a80f3a3a3a3a3a').toString(), title: 'Fallback' }],",
+        "        total: 1,",
+        "        limit: 50,",
+        "        offset: 0,",
+        "      }",
+        "    },",
+        "  }",
+        "}",
+      ].join("\n"),
+    );
+    mockStateFiles(cmsStateFilesForAdapter("mongodb", "Mongo CMS"));
+
+    try {
+      process.chdir(tempCwd);
+      await expect(
+        listCmsDocuments(
+          req,
+          octokit as never,
+          "A-Guy-educ",
+          "A-Guy-Web",
+          "lessons",
+          {},
+        ),
+      ).resolves.toMatchObject({
+        docs: [{ _id: "64f1a5f6f2a80f3a3a3a3a3a", title: "Fallback" }],
+        total: 1,
+      });
+    } finally {
+      process.chdir(previousCwd);
+      rmSync(tempCwd, { recursive: true, force: true });
+    }
+  });
+
   it("wraps unexpected remote Store adapter failures as CMS runtime errors", async () => {
     const req = request();
 
@@ -430,7 +500,7 @@ function cmsStateFilesForAdapter(
   };
 }
 
-function request() {
+function request(storeRef = "stable") {
   return new NextRequest("https://dash.test/api/kody/cms", {
     headers: {
       "x-kody-token": "ghp_test",
@@ -438,7 +508,7 @@ function request() {
       "x-kody-repo": "A-Guy-Web",
       "x-kody-store-repo-url":
         "https://github.com/aharonyaircohen/kody-company-store",
-      "x-kody-store-ref": "stable",
+      "x-kody-store-ref": storeRef,
     },
   });
 }

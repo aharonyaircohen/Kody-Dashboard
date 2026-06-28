@@ -3,6 +3,7 @@ import "server-only";
 import { createHash } from "node:crypto";
 import { existsSync } from "node:fs";
 import { mkdir, symlink, writeFile } from "node:fs/promises";
+import { createRequire } from "node:module";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { pathToFileURL } from "node:url";
@@ -36,6 +37,7 @@ const REMOTE_MODULE_URLS = new Map<
   string,
   { expiresAt: number; value: Promise<string> }
 >();
+const requireFromHere = createRequire(import.meta.url);
 
 type StoreAdapterOptions = {
   config: CmsRuntimeConfig;
@@ -266,7 +268,7 @@ async function materializeRemoteStoreAdapter(
 }
 
 async function linkRuntimeNodeModules(root: string): Promise<void> {
-  const runtimeNodeModules = path.resolve(process.cwd(), "node_modules");
+  const runtimeNodeModules = resolveRuntimeNodeModules();
   if (!existsSync(runtimeNodeModules)) return;
 
   const linkPath = path.join(root, "node_modules");
@@ -277,6 +279,33 @@ async function linkRuntimeNodeModules(root: string): Promise<void> {
   } catch (error) {
     if ((error as { code?: string })?.code === "EEXIST") return;
     throw error;
+  }
+}
+
+function resolveRuntimeNodeModules(): string {
+  const cwdNodeModules = path.resolve(process.cwd(), "node_modules");
+  if (existsSync(cwdNodeModules)) return cwdNodeModules;
+
+  const packageNodeModules = findPackageNodeModules("mongodb/package.json");
+  return packageNodeModules ?? cwdNodeModules;
+}
+
+function findPackageNodeModules(packagePath: string): string | null {
+  try {
+    const resolved = requireFromHere.resolve(packagePath);
+    return findNearestNodeModules(path.dirname(resolved));
+  } catch {
+    return null;
+  }
+}
+
+function findNearestNodeModules(start: string): string | null {
+  let current = start;
+  for (;;) {
+    if (path.basename(current) === "node_modules") return current;
+    const parent = path.dirname(current);
+    if (parent === current) return null;
+    current = parent;
   }
 }
 
