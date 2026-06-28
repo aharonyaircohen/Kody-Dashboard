@@ -174,7 +174,7 @@ export function Sidebar() {
     }
   };
 
-  const width = collapsed ? "w-[64px]" : "w-[220px]";
+  const width = collapsed ? "w-[72px]" : "w-[248px]";
 
   const renderLink = (item: NavItem) => {
     const Icon = item.icon;
@@ -185,15 +185,15 @@ export function Sidebar() {
         aria-current={active ? "page" : undefined}
         aria-label={item.label}
         className={cn(
-          "relative flex items-center gap-3 rounded-md text-sm transition-colors",
-          "h-9 px-3",
+          "relative flex items-center gap-3.5 rounded-md text-body-sm transition-colors",
+          "h-10 px-3.5",
           collapsed && "justify-center px-0",
           active
             ? "bg-accent text-foreground"
             : "text-muted-foreground hover:bg-accent/50 hover:text-foreground",
         )}
       >
-        <Icon className={cn("w-4 h-4 shrink-0", iconTintClass(item))} />
+        <Icon className={cn("h-5 w-5 shrink-0", iconTintClass(item))} />
         {!collapsed && <span className="truncate">{item.label}</span>}
         {item.href === "/inbox" && (
           <InboxBadge
@@ -236,7 +236,7 @@ export function Sidebar() {
     >
       <div
         className={cn(
-          "flex items-center px-3 h-14 border-b border-white/[0.06]",
+          "flex h-16 items-center border-b border-white/[0.06] px-3.5",
           collapsed ? "justify-center" : "justify-between",
         )}
       >
@@ -251,11 +251,11 @@ export function Sidebar() {
               APP_VERSION ? `Kody home (v${APP_VERSION})` : "Kody home"
             }
           >
-            <div className="h-7 w-7 rounded-md bg-emerald-600 flex items-center justify-center text-white font-semibold text-sm shrink-0">
+            <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md bg-emerald-600 text-body-sm font-semibold text-white">
               K
             </div>
             {!collapsed && (
-              <span className="text-sm font-semibold tracking-tight truncate">
+              <span className="truncate text-body-sm font-semibold tracking-tight">
                 Kody
               </span>
             )}
@@ -266,7 +266,7 @@ export function Sidebar() {
       <nav className="min-h-0 flex-1 flex flex-col py-3">
         <div
           data-sidebar-fixed-controls="true"
-          className="shrink-0 px-2 space-y-1"
+          className="shrink-0 space-y-1.5 px-2.5"
         >
           <div className="pb-2">{renderLink(DASHBOARD_NAV_ITEM)}</div>
 
@@ -292,12 +292,12 @@ export function Sidebar() {
                       ? "Switch to Engineer"
                       : "Switch to Vibe"
                   }
-                  className="flex items-center justify-center w-full rounded-md h-9 text-muted-foreground hover:bg-accent/50 hover:text-foreground transition-colors"
+                  className="flex h-10 w-full items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-accent/50 hover:text-foreground"
                 >
                   {sidebarMode === "vibe" ? (
-                    <Wrench className="w-4 h-4 shrink-0" />
+                    <Wrench className="h-5 w-5 shrink-0" />
                   ) : (
-                    <Sparkles className="w-4 h-4 shrink-0" />
+                    <Sparkles className="h-5 w-5 shrink-0" />
                   )}
                 </button>
               </SimpleTooltip>
@@ -311,13 +311,13 @@ export function Sidebar() {
                   onClick={() => selectSidebarMode("vibe")}
                   aria-pressed={sidebarMode === "vibe"}
                   className={cn(
-                    "flex h-8 items-center justify-center gap-1.5 rounded text-xs font-medium transition-colors",
+                    "flex h-9 items-center justify-center gap-2 rounded text-body-xs font-medium transition-colors",
                     sidebarMode === "vibe"
                       ? "bg-accent text-foreground"
                       : "text-muted-foreground hover:bg-accent/50 hover:text-foreground",
                   )}
                 >
-                  <Sparkles className="w-3.5 h-3.5 shrink-0" />
+                  <Sparkles className="h-4 w-4 shrink-0" />
                   <span>Vibe</span>
                 </button>
                 <button
@@ -325,13 +325,13 @@ export function Sidebar() {
                   onClick={() => selectSidebarMode("engineer")}
                   aria-pressed={sidebarMode === "engineer"}
                   className={cn(
-                    "flex h-8 items-center justify-center gap-1.5 rounded text-xs font-medium transition-colors",
+                    "flex h-9 items-center justify-center gap-2 rounded text-body-xs font-medium transition-colors",
                     sidebarMode === "engineer"
                       ? "bg-accent text-foreground"
                       : "text-muted-foreground hover:bg-accent/50 hover:text-foreground",
                   )}
                 >
-                  <Wrench className="w-3.5 h-3.5 shrink-0" />
+                  <Wrench className="h-4 w-4 shrink-0" />
                   <span>Engineer</span>
                 </button>
               </div>
@@ -348,14 +348,14 @@ export function Sidebar() {
                     type="button"
                     onClick={toggleCollapsed}
                     aria-label="Search"
-                    className="flex items-center justify-center w-full rounded-md h-9 text-muted-foreground hover:bg-accent/50 hover:text-foreground transition-colors"
+                    className="flex h-10 w-full items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-accent/50 hover:text-foreground"
                   >
-                    <Search className="w-4 h-4 shrink-0" />
+                    <Search className="h-5 w-5 shrink-0" />
                   </button>
                 </SimpleTooltip>
               ) : (
-                <div className="flex items-center gap-2 w-full rounded-md h-9 px-3 text-sm border border-white/[0.08] bg-black/20 transition-colors focus-within:border-white/[0.18]">
-                  <Search className="w-4 h-4 shrink-0 text-muted-foreground" />
+                <div className="flex h-10 w-full items-center gap-2.5 rounded-md border border-white/[0.08] bg-black/20 px-3.5 text-body-sm transition-colors focus-within:border-white/[0.18]">
+                  <Search className="h-5 w-5 shrink-0 text-muted-foreground" />
                   <input
                     value={query}
                     onChange={(e) => setQuery(e.target.value)}
@@ -371,7 +371,7 @@ export function Sidebar() {
                       aria-label="Clear search"
                       className="text-muted-foreground hover:text-foreground"
                     >
-                      <X className="w-3.5 h-3.5 shrink-0" />
+                      <X className="h-4 w-4 shrink-0" />
                     </button>
                   )}
                 </div>
@@ -382,7 +382,7 @@ export function Sidebar() {
 
         <div
           data-sidebar-scroll-list="true"
-          className="min-h-0 flex-1 overflow-y-auto px-2 pb-3 space-y-1"
+          className="min-h-0 flex-1 space-y-1 overflow-y-auto px-2.5 pb-4"
         >
           {/* Nav sections — ordered by the main work loop, sourced from the
               shared settings-nav so new pages appear here automatically. Filtered
@@ -396,7 +396,7 @@ export function Sidebar() {
             filteredSections.map((section, i) => (
               <div key={section.title} className="space-y-1">
                 {!collapsed && (
-                  <p className="px-3 pt-3 pb-1 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground/80">
+                  <p className="px-3.5 pb-1 pt-3.5 text-label font-semibold uppercase tracking-wider text-muted-foreground/80">
                     {section.title}
                   </p>
                 )}
@@ -413,7 +413,7 @@ export function Sidebar() {
         </div>
       </nav>
 
-      <div className="border-t border-white/[0.06] p-2 space-y-1">
+      <div className="space-y-1 border-t border-white/[0.06] p-2.5">
         {/* GitHub identity — click to reveal connected repo + sign out.
             Persistent app chrome, moved here from the page header. */}
         {(githubUser || connectedRepo) && (
@@ -433,13 +433,13 @@ export function Sidebar() {
                 aria-expanded={userMenuOpen}
                 aria-label="Account"
                 className={cn(
-                  "flex items-center gap-3 w-full rounded-md text-sm h-9 px-3 transition-colors",
+                  "flex h-10 w-full items-center gap-3.5 rounded-md px-3.5 text-body-sm transition-colors",
                   "text-muted-foreground hover:bg-accent/50 hover:text-foreground",
                   collapsed && "justify-center px-0",
                 )}
               >
                 {githubUser ? (
-                  <Avatar className="h-5 w-5 shrink-0">
+                  <Avatar className="h-6 w-6 shrink-0">
                     <AvatarImage
                       src={githubUser.avatar_url}
                       alt={githubUser.login}
@@ -449,7 +449,7 @@ export function Sidebar() {
                     </AvatarFallback>
                   </Avatar>
                 ) : (
-                  <Github className="w-4 h-4 shrink-0" />
+                  <Github className="h-5 w-5 shrink-0" />
                 )}
                 {!collapsed && (
                   <span className="truncate flex-1 text-left">
@@ -461,7 +461,7 @@ export function Sidebar() {
             {userMenuOpen && (
               <div className="absolute bottom-full left-0 mb-1 w-56 py-1 bg-popover border rounded-md shadow-lg z-50">
                 {connectedRepo && (
-                  <div className="px-3 py-1.5 text-xs text-muted-foreground border-b mb-1">
+                  <div className="mb-1 border-b px-3 py-2 text-body-xs text-muted-foreground">
                     <span className="font-medium text-foreground">Repo:</span>{" "}
                     {connectedRepo}
                   </div>
@@ -473,13 +473,13 @@ export function Sidebar() {
                       clearGitHubUser();
                       setUserMenuOpen(false);
                     }}
-                    className="w-full flex items-center gap-2 px-3 py-1.5 text-left text-sm hover:bg-accent"
+                    className="flex w-full items-center gap-2.5 px-3 py-2 text-left text-body-sm hover:bg-accent"
                   >
-                    <LogOut className="w-3.5 h-3.5 shrink-0" />
+                    <LogOut className="h-4 w-4 shrink-0" />
                     Sign out
                   </button>
                 ) : (
-                  <div className="px-3 py-1.5 text-xs text-muted-foreground">
+                  <div className="px-3 py-2 text-body-xs text-muted-foreground">
                     No GitHub user signed in.
                   </div>
                 )}
@@ -502,15 +502,15 @@ export function Sidebar() {
               theme === "dark" ? "Switch to light mode" : "Switch to dark mode"
             }
             className={cn(
-              "flex items-center gap-3 w-full rounded-md text-sm h-9 px-3",
+              "flex h-10 w-full items-center gap-3.5 rounded-md px-3.5 text-body-sm",
               "text-muted-foreground hover:bg-accent/50 hover:text-foreground",
               collapsed && "justify-center px-0",
             )}
           >
             {theme === "dark" ? (
-              <Sun className="w-4 h-4 shrink-0" />
+              <Sun className="h-5 w-5 shrink-0" />
             ) : (
-              <Moon className="w-4 h-4 shrink-0" />
+              <Moon className="h-5 w-5 shrink-0" />
             )}
             {!collapsed && (
               <span className="truncate">
@@ -529,15 +529,15 @@ export function Sidebar() {
             onClick={toggleCollapsed}
             aria-label={collapsed ? "Expand sidebar" : "Collapse sidebar"}
             className={cn(
-              "flex items-center gap-3 w-full rounded-md text-sm h-9 px-3",
+              "flex h-10 w-full items-center gap-3.5 rounded-md px-3.5 text-body-sm",
               "text-muted-foreground hover:bg-accent/50 hover:text-foreground",
               collapsed && "justify-center px-0",
             )}
           >
             {collapsed ? (
-              <ChevronRight className="w-4 h-4 shrink-0" />
+              <ChevronRight className="h-5 w-5 shrink-0" />
             ) : (
-              <ChevronLeft className="w-4 h-4 shrink-0" />
+              <ChevronLeft className="h-5 w-5 shrink-0" />
             )}
             {!collapsed && <span className="truncate">Collapse</span>}
           </button>
@@ -546,7 +546,7 @@ export function Sidebar() {
         {APP_VERSION && (
           <p
             className={cn(
-              "pt-1 text-[10px] font-mono text-muted-foreground/50 select-none",
+              "pt-1 text-code-sm font-mono text-muted-foreground/50 select-none",
               collapsed ? "text-center" : "px-3",
             )}
           >

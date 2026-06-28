@@ -83,7 +83,11 @@ export function MobileMenu({
       <Sheet open={open} onOpenChange={onOpenChange}>
         <SheetContent
           side="right"
-          className="w-[88vw] sm:w-[360px] !p-0 !gap-0 overflow-y-auto bg-black/95 border-white/[0.08]"
+          className="w-[92vw] sm:w-[390px] !p-0 !gap-0 overflow-y-auto !bg-black/95 !text-white/90 border-white/[0.08]"
+          style={{
+            backgroundColor: "rgba(0, 0, 0, 0.95)",
+            color: "rgba(255, 255, 255, 0.9)",
+          }}
         >
           <SheetHeader className="sr-only">
             <SheetTitle>Menu</SheetTitle>
@@ -94,9 +98,9 @@ export function MobileMenu({
 
           {(githubUser || connectedRepo) && (
             <div className="px-4 pt-4">
-              <div className="flex items-center gap-3 p-3 rounded-xl bg-white/[0.03] border border-white/[0.06]">
+              <div className="flex items-center gap-3.5 p-3.5 rounded-xl bg-white/[0.03] border border-white/[0.06]">
                 {githubUser ? (
-                  <Avatar className="h-9 w-9 shrink-0">
+                  <Avatar className="h-11 w-11 shrink-0">
                     <AvatarImage
                       src={githubUser.avatar_url}
                       alt={githubUser.login}
@@ -106,16 +110,16 @@ export function MobileMenu({
                     </AvatarFallback>
                   </Avatar>
                 ) : (
-                  <div className="h-9 w-9 rounded-full bg-muted flex items-center justify-center shrink-0">
-                    <Github className="h-4 w-4 text-muted-foreground" />
+                  <div className="h-11 w-11 rounded-full bg-muted flex items-center justify-center shrink-0">
+                    <Github className="h-5 w-5 text-muted-foreground" />
                   </div>
                 )}
                 <div className="min-w-0 flex-1">
-                  <div className="text-sm font-medium truncate">
+                  <div className="text-body-sm font-medium truncate">
                     {githubUser ? `@${githubUser.login}` : "Connected"}
                   </div>
                   {connectedRepo && (
-                    <div className="text-[11px] text-muted-foreground truncate">
+                    <div className="text-body-xs text-muted-foreground truncate">
                       {connectedRepo}
                     </div>
                   )}
@@ -128,7 +132,7 @@ export function MobileMenu({
                         clearGitHubUser();
                         close();
                       }}
-                      className="shrink-0 h-8 w-8 rounded-md inline-flex items-center justify-center text-muted-foreground hover:text-foreground hover:bg-white/[0.06]"
+                      className="shrink-0 h-10 w-10 rounded-md inline-flex items-center justify-center text-muted-foreground hover:text-foreground hover:bg-white/[0.06]"
                       aria-label="Sign out"
                     >
                       <LogOut className="w-4 h-4" />
@@ -154,7 +158,7 @@ export function MobileMenu({
                       ? "Login repo can't be removed — use Sign out instead"
                       : `Remove ${currentRepo.owner}/${currentRepo.repo}`
                   }
-                  className="mt-2 flex h-10 w-full items-center justify-center gap-2 rounded-lg border border-red-500/20 bg-red-500/5 px-3 text-sm font-medium text-red-300 transition hover:bg-red-500/10 hover:text-red-200 disabled:cursor-not-allowed disabled:opacity-50"
+                  className="mt-2 flex h-11 w-full items-center justify-center gap-2 rounded-lg border border-red-500/20 bg-red-500/5 px-3 text-body-sm font-medium text-red-300 transition hover:bg-red-500/10 hover:text-red-200 disabled:cursor-not-allowed disabled:opacity-50"
                 >
                   <Trash2 className="h-4 w-4" />
                   Remove current repo
@@ -164,7 +168,7 @@ export function MobileMenu({
           )}
 
           <div className="px-4 pt-4">
-            <div className="text-[11px] uppercase tracking-wider text-muted-foreground/80 mb-2 px-1">
+            <div className="text-label uppercase tracking-wider text-muted-foreground/80 mb-2 px-1">
               Repository
             </div>
 
@@ -176,7 +180,7 @@ export function MobileMenu({
               <button
                 type="button"
                 onClick={() => setAddRepoOpen(true)}
-                className="flex h-11 w-full items-center justify-center gap-2 rounded-xl border border-white/[0.08] bg-white/[0.03] px-3 text-sm font-medium text-foreground transition hover:bg-white/[0.06]"
+                className="flex h-12 w-full items-center justify-center gap-2 rounded-xl border border-white/[0.08] bg-white/[0.03] px-3 text-body-sm font-medium text-foreground transition hover:bg-white/[0.06]"
               >
                 <Plus className="h-4 w-4" />
                 {auth ? "Add repository" : "Connect repository"}
@@ -185,7 +189,7 @@ export function MobileMenu({
           </div>
 
           <div className="px-4 pt-3">
-            <div className="text-[11px] uppercase tracking-wider text-muted-foreground/80 mb-2 px-1">
+            <div className="text-label uppercase tracking-wider text-muted-foreground/80 mb-2 px-1">
               {PRIMARY_VIEW_TITLE}
             </div>
             <div className="grid grid-cols-2 gap-2">
@@ -196,17 +200,19 @@ export function MobileMenu({
                     key={item.href}
                     href={item.href}
                     onClick={close}
-                    className="flex flex-col items-center gap-2 p-3 rounded-xl border border-white/[0.06] bg-white/[0.02] hover:bg-white/[0.05] transition-colors text-center"
+                    className="flex flex-col items-center gap-2.5 p-3.5 rounded-xl border border-white/[0.06] bg-white/[0.02] hover:bg-white/[0.05] transition-colors text-center"
                   >
                     <span
                       className={cn(
-                        "inline-flex h-8 w-8 items-center justify-center rounded-md",
+                        "inline-flex h-10 w-10 items-center justify-center rounded-md",
                         item.tint,
                       )}
                     >
-                      <Icon className="w-4 h-4" />
+                      <Icon className="w-5 h-5" />
                     </span>
-                    <span className="text-sm font-medium">{item.label}</span>
+                    <span className="text-body-sm font-medium">
+                      {item.label}
+                    </span>
                   </Link>
                 );
               })}
@@ -214,7 +220,7 @@ export function MobileMenu({
           </div>
 
           <div className="px-4 pt-4">
-            <div className="text-[11px] uppercase tracking-wider text-muted-foreground/80 mb-2 px-1">
+            <div className="text-label uppercase tracking-wider text-muted-foreground/80 mb-2 px-1">
               {PRIMARY_NAV_TITLE}
             </div>
 
@@ -228,19 +234,21 @@ export function MobileMenu({
                     key={item.href}
                     href={item.href}
                     onClick={close}
-                    className="flex flex-col items-start gap-2 p-3 rounded-xl border border-white/[0.06] bg-white/[0.02] hover:bg-white/[0.05] transition-colors"
+                    className="flex flex-col items-start gap-2.5 p-3.5 rounded-xl border border-white/[0.06] bg-white/[0.02] hover:bg-white/[0.05] transition-colors"
                   >
                     <span
                       className={cn(
-                        "inline-flex h-8 w-8 items-center justify-center rounded-md",
+                        "inline-flex h-10 w-10 items-center justify-center rounded-md",
                         item.tint,
                       )}
                     >
-                      <Icon className="w-4 h-4" />
+                      <Icon className="w-5 h-5" />
                     </span>
-                    <span className="text-sm font-medium">{item.label}</span>
+                    <span className="text-body-sm font-medium">
+                      {item.label}
+                    </span>
                     {item.description && (
-                      <span className="text-[11px] text-muted-foreground line-clamp-2">
+                      <span className="text-body-xs text-muted-foreground line-clamp-2">
                         {item.description}
                       </span>
                     )}
@@ -251,13 +259,13 @@ export function MobileMenu({
           </div>
 
           <div className="px-4 pt-4">
-            <div className="px-1 py-1.5 text-[11px] uppercase tracking-wider text-muted-foreground/80">
+            <div className="px-1 py-1.5 text-label uppercase tracking-wider text-muted-foreground/80">
               Settings
             </div>
             <div className="space-y-3 mt-1">
               {settingsSections.map((section) => (
                 <div key={section.title}>
-                  <p className="px-2 pb-1 text-[10px] uppercase tracking-wider text-muted-foreground/80">
+                  <p className="px-2 pb-1 text-label uppercase tracking-wider text-muted-foreground/80">
                     {section.title}
                   </p>
                   <div className="rounded-xl border border-white/[0.06] bg-white/[0.02] overflow-hidden divide-y divide-white/[0.04]">
@@ -268,17 +276,17 @@ export function MobileMenu({
                           key={item.href}
                           href={item.href}
                           onClick={close}
-                          className="flex items-center gap-3 h-12 px-3 hover:bg-white/[0.04] transition-colors"
+                          className="flex items-center gap-3 h-14 min-h-14 px-3.5 py-3 hover:bg-white/[0.04] transition-colors"
                         >
                           <span
                             className={cn(
-                              "inline-flex h-7 w-7 items-center justify-center rounded-md",
+                              "inline-flex h-9 w-9 items-center justify-center rounded-md",
                               item.tint,
                             )}
                           >
-                            <Icon className="w-4 h-4" />
+                            <Icon className="w-5 h-5" />
                           </span>
-                          <span className="text-sm font-medium flex-1 flex items-center gap-2">
+                          <span className="text-body-sm font-medium flex-1 flex items-center gap-2">
                             {item.label}
                             {item.href === "/inbox" && <InboxBadge />}
                           </span>
@@ -294,7 +302,7 @@ export function MobileMenu({
           {extras}
 
           {APP_VERSION && (
-            <p className="px-5 pt-3 pb-1 text-[10px] font-mono text-muted-foreground/50 select-none">
+            <p className="px-5 pt-3 pb-1 text-code-sm font-mono text-muted-foreground/50 select-none">
               v{APP_VERSION}
             </p>
           )}

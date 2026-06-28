@@ -329,8 +329,10 @@ export function TaskList({
           <Inbox className="w-6 h-6 text-muted-foreground/40" />
         </div>
         <div className="space-y-1">
-          <p className="text-sm font-medium text-foreground">No tasks found</p>
-          <p className="text-xs text-muted-foreground">
+          <p className="text-body-sm font-medium text-foreground">
+            No tasks found
+          </p>
+          <p className="text-body-xs text-muted-foreground">
             Tasks you create or that are assigned to Kody will appear here.
           </p>
         </div>
@@ -668,7 +670,7 @@ const TaskRow = memo(function TaskRow({
             const showOutcomesGroup = !!firstOtherLabel;
 
             return (
-              <div className="flex flex-wrap items-center gap-x-3 gap-y-1 mt-1 text-xs text-zinc-500">
+              <div className="flex flex-wrap items-center gap-x-3 gap-y-1.5 mt-1 text-body-xs text-zinc-500">
                 {/* Group A — Identity: issue # · status word · KODY */}
                 <div className="inline-flex items-center gap-1.5">
                   <SimpleTooltip content="Open issue in Kody" side="bottom">
@@ -731,7 +733,7 @@ const TaskRow = memo(function TaskRow({
                     >
                       <span
                         className={cn(
-                          "inline-flex items-center gap-0.5 rounded border px-1.5 py-0.5 text-[10px] font-bold cursor-default",
+                          "inline-flex items-center gap-1 rounded border px-2 py-1 text-label font-bold cursor-default",
                           isAssignedBacklogTask
                             ? "border-blue-500/30 bg-blue-500/10 text-blue-300"
                             : "border-zinc-600/40 bg-white/[0.03] text-zinc-400",
@@ -763,7 +765,7 @@ const TaskRow = memo(function TaskRow({
                     {priorityLabel && priorityLevel && priorityMeta && (
                       <span
                         className={cn(
-                          "inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-bold border",
+                          "inline-flex items-center px-2 py-1 rounded text-label font-bold border",
                           priorityMeta.colorClass,
                         )}
                       >
@@ -835,7 +837,7 @@ const TaskRow = memo(function TaskRow({
                 {/* Group D — Outcomes: other label */}
                 {showOutcomesGroup && firstOtherLabel && (
                   <div className="inline-flex items-center gap-1.5">
-                    <span className="hidden sm:inline-flex items-center px-1.5 py-0.5 rounded bg-zinc-800 text-zinc-400 text-[10px] font-medium truncate max-w-24">
+                    <span className="hidden sm:inline-flex items-center px-2 py-1 rounded bg-zinc-800 text-zinc-400 text-label font-medium truncate max-w-28">
                       {firstOtherLabel}
                     </span>
                   </div>
@@ -852,14 +854,14 @@ const TaskRow = memo(function TaskRow({
                     and is mutually exclusive — approving the UI clears it. */}
           {task.labels.includes("kody:needs-fix") ? (
             <SimpleTooltip content="QA flagged unresolved issues" side="bottom">
-              <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded bg-red-500/10 border border-red-500/40 text-red-300 text-[10px] font-semibold cursor-default">
+              <span className="inline-flex items-center gap-1 px-2 py-1 rounded bg-red-500/10 border border-red-500/40 text-red-300 text-label font-semibold cursor-default">
                 <AlertTriangle className="w-3 h-3" />
                 Needs fix
               </span>
             </SimpleTooltip>
           ) : task.labels.includes("ui-approved") ? (
             <SimpleTooltip content="UI approved from preview" side="bottom">
-              <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded bg-emerald-500/10 border border-emerald-500/30 text-emerald-300 text-[10px] font-semibold cursor-default">
+              <span className="inline-flex items-center gap-1 px-2 py-1 rounded bg-emerald-500/10 border border-emerald-500/30 text-emerald-300 text-label font-semibold cursor-default">
                 <CheckCircle2 className="w-3 h-3" />
                 UI
               </span>
@@ -868,7 +870,7 @@ const TaskRow = memo(function TaskRow({
 
           {task.labels.includes("pr-approved") && (
             <SimpleTooltip content="PR approved from preview" side="bottom">
-              <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded bg-purple-500/10 border border-purple-500/30 text-purple-300 text-[10px] font-semibold cursor-default">
+              <span className="inline-flex items-center gap-1 px-2 py-1 rounded bg-purple-500/10 border border-purple-500/30 text-purple-300 text-label font-semibold cursor-default">
                 <CheckCircle2 className="w-3 h-3" />
                 PR
               </span>
@@ -881,7 +883,7 @@ const TaskRow = memo(function TaskRow({
                 <a
                   href={`/${task.associatedPR!.number}`}
                   onClick={(e) => e.stopPropagation()}
-                  className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded bg-purple-500/10 text-purple-400 hover:bg-purple-500/20 transition-colors text-[10px] font-medium"
+                  className="inline-flex items-center gap-1 px-2 py-1 rounded bg-purple-500/10 text-purple-400 hover:bg-purple-500/20 transition-colors text-label font-medium"
                 >
                   <GitPullRequest className="w-3 h-3" />
                   PR
@@ -904,9 +906,9 @@ const TaskRow = memo(function TaskRow({
                     onOpenPreview(task);
                   }}
                   aria-label="Open PR preview"
-                  className="h-7 w-7 p-0 text-emerald-400 hover:bg-emerald-500/20"
+                  className="h-9 w-9 p-0 text-emerald-400 hover:bg-emerald-500/20"
                 >
-                  <Eye className="w-3.5 h-3.5" />
+                  <Eye className="w-4 h-4" />
                 </Button>
               </SimpleTooltip>
             )}
@@ -924,9 +926,9 @@ const TaskRow = memo(function TaskRow({
                     onAssignToKody(task);
                   }}
                   aria-label="Assign to Kody"
-                  className="h-7 gap-1.5 px-2 text-xs text-blue-300 hover:bg-blue-500/20"
+                  className="h-9 gap-1.5 px-3 text-body-xs text-blue-300 hover:bg-blue-500/20"
                 >
-                  <Bot className="w-3.5 h-3.5" />
+                  <Bot className="w-4 h-4" />
                   Assign
                 </Button>
               </SimpleTooltip>
@@ -963,18 +965,18 @@ const TaskRow = memo(function TaskRow({
                       : "Run task"
                 }
                 className={cn(
-                  "h-7 w-7 p-0 cursor-pointer disabled:opacity-50",
+                  "h-9 w-9 p-0 cursor-pointer disabled:opacity-50",
                   task.column === "building"
                     ? "text-red-400 hover:bg-red-500/20"
                     : "text-zinc-400 hover:bg-white/[0.08]",
                 )}
               >
                 {isExecuting ? (
-                  <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                  <Loader2 className="w-4 h-4 animate-spin" />
                 ) : task.column === "building" ? (
-                  <Square className="w-3.5 h-3.5" />
+                  <Square className="w-4 h-4" />
                 ) : (
-                  <Play className="w-3.5 h-3.5" />
+                  <Play className="w-4 h-4" />
                 )}
               </Button>
             </SimpleTooltip>
@@ -991,9 +993,9 @@ const TaskRow = memo(function TaskRow({
                 size="sm"
                 onClick={(e) => e.stopPropagation()}
                 aria-label="More actions"
-                className="h-7 w-7 p-0 text-muted-foreground/50 hover:text-foreground hover:bg-white/[0.06]"
+                className="h-9 w-9 p-0 text-muted-foreground/50 hover:text-foreground hover:bg-white/[0.06]"
               >
-                <MoreHorizontal className="w-3.5 h-3.5" />
+                <MoreHorizontal className="w-4 h-4" />
               </Button>
             </DropdownMenuTrigger>
             <DropdownMenuContent
@@ -1009,7 +1011,7 @@ const TaskRow = memo(function TaskRow({
                     onSelect={(e) => e.preventDefault()}
                     className="flex flex-col items-start gap-1 py-2"
                   >
-                    <span className="text-xs text-muted-foreground">
+                    <span className="text-body-xs text-muted-foreground">
                       Assign to
                     </span>
                     <Select
@@ -1017,7 +1019,7 @@ const TaskRow = memo(function TaskRow({
                         onAssign(task.issueNumber, [value]);
                       }}
                     >
-                      <SelectTrigger className="w-full h-7 text-xs">
+                      <SelectTrigger className="w-full h-9 text-body-xs">
                         <SelectValue placeholder="Select..." />
                       </SelectTrigger>
                       <SelectContent>

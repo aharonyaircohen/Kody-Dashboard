@@ -11,6 +11,23 @@
 import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import {
+  DndContext,
+  KeyboardSensor,
+  PointerSensor,
+  TouchSensor,
+  closestCenter,
+  type DragEndEvent,
+  useSensor,
+  useSensors,
+} from "@dnd-kit/core";
+import {
+  SortableContext,
+  sortableKeyboardCoordinates,
+  useSortable,
+  verticalListSortingStrategy,
+} from "@dnd-kit/sortable";
+import { CSS } from "@dnd-kit/utilities";
+import {
   ArrowLeft,
   Calendar,
   CheckCircle2,
@@ -18,6 +35,7 @@ import {
   ChevronRight,
   Circle,
   ExternalLink,
+  GripVertical,
   ListTodo,
   Loader2,
   MoreHorizontal,
@@ -60,10 +78,16 @@ import {
 import { useGitHubIdentity } from "../hooks/useGitHubIdentity";
 import { selectionPath } from "../selection-routing";
 import {
-  buildCreateTodoItemsPayload,
+  buildCreateTodoListPayload,
   hasInvalidCreateTodoDraftItems,
 } from "../todos/create-list-form";
+import { reorderTodoItems } from "../todos/reorder-items";
 import { todoListSelectionRedirect } from "../todos/selection";
+import {
+  autoDirProps,
+  rtlAwareMarkdownClassName,
+  textDirectionProps,
+} from "../text-direction";
 import { cn } from "../utils";
 import { useChatScope } from "./ChatRailShell";
 import { ConfirmDialog } from "./ConfirmDialog";
@@ -136,6 +160,10 @@ function buildAskCodeContext(list: TodoEntry, item: TodoItem): string {
     "",
     `Todo list: ${list.title}`,
     `Todo file: todos/${list.slug}.md`,
+    "",
+    "List description:",
+    list.description.trim() || "(none)",
+    "",
     `Todo item: ${item.title}`,
     item.assignee
       ? `Assigned to: @${item.assignee}`
@@ -157,6 +185,22 @@ function matchesTodoFilter(
     return !!currentUserLogin && item.assignee === currentUserLogin;
   if (filter === "unassigned") return !item.assignee;
   return true;
+}
+
+function isTodoItemCardClickIgnored(
+  target: EventTarget | null,
+  currentTarget: EventTarget,
+): boolean {
+  if (
+    !(target instanceof HTMLElement) ||
+    !(currentTarget instanceof HTMLElement)
+  ) {
+    return true;
+  }
+  const interactiveTarget = target.closest(
+    "button,a,input,textarea,select,[role='button'],[data-todo-item-control]",
+  );
+  return !!interactiveTarget && interactiveTarget !== currentTarget;
 }
 
 export function TodoControl({
@@ -196,6 +240,7 @@ export function TodoControlInner({
       return (
         list.title.toLowerCase().includes(q) ||
         list.slug.toLowerCase().includes(q) ||
+        list.description.toLowerCase().includes(q) ||
         list.items.some(
           (item) =>
             item.title.toLowerCase().includes(q) ||
@@ -319,6 +364,9 @@ export function TodoControlInner({
               {filtered.map((list) => {
                 const isActive = selectedSlug === list.slug;
                 const stats = listStats(list);
+                const sidebarTitleDirectionProps = textDirectionProps(
+                  list.title,
+                );
                 const completed =
                   list.items.length > 0 &&
                   list.items.every((item) => item.completed);
@@ -328,7 +376,7 @@ export function TodoControlInner({
                       type="button"
                       onClick={() => selectList(list.slug)}
                       className={cn(
-                        "w-full text-left px-4 py-3 hover:bg-accent/50 transition-colors relative",
+                        "w-full px-4 py-3 text-start hover:bg-accent/50 transition-colors relative",
                         isActive && "bg-accent/70",
                       )}
                     >
@@ -342,7 +390,10 @@ export function TodoControlInner({
                           <ListTodo className="w-4 h-4 mt-0.5 shrink-0 text-muted-foreground" />
                         )}
                         <div className="min-w-0 flex-1">
-                          <div className="text-sm font-medium truncate">
+                          <div
+                            {...sidebarTitleDirectionProps}
+                            className="text-sm font-medium truncate text-start"
+                          >
                             {list.title}
                           </div>
                           <div className="text-xs text-muted-foreground mt-1 flex items-center gap-2 flex-wrap">
@@ -457,6 +508,8 @@ function TodoListDetail({
   );
   const stats = listStats(list);
   const currentUserLogin = normalizeAssignee(githubUser?.login);
+  const hasListDescription = list.description.trim().length > 0;
+  const listTitleDirectionProps = textDirectionProps(list.title);
   const progressPercent =
     stats.total > 0 ? Math.round((stats.done / stats.total) * 100) : 0;
   const filterCounts = useMemo<Record<TodoItemFilter, number>>(
@@ -477,6 +530,21 @@ function TodoListDetail({
         matchesTodoFilter(item, itemFilter, currentUserLogin),
       ),
     [currentUserLogin, itemFilter, list.items],
+  );
+  const sortableItemIds = useMemo(
+    () => filteredItems.map((item) => item.id),
+    [filteredItems],
+  );
+  const sensors = useSensors(
+    useSensor(PointerSensor, {
+      activationConstraint: { distance: 6 },
+    }),
+    useSensor(TouchSensor, {
+      activationConstraint: { delay: 250, tolerance: 8 },
+    }),
+    useSensor(KeyboardSensor, {
+      coordinateGetter: sortableKeyboardCoordinates,
+    }),
   );
 
   useEffect(() => {
@@ -510,6 +578,20 @@ function TodoListDetail({
 
   const saveItems = (items: TodoItem[]) => {
     updateMutation.mutate({ items });
+  };
+
+  const handleTodoDragEnd = ({ active, over }: DragEndEvent) => {
+    if (!over) return;
+    const activeId = String(active.id);
+    const overId = String(over.id);
+    const nextItems = reorderTodoItems(
+      list.items,
+      filteredItems,
+      activeId,
+      overId,
+    );
+    if (nextItems === list.items) return;
+    saveItems(nextItems);
   };
 
   const toggleItem = (item: TodoItem) => {
@@ -596,7 +678,7 @@ function TodoListDetail({
   return (
     <article className="min-h-full">
       <div className="border-b border-white/[0.06] bg-gradient-to-b from-emerald-500/[0.06] via-emerald-500/[0.02] to-transparent">
-        <div className="max-w-5xl mx-auto p-4 md:p-8 space-y-6">
+        <div className="max-w-5xl mx-auto px-4 pb-4 pt-4 md:px-8 md:pb-6 md:pt-8 space-y-5">
           <Button
             variant="ghost"
             size="sm"
@@ -609,12 +691,29 @@ function TodoListDetail({
 
           <header className="flex items-start justify-between gap-4 flex-wrap">
             <div className="min-w-0 flex-1 space-y-2">
-              <div className="flex items-center gap-2 flex-wrap">
+              <div
+                {...listTitleDirectionProps}
+                className="flex min-w-0 items-center gap-2 flex-wrap"
+              >
                 <ListTodo className="w-5 h-5 text-emerald-300 shrink-0" />
-                <h1 className="text-2xl md:text-3xl font-semibold tracking-tight break-words">
+                <h1
+                  {...listTitleDirectionProps}
+                  className="text-2xl md:text-3xl font-semibold tracking-tight break-words text-start"
+                >
                   {list.title}
                 </h1>
               </div>
+              {hasListDescription ? (
+                <MarkdownPreview
+                  {...autoDirProps}
+                  content={list.description}
+                  variant="compact"
+                  className={cn(
+                    "max-w-3xl text-start text-sm prose-headings:my-1 prose-headings:text-base prose-p:my-1 prose-ul:my-1 prose-ol:my-1",
+                    rtlAwareMarkdownClassName,
+                  )}
+                />
+              ) : null}
               <div className="text-xs text-muted-foreground flex items-center gap-3 flex-wrap">
                 <span>
                   {stats.done}/{stats.total} items complete
@@ -634,12 +733,6 @@ function TodoListDetail({
                   <ExternalLink className="w-3 h-3" />
                   GitHub
                 </a>
-              </div>
-              <div className="rounded-md border border-border bg-card/50 px-3 py-2 text-xs">
-                <span className="text-muted-foreground">Active file </span>
-                <code className="font-mono text-emerald-700 dark:text-emerald-200">
-                  {`todos/${list.slug}.md`}
-                </code>
               </div>
             </div>
 
@@ -675,70 +768,63 @@ function TodoListDetail({
               </DropdownMenu>
             </div>
           </header>
+
+          <section
+            className="space-y-2 border-t border-white/[0.06] pt-4"
+            aria-label="Todo list filters"
+          >
+            <div className="h-1.5 overflow-hidden rounded-sm bg-muted">
+              <div
+                className="h-full rounded-sm bg-emerald-500 transition-[width]"
+                style={{ width: `${progressPercent}%` }}
+              />
+            </div>
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <div className="flex min-w-0 flex-wrap items-center gap-1.5">
+                {TODO_ITEM_FILTERS.map((filter) => {
+                  const isActive = itemFilter === filter;
+                  const count = filterCounts[filter];
+                  return (
+                    <button
+                      key={filter}
+                      type="button"
+                      onClick={() => setItemFilter(filter)}
+                      disabled={filter === "mine" && !currentUserLogin}
+                      className={cn(
+                        "inline-flex h-7 items-center gap-1.5 rounded-md border px-2.5 text-xs transition-colors disabled:cursor-not-allowed disabled:opacity-40",
+                        isActive
+                          ? "border-emerald-500/60 bg-emerald-500/15 text-emerald-800 dark:text-emerald-100"
+                          : "border-border bg-background/40 text-muted-foreground hover:bg-muted/50 hover:text-foreground",
+                      )}
+                    >
+                      <span>{TODO_ITEM_FILTER_LABELS[filter]}</span>
+                      <span className="font-mono text-[10px] opacity-70">
+                        {count}
+                      </span>
+                    </button>
+                  );
+                })}
+              </div>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={toggleAllItemsExpanded}
+                disabled={list.items.length === 0}
+                className="h-7 shrink-0 gap-1.5 px-2.5 text-xs"
+              >
+                {allItemsExpanded ? (
+                  <ChevronRight className="w-3.5 h-3.5" />
+                ) : (
+                  <ChevronDown className="w-3.5 h-3.5" />
+                )}
+                <span>{allItemsExpanded ? "Collapse all" : "Expand all"}</span>
+              </Button>
+            </div>
+          </section>
         </div>
       </div>
 
-      <div className="max-w-5xl mx-auto p-4 md:p-8 space-y-4">
-        <div className="rounded-md border border-border bg-card/40 p-3 space-y-3">
-          <div className="flex items-start justify-between gap-3 text-xs">
-            <div className="min-w-0">
-              <div className="font-medium text-foreground">
-                {stats.active} open · {stats.done} done
-              </div>
-              <div className="mt-0.5 text-muted-foreground">
-                {stats.total === 0
-                  ? "No items yet"
-                  : `${progressPercent}% complete · ${stats.done}/${stats.total}`}
-              </div>
-            </div>
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={toggleAllItemsExpanded}
-              disabled={list.items.length === 0}
-              className="h-8 shrink-0 gap-1.5 px-2.5"
-            >
-              {allItemsExpanded ? (
-                <ChevronRight className="w-3.5 h-3.5" />
-              ) : (
-                <ChevronDown className="w-3.5 h-3.5" />
-              )}
-              <span>{allItemsExpanded ? "Collapse all" : "Expand all"}</span>
-            </Button>
-          </div>
-          <div className="h-1.5 overflow-hidden rounded-sm bg-muted">
-            <div
-              className="h-full rounded-sm bg-emerald-500 transition-[width]"
-              style={{ width: `${progressPercent}%` }}
-            />
-          </div>
-          <div className="flex flex-wrap gap-1.5">
-            {TODO_ITEM_FILTERS.map((filter) => {
-              const isActive = itemFilter === filter;
-              const count = filterCounts[filter];
-              return (
-                <button
-                  key={filter}
-                  type="button"
-                  onClick={() => setItemFilter(filter)}
-                  disabled={filter === "mine" && !currentUserLogin}
-                  className={cn(
-                    "inline-flex h-7 items-center gap-1.5 rounded-md border px-2.5 text-xs transition-colors disabled:cursor-not-allowed disabled:opacity-40",
-                    isActive
-                      ? "border-emerald-500/60 bg-emerald-500/15 text-emerald-800 dark:text-emerald-100"
-                      : "border-border bg-background/40 text-muted-foreground hover:bg-muted/50 hover:text-foreground",
-                  )}
-                >
-                  <span>{TODO_ITEM_FILTER_LABELS[filter]}</span>
-                  <span className="font-mono text-[10px] opacity-70">
-                    {count}
-                  </span>
-                </button>
-              );
-            })}
-          </div>
-        </div>
-
+      <div className="max-w-5xl mx-auto px-4 pb-4 pt-4 md:px-8 md:pb-8 md:pt-5 space-y-4">
         {list.items.length === 0 ? (
           <AddTodoPlaceholder
             label="Add first todo"
@@ -755,31 +841,42 @@ function TodoListDetail({
             </p>
           </div>
         ) : (
-          <ul className="space-y-3">
-            {filteredItems.map((item) => (
-              <TodoItemCard
-                key={item.id}
-                item={item}
-                isExpanded={expandedItemIds.has(item.id)}
-                onToggle={() => toggleItem(item)}
-                onToggleExpanded={() => toggleItemExpanded(item)}
-                onEdit={() => setItemEditor({ mode: "edit", item })}
-                onAssign={(assignee) => assignItem(item, assignee)}
-                onAskKody={() => askKody(item)}
-                onDelete={() => setPendingItemDelete(item)}
-                collaborators={collaborators}
-                isLoadingCollaborators={isLoadingCollaborators}
-                disabled={updateMutation.isPending}
-              />
-            ))}
-            <li>
-              <AddTodoPlaceholder
-                label="Add todo"
-                hint="Create a new todo in this list."
-                onClick={() => setItemEditor({ mode: "create" })}
-              />
-            </li>
-          </ul>
+          <div className="space-y-3">
+            <DndContext
+              sensors={sensors}
+              collisionDetection={closestCenter}
+              onDragEnd={handleTodoDragEnd}
+            >
+              <SortableContext
+                items={sortableItemIds}
+                strategy={verticalListSortingStrategy}
+              >
+                <ul className="space-y-3">
+                  {filteredItems.map((item) => (
+                    <TodoItemCard
+                      key={item.id}
+                      item={item}
+                      isExpanded={expandedItemIds.has(item.id)}
+                      onToggle={() => toggleItem(item)}
+                      onToggleExpanded={() => toggleItemExpanded(item)}
+                      onEdit={() => setItemEditor({ mode: "edit", item })}
+                      onAssign={(assignee) => assignItem(item, assignee)}
+                      onAskKody={() => askKody(item)}
+                      onDelete={() => setPendingItemDelete(item)}
+                      collaborators={collaborators}
+                      isLoadingCollaborators={isLoadingCollaborators}
+                      disabled={updateMutation.isPending}
+                    />
+                  ))}
+                </ul>
+              </SortableContext>
+            </DndContext>
+            <AddTodoPlaceholder
+              label="Add todo"
+              hint="Create a new todo in this list."
+              onClick={() => setItemEditor({ mode: "create" })}
+            />
+          </div>
         )}
       </div>
 
@@ -870,17 +967,50 @@ function TodoItemCard({
   disabled: boolean;
 }) {
   const assignee = normalizeAssignee(item.assignee);
+  const itemTitleDirectionProps = textDirectionProps(item.title);
+  const {
+    attributes,
+    isDragging,
+    listeners,
+    setNodeRef: setSortableNodeRef,
+    transform: sortableTransform,
+    transition: sortableTransition,
+  } = useSortable({ id: item.id, disabled });
 
   return (
     <li
+      ref={setSortableNodeRef}
+      style={{
+        transform: CSS.Transform.toString(sortableTransform),
+        transition: sortableTransition,
+      }}
+      onClick={(event) => {
+        if (isTodoItemCardClickIgnored(event.target, event.currentTarget)) {
+          return;
+        }
+        onEdit();
+      }}
       className={cn(
-        "rounded-md border px-3 py-2.5 transition-colors hover:bg-muted/40",
+        "cursor-pointer rounded-md border px-3 py-2.5 transition-colors hover:bg-muted/40",
         item.completed
           ? "border-border/60 bg-muted/20"
           : "border-border bg-card/60",
+        isDragging &&
+          "relative z-10 opacity-80 shadow-lg ring-1 ring-emerald-400/40",
       )}
     >
       <div className="flex items-start gap-3">
+        <button
+          type="button"
+          disabled={disabled}
+          aria-label={`Reorder ${item.title}`}
+          title="Drag to reorder"
+          className="mt-0.5 flex h-6 w-6 shrink-0 touch-none cursor-grab items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-muted/60 hover:text-foreground active:cursor-grabbing disabled:cursor-not-allowed disabled:opacity-40"
+          {...attributes}
+          {...listeners}
+        >
+          <GripVertical className="w-4 h-4" />
+        </button>
         <button
           type="button"
           onClick={onToggle}
@@ -917,10 +1047,11 @@ function TodoItemCard({
 
         <div className="min-w-0 flex-1 space-y-2">
           <div className="flex items-start justify-between gap-3 flex-wrap">
-            <div className="min-w-0">
+            <div className="min-w-0 flex-1">
               <h2
+                {...itemTitleDirectionProps}
                 className={cn(
-                  "text-sm font-semibold break-words",
+                  "text-sm font-semibold break-words text-start",
                   item.completed && "text-muted-foreground line-through",
                 )}
               >
@@ -985,9 +1116,13 @@ function TodoItemCard({
 
           {isExpanded && item.body.trim() ? (
             <MarkdownPreview
+              {...autoDirProps}
               content={item.body}
               variant="compact"
-              className="border-t border-border/70 pt-3"
+              className={cn(
+                "border-t border-border/70 pt-3 text-start",
+                rtlAwareMarkdownClassName,
+              )}
             />
           ) : null}
         </div>
@@ -1093,6 +1228,7 @@ function CreateTodoListDialog({
   const { githubUser } = useGitHubIdentity();
   const createMutation = useCreateTodo(githubUser?.login);
   const [title, setTitle] = useState("");
+  const [description, setDescription] = useState("");
   const [items, setItems] = useState<Array<{ title: string; body: string }>>(
     [],
   );
@@ -1101,6 +1237,7 @@ function CreateTodoListDialog({
   useEffect(() => {
     if (open) {
       setTitle("");
+      setDescription("");
       setItems([]);
       setTouchedTitle(false);
     }
@@ -1124,10 +1261,7 @@ function CreateTodoListDialog({
   const handleSubmit = () => {
     if (!canSave) return;
     createMutation.mutate(
-      {
-        title: title.trim(),
-        items: buildCreateTodoItemsPayload(items),
-      },
+      buildCreateTodoListPayload({ title, description, items }),
       { onSuccess: (list) => onCreated(list) },
     );
   };
@@ -1152,10 +1286,24 @@ function CreateTodoListDialog({
               onBlur={() => setTouchedTitle(true)}
               placeholder="Checkout follow-ups"
               autoFocus
+              dir="auto"
+              className="text-start"
             />
             {titleError ? (
               <p className="text-xs text-rose-300">{titleError}</p>
             ) : null}
+          </div>
+
+          <div className="space-y-1.5">
+            <Label htmlFor="todo-list-description">Description</Label>
+            <MarkdownEditor
+              id="todo-list-description"
+              value={description}
+              onChange={setDescription}
+              rows={8}
+              placeholder="Add scope, links, notes, or acceptance criteria."
+              emptyPreview="No description"
+            />
           </div>
 
           <div className="space-y-3">
@@ -1216,6 +1364,8 @@ function CreateTodoListDialog({
                             )
                           }
                           placeholder="Investigate empty cart state"
+                          dir="auto"
+                          className="text-start"
                         />
                         {!item.title.trim() && item.body.trim() ? (
                           <p className="text-xs text-rose-300">
@@ -1289,9 +1439,11 @@ function EditTodoListDialog({
   const { githubUser } = useGitHubIdentity();
   const updateMutation = useUpdateTodo(list.slug, githubUser?.login);
   const [title, setTitle] = useState(list.title);
+  const [description, setDescription] = useState(list.description);
 
   useEffect(() => {
     setTitle(list.title);
+    setDescription(list.description);
   }, [list]);
 
   const titleError = (() => {
@@ -1303,37 +1455,53 @@ function EditTodoListDialog({
 
   const handleSubmit = () => {
     if (!canSave) return;
-    if (title.trim() === list.title) {
+    if (title.trim() === list.title && description === list.description) {
       onSaved();
       return;
     }
     updateMutation.mutate(
-      { title: title.trim() },
+      { title: title.trim(), description },
       { onSuccess: () => onSaved() },
     );
   };
 
   return (
     <Dialog open onOpenChange={(next) => (!next ? onClose() : null)}>
-      <DialogContent className="max-w-md">
+      <DialogContent className="max-w-3xl">
         <DialogHeader>
           <DialogTitle>Edit list</DialogTitle>
           <DialogDescription>
-            Rename the list. Items stay unchanged.
+            Rename the list or update its description. Items stay unchanged.
           </DialogDescription>
         </DialogHeader>
 
-        <div className="space-y-1.5 mt-2">
-          <Label htmlFor="edit-todo-list-title">List title</Label>
-          <Input
-            id="edit-todo-list-title"
-            value={title}
-            onChange={(event) => setTitle(event.target.value)}
-            autoFocus
-          />
-          {titleError ? (
-            <p className="text-xs text-rose-300">{titleError}</p>
-          ) : null}
+        <div className="space-y-4 mt-2">
+          <div className="space-y-1.5">
+            <Label htmlFor="edit-todo-list-title">List title</Label>
+            <Input
+              id="edit-todo-list-title"
+              value={title}
+              onChange={(event) => setTitle(event.target.value)}
+              autoFocus
+              dir="auto"
+              className="text-start"
+            />
+            {titleError ? (
+              <p className="text-xs text-rose-300">{titleError}</p>
+            ) : null}
+          </div>
+
+          <div className="space-y-1.5">
+            <Label htmlFor="edit-todo-list-description">Description</Label>
+            <MarkdownEditor
+              id="edit-todo-list-description"
+              value={description}
+              onChange={setDescription}
+              rows={8}
+              placeholder="Add scope, links, notes, or acceptance criteria."
+              emptyPreview="No description"
+            />
+          </div>
         </div>
 
         <div className="flex justify-end gap-2 mt-4">
@@ -1398,6 +1566,8 @@ function TodoItemDialog({
               onChange={(event) => setTitle(event.target.value)}
               placeholder="Write regression note"
               autoFocus
+              dir="auto"
+              className="text-start"
             />
             {titleError ? (
               <p className="text-xs text-rose-300">{titleError}</p>

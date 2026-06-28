@@ -1,77 +1,78 @@
-import { cn } from "@dashboard/lib/utils/ui";
 import * as React from "react";
 
-const Card: React.FC<
+import { cn } from "@dashboard/lib/utils/ui";
+
+const Panel: React.FC<
   { ref?: React.Ref<HTMLDivElement> } & React.HTMLAttributes<HTMLDivElement>
 > = ({ className, ref, ...props }) => (
-  <div
+  <section
+    ref={ref}
     className={cn(
-      "rounded-lg border bg-card text-card-foreground shadow-elevation-1",
+      "rounded-lg border border-border bg-card text-card-foreground shadow-elevation-1",
       className,
     )}
-    ref={ref}
     {...props}
   />
 );
 
-const CardHeader: React.FC<
+const PanelHeader: React.FC<
   { ref?: React.Ref<HTMLDivElement> } & React.HTMLAttributes<HTMLDivElement>
 > = ({ className, ref, ...props }) => (
   <div
-    className={cn("flex flex-col space-y-1.5 p-card-padding", className)}
     ref={ref}
+    className={cn("flex flex-col gap-2 p-card-padding", className)}
     {...props}
   />
 );
 
-const CardTitle: React.FC<
+const PanelTitle: React.FC<
   {
     ref?: React.Ref<HTMLHeadingElement>;
   } & React.HTMLAttributes<HTMLHeadingElement>
 > = ({ className, ref, ...props }) => (
-  <h3
-    className={cn(
-      "text-heading-lg font-semibold leading-tight tracking-tight",
-      className,
-    )}
+  <h2
     ref={ref}
+    className={cn("text-heading-lg font-semibold leading-tight", className)}
     {...props}
   />
 );
 
-const CardDescription: React.FC<
+const PanelDescription: React.FC<
   {
     ref?: React.Ref<HTMLParagraphElement>;
   } & React.HTMLAttributes<HTMLParagraphElement>
 > = ({ className, ref, ...props }) => (
   <p
-    className={cn("text-body-sm text-muted-foreground", className)}
     ref={ref}
+    className={cn("text-body-sm text-muted-foreground", className)}
     {...props}
   />
 );
 
-const CardContent: React.FC<
+const PanelContent: React.FC<
   { ref?: React.Ref<HTMLDivElement> } & React.HTMLAttributes<HTMLDivElement>
 > = ({ className, ref, ...props }) => (
-  <div className={cn("p-card-padding pt-0", className)} ref={ref} {...props} />
+  <div ref={ref} className={cn("p-card-padding pt-0", className)} {...props} />
 );
 
-const CardFooter: React.FC<
+const PanelFooter: React.FC<
   { ref?: React.Ref<HTMLDivElement> } & React.HTMLAttributes<HTMLDivElement>
 > = ({ className, ref, ...props }) => (
   <div
-    className={cn("flex items-center p-card-padding pt-0", className)}
     ref={ref}
+    className={cn(
+      "flex flex-wrap items-center justify-end gap-3 border-t border-border px-card-padding py-card-padding-sm",
+      className,
+    )}
     {...props}
   />
 );
 
 export {
-  Card,
-  CardContent,
-  CardDescription,
-  CardFooter,
-  CardHeader,
-  CardTitle,
+  Panel,
+  PanelContent,
+  PanelDescription,
+  PanelFooter,
+  PanelHeader,
+  PanelTitle,
 };

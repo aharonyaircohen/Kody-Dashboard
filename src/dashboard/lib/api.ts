@@ -1286,6 +1286,8 @@ export interface TodoEntry {
   /** Filename without `.md` stable identity. */
   slug: string;
   title: string;
+  /** Markdown description for the list itself. */
+  description: string;
   items: TodoItem[];
   createdAt: string;
   /** Git blob sha. */
@@ -1326,6 +1328,7 @@ export const todosApi = {
   },
   create: async (data: {
     title: string;
+    description?: string;
     items?: Array<{
       id?: string;
       title: string;
@@ -1349,6 +1352,7 @@ export const todosApi = {
     slug: string,
     data: {
       title?: string;
+      description?: string;
       items?: TodoItem[];
       actorLogin?: string;
     },

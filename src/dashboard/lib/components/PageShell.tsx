@@ -49,34 +49,36 @@ export function PageHeader({
   return (
     <header
       className={cn(
-        "shrink-0 flex items-center justify-between gap-2 px-4 md:px-6 py-3 md:py-4 border-b border-white/[0.06] bg-black/30",
+        "shrink-0 flex items-center justify-between gap-3 border-b border-white/[0.06] bg-black/30 px-5 py-4 md:px-7 md:py-5",
         className,
       )}
     >
-      <div className="flex items-center gap-3 min-w-0">
+      <div className="flex min-w-0 items-center gap-3.5">
         {backHref && (
           <Button asChild variant="ghost" size="sm">
             <Link href={backHref} aria-label="Back">
-              <ArrowLeft className="w-4 h-4" />
+              <ArrowLeft className="h-5 w-5" />
             </Link>
           </Button>
         )}
         {Icon && (
           <Icon
-            className={cn("w-5 h-5 shrink-0", iconClassName ?? "text-white/70")}
+            className={cn("h-6 w-6 shrink-0", iconClassName ?? "text-white/70")}
           />
         )}
         {titleContent ?? (
-          <h1 className="text-base md:text-lg font-semibold truncate">
+          <h1 className="truncate text-heading-md font-semibold md:text-heading-lg">
             {title}
           </h1>
         )}
         {subtitle && (
-          <span className="text-[11px] text-white/40 truncate">{subtitle}</span>
+          <span className="truncate text-body-xs text-white/45">
+            {subtitle}
+          </span>
         )}
       </div>
       {actions && (
-        <div className="flex items-center gap-2 shrink-0">{actions}</div>
+        <div className="flex shrink-0 items-center gap-2.5">{actions}</div>
       )}
     </header>
   );
@@ -108,7 +110,7 @@ export function PageShell({
       <PageHeader {...header} />
       <main
         className={cn(
-          "flex-1 min-h-0 overflow-y-auto px-4 md:px-6 py-6",
+          "min-h-0 flex-1 overflow-y-auto px-5 py-7 md:px-7 md:py-8",
           widthCls && `${widthCls} w-full mx-auto`,
           contentClassName,
         )}

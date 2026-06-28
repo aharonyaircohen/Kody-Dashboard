@@ -5238,7 +5238,7 @@ export function KodyChat({
           />
         )}
         {/* Header with context */}
-        <div className="px-2 py-1.5 sm:px-4 sm:py-3 border-b bg-gradient-to-r from-muted/80 to-muted/40">
+        <div className="border-b bg-gradient-to-r from-muted/80 to-muted/40 px-3 py-2.5 sm:px-5 sm:py-4">
           <div className="flex items-center justify-between">
             {/* Left: agent picker (locked label when parent forces an agent) */}
             <div className="relative flex items-center gap-2">
@@ -5252,7 +5252,7 @@ export function KodyChat({
                 const headerName = currentEntry?.name ?? currentAgent.name;
                 return lockedAgentId ? (
                   <div
-                    className="flex items-center gap-2 px-2 py-1"
+                    className="flex items-center gap-2.5 px-3 py-2"
                     title={`${headerName} (locked for this view)`}
                     aria-label={`${headerName} (locked)`}
                   >
@@ -5270,7 +5270,7 @@ export function KodyChat({
                   <button
                     type="button"
                     onClick={() => setAgentMenuOpen((v) => !v)}
-                    className="flex items-center gap-2 rounded-md px-2 py-1 hover:bg-accent focus:outline-none focus:ring-2 focus:ring-ring"
+                    className="flex items-center gap-2.5 rounded-md px-3 py-2 hover:bg-accent focus:outline-none focus:ring-2 focus:ring-ring"
                     aria-haspopup="listbox"
                     aria-expanded={agentMenuOpen}
                     title={`Switch assistant (current: ${headerName})`}
@@ -5302,7 +5302,7 @@ export function KodyChat({
                 );
               })()}
               {messages.length > 0 && (
-                <span className="ml-1 px-1.5 py-0.5 bg-primary/10 text-primary text-xs rounded-full">
+                <span className="ml-1 rounded-full bg-primary/10 px-2 py-1 text-body-xs text-primary">
                   {messages.length}
                 </span>
               )}
@@ -5316,7 +5316,7 @@ export function KodyChat({
                 <div className="relative">
                   {currentReasoning.efforts.length === 1 ? (
                     <span
-                      className="inline-flex items-center gap-1.5 rounded-md px-2 py-1 text-xs font-medium bg-muted/60 text-muted-foreground border border-border/60"
+                      className="inline-flex items-center gap-1.5 rounded-md border border-border/60 bg-muted/60 px-3 py-1.5 text-body-xs font-medium text-muted-foreground"
                       title={`This model always reasons at ${currentReasoning.efforts[0].label.toLowerCase()}.`}
                       aria-label={`Thinking: ${currentReasoning.efforts[0].label}`}
                     >
@@ -5331,7 +5331,7 @@ export function KodyChat({
                           setReasoningMenuOpen((v) => !v);
                           setAgentMenuOpen(false);
                         }}
-                        className="flex items-center gap-1.5 rounded-md px-2 py-1 text-xs font-medium bg-muted/60 hover:bg-accent border border-border/60 focus:outline-none focus:ring-2 focus:ring-ring"
+                        className="flex items-center gap-1.5 rounded-md border border-border/60 bg-muted/60 px-3 py-1.5 text-body-xs font-medium hover:bg-accent focus:outline-none focus:ring-2 focus:ring-ring"
                         aria-haspopup="listbox"
                         aria-expanded={reasoningMenuOpen}
                         title={`Thinking level (current: ${currentReasoning.efforts.find((e) => e.value === effectiveReasoningEffort)?.label ?? "default"})`}
@@ -6049,7 +6049,7 @@ export function KodyChat({
             <button
               type="button"
               onClick={() => scrollToBottom("smooth")}
-              className="absolute -top-12 left-1/2 -translate-x-1/2 z-10 flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-primary text-primary-foreground text-xs font-medium shadow-lg hover:opacity-90 transition-opacity"
+              className="absolute -top-14 left-1/2 z-10 flex -translate-x-1/2 items-center gap-2 rounded-full bg-primary px-4 py-2 text-body-xs font-medium text-primary-foreground shadow-lg transition-opacity hover:opacity-90"
               aria-label="Jump to latest messages"
             >
               <ChevronDown className="w-3.5 h-3.5" />
@@ -6060,11 +6060,11 @@ export function KodyChat({
 
         {/* Attachments preview */}
         {chatMode === "ai" && attachments.length > 0 && (
-          <div className="px-2 sm:px-3 pb-2 flex flex-wrap gap-2">
+          <div className="flex flex-wrap gap-2 px-3 pb-3 sm:px-4">
             {attachments.map((attachment) => (
               <div
                 key={attachment.id}
-                className="flex items-center gap-1.5 px-2 py-1 bg-muted rounded-md text-xs"
+                className="flex items-center gap-2 rounded-md bg-muted px-3 py-1.5 text-body-xs"
               >
                 {getFileIcon(attachment.mimeType)}
                 <span className="max-w-[100px] truncate">
@@ -6088,11 +6088,11 @@ export function KodyChat({
         {/* Context chips (e.g. picked preview elements) — compact removable
           pills; the full element details ride along on send, not in the box. */}
         {chatMode === "ai" && contextChips.length > 0 && (
-          <div className="px-2 sm:px-3 pb-2 flex flex-wrap gap-2">
+          <div className="flex flex-wrap gap-2 px-3 pb-3 sm:px-4">
             {contextChips.map((chip) => (
               <div
                 key={chip.id}
-                className="flex items-center gap-1.5 px-2 py-1 bg-blue-500/15 text-blue-300 border border-blue-500/30 rounded-md text-xs font-mono"
+                className="flex items-center gap-2 rounded-md border border-blue-500/30 bg-blue-500/15 px-3 py-1.5 font-mono text-body-xs text-blue-300"
                 title={chip.context}
               >
                 <MousePointerClick className="w-3 h-3 shrink-0" />
@@ -6112,7 +6112,7 @@ export function KodyChat({
 
         {/* Input area */}
         <div
-          className={`relative z-10 shrink-0 border-t px-1.5 py-2 sm:p-3 ${
+          className={`relative z-10 shrink-0 border-t px-2.5 py-3 sm:p-4 ${
             chatMode === "terminal"
               ? "border-white/10 bg-[#050608]"
               : "bg-background"
@@ -6178,7 +6178,7 @@ export function KodyChat({
                   <button
                     type="button"
                     onClick={() => void restartInteractiveSession()}
-                    className="rounded-md bg-red-600/90 px-2 py-0.5 text-[11px] font-medium text-white hover:bg-red-700"
+                    className="rounded-md bg-red-600/90 px-3 py-1 text-body-xs font-medium text-white hover:bg-red-700"
                   >
                     Restart
                   </button>
@@ -6218,26 +6218,26 @@ export function KodyChat({
                               e.preventDefault();
                               applyAgentMentionSelection(agent.slug);
                             }}
-                            className={`flex items-center gap-2 px-3 py-1.5 cursor-pointer ${
+                            className={`flex cursor-pointer items-center gap-2.5 px-3 py-2 ${
                               isSelected
                                 ? "bg-white/[0.08]"
                                 : "hover:bg-white/[0.04]"
                             }`}
                           >
-                            <span className="font-mono text-sm text-white/90">
+                            <span className="font-mono text-code-sm text-white/90">
                               @{agent.slug}
                             </span>
-                            <span className="text-xs text-white/55 truncate">
+                            <span className="truncate text-body-xs text-white/55">
                               {agent.title}
                             </span>
-                            <span className="ml-auto text-[10px] uppercase tracking-wide px-1.5 py-0.5 rounded shrink-0 bg-emerald-500/15 text-emerald-300/80">
+                            <span className="ml-auto shrink-0 rounded bg-emerald-500/15 px-2 py-1 text-label uppercase tracking-wide text-emerald-300/80">
                               Agent
                             </span>
                           </li>
                         );
                       })}
                     </ul>
-                    <div className="border-t border-white/[0.06] px-3 py-1.5 text-[10px] text-white/35">
+                    <div className="border-t border-white/[0.06] px-3 py-2 text-body-xs text-white/35">
                       ↑↓ navigate · Enter/Tab select · Esc close
                     </div>
                   </div>
@@ -6484,7 +6484,7 @@ export function KodyChat({
                   onChange={(event) =>
                     handleTerminalTargetSelect(event.target.value)
                   }
-                  className="h-8 min-w-0 max-w-[260px] flex-1 rounded-md border bg-background px-2 text-xs text-foreground outline-none focus:ring-1 focus:ring-primary"
+                  className="h-10 min-w-0 max-w-[280px] flex-1 rounded-md border bg-background px-3 text-body-xs text-foreground outline-none focus:ring-1 focus:ring-primary"
                   title="Terminal target"
                   aria-label="Terminal target"
                 >
@@ -6541,7 +6541,7 @@ export function KodyChat({
                       setSandboxCreateMenuOpen((current) => !current)
                     }
                     disabled={sandboxBusy}
-                    className="inline-flex h-8 w-8 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-muted hover:text-foreground disabled:cursor-not-allowed disabled:opacity-50"
+                    className="inline-flex h-10 w-10 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-muted hover:text-foreground disabled:cursor-not-allowed disabled:opacity-50"
                     title="Create sandbox"
                     aria-label="Create sandbox"
                     aria-haspopup="menu"
@@ -6554,7 +6554,7 @@ export function KodyChat({
                     )}
                   </button>
                   {sandboxCreateMenuOpen && (
-                    <div className="absolute bottom-9 left-0 z-30 min-w-52 overflow-hidden rounded-md border bg-popover py-1 text-xs text-popover-foreground shadow-md">
+                    <div className="absolute bottom-11 left-0 z-30 min-w-56 overflow-hidden rounded-md border bg-popover py-1.5 text-body-xs text-popover-foreground shadow-md">
                       <button
                         type="button"
                         onClick={() => void handleCreateSandbox("local")}
@@ -6580,7 +6580,7 @@ export function KodyChat({
                   )}
                 </div>
                 {sandboxBusyLabel && (
-                  <span className="inline-flex min-w-0 items-center gap-1.5 truncate text-[11px] text-muted-foreground">
+                  <span className="inline-flex min-w-0 items-center gap-1.5 truncate text-body-xs text-muted-foreground">
                     <Loader2 className="h-3 w-3 shrink-0 animate-spin" />
                     <span className="truncate">{sandboxBusyLabel}</span>
                   </span>
@@ -6593,7 +6593,7 @@ export function KodyChat({
                       : handleSaveTerminalSnapshot())
                   }
                   disabled={savedTerminalBusy || brainImageBusy}
-                  className="inline-flex h-8 w-8 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-muted hover:text-foreground disabled:cursor-not-allowed disabled:opacity-50"
+                  className="inline-flex h-10 w-10 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-muted hover:text-foreground disabled:cursor-not-allowed disabled:opacity-50"
                   title={
                     isActiveFlyBrainTerminal
                       ? "Save Brain image"
@@ -6622,7 +6622,7 @@ export function KodyChat({
                       }
                     }}
                     disabled={savedTerminalBusy && !savedTerminalMenuOpen}
-                    className="inline-flex h-8 w-8 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-muted hover:text-foreground disabled:cursor-not-allowed disabled:opacity-50"
+                    className="inline-flex h-10 w-10 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-muted hover:text-foreground disabled:cursor-not-allowed disabled:opacity-50"
                     title="Saved terminal snapshots"
                     aria-label="Saved terminal snapshots"
                     aria-haspopup="menu"
@@ -6631,7 +6631,7 @@ export function KodyChat({
                     <ChevronDown className="h-4 w-4" />
                   </button>
                   {savedTerminalMenuOpen && (
-                    <div className="absolute bottom-9 right-0 z-30 flex max-h-80 w-80 max-w-[calc(100vw-2rem)] flex-col overflow-hidden rounded-md border bg-popover text-xs text-popover-foreground shadow-md">
+                    <div className="absolute bottom-11 right-0 z-30 flex max-h-80 w-88 max-w-[calc(100vw-2rem)] flex-col overflow-hidden rounded-md border bg-popover text-body-xs text-popover-foreground shadow-md">
                       <div className="flex items-center justify-between border-b px-3 py-2">
                         <span className="font-medium">
                           Saved terminal snapshots
@@ -6640,7 +6640,7 @@ export function KodyChat({
                           type="button"
                           onClick={() => void refreshSavedTerminalSnapshots()}
                           disabled={savedTerminalBusy}
-                          className="inline-flex h-6 w-6 items-center justify-center rounded text-muted-foreground hover:bg-muted hover:text-foreground disabled:opacity-50"
+                          className="inline-flex h-8 w-8 items-center justify-center rounded text-muted-foreground hover:bg-muted hover:text-foreground disabled:opacity-50"
                           title="Refresh saved terminal snapshots"
                           aria-label="Refresh saved terminal snapshots"
                         >
@@ -6651,7 +6651,7 @@ export function KodyChat({
                           )}
                         </button>
                       </div>
-                      <label className="flex cursor-pointer items-center gap-2 border-b px-3 py-2 text-[11px] text-muted-foreground hover:bg-muted">
+                      <label className="flex cursor-pointer items-center gap-2.5 border-b px-3 py-2.5 text-body-xs text-muted-foreground hover:bg-muted">
                         <input
                           type="checkbox"
                           checked={autoSaveTerminalOnEnd}
@@ -6673,7 +6673,7 @@ export function KodyChat({
                           savedTerminalSnapshots.map((snapshot) => (
                             <div
                               key={snapshot.id}
-                              className="flex items-center gap-2 px-2 py-1.5 hover:bg-muted"
+                              className="flex items-center gap-2.5 px-3 py-2 hover:bg-muted"
                             >
                               <button
                                 type="button"
@@ -6686,7 +6686,7 @@ export function KodyChat({
                                 <span className="block truncate font-medium">
                                   {snapshot.name}
                                 </span>
-                                <span className="block truncate text-[11px] text-muted-foreground">
+                                <span className="block truncate text-body-xs text-muted-foreground">
                                   {terminalTransportLabel(snapshot.transport)}
                                 </span>
                               </button>
@@ -6696,7 +6696,7 @@ export function KodyChat({
                                   void handleDeleteTerminalSnapshot(snapshot)
                                 }
                                 disabled={savedTerminalBusy}
-                                className="inline-flex h-7 w-7 shrink-0 items-center justify-center rounded text-muted-foreground hover:bg-destructive/10 hover:text-destructive disabled:opacity-50"
+                                className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded text-muted-foreground hover:bg-destructive/10 hover:text-destructive disabled:opacity-50"
                                 title={`Delete ${snapshot.name}`}
                                 aria-label={`Delete ${snapshot.name}`}
                               >
@@ -6717,7 +6717,7 @@ export function KodyChat({
                         type="button"
                         onClick={() => void handleSaveSandbox()}
                         disabled={sandboxBusy}
-                        className="inline-flex h-8 w-8 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-muted hover:text-foreground disabled:cursor-not-allowed disabled:opacity-50"
+                        className="inline-flex h-10 w-10 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-muted hover:text-foreground disabled:cursor-not-allowed disabled:opacity-50"
                         title="Save sandbox"
                         aria-label="Save sandbox"
                       >
@@ -6727,7 +6727,7 @@ export function KodyChat({
                         type="button"
                         onClick={() => void handleDeleteSandbox()}
                         disabled={sandboxBusy}
-                        className="inline-flex h-8 w-8 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-destructive/10 hover:text-destructive disabled:cursor-not-allowed disabled:opacity-50"
+                        className="inline-flex h-10 w-10 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-destructive/10 hover:text-destructive disabled:cursor-not-allowed disabled:opacity-50"
                         title="Delete sandbox"
                         aria-label="Delete sandbox"
                       >
@@ -6739,7 +6739,7 @@ export function KodyChat({
                   type="button"
                   onClick={() => void refreshChatTerminalFlyMachines()}
                   disabled={flyInventoryLoading}
-                  className="inline-flex h-8 w-8 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-muted hover:text-foreground disabled:cursor-not-allowed disabled:opacity-50"
+                  className="inline-flex h-10 w-10 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-muted hover:text-foreground disabled:cursor-not-allowed disabled:opacity-50"
                   title="Refresh Fly machines"
                   aria-label="Refresh Fly machines"
                 >
@@ -6753,7 +6753,7 @@ export function KodyChat({
                   <button
                     type="button"
                     onClick={handleTerminalFlyConnectToggle}
-                    className="inline-flex h-8 w-8 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+                    className="inline-flex h-10 w-10 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
                     title={
                       activeTerminalConnectionState === "connected" ||
                       activeTerminalConnectionState === "connecting"
@@ -6777,7 +6777,7 @@ export function KodyChat({
                   </button>
                 )}
                 {flyInventoryError && (
-                  <span className="min-w-0 truncate text-[11px] text-destructive">
+                  <span className="min-w-0 truncate text-body-xs text-destructive">
                     {flyInventoryError}
                   </span>
                 )}
@@ -6795,7 +6795,7 @@ export function KodyChat({
                 <button
                   type="button"
                   onClick={() => setActiveChatMode("ai")}
-                  className={`inline-flex items-center gap-1.5 rounded px-2 py-1 text-xs font-medium transition-colors ${
+                  className={`inline-flex items-center gap-1.5 rounded px-3 py-1.5 text-body-xs font-medium transition-colors ${
                     chatMode === "ai"
                       ? "bg-primary text-primary-foreground"
                       : "text-muted-foreground hover:text-foreground hover:bg-muted"
@@ -6804,12 +6804,12 @@ export function KodyChat({
                   title="AI chat"
                   aria-label="AI chat"
                 >
-                  <MessageSquare className="w-3.5 h-3.5" aria-hidden="true" />
+                  <MessageSquare className="h-4 w-4" aria-hidden="true" />
                 </button>
                 <button
                   type="button"
                   onClick={openTerminalMode}
-                  className={`relative inline-flex items-center gap-1.5 rounded px-2 py-1 text-xs font-medium transition-colors ${
+                  className={`relative inline-flex items-center gap-1.5 rounded px-3 py-1.5 text-body-xs font-medium transition-colors ${
                     chatMode === "terminal"
                       ? "bg-primary text-primary-foreground"
                       : "text-muted-foreground hover:text-foreground hover:bg-muted"
@@ -6818,9 +6818,9 @@ export function KodyChat({
                   title="Terminal"
                   aria-label={`Terminal ${terminalStatusLabel}`}
                 >
-                  <SquareTerminal className="w-3.5 h-3.5" aria-hidden="true" />
+                  <SquareTerminal className="h-4 w-4" aria-hidden="true" />
                   <span
-                    className={`text-[10px] font-semibold uppercase leading-none ${
+                    className={`text-label font-semibold uppercase leading-none ${
                       activeTerminalConnectionState === "connected"
                         ? chatMode === "terminal"
                           ? "text-primary-foreground"

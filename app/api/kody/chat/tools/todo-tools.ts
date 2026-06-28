@@ -73,6 +73,7 @@ export function createTodoTools(ctx: Ctx) {
               return {
                 slug: list.slug,
                 title: list.title,
+                description: list.description,
                 totalItems: total,
                 completedItems: done,
                 openItems: total - done,
@@ -117,6 +118,7 @@ export function createTodoTools(ctx: Ctx) {
             "Filename slug. Omit for a new list and it will be generated from title.",
           ),
         title: z.string().trim().min(1).max(160),
+        description: z.string().max(20_000).optional(),
         items: z.array(todoItemSchema).max(200).default([]),
       }),
       execute: async (input) => {
@@ -130,6 +132,7 @@ export function createTodoTools(ctx: Ctx) {
             octokit,
             slug,
             title: input.title,
+            description: input.description ?? existing?.description ?? "",
             items: normalizeItems(input.items, existing?.createdAt ?? now),
             createdAt: existing?.createdAt ?? now,
             sha: existing?.sha,
@@ -142,6 +145,7 @@ export function createTodoTools(ctx: Ctx) {
             action: existing ? "updated" : "created",
             slug: list.slug,
             title: list.title,
+            description: list.description,
             itemCount: list.items.length,
             htmlUrl: dashboardTodoUrl(list.slug),
           };

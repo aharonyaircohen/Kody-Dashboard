@@ -34,6 +34,11 @@ export function ServiceWorkerRegister() {
       .register("/sw.js")
       .then((registration) => {
         if (cancelled) return;
+        if (
+          !registration ||
+          typeof registration.addEventListener !== "function"
+        )
+          return;
         // Auto-pick up SW updates: when a new SW is found, install it and
         // let it activate on the next navigation. We don't force-reload —
         // the user-visible UI doesn't change so a silent swap is fine.

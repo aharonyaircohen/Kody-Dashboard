@@ -23,7 +23,7 @@ export function MessagesBadge({
   return (
     <span
       className={cn(
-        "inline-flex items-center justify-center min-w-[16px] h-4 px-1 rounded-full text-[10px] font-semibold",
+        "inline-flex items-center justify-center min-w-5 h-5 px-1.5 rounded-full text-label font-semibold",
         "bg-amber-500/90 text-black",
         className,
       )}

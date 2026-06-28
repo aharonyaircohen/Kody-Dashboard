@@ -37,12 +37,19 @@ const todoItemSchema = z.object({
 const updateTodoListSchema = z
   .object({
     title: z.string().trim().min(1).max(160).optional(),
+    description: z.string().max(20_000).optional(),
     items: z.array(todoItemSchema).max(200).optional(),
     actorLogin: z.string().optional(),
   })
-  .refine((value) => value.title !== undefined || value.items !== undefined, {
-    message: "At least one todo-list field must be provided.",
-  });
+  .refine(
+    (value) =>
+      value.title !== undefined ||
+      value.description !== undefined ||
+      value.items !== undefined,
+    {
+      message: "At least one todo-list field must be provided.",
+    },
+  );
 
 function normalizeUpdateItems(items: z.infer<typeof todoItemSchema>[]) {
   return items.map((item) => ({
@@ -111,7 +118,8 @@ export async function PATCH(
     }
 
     const payload = await req.json();
-    const { title, items, actorLogin } = updateTodoListSchema.parse(payload);
+    const { title, description, items, actorLogin } =
+      updateTodoListSchema.parse(payload);
 
     const actorResult = await verifyActorLogin(req, actorLogin);
     if (actorResult instanceof NextResponse) return actorResult;
@@ -136,6 +144,7 @@ export async function PATCH(
       octokit: userOctokit,
       slug,
       title: title ?? existing.title,
+      description: description ?? existing.description,
       items: items ? normalizeUpdateItems(items) : existing.items,
       createdAt: existing.createdAt,
       sha: existing.sha,

@@ -79,24 +79,26 @@ function SettingsDrawer({ isOpen, onOpenChange }: SettingsDrawerProps) {
     <Sheet open={isOpen} onOpenChange={onOpenChange}>
       <SheetContent
         side="left"
-        className="w-[280px] sm:w-[320px] p-0 flex flex-col bg-black/95 border-white/[0.08]"
+        className="flex w-[320px] flex-col border-white/[0.08] bg-black/95 p-0 sm:w-[360px]"
       >
-        <SheetHeader className="px-4 py-3 border-b border-white/[0.06] space-y-0 text-left">
-          <div className="flex items-center gap-2">
-            <div className="h-7 w-7 rounded-md bg-emerald-600 flex items-center justify-center text-white font-semibold text-sm">
+        <SheetHeader className="space-y-0 border-b border-white/[0.06] px-5 py-4 text-left">
+          <div className="flex items-center gap-2.5">
+            <div className="flex h-8 w-8 items-center justify-center rounded-md bg-emerald-600 text-body-sm font-semibold text-white">
               K
             </div>
-            <SheetTitle className="text-sm font-semibold">Settings</SheetTitle>
+            <SheetTitle className="text-heading-md font-semibold">
+              Settings
+            </SheetTitle>
           </div>
           <SheetDescription className="sr-only">
             Dashboard configuration menus.
           </SheetDescription>
         </SheetHeader>
 
-        <nav className="flex-1 overflow-y-auto p-2 space-y-4">
+        <nav className="flex-1 space-y-5 overflow-y-auto p-3">
           {SETTINGS_NAV_SECTIONS.map((section) => (
             <div key={section.title} className="space-y-1">
-              <p className="px-3 pt-1 pb-1 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground/60">
+              <p className="px-3 pb-1 pt-1 text-label font-semibold uppercase tracking-wider text-muted-foreground/60">
                 {section.title}
               </p>
               {section.items.map((item) => {
@@ -111,13 +113,13 @@ function SettingsDrawer({ isOpen, onOpenChange }: SettingsDrawerProps) {
                     onClick={() => onOpenChange(false)}
                     aria-current={active ? "page" : undefined}
                     className={cn(
-                      "flex items-start gap-3 rounded-md px-3 py-2 text-sm transition-colors",
+                      "flex items-start gap-3.5 rounded-md px-3.5 py-2.5 text-body-sm transition-colors",
                       active
                         ? "bg-accent text-foreground"
                         : "text-muted-foreground hover:bg-accent/50 hover:text-foreground",
                     )}
                   >
-                    <Icon className="w-4 h-4 mt-0.5 shrink-0" />
+                    <Icon className="mt-0.5 h-5 w-5 shrink-0" />
                     <span className="min-w-0 flex-1">
                       <span className="flex items-center gap-2">
                         <span className="block truncate font-medium">
@@ -126,7 +128,7 @@ function SettingsDrawer({ isOpen, onOpenChange }: SettingsDrawerProps) {
                         {item.href === "/inbox" && <InboxBadge />}
                       </span>
                       {item.description && (
-                        <span className="block text-[11px] text-muted-foreground/80 truncate">
+                        <span className="block truncate text-body-xs text-muted-foreground/80">
                           {item.description}
                         </span>
                       )}
@@ -155,12 +157,12 @@ export function SettingsDrawerTrigger({ className }: { className?: string }) {
       onClick={open}
       aria-label="Open settings"
       className={cn(
-        "inline-flex items-center justify-center h-8 w-8 rounded-md",
+        "inline-flex h-10 w-10 items-center justify-center rounded-md",
         "text-muted-foreground hover:text-foreground hover:bg-white/[0.04] transition-colors",
         className,
       )}
     >
-      <MoreVertical className="w-4 h-4" />
+      <MoreVertical className="h-5 w-5" />
     </button>
   );
 }

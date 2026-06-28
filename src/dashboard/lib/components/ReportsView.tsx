@@ -187,8 +187,8 @@ export function ReportsViewInner({
   return (
     <div className="h-full bg-black/95 text-white/90 flex flex-col overflow-hidden">
       {embedded ? (
-        <div className="shrink-0 flex items-center justify-end gap-2 px-4 md:px-6 py-2 border-b border-white/[0.06] bg-black/20">
-          <span className="text-xs text-muted-foreground mr-auto">
+        <div className="shrink-0 flex items-center justify-end gap-2 px-4 py-3 md:px-6 border-b border-white/[0.06] bg-black/20">
+          <span className="text-body-xs text-muted-foreground mr-auto">
             {reports.length} {reports.length === 1 ? "report" : "reports"}
           </span>
           <Button
@@ -226,7 +226,7 @@ export function ReportsViewInner({
       )}
 
       {error ? (
-        <div className="shrink-0 px-4 py-3 bg-red-500/10 border-b border-red-500/20 text-sm text-red-400">
+        <div className="shrink-0 px-4 py-3 bg-red-500/10 border-b border-red-500/20 text-body-sm text-red-400">
           Failed to load reports: {(error as Error).message}
         </div>
       ) : null}
@@ -240,7 +240,7 @@ export function ReportsViewInner({
             selected && "hidden md:flex",
           )}
         >
-          <div className="shrink-0 px-3 md:px-4 py-2 md:py-3 border-b border-border">
+          <div className="shrink-0 px-3 py-3 md:px-4 border-b border-border">
             <input
               type="search"
               value={search}
@@ -248,7 +248,7 @@ export function ReportsViewInner({
               placeholder="Search reports…"
               className={cn(
                 "w-full bg-background/40 border border-border rounded-md",
-                "px-3 py-2 text-sm placeholder:text-muted-foreground",
+                "px-3.5 py-2.5 text-body-sm placeholder:text-muted-foreground",
                 "focus:outline-none focus:ring-2 focus:ring-sky-500/40",
               )}
               aria-label="Search reports"
@@ -390,7 +390,7 @@ function ReportRow({
       type="button"
       onClick={onSelect}
       className={cn(
-        "w-full text-left px-4 py-3 hover:bg-accent/50 transition-colors relative",
+        "w-full text-left px-4 py-3.5 hover:bg-accent/50 transition-colors relative",
         isActive && "bg-accent/70",
       )}
     >
@@ -400,13 +400,13 @@ function ReportRow({
       <div className="flex items-center gap-2">
         <FileText
           className={cn(
-            "w-3.5 h-3.5 shrink-0",
+            "w-4 h-4 shrink-0",
             isActive ? "text-sky-400" : "text-muted-foreground",
           )}
         />
         <span
           className={cn(
-            "text-sm truncate flex-1",
+            "text-body-sm truncate flex-1",
             unread ? "font-semibold text-foreground" : "font-medium",
           )}
         >
@@ -421,13 +421,13 @@ function ReportRow({
       </div>
       {report.reviewStatus ? (
         <div className="mt-1">
-          <span className="inline-flex items-center rounded border border-sky-400/30 bg-sky-400/10 px-1.5 py-0.5 text-[10px] uppercase tracking-wide text-sky-200">
+          <span className="inline-flex items-center rounded border border-sky-400/30 bg-sky-400/10 px-2 py-1 text-label uppercase tracking-wide text-sky-200">
             {report.reviewStatus}
             {report.reviewArea ? ` · ${report.reviewArea}` : ""}
           </span>
         </div>
       ) : null}
-      <div className="text-xs text-muted-foreground mt-1 flex items-center gap-2 flex-wrap">
+      <div className="text-body-xs text-muted-foreground mt-1 flex items-center gap-2 flex-wrap">
         <span className="font-mono opacity-80 truncate">{report.slug}</span>
         <span aria-hidden>·</span>
         {(report.suggestedActions ?? []).length > 0 ? (
@@ -450,7 +450,7 @@ function ReportRow({
           </>
         ) : null}
         <span className="inline-flex items-center gap-1">
-          <Calendar className="w-3 h-3" />
+          <Calendar className="w-3.5 h-3.5" />
           {formatRelative(report.updatedAt)}
         </span>
       </div>
@@ -482,7 +482,7 @@ function ReportDetail({
   );
   return (
     <article className="h-full flex flex-col">
-      <div className="shrink-0 px-3 md:px-6 py-3 md:py-4 border-b border-border bg-black/10 flex items-start gap-3">
+      <div className="shrink-0 px-3 py-3.5 md:px-6 md:py-5 border-b border-border bg-black/10 flex items-start gap-3">
         <Button
           variant="ghost"
           size="sm"
@@ -493,10 +493,10 @@ function ReportDetail({
           <ArrowLeft className="w-4 h-4" />
         </Button>
         <div className="min-w-0 flex-1">
-          <h1 className="text-base md:text-xl font-semibold truncate">
+          <h1 className="text-heading-sm md:text-heading-md font-semibold truncate">
             {report.title}
           </h1>
-          <div className="text-xs text-muted-foreground mt-1 flex items-center gap-3 flex-wrap">
+          <div className="text-body-xs text-muted-foreground mt-1.5 flex items-center gap-3 flex-wrap">
             <span className="font-mono opacity-80 truncate">{report.slug}</span>
             <span aria-hidden>·</span>
             {report.runId ? (
@@ -508,7 +508,7 @@ function ReportDetail({
               </>
             ) : null}
             <span className="inline-flex items-center gap-1">
-              <Calendar className="w-3 h-3" />
+              <Calendar className="w-3.5 h-3.5" />
               {report.runId ? "run" : "updated"}{" "}
               {formatRelative(report.updatedAt)}
             </span>
@@ -529,7 +529,7 @@ function ReportDetail({
               className="inline-flex items-center gap-1 hover:text-foreground transition-colors"
               title="Open on GitHub"
             >
-              <ExternalLink className="w-3 h-3" />
+              <ExternalLink className="w-3.5 h-3.5" />
               GitHub
             </a>
           </div>
@@ -559,7 +559,7 @@ function ReportDetail({
       </div>
 
       <div className="flex-1 min-h-0 overflow-y-auto">
-        <div className="max-w-4xl mx-auto p-4 md:p-8 space-y-6">
+        <div className="max-w-4xl mx-auto p-4 md:p-8 space-y-7">
           {visibleActions.length > 0 ? (
             <SuggestedActions
               report={report}
@@ -580,10 +580,10 @@ function ReportDetail({
             />
           ) : (
             <div className="rounded-xl border border-dashed border-white/[0.1] bg-white/[0.02] py-12 text-center space-y-2">
-              <p className="text-sm font-medium text-foreground">
+              <p className="text-body-sm font-medium text-foreground">
                 Empty report
               </p>
-              <p className="text-xs text-muted-foreground max-w-sm mx-auto">
+              <p className="text-body-xs text-muted-foreground max-w-sm mx-auto">
                 The goal or loop that owns this report hasn&apos;t written
                 content yet.
               </p>
@@ -611,13 +611,13 @@ function SuggestedActions({
   onDismiss: (actionId: string) => void;
 }) {
   return (
-    <section className="rounded-lg border border-white/[0.08] bg-white/[0.02] p-4">
+    <section className="rounded-lg border border-white/[0.08] bg-white/[0.02] p-5">
       <div className="mb-3 flex items-center gap-2">
-        <CheckCircle2 className="h-4 w-4 text-emerald-300" />
-        <h2 className="text-sm font-semibold text-white/90">
+        <CheckCircle2 className="h-5 w-5 text-emerald-300" />
+        <h2 className="text-body-sm font-semibold text-white/90">
           Suggested actions
         </h2>
-        <span className="ml-auto text-xs text-muted-foreground">
+        <span className="ml-auto text-body-xs text-muted-foreground">
           {actions.length}
         </span>
       </div>
@@ -632,20 +632,20 @@ function SuggestedActions({
             >
               <div className="min-w-0 flex-1">
                 <div className="flex flex-wrap items-center gap-2">
-                  <span className="text-sm font-medium text-white/90">
+                  <span className="text-body-sm font-medium text-white/90">
                     {action.label}
                   </span>
-                  <span className="rounded border border-white/10 bg-white/[0.04] px-1.5 py-0.5 text-[10px] uppercase tracking-wide text-white/50">
+                  <span className="rounded border border-white/10 bg-white/[0.04] px-2 py-1 text-label uppercase tracking-wide text-white/50">
                     {action.type}
                   </span>
                 </div>
                 {action.reason ? (
-                  <p className="mt-1 text-xs text-muted-foreground">
+                  <p className="mt-1 text-body-xs text-muted-foreground">
                     {action.reason}
                   </p>
                 ) : null}
                 {action.type === "dispatch" && action.capability ? (
-                  <p className="mt-1 font-mono text-[11px] text-white/45">
+                  <p className="mt-1 font-mono text-code-sm text-white/45">
                     {action.capability}
                     {typeof action.target === "number"
                       ? ` on #${action.target}`
@@ -667,9 +667,9 @@ function SuggestedActions({
                     className="gap-1.5 bg-emerald-600 hover:bg-emerald-700 text-white"
                   >
                     {running ? (
-                      <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                      <Loader2 className="h-4 w-4 animate-spin" />
                     ) : (
-                      <Play className="h-3.5 w-3.5" />
+                      <Play className="h-4 w-4" />
                     )}
                     Run
                   </Button>
@@ -680,7 +680,7 @@ function SuggestedActions({
                     onClick={() => onCreateTask(action)}
                     className="gap-1.5"
                   >
-                    <GitPullRequest className="h-3.5 w-3.5" />
+                    <GitPullRequest className="h-4 w-4" />
                     Create task
                   </Button>
                 ) : (
@@ -690,7 +690,7 @@ function SuggestedActions({
                     onClick={() => onDismiss(action.id)}
                     className="gap-1.5"
                   >
-                    <XCircle className="h-3.5 w-3.5" />
+                    <XCircle className="h-4 w-4" />
                     Dismiss
                   </Button>
                 )}
@@ -706,11 +706,11 @@ function SuggestedActions({
 function RunHistory({ report }: { report: Report }) {
   const visibleRuns = report.runs.slice(0, 12);
   return (
-    <section className="rounded-lg border border-white/[0.08] bg-white/[0.02] p-4">
+    <section className="rounded-lg border border-white/[0.08] bg-white/[0.02] p-5">
       <div className="mb-3 flex items-center gap-2">
-        <Calendar className="h-4 w-4 text-sky-300" />
-        <h2 className="text-sm font-semibold text-white/90">Runs</h2>
-        <span className="ml-auto text-xs text-muted-foreground">
+        <Calendar className="h-5 w-5 text-sky-300" />
+        <h2 className="text-body-sm font-semibold text-white/90">Runs</h2>
+        <span className="ml-auto text-body-xs text-muted-foreground">
           {report.runs.length}
         </span>
       </div>
@@ -718,7 +718,10 @@ function RunHistory({ report }: { report: Report }) {
         {visibleRuns.map((run) => {
           const active = run.id === report.runId;
           return (
-            <li key={run.id} className="flex items-center gap-3 py-2 text-xs">
+            <li
+              key={run.id}
+              className="flex items-center gap-3 py-2.5 text-body-xs"
+            >
               <span
                 className={cn(
                   "min-w-0 flex-1 truncate font-mono",
@@ -728,7 +731,7 @@ function RunHistory({ report }: { report: Report }) {
                 {run.id}
               </span>
               {active ? (
-                <span className="rounded border border-sky-400/30 bg-sky-400/10 px-1.5 py-0.5 text-[10px] uppercase tracking-wide text-sky-200">
+                <span className="rounded border border-sky-400/30 bg-sky-400/10 px-2 py-1 text-label uppercase tracking-wide text-sky-200">
                   current
                 </span>
               ) : null}
@@ -740,7 +743,7 @@ function RunHistory({ report }: { report: Report }) {
                   className="inline-flex items-center gap-1 text-muted-foreground hover:text-foreground transition-colors"
                   title="Open run on GitHub"
                 >
-                  <ExternalLink className="h-3 w-3" />
+                  <ExternalLink className="h-3.5 w-3.5" />
                   GitHub
                 </a>
               ) : null}
@@ -749,7 +752,7 @@ function RunHistory({ report }: { report: Report }) {
         })}
       </ul>
       {report.runs.length > visibleRuns.length ? (
-        <p className="mt-3 text-xs text-muted-foreground">
+        <p className="mt-3 text-body-xs text-muted-foreground">
           Showing latest {visibleRuns.length} runs.
         </p>
       ) : null}
@@ -768,9 +771,9 @@ function EmptyState({
 }) {
   return (
     <div className="h-full flex flex-col items-center justify-center text-center px-6 py-16 text-muted-foreground">
-      <div className="w-10 h-10 mb-3 opacity-60">{icon}</div>
-      <div className="text-sm font-medium text-foreground">{title}</div>
-      {hint ? <p className="text-xs mt-1 max-w-xs">{hint}</p> : null}
+      <div className="w-11 h-11 mb-3 opacity-60">{icon}</div>
+      <div className="text-body-sm font-medium text-foreground">{title}</div>
+      {hint ? <p className="text-body-xs mt-1.5 max-w-xs">{hint}</p> : null}
     </div>
   );
 }

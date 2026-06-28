@@ -75,14 +75,16 @@ function summaryText(
 function SignalRow({ sig }: { sig: HealthSignal }) {
   const st = LEVEL_STYLES[sig.level];
   return (
-    <li className="flex items-start gap-2.5 px-3 py-2">
+    <li className="flex items-start gap-2.5 px-3.5 py-2.5">
       <LevelIcon
         level={sig.level}
-        className={cn("mt-0.5 h-3.5 w-3.5 shrink-0", st.text)}
+        className={cn("mt-0.5 h-4 w-4 shrink-0", st.text)}
       />
       <div className="min-w-0 flex-1">
         <div className="flex items-center gap-2">
-          <span className="text-xs font-medium text-white/85">{sig.label}</span>
+          <span className="text-body-xs font-medium text-white/85">
+            {sig.label}
+          </span>
           {sig.url && (
             <a
               href={sig.url}
@@ -91,11 +93,11 @@ function SignalRow({ sig }: { sig: HealthSignal }) {
               className="inline-flex items-center text-white/35 hover:text-white"
               aria-label={`Open ${sig.label} reference`}
             >
-              <ExternalLink className="h-3 w-3" />
+              <ExternalLink className="h-3.5 w-3.5" />
             </a>
           )}
         </div>
-        <div className="mt-0.5 text-[11px] leading-snug text-white/55">
+        <div className="mt-1 text-body-xs leading-snug text-white/55">
           {sig.detail}
         </div>
       </div>
@@ -109,8 +111,8 @@ export function HealthBanner() {
 
   if (isLoading && !data) {
     return (
-      <div className="mb-4 flex items-center gap-2 rounded-lg border border-white/[0.08] bg-white/[0.02] px-3 py-2 text-xs text-white/45">
-        <Loader2 className="h-3.5 w-3.5 animate-spin" /> Checking system health…
+      <div className="mb-4 flex items-center gap-2 rounded-lg border border-white/[0.08] bg-white/[0.02] px-3.5 py-2.5 text-body-xs text-white/45">
+        <Loader2 className="h-4 w-4 animate-spin" /> Checking system health…
       </div>
     );
   }
@@ -126,18 +128,18 @@ export function HealthBanner() {
       <button
         type="button"
         onClick={() => setOpen((v) => !v)}
-        className="flex w-full items-center gap-2.5 px-3 py-2 text-left"
+        className="flex w-full items-center gap-2.5 px-3.5 py-2.5 text-left"
         aria-expanded={open}
       >
         {data.level === "ok" ? (
-          <ShieldCheck className={cn("h-4 w-4", st.text)} />
+          <ShieldCheck className={cn("h-5 w-5", st.text)} />
         ) : (
-          <LevelIcon level={data.level} className={cn("h-4 w-4", st.text)} />
+          <LevelIcon level={data.level} className={cn("h-5 w-5", st.text)} />
         )}
-        <span className={cn("text-xs font-semibold", st.text)}>
+        <span className={cn("text-body-xs font-semibold", st.text)}>
           {summaryText(data.level, counts)}
         </span>
-        <span className="ml-auto flex items-center gap-2 text-[10px] text-white/40">
+        <span className="ml-auto flex items-center gap-2 text-label text-white/40">
           {data.signals.length} checks
           <ChevronDown
             className={cn(

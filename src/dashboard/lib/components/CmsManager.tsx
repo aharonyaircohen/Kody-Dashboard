@@ -1959,10 +1959,10 @@ function CmsPermissionsDialog({
           <div className="border-b border-border px-4 py-4">
             <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
               <div>
-                <div className="text-sm font-medium text-foreground">
+                <div className="text-body-sm font-medium text-foreground">
                   Default policy
                 </div>
-                <div className="text-xs text-muted-foreground">
+                <div className="text-body-xs text-muted-foreground">
                   Apply a preset or tune each write action.
                 </div>
               </div>
@@ -1977,10 +1977,10 @@ function CmsPermissionsDialog({
                     onClick={() => applyPolicyPreset(preset.value)}
                   >
                     <span className="flex min-w-0 flex-col">
-                      <span className="text-sm font-medium">
+                      <span className="text-body-sm font-medium">
                         {preset.label}
                       </span>
-                      <span className="text-xs font-normal text-muted-foreground">
+                      <span className="text-body-xs font-normal text-muted-foreground">
                         {preset.description}
                       </span>
                     </span>
@@ -1991,7 +1991,7 @@ function CmsPermissionsDialog({
             <div className="mt-3 grid grid-cols-1 gap-3 md:grid-cols-3">
               {CMS_WRITE_PERMISSION_OPERATIONS.map((item) => (
                 <label key={item.operation} className="space-y-1">
-                  <span className="text-xs font-medium uppercase text-muted-foreground">
+                  <span className="text-label font-medium uppercase text-muted-foreground">
                     {item.label}
                   </span>
                   <Select
@@ -2018,16 +2018,16 @@ function CmsPermissionsDialog({
 
           <div className="border-t border-border px-4 py-4">
             <div className="flex flex-col gap-1">
-              <div className="text-sm font-medium text-foreground">
+              <div className="text-body-sm font-medium text-foreground">
                 Collection write actions
               </div>
-              <div className="text-xs text-muted-foreground">
+              <div className="text-body-xs text-muted-foreground">
                 Enable the actions each collection supports. Role rules below
                 decide who can use enabled actions.
               </div>
             </div>
             <div className="mt-3 overflow-x-auto border-y border-border">
-              <div className="grid min-w-[560px] grid-cols-[minmax(180px,1fr)_120px_120px_120px] bg-muted/50 px-3 py-2 text-xs font-semibold uppercase text-muted-foreground">
+              <div className="grid min-w-[600px] grid-cols-[minmax(200px,1fr)_132px_132px_132px] bg-muted/50 px-4 py-2.5 text-label font-semibold uppercase text-muted-foreground">
                 <div>Collection</div>
                 {CMS_WRITE_PERMISSION_OPERATIONS.map((item) => {
                   const allEnabled =
@@ -2062,13 +2062,13 @@ function CmsPermissionsDialog({
               {config.collections.map((collection) => (
                 <div
                   key={collection.name}
-                  className="grid min-w-[560px] grid-cols-[minmax(180px,1fr)_120px_120px_120px] items-center border-t border-border px-3 py-3"
+                  className="grid min-w-[600px] grid-cols-[minmax(200px,1fr)_132px_132px_132px] items-center border-t border-border px-4 py-3.5"
                 >
                   <div className="min-w-0 pr-4">
-                    <div className="truncate text-sm font-medium text-foreground">
+                    <div className="truncate text-body-sm font-medium text-foreground">
                       {collection.label}
                     </div>
-                    <div className="truncate text-xs text-muted-foreground">
+                    <div className="truncate text-body-xs text-muted-foreground">
                       {collection.name}
                     </div>
                   </div>
@@ -2083,7 +2083,7 @@ function CmsPermissionsDialog({
                     return (
                       <label
                         key={item.operation}
-                        className="flex items-center gap-2 text-sm text-foreground"
+                        className="flex items-center gap-2 text-body-sm text-foreground"
                       >
                         <Checkbox
                           checked={enabled}
@@ -2108,10 +2108,10 @@ function CmsPermissionsDialog({
           <div className="px-4 py-3">
             <div className="flex flex-col gap-3 md:flex-row md:items-end md:justify-between">
               <div>
-                <div className="text-sm font-medium text-foreground">
+                <div className="text-body-sm font-medium text-foreground">
                   Collection overrides
                 </div>
-                <div className="text-xs text-muted-foreground">
+                <div className="text-body-xs text-muted-foreground">
                   Add an override only when one collection needs different write
                   access.
                 </div>
@@ -2165,7 +2165,7 @@ function CmsPermissionsDialog({
 
           {activeOverrideCollections.length > 0 ? (
             <div className="border-y border-border">
-              <div className="grid grid-cols-[minmax(180px,1fr)_120px_120px_120px_44px] bg-muted/50 px-4 py-2 text-xs font-semibold uppercase text-muted-foreground">
+              <div className="grid grid-cols-[minmax(200px,1fr)_132px_132px_132px_48px] bg-muted/50 px-4 py-2.5 text-label font-semibold uppercase text-muted-foreground">
                 <div>Collection</div>
                 {CMS_WRITE_PERMISSION_OPERATIONS.map((item) => (
                   <div key={item.operation}>{item.label}</div>
@@ -2175,13 +2175,13 @@ function CmsPermissionsDialog({
               {activeOverrideCollections.map((collection) => (
                 <div
                   key={collection.name}
-                  className="grid grid-cols-[minmax(180px,1fr)_120px_120px_120px_44px] items-center border-t border-border px-4 py-3"
+                  className="grid grid-cols-[minmax(200px,1fr)_132px_132px_132px_48px] items-center border-t border-border px-4 py-3.5"
                 >
                   <div className="min-w-0 pr-4">
-                    <div className="truncate text-sm font-medium text-foreground">
+                    <div className="truncate text-body-sm font-medium text-foreground">
                       {collection.label}
                     </div>
-                    <div className="truncate text-xs text-muted-foreground">
+                    <div className="truncate text-body-xs text-muted-foreground">
                       {collection.name}
                     </div>
                   </div>
@@ -2223,20 +2223,20 @@ function CmsPermissionsDialog({
               ))}
             </div>
           ) : (
-            <div className="border-y border-border px-4 py-8 text-sm text-muted-foreground">
+            <div className="border-y border-border px-4 py-8 text-body-sm text-muted-foreground">
               No collection overrides. All collections use the default policy.
             </div>
           )}
         </div>
 
         {error ? (
-          <div className="rounded border border-destructive/30 bg-destructive/10 px-3 py-2 text-sm text-destructive">
+          <div className="rounded border border-destructive/30 bg-destructive/10 px-3 py-2 text-body-sm text-destructive">
             {error}
           </div>
         ) : null}
 
         <div className="flex items-center justify-between gap-3">
-          <div className="text-xs text-muted-foreground">
+          <div className="text-body-xs text-muted-foreground">
             Admins always keep access to prevent lockout.
           </div>
           <div className="flex items-center gap-2">
@@ -2421,22 +2421,22 @@ function CollectionRail({
       className="flex min-h-0 flex-col border-border"
     >
       <div className="shrink-0 border-b border-border px-4 py-3">
-        <div className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+        <div className="text-label font-semibold uppercase tracking-wide text-muted-foreground">
           Collections
         </div>
-        <div className="mt-1 text-sm text-muted-foreground">
+        <div className="mt-1 text-body-sm text-muted-foreground">
           {collections.length} configured
           {trimmedSearch ? ` / ${visibleCollections.length} shown` : ""}
         </div>
-        <div className="relative mt-2 h-8">
-          <Search className="pointer-events-none absolute left-2 top-2 h-3.5 w-3.5 text-muted-foreground" />
+        <div className="relative mt-2 h-9">
+          <Search className="pointer-events-none absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
           <Input
             aria-label="Filter collections"
             value={search}
             disabled={loading || collections.length === 0}
             onChange={(event) => onSearchChange(event.target.value)}
             placeholder="Filter"
-            className="h-8 rounded-md border-input bg-background px-2 pl-7 text-xs shadow-sm focus-visible:ring-1"
+            className="h-9 rounded-md border-input bg-background px-2.5 pl-8 text-body-xs shadow-sm focus-visible:ring-1"
           />
         </div>
       </div>
@@ -2465,18 +2465,18 @@ function CollectionRail({
                   type="button"
                   onClick={() => onSelect(collection.name)}
                   className={cn(
-                    "w-full rounded border px-3 py-2 text-left transition-colors",
+                    "w-full rounded border px-3 py-2.5 text-left transition-colors",
                     selected
                       ? "border-primary bg-primary/10"
                       : "border-transparent hover:border-border hover:bg-muted",
                   )}
                 >
                   <div className="flex min-w-0 items-center justify-between gap-2">
-                    <span className="truncate text-sm font-medium text-foreground">
+                    <span className="truncate text-body-sm font-medium text-foreground">
                       {collection.label}
                     </span>
                   </div>
-                  <div className="mt-1 flex items-center justify-between gap-2 text-xs text-muted-foreground">
+                  <div className="mt-1 flex items-center justify-between gap-2 text-body-xs text-muted-foreground">
                     <span className="truncate">{collection.name}</span>
                   </div>
                 </button>
@@ -2551,7 +2551,7 @@ function CollectionWorkspace({
                 <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
               ) : null}
             </div>
-            <div className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-muted-foreground">
+            <div className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 text-body-xs text-muted-foreground">
               <span>{collection.name}</span>
               <span>{adapterLabel}</span>
               <span>{total.toLocaleString()} items</span>
@@ -2790,7 +2790,7 @@ function _CollectionFilters({
   }
 
   return (
-    <div className="border-t border-border bg-muted/20 px-4 py-2">
+    <div className="border-t border-border bg-muted/20 px-4 py-3">
       <div className="flex flex-wrap items-center gap-2">
         <div className="flex min-w-0 flex-1 flex-wrap items-center gap-2">
           {filters.map((filter) => {
@@ -2822,9 +2822,9 @@ function _CollectionFilters({
           size="sm"
           disabled={!filtersActive}
           onClick={() => onChange({})}
-          className="h-8 shrink-0 px-2.5 text-xs"
+          className="h-9 shrink-0 px-3 text-body-xs"
         >
-          <X className="mr-1.5 h-3.5 w-3.5" />
+          <X className="mr-1.5 h-4 w-4" />
           Clear
         </Button>
       </div>
@@ -2857,17 +2857,17 @@ function FilterControl({
     });
 
   return (
-    <div className="flex h-8 w-full max-w-full items-stretch overflow-visible rounded-md border border-border bg-background shadow-sm sm:w-auto sm:min-w-[15.5rem]">
-      <div className="flex max-w-[5.5rem] shrink-0 items-center border-r border-border bg-muted/50 px-2">
+    <div className="flex h-9 w-full max-w-full items-stretch overflow-visible rounded-md border border-border bg-background shadow-sm sm:w-auto sm:min-w-[16.5rem]">
+      <div className="flex max-w-[6.25rem] shrink-0 items-center border-r border-border bg-muted/50 px-2.5">
         <span
-          className="truncate text-xs font-medium text-foreground"
+          className="truncate text-body-xs font-medium text-foreground"
           title={label}
         >
           {label}
         </span>
       </div>
       <Select value={operator} onValueChange={updateOperator}>
-        <SelectTrigger className="h-8 w-24 shrink-0 rounded-none border-0 border-r border-border bg-transparent px-2 text-xs shadow-none focus:ring-0 focus:ring-offset-0">
+        <SelectTrigger className="h-9 w-28 shrink-0 rounded-none border-0 border-r border-border bg-transparent px-2.5 text-body-xs shadow-none focus:ring-0 focus:ring-offset-0">
           <SelectValue />
         </SelectTrigger>
         <SelectContent>
@@ -2906,7 +2906,7 @@ function FilterValueControl({
   if (operator === "exists") {
     return (
       <Select value={valueString || "true"} onValueChange={onChange}>
-        <SelectTrigger className="h-8 w-full min-w-0 rounded-md border border-input bg-background px-2 text-xs shadow-sm focus:ring-0 focus:ring-offset-0">
+        <SelectTrigger className="h-9 w-full min-w-0 rounded-md border border-input bg-background px-2.5 text-body-xs shadow-sm focus:ring-0 focus:ring-offset-0">
           <SelectValue />
         </SelectTrigger>
         <SelectContent>
@@ -2940,7 +2940,7 @@ function FilterValueControl({
         value={valueString || "__any"}
         onValueChange={(next) => onChange(next === "__any" ? "" : next)}
       >
-        <SelectTrigger className="h-8 w-full min-w-0 rounded-md border border-input bg-background px-2 text-xs shadow-sm focus:ring-0 focus:ring-offset-0">
+        <SelectTrigger className="h-9 w-full min-w-0 rounded-md border border-input bg-background px-2.5 text-body-xs shadow-sm focus:ring-0 focus:ring-offset-0">
           <SelectValue />
         </SelectTrigger>
         <SelectContent>
@@ -2964,7 +2964,7 @@ function FilterValueControl({
         value={valueString || "__any"}
         onValueChange={(next) => onChange(next === "__any" ? "" : next)}
       >
-        <SelectTrigger className="h-8 w-full min-w-0 rounded-md border border-input bg-background px-2 text-xs shadow-sm focus:ring-0 focus:ring-offset-0">
+        <SelectTrigger className="h-9 w-full min-w-0 rounded-md border border-input bg-background px-2.5 text-body-xs shadow-sm focus:ring-0 focus:ring-offset-0">
           <SelectValue />
         </SelectTrigger>
         <SelectContent>
@@ -2977,9 +2977,9 @@ function FilterValueControl({
   }
 
   return (
-    <div className="relative h-8">
+    <div className="relative h-9">
       {operator === "contains" ? (
-        <Search className="pointer-events-none absolute left-2 top-2 h-3.5 w-3.5 text-muted-foreground" />
+        <Search className="pointer-events-none absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
       ) : null}
       <Input
         type={filterInputType(field, operator)}
@@ -2987,8 +2987,8 @@ function FilterValueControl({
         onChange={(event) => onChange(event.target.value)}
         placeholder={operator === "in" ? "Comma values" : "Filter"}
         className={cn(
-          "h-8 rounded-md border-input bg-background px-2 text-xs shadow-sm focus-visible:ring-1",
-          operator === "contains" ? "pl-7" : "",
+          "h-9 rounded-md border-input bg-background px-2.5 text-body-xs shadow-sm focus-visible:ring-1",
+          operator === "contains" ? "pl-8" : "",
         )}
       />
     </div>
@@ -3173,26 +3173,26 @@ function DocumentTable({
             return (
               <div
                 key={field.name}
-                className={cn(index === 0 ? "px-4" : "px-3", "py-2")}
+                className={cn(index === 0 ? "px-4" : "px-3", "py-2.5")}
               >
                 <div className="flex min-w-0 items-center gap-1">
-                  <span className="min-w-0 flex-1 truncate text-[11px] font-semibold uppercase tracking-wide">
+                  <span className="min-w-0 flex-1 truncate text-label font-semibold uppercase tracking-wide">
                     {label}
                   </span>
                   {sortable ? (
                     <button
                       type="button"
                       onClick={() => onSortChange(nextSort(sort, field.name))}
-                      className="flex h-6 w-6 shrink-0 items-center justify-center rounded text-muted-foreground hover:bg-muted hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                      className="flex h-7 w-7 shrink-0 items-center justify-center rounded text-muted-foreground hover:bg-muted hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
                       title={`Sort by ${label}`}
                     >
                       <span className="sr-only">Sort by {label}</span>
                       {sortDirection === "asc" ? (
-                        <ArrowUp className="h-3.5 w-3.5 shrink-0" />
+                        <ArrowUp className="h-4 w-4 shrink-0" />
                       ) : sortDirection === "desc" ? (
-                        <ArrowDown className="h-3.5 w-3.5 shrink-0" />
+                        <ArrowDown className="h-4 w-4 shrink-0" />
                       ) : (
-                        <ArrowUpDown className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
+                        <ArrowUpDown className="h-4 w-4 shrink-0 text-muted-foreground" />
                       )}
                     </button>
                   ) : null}
@@ -3241,7 +3241,7 @@ function DocumentTable({
                   <div
                     key={field.name}
                     className={cn(
-                      "min-w-0 py-3 text-sm text-foreground",
+                      "min-w-0 py-3.5 text-body-sm text-foreground",
                       index === 0 ? "px-4 font-medium text-foreground" : "px-3",
                     )}
                   >
@@ -3295,7 +3295,7 @@ function DocumentPager({
   };
 
   return (
-    <div className="flex shrink-0 flex-col gap-3 border-t border-border px-4 py-2 text-xs text-muted-foreground xl:flex-row xl:items-center xl:justify-between">
+    <div className="flex shrink-0 flex-col gap-3 border-t border-border px-4 py-3 text-body-xs text-muted-foreground xl:flex-row xl:items-center xl:justify-between">
       <span className="whitespace-nowrap">
         Showing {start.toLocaleString()}-{end.toLocaleString()} of{" "}
         {total.toLocaleString()}
@@ -3310,7 +3310,7 @@ function DocumentPager({
           >
             <SelectTrigger
               aria-label="Items per page"
-              className="h-8 w-[84px] text-xs"
+              className="h-9 w-[90px] text-body-xs"
             >
               <SelectValue />
             </SelectTrigger>
@@ -3338,7 +3338,7 @@ function DocumentPager({
             page === "ellipsis" ? (
               <span
                 key={`ellipsis-${index}`}
-                className="flex h-8 w-8 items-center justify-center text-muted-foreground"
+                className="flex h-9 w-9 items-center justify-center text-muted-foreground"
                 aria-hidden="true"
               >
                 ...
@@ -3349,7 +3349,7 @@ function DocumentPager({
                 type="button"
                 variant={page === currentPage ? "default" : "outline"}
                 size="sm"
-                className="h-8 min-w-8 px-2"
+                className="h-9 min-w-9 px-2.5"
                 disabled={loading || page === currentPage}
                 onClick={() => jumpToPage(page)}
                 aria-label={`Page ${page}`}
@@ -3828,7 +3828,7 @@ function RelationPicker({
         className={cn(
           "h-9",
           compact &&
-            "h-8 rounded-md border-input bg-background px-2 text-xs shadow-sm focus-visible:ring-1",
+            "h-9 rounded-md border-input bg-background px-2.5 text-body-xs shadow-sm focus-visible:ring-1",
         )}
       />
     );
@@ -3888,16 +3888,16 @@ function RelationPicker({
     return (
       <div
         ref={rootRef}
-        className="relative h-8 min-w-0 rounded-md border border-input bg-background shadow-sm"
+        className="relative h-9 min-w-0 rounded-md border border-input bg-background shadow-sm"
       >
-        <div className="flex h-8 min-w-0 items-center">
+        <div className="flex h-9 min-w-0 items-center">
           <button
             type="button"
             role="combobox"
             aria-expanded={showOptions}
             aria-controls={`${field.name}-relation-options`}
             onClick={() => setOpen((next) => !next)}
-            className="flex h-8 min-w-0 flex-1 items-center justify-between gap-2 bg-transparent px-2 text-left text-xs outline-none hover:bg-muted/50 focus-visible:ring-2 focus-visible:ring-ring"
+            className="flex h-9 min-w-0 flex-1 items-center justify-between gap-2 bg-transparent px-2.5 text-left text-body-xs outline-none hover:bg-muted/50 focus-visible:ring-2 focus-visible:ring-ring"
             title={selectedLabels.join(", ") || "Any"}
           >
             <span
@@ -3909,7 +3909,7 @@ function RelationPicker({
               {compactLabel}
             </span>
             {selectedIds.length === 0 ? (
-              <Search className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
+              <Search className="h-4 w-4 shrink-0 text-muted-foreground" />
             ) : null}
           </button>
           {selectedIds.length > 0 ? (
@@ -3921,9 +3921,9 @@ function RelationPicker({
                 onChange(multiple ? [] : "");
                 setQuery("");
               }}
-              className="flex h-8 w-7 shrink-0 items-center justify-center text-muted-foreground hover:bg-muted/50 hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring"
+              className="flex h-9 w-8 shrink-0 items-center justify-center text-muted-foreground hover:bg-muted/50 hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring"
             >
-              <X className="h-3.5 w-3.5" />
+              <X className="h-4 w-4" />
             </button>
           ) : null}
         </div>
@@ -3931,7 +3931,7 @@ function RelationPicker({
         {showOptions ? (
           <div className="absolute left-0 top-[calc(100%+4px)] z-[60] w-[20rem] max-w-[calc(100vw-2rem)] rounded-md border border-border bg-popover p-2 text-popover-foreground shadow-elevation-3">
             <div className="relative">
-              <Search className="pointer-events-none absolute left-2 top-2 h-3.5 w-3.5 text-muted-foreground" />
+              <Search className="pointer-events-none absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
               <Input
                 value={query}
                 autoFocus
@@ -3943,7 +3943,7 @@ function RelationPicker({
                   }
                 }}
                 placeholder={`Search ${targetCollection.label}`}
-                className="h-8 pl-7 text-xs"
+                className="h-9 pl-8 text-body-xs"
               />
             </div>
 
@@ -3954,7 +3954,7 @@ function RelationPicker({
                     key={id}
                     type="button"
                     onClick={() => clearId(id)}
-                    className="flex max-w-full items-center gap-1 rounded bg-primary/10 px-1.5 py-0.5 text-left text-[11px] text-primary hover:bg-primary/15"
+                    className="flex max-w-full items-center gap-1 rounded bg-primary/10 px-2 py-1 text-left text-body-xs text-primary hover:bg-primary/15"
                     title="Remove"
                   >
                     <span className="truncate">
@@ -3965,7 +3965,7 @@ function RelationPicker({
                         selectedDocById,
                       )}
                     </span>
-                    <X className="h-3 w-3 shrink-0" />
+                    <X className="h-3.5 w-3.5 shrink-0" />
                   </button>
                 ))}
               </div>
@@ -3977,12 +3977,12 @@ function RelationPicker({
               className="mt-2 max-h-56 overflow-auto"
             >
               {relationOptionsQuery.isLoading ? (
-                <div className="flex items-center gap-2 px-2 py-2 text-xs text-muted-foreground">
-                  <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                <div className="flex items-center gap-2 px-2 py-2 text-body-xs text-muted-foreground">
+                  <Loader2 className="h-4 w-4 animate-spin" />
                   Loading
                 </div>
               ) : optionDocs.length === 0 ? (
-                <div className="px-2 py-2 text-xs text-muted-foreground">
+                <div className="px-2 py-2 text-body-xs text-muted-foreground">
                   No matches
                 </div>
               ) : (
@@ -4002,7 +4002,7 @@ function RelationPicker({
                       aria-selected={selected}
                       onClick={() => selectId(id)}
                       className={cn(
-                        "flex w-full items-center justify-between gap-2 rounded px-2 py-1.5 text-left text-xs hover:bg-muted",
+                        "flex w-full items-center justify-between gap-2 rounded px-2.5 py-2 text-left text-body-xs hover:bg-muted",
                         selected ? "text-primary" : "text-foreground",
                       )}
                     >
@@ -4010,13 +4010,11 @@ function RelationPicker({
                         <span className="block truncate">
                           {relationLabel(targetCollection, field, document, id)}
                         </span>
-                        <span className="block truncate font-mono text-[10px] text-muted-foreground">
+                        <span className="block truncate font-mono text-code-sm text-muted-foreground">
                           {id}
                         </span>
                       </span>
-                      {selected ? (
-                        <Check className="h-3.5 w-3.5 shrink-0" />
-                      ) : null}
+                      {selected ? <Check className="h-4 w-4 shrink-0" /> : null}
                     </button>
                   );
                 })
@@ -4043,7 +4041,7 @@ function RelationPicker({
               key={id}
               type="button"
               onClick={() => clearId(id)}
-              className="flex max-w-full items-center gap-1 rounded bg-primary/10 px-2 py-1 text-left text-xs text-primary hover:bg-primary/15"
+              className="flex max-w-full items-center gap-1 rounded bg-primary/10 px-2.5 py-1.5 text-left text-body-xs text-primary hover:bg-primary/15"
               title="Remove"
             >
               <div className="min-w-0 flex-1">
@@ -4055,15 +4053,17 @@ function RelationPicker({
                     selectedDocById,
                   )}
                 </span>
-                <span className="block truncate font-mono text-[10px] text-primary/70">
+                <span className="block truncate font-mono text-code-sm text-primary/70">
                   {id}
                 </span>
               </div>
-              <X className="h-3 w-3 shrink-0" />
+              <X className="h-3.5 w-3.5 shrink-0" />
             </button>
           ))
         ) : (
-          <span className="text-xs text-muted-foreground">No selection</span>
+          <span className="text-body-xs text-muted-foreground">
+            No selection
+          </span>
         )}
       </div>
 
@@ -4097,12 +4097,12 @@ function RelationPicker({
           className="absolute left-3 right-3 top-full z-[60] mt-1 max-h-64 overflow-auto rounded-md border border-border bg-popover p-1 text-popover-foreground shadow-elevation-3"
         >
           {relationOptionsQuery.isLoading ? (
-            <div className="flex items-center gap-2 px-2 py-2 text-xs text-muted-foreground">
-              <Loader2 className="h-3.5 w-3.5 animate-spin" />
+            <div className="flex items-center gap-2 px-2 py-2 text-body-xs text-muted-foreground">
+              <Loader2 className="h-4 w-4 animate-spin" />
               Loading
             </div>
           ) : optionDocs.length === 0 ? (
-            <div className="px-2 py-2 text-xs text-muted-foreground">
+            <div className="px-2 py-2 text-body-xs text-muted-foreground">
               No matches
             </div>
           ) : (
@@ -4118,7 +4118,7 @@ function RelationPicker({
                   aria-selected={selected}
                   onClick={() => selectId(id)}
                   className={cn(
-                    "flex w-full items-center justify-between gap-2 rounded px-2 py-2 text-left text-sm hover:bg-muted",
+                    "flex w-full items-center justify-between gap-2 rounded px-2.5 py-2.5 text-left text-body-sm hover:bg-muted",
                     selected ? "text-primary" : "text-foreground",
                   )}
                 >
@@ -4126,7 +4126,7 @@ function RelationPicker({
                     <span className="block truncate">
                       {relationLabel(targetCollection, field, document, id)}
                     </span>
-                    <span className="block truncate font-mono text-[10px] text-muted-foreground">
+                    <span className="block truncate font-mono text-code-sm text-muted-foreground">
                       {id}
                     </span>
                   </span>
@@ -4394,7 +4394,7 @@ function RelationLink({
       }}
       className={cn(
         "max-w-full rounded bg-primary/10 text-left text-primary transition-colors hover:bg-primary/15",
-        compact ? "px-1.5 py-0 text-[11px]" : "px-2 py-1 text-sm",
+        compact ? "px-2 py-1 text-body-xs" : "px-2.5 py-1.5 text-body-sm",
       )}
       title={id}
     >
@@ -4404,7 +4404,7 @@ function RelationLink({
           : label}
       </span>
       {!compact && id !== label ? (
-        <span className="mt-0.5 block truncate font-mono text-[10px] text-primary/70">
+        <span className="mt-0.5 block truncate font-mono text-code-sm text-primary/70">
           {id}
         </span>
       ) : null}
@@ -4424,7 +4424,7 @@ function RelationFallback({
       variant="secondary"
       className={cn(
         "max-w-full rounded bg-muted text-foreground/55",
-        compact ? "px-1.5 py-0 text-[11px]" : "px-2 py-1 text-sm",
+        compact ? "px-2 py-1 text-body-xs" : "px-2.5 py-1.5 text-body-sm",
       )}
       title={value}
     >
@@ -4438,7 +4438,7 @@ function BooleanBadge({ value }: { value: boolean }) {
     <Badge
       variant="secondary"
       className={cn(
-        "rounded px-1.5 py-0 text-[11px]",
+        "rounded px-2 py-1 text-body-xs",
         value ? "bg-primary/10 text-primary" : "bg-muted text-muted-foreground",
       )}
     >
@@ -4449,7 +4449,7 @@ function BooleanBadge({ value }: { value: boolean }) {
 
 function LoadingRows() {
   return (
-    <div className="flex items-center gap-2 p-4 text-sm text-muted-foreground">
+    <div className="flex items-center gap-2 p-4 text-body-sm text-muted-foreground">
       <Loader2 className="h-4 w-4 animate-spin" />
       Loading
     </div>
@@ -4473,14 +4473,14 @@ function UnconfiguredCmsState({
 
   return (
     <div className="flex min-h-[220px] flex-col items-center justify-center px-4 py-8 text-center">
-      <div className="text-sm font-medium text-foreground">
+      <div className="text-body-sm font-medium text-foreground">
         Content is not configured
       </div>
-      <div className="mt-1 max-w-md text-sm text-muted-foreground">
+      <div className="mt-1 max-w-md text-body-sm text-muted-foreground">
         Create cms/config.json in the state repo to enable this view.
       </div>
       <div className="mt-4 w-full max-w-xs text-left">
-        <div className="mb-1 text-xs font-medium text-muted-foreground">
+        <div className="mb-1 text-label font-medium text-muted-foreground">
           Adapter
         </div>
         <Select
@@ -4500,7 +4500,7 @@ function UnconfiguredCmsState({
           </SelectContent>
         </Select>
         {selected?.description ? (
-          <div className="mt-1 text-xs text-muted-foreground">
+          <div className="mt-1 text-body-xs text-muted-foreground">
             {selected.description}
           </div>
         ) : null}
@@ -4526,9 +4526,9 @@ function UnconfiguredCmsState({
 function EmptyState({ title, detail }: { title: string; detail?: string }) {
   return (
     <div className="flex min-h-[180px] flex-col items-center justify-center px-4 py-8 text-center">
-      <div className="text-sm font-medium text-foreground/55">{title}</div>
+      <div className="text-body-sm font-medium text-foreground/55">{title}</div>
       {detail ? (
-        <div className="mt-1 text-sm text-muted-foreground">{detail}</div>
+        <div className="mt-1 text-body-sm text-muted-foreground">{detail}</div>
       ) : null}
     </div>
   );

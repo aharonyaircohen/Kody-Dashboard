@@ -72,23 +72,23 @@ export function ReportIssueDialog({
           <div className="flex items-center gap-1 border-b border-zinc-800 pb-2">
             <button
               onClick={() => setShowPreview(false)}
-              className={`flex items-center gap-1.5 px-3 py-1.5 rounded text-xs font-medium transition-colors ${
+              className={`flex items-center gap-1.5 px-3 py-2 rounded text-body-xs font-medium transition-colors ${
                 !showPreview
                   ? "bg-zinc-800 text-white"
                   : "text-zinc-500 hover:text-zinc-300"
               }`}
             >
-              <Edit className="w-3 h-3" /> Write
+              <Edit className="w-4 h-4" /> Write
             </button>
             <button
               onClick={() => setShowPreview(true)}
-              className={`flex items-center gap-1.5 px-3 py-1.5 rounded text-xs font-medium transition-colors ${
+              className={`flex items-center gap-1.5 px-3 py-2 rounded text-body-xs font-medium transition-colors ${
                 showPreview
                   ? "bg-zinc-800 text-white"
                   : "text-zinc-500 hover:text-zinc-300"
               }`}
             >
-              <Eye className="w-3 h-3" /> Preview
+              <Eye className="w-4 h-4" /> Preview
             </button>
           </div>
 
@@ -98,11 +98,11 @@ export function ReportIssueDialog({
               onChange={(e) => setNotes(e.target.value)}
               placeholder="What's broken or unresolved?&#10;&#10;e.g., Header overlaps the nav on mobile widths. Loading spinner never disappears after submit."
               dir="auto"
-              className="w-full h-40 px-3 py-2 text-sm bg-zinc-900 border border-zinc-800 rounded-lg resize-none focus:outline-none focus:ring-2 focus:ring-red-500/50 placeholder:text-zinc-600 font-mono text-start"
+              className="w-full h-48 px-3.5 py-3 text-code-md bg-zinc-900 border border-zinc-800 rounded-lg resize-none focus:outline-none focus:ring-2 focus:ring-red-500/50 placeholder:text-zinc-600 font-mono text-start"
               autoFocus
             />
           ) : (
-            <div className="min-h-[160px] px-3 py-2 bg-zinc-900 border border-zinc-800 rounded-lg overflow-y-auto">
+            <div className="min-h-[192px] px-4 py-3 bg-zinc-900 border border-zinc-800 rounded-lg overflow-y-auto">
               {notes.trim() ? (
                 <MarkdownPreview
                   content={notes}
@@ -111,7 +111,7 @@ export function ReportIssueDialog({
                   className={cn("text-start", rtlAwareMarkdownClassName)}
                 />
               ) : (
-                <p className="text-zinc-600 text-sm italic">
+                <p className="text-zinc-600 text-body-sm italic">
                   Nothing to preview
                 </p>
               )}

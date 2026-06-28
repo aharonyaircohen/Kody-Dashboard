@@ -11,23 +11,23 @@
  */
 export const spacing = {
   // Section spacing (vertical rhythm)
-  'section-xs': '2rem', // 32px - Compact sections
-  'section-sm': '3rem', // 48px - Small sections
-  'section-md': '4rem', // 64px - Medium sections (default)
-  'section-lg': '6rem', // 96px - Large sections
-  'section-xl': '8rem', // 128px - Extra large sections
+  'section-xs': '2.25rem', // 36px - Compact sections
+  'section-sm': '3.5rem', // 56px - Small sections
+  'section-md': '4.5rem', // 72px - Medium sections (default)
+  'section-lg': '6.5rem', // 104px - Large sections
+  'section-xl': '8.5rem', // 136px - Extra large sections
 
   // Card/Component padding
-  'card-padding-sm': '1rem', // 16px - Compact cards
-  'card-padding': '1.5rem', // 24px - Default card padding
-  'card-padding-lg': '2rem', // 32px - Spacious cards
+  'card-padding-sm': '1.125rem', // 18px - Compact cards
+  'card-padding': '1.75rem', // 28px - Default card padding
+  'card-padding-lg': '2.25rem', // 36px - Spacious cards
 
   // Content spacing
-  'content-gap-xs': '0.75rem', // 12px - Tight content
-  'content-gap-sm': '1rem', // 16px - Small content gap
-  'content-gap': '1.5rem', // 24px - Default content gap
-  'content-gap-lg': '2rem', // 32px - Large content gap
-  'content-gap-xl': '3rem', // 48px - Extra large content gap
+  'content-gap-xs': '0.875rem', // 14px - Tight content
+  'content-gap-sm': '1.125rem', // 18px - Small content gap
+  'content-gap': '1.75rem', // 28px - Default content gap
+  'content-gap-lg': '2.25rem', // 36px - Large content gap
+  'content-gap-xl': '3.25rem', // 52px - Extra large content gap
 }
 
 /**
@@ -87,16 +87,16 @@ export const fontSize = {
   'body-xl': ['1.25rem', { lineHeight: '1.6' }], // 20px
   'body-lg': ['1.125rem', { lineHeight: '1.6' }], // 18px
   'body-md': ['1rem', { lineHeight: '1.6' }], // 16px - Default
-  'body-sm': ['0.875rem', { lineHeight: '1.5' }], // 14px
-  'body-xs': ['0.75rem', { lineHeight: '1.5' }], // 12px
+  'body-sm': ['0.9375rem', { lineHeight: '1.55' }], // 15px
+  'body-xs': ['0.8125rem', { lineHeight: '1.5' }], // 13px
 
   // Monospace sizes (for code)
   'code-lg': ['1rem', { lineHeight: '1.6', fontFamily: 'var(--font-geist-mono)' }],
-  'code-md': ['0.875rem', { lineHeight: '1.6', fontFamily: 'var(--font-geist-mono)' }],
-  'code-sm': ['0.75rem', { lineHeight: '1.6', fontFamily: 'var(--font-geist-mono)' }],
+  'code-md': ['0.9375rem', { lineHeight: '1.6', fontFamily: 'var(--font-geist-mono)' }],
+  'code-sm': ['0.8125rem', { lineHeight: '1.6', fontFamily: 'var(--font-geist-mono)' }],
 
   // Label text (for form labels, badges, small caps)
-  label: ['0.75rem', { lineHeight: '1rem', fontWeight: '500' }], // 12px semibold
+  label: ['0.8125rem', { lineHeight: '1.125rem', fontWeight: '500' }], // 13px semibold
 }
 
 /**
@@ -149,12 +149,12 @@ export const opacity = {
  */
 export const borderRadius = {
   // Chat bubble radii (commonly used in ChatInterface)
-  'chat-xs': '8px', // 8px - small chat bubbles
-  'chat-sm': '12px', // 12px - compact chat
-  'chat-md': '16px', // 16px - medium chat
-  'chat-lg': '20px', // 20px - standard chat bubble
-  'chat-xl': '24px', // 24px - large chat bubble
-  'chat-2xl': '30px', // 30px - extra large chat bubble
+  'chat-xs': '10px', // 10px - small chat bubbles
+  'chat-sm': '14px', // 14px - compact chat
+  'chat-md': '18px', // 18px - medium chat
+  'chat-lg': '22px', // 22px - standard chat bubble
+  'chat-xl': '26px', // 26px - large chat bubble
+  'chat-2xl': '32px', // 32px - extra large chat bubble
 }
 
 /**
@@ -162,12 +162,12 @@ export const borderRadius = {
  * Semantic icon size tokens for consistent iconography
  */
 export const iconSize = {
-  'icon-xs': '0.75rem', // 12px - extra small icons
-  'icon-sm': '1rem', // 16px - small icons
-  'icon-md': '1.25rem', // 20px - medium icons (default)
-  'icon-lg': '1.5rem', // 24px - large icons
-  'icon-xl': '2rem', // 32px - extra large icons
-  'icon-2xl': '2.5rem', // 40px - 2xl icons
+  'icon-xs': '0.875rem', // 14px - extra small icons
+  'icon-sm': '1.125rem', // 18px - small icons
+  'icon-md': '1.375rem', // 22px - medium icons (default)
+  'icon-lg': '1.625rem', // 26px - large icons
+  'icon-xl': '2.125rem', // 34px - extra large icons
+  'icon-2xl': '2.625rem', // 42px - 2xl icons
 }
 
 /**
@@ -175,9 +175,9 @@ export const iconSize = {
  * Semantic input height tokens for consistent form elements
  */
 export const inputHeight = {
-  'input-h-sm': '2rem', // 32px - compact inputs
-  'input-h-md': '2.5rem', // 40px - default inputs
-  'input-h-lg': '3rem', // 48px - large inputs
+  'input-h-sm': '2.25rem', // 36px - compact inputs
+  'input-h-md': '2.75rem', // 44px - default inputs
+  'input-h-lg': '3.25rem', // 52px - large inputs
 }
 
 /**

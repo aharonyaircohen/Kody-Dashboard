@@ -40,6 +40,7 @@ const todoItemSchema = z.object({
 
 const createTodoListSchema = z.object({
   title: z.string().trim().min(1).max(160),
+  description: z.string().max(20_000).default(""),
   items: z.array(todoItemSchema).max(200).default([]),
   actorLogin: z.string().optional(),
 });
@@ -119,7 +120,8 @@ export async function POST(req: NextRequest) {
 
   try {
     const payload = await req.json();
-    const { title, items, actorLogin } = createTodoListSchema.parse(payload);
+    const { title, description, items, actorLogin } =
+      createTodoListSchema.parse(payload);
 
     const actorResult = await verifyActorLogin(req, actorLogin);
     if (actorResult instanceof NextResponse) return actorResult;
@@ -141,6 +143,7 @@ export async function POST(req: NextRequest) {
       octokit: userOctokit,
       slug,
       title,
+      description,
       items: normalizeCreateItems(items, now),
       createdAt: now,
     });

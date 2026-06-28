@@ -662,7 +662,7 @@ export function VibePage() {
         <Sheet open={mobileIssuesOpen} onOpenChange={setMobileIssuesOpen}>
           <SheetContent side="left" className="w-[300px] p-0 flex flex-col">
             <SheetHeader className="px-4 py-3 border-b border-white/[0.06] space-y-0">
-              <SheetTitle className="text-sm font-semibold">
+              <SheetTitle className="text-heading-md font-semibold">
                 Open issues
               </SheetTitle>
               <SheetDescription className="sr-only">
@@ -722,10 +722,10 @@ export function VibePage() {
                         <span className="inline-flex h-10 w-10 items-center justify-center rounded-lg bg-sky-500/10">
                           <GitBranch className="w-5 h-5 text-sky-300" />
                         </span>
-                        <h2 className="text-sm font-semibold text-zinc-200">
+                        <h2 className="text-heading-md font-semibold text-zinc-200">
                           Add a branch preview
                         </h2>
-                        <p className="text-xs text-zinc-500 max-w-md">
+                        <p className="max-w-md text-body-xs text-zinc-500">
                           Pick a tracked Fly branch preview for this repo. It
                           will be saved with the repo preview environments.
                         </p>
@@ -738,7 +738,7 @@ export function VibePage() {
                       />
                       {!hasExplicitEnvironments && (
                         <>
-                          <div className="flex items-center gap-2 text-[11px] text-zinc-600">
+                          <div className="flex items-center gap-2 text-body-xs text-zinc-600">
                             <span className="h-px flex-1 bg-zinc-800" />
                             or
                             <span className="h-px flex-1 bg-zinc-800" />
@@ -763,8 +763,8 @@ export function VibePage() {
                     className="max-w-md text-left"
                     feature="This blocks Fly previews — the dashboard can't read the repo's Fly token."
                   />
-                  <p className="text-sm text-zinc-300">No preview yet</p>
-                  <p className="text-xs text-zinc-500 max-w-md">
+                  <p className="text-body-sm text-zinc-300">No preview yet</p>
+                  <p className="max-w-md text-body-xs text-zinc-500">
                     Once a PR is opened for this issue, its preview will appear
                     here.
                   </p>
@@ -845,10 +845,10 @@ export function VibePage() {
             }}
             className="flex items-center gap-3 h-12 w-full px-3 rounded-lg hover:bg-white/[0.04] transition-colors"
           >
-            <span className="inline-flex h-7 w-7 items-center justify-center rounded-md bg-emerald-500/10">
+            <span className="inline-flex h-9 w-9 items-center justify-center rounded-md bg-emerald-500/10">
               <ListChecks className="w-4 h-4 text-emerald-300" />
             </span>
-            <span className="text-sm font-medium">Open issues</span>
+            <span className="text-body-sm font-medium">Open issues</span>
           </button>
         }
       />

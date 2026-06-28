@@ -175,9 +175,9 @@ export function ChatRailShell({ children }: { children: ReactNode }) {
   // Drag-to-resize width (px) for the chat side-panel on the Vibe route
   // (chat sits beside the live preview there). Clamped so the user can't
   // drag it off-screen or thinner than the composer needs.
-  const RAIL_MIN = 320;
-  const RAIL_MAX = 900;
-  const [railWidth, setRailWidth] = useState(400);
+  const RAIL_MIN = 360;
+  const RAIL_MAX = 960;
+  const [railWidth, setRailWidth] = useState(440);
   useEffect(() => {
     const saved = Number(localStorage.getItem("kody:rail-width"));
     if (saved >= RAIL_MIN && saved <= RAIL_MAX) setRailWidth(saved);
@@ -378,7 +378,7 @@ export function ChatRailShell({ children }: { children: ReactNode }) {
     />
   ) : (
     <div className="flex-1 flex items-center justify-center p-6">
-      <p className="text-xs text-muted-foreground text-center leading-relaxed">
+      <p className="text-body-sm text-muted-foreground text-center leading-relaxed">
         Connect a repository to start chatting with Kody.
       </p>
     </div>
@@ -423,11 +423,11 @@ export function ChatRailShell({ children }: { children: ReactNode }) {
                   aria-label="Resize chat"
                   onPointerDown={startResize}
                   onDoubleClick={() => {
-                    setRailWidth(400);
-                    localStorage.setItem("kody:rail-width", "400");
+                    setRailWidth(440);
+                    localStorage.setItem("kody:rail-width", "440");
                   }}
                   className={cn(
-                    "hidden md:block shrink-0 w-1 cursor-col-resize select-none -ml-px",
+                    "hidden md:block shrink-0 w-1.5 cursor-col-resize select-none -ml-px",
                     "hover:bg-emerald-500/40 active:bg-emerald-500/60",
                     dragging ? "bg-emerald-500/60" : "bg-transparent",
                   )}
@@ -459,31 +459,34 @@ export function ChatRailShell({ children }: { children: ReactNode }) {
           still reachable while chatting. The rail is desktop-only; on mobile
           chat is opened from the header's chat button. Not shown on /chat
           (chat is the full view) or /messages (its own chat surface). */}
-      {mobileOpen && auth && !isChatRoute && !pathname?.startsWith("/messages") && (
-            <div className="md:hidden fixed inset-x-0 bottom-0 top-14 z-30 flex flex-col bg-background border-t border-border">
-              {auth ? (
-                <KodyChat
-                  context={scope}
-                  actorLogin={githubUser?.login}
-                  onClose={() => setMobileOpenPersist(false)}
-                  lockedAgentId={lockedAgentId}
-                  vibeMode={isVibeRoute}
-                  onIssueCreated={dispatchIssueCreated}
-                  knownGoals={goals}
-                  onDirectToGoal={directToGoal}
-                  composerInjection={composerInjection}
-                  attachmentInjection={attachmentInjection}
-                  previewContext={previewContext}
-                />
-              ) : (
-                <div className="flex-1 flex items-center justify-center p-6">
-                  <p className="text-sm text-muted-foreground text-center leading-relaxed">
-                    Connect a repository to start chatting with Kody.
-                  </p>
-                </div>
-              )}
-            </div>
-          )}
+          {mobileOpen &&
+            auth &&
+            !isChatRoute &&
+            !pathname?.startsWith("/messages") && (
+              <div className="fixed inset-x-0 bottom-0 top-16 z-30 flex flex-col border-t border-border bg-background md:hidden">
+                {auth ? (
+                  <KodyChat
+                    context={scope}
+                    actorLogin={githubUser?.login}
+                    onClose={() => setMobileOpenPersist(false)}
+                    lockedAgentId={lockedAgentId}
+                    vibeMode={isVibeRoute}
+                    onIssueCreated={dispatchIssueCreated}
+                    knownGoals={goals}
+                    onDirectToGoal={directToGoal}
+                    composerInjection={composerInjection}
+                    attachmentInjection={attachmentInjection}
+                    previewContext={previewContext}
+                  />
+                ) : (
+                  <div className="flex-1 flex items-center justify-center p-6">
+                    <p className="text-sm text-muted-foreground text-center leading-relaxed">
+                      Connect a repository to start chatting with Kody.
+                    </p>
+                  </div>
+                )}
+              </div>
+            )}
         </SettingsDrawerProvider>
       </NotificationsProvider>
     </ChatRailContext.Provider>

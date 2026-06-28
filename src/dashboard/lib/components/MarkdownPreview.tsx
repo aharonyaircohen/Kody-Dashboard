@@ -33,6 +33,7 @@ interface MarkdownPreviewProps {
   content: string;
   className?: string;
   dir?: React.HTMLAttributes<HTMLDivElement>["dir"];
+  style?: React.CSSProperties;
   variant?: "document" | "compact";
 }
 
@@ -130,16 +131,12 @@ function CopyButton({ value }: { value: string }) {
       type="button"
       onClick={handleCopy}
       className={cn(
-        "inline-flex h-7 w-7 items-center justify-center rounded border border-white/10",
+        "inline-flex h-8 w-8 items-center justify-center rounded border border-white/10",
         "text-white/50 hover:bg-white/10 hover:text-white/90",
       )}
       title="Copy code"
     >
-      {copied ? (
-        <Check className="h-3.5 w-3.5" />
-      ) : (
-        <Copy className="h-3.5 w-3.5" />
-      )}
+      {copied ? <Check className="h-4 w-4" /> : <Copy className="h-4 w-4" />}
     </button>
   );
 }
@@ -181,7 +178,7 @@ function HighlightedCodeBlock({
   return (
     <div className="my-4 overflow-hidden rounded-md border border-white/10 bg-[#0d1117]">
       <div className="flex h-9 items-center gap-2 border-b border-white/10 px-3">
-        <span className="text-xs uppercase tracking-normal text-white/45">
+        <span className="text-label uppercase tracking-normal text-white/45">
           {language ?? "text"}
         </span>
         <div className="ml-auto">
@@ -190,11 +187,11 @@ function HighlightedCodeBlock({
       </div>
       {highlightedHtml ? (
         <div
-          className="[&_code]:text-[13px] [&_code]:leading-6 [&_pre]:m-0 [&_pre]:overflow-x-auto [&_pre]:bg-transparent! [&_pre]:p-4"
+          className="[&_code]:text-code-sm [&_code]:leading-6 [&_pre]:m-0 [&_pre]:overflow-x-auto [&_pre]:bg-transparent! [&_pre]:p-4"
           dangerouslySetInnerHTML={{ __html: highlightedHtml }}
         />
       ) : (
-        <pre className="m-0 overflow-x-auto bg-transparent p-4 text-[13px] leading-6 text-white/80">
+        <pre className="m-0 overflow-x-auto bg-transparent p-4 text-code-sm leading-6 text-white/80">
           <code>{code}</code>
         </pre>
       )}
@@ -256,12 +253,12 @@ function MermaidBlock({ chart }: { chart: string }) {
 
   if (error) {
     return (
-      <div className="my-4 rounded-md border border-red-400/30 bg-red-500/10 p-3 text-sm text-red-100">
+      <div className="my-4 rounded-md border border-red-400/30 bg-red-500/10 p-3 text-body-sm text-red-100">
         <div className="mb-2 flex items-center gap-2 font-medium">
           <AlertTriangle className="h-4 w-4" />
           Mermaid diagram could not render
         </div>
-        <pre className="m-0 overflow-x-auto bg-transparent text-xs text-red-100/80">
+        <pre className="m-0 overflow-x-auto bg-transparent text-code-sm text-red-100/80">
           {error}
         </pre>
       </div>
@@ -276,7 +273,7 @@ function MermaidBlock({ chart }: { chart: string }) {
           dangerouslySetInnerHTML={{ __html: svg }}
         />
       ) : (
-        <div className="text-sm text-white/45">Rendering diagram...</div>
+        <div className="text-body-sm text-white/45">Rendering diagram...</div>
       )}
     </div>
   );
@@ -324,11 +321,11 @@ function RichBlockquote({ children }: { children?: React.ReactNode }) {
 
   return (
     <div className={cn("my-4 rounded-md border p-3", callout.className)}>
-      <div className="mb-2 flex items-center gap-2 text-sm font-semibold">
+      <div className="mb-2 flex items-center gap-2 text-body-sm font-semibold">
         <Icon className="h-4 w-4" />
         {callout.label}
       </div>
-      <div className="text-sm leading-6 [&>*:first-child]:mt-0 [&>*:last-child]:mb-0">
+      <div className="text-body-sm leading-6 [&>*:first-child]:mt-0 [&>*:last-child]:mb-0">
         {stripCalloutMarkerFromChildren(children)}
       </div>
     </div>
@@ -386,16 +383,20 @@ export function MarkdownPreview({
   content,
   className,
   dir,
+  style,
   variant = "document",
 }: MarkdownPreviewProps) {
   return (
     <div
       dir={dir}
+      style={style}
       className={cn(
-        "prose prose-sm max-w-none dark:prose-invert",
+        "prose prose-base max-w-none dark:prose-invert",
         variant === "compact" &&
-          "text-sm prose-p:my-2 prose-ul:my-2 prose-ol:my-2 prose-li:my-0 prose-blockquote:my-2",
+          "text-body-sm prose-p:my-2 prose-ul:my-2 prose-ol:my-2 prose-li:my-0 prose-blockquote:my-2",
+        "prose-h1:text-heading-xl prose-h2:text-heading-lg prose-h3:text-heading-md prose-h4:text-heading-sm",
         "prose-headings:text-foreground",
+        "prose-p:leading-relaxed",
         "prose-p:text-muted-foreground",
         "prose-a:text-blue-600 prose-a:no-underline hover:prose-a:underline dark:prose-a:text-blue-400",
         "prose-code:before:content-none prose-code:after:content-none",

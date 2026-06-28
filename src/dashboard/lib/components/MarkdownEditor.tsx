@@ -181,7 +181,7 @@ export function MarkdownEditor({
     <div
       {...autoDirProps}
       className={cn(
-        "min-h-[120px] max-h-[50vh] min-w-0 w-full overflow-auto p-3 border border-border rounded-md bg-background text-start",
+        "min-h-[160px] max-h-[55vh] min-w-0 w-full overflow-auto p-4 border border-border rounded-md bg-background text-start",
         rtlAwareMarkdownClassName,
       )}
     >
@@ -206,28 +206,28 @@ export function MarkdownEditor({
       disabled={disabled}
       dir="auto"
       className={cn(
-        "font-mono text-sm resize-y max-h-[50vh] text-start",
+        "font-mono text-code-md resize-y max-h-[55vh] text-start leading-relaxed",
         textareaClassName,
       )}
     />
   );
 
   return (
-    <div className={cn("space-y-2", className)}>
-      <div className="flex items-center flex-wrap gap-0.5 border border-border rounded-md p-1 bg-muted/30">
+    <div className={cn("space-y-3", className)}>
+      <div className="flex items-center flex-wrap gap-1 border border-border rounded-md p-1.5 bg-muted/30">
         <ToolbarButton
           title="Undo"
           onClick={() => runTextareaCommand("undo")}
           disabled={disabled}
         >
-          <Undo2 className="w-3.5 h-3.5" />
+          <Undo2 className="w-4 h-4" />
         </ToolbarButton>
         <ToolbarButton
           title="Redo"
           onClick={() => runTextareaCommand("redo")}
           disabled={disabled}
         >
-          <Redo2 className="w-3.5 h-3.5" />
+          <Redo2 className="w-4 h-4" />
         </ToolbarButton>
 
         <ToolbarDivider />
@@ -237,28 +237,28 @@ export function MarkdownEditor({
           onClick={() => insertInline("**", "**", "bold")}
           disabled={disabled}
         >
-          <Bold className="w-3.5 h-3.5" />
+          <Bold className="w-4 h-4" />
         </ToolbarButton>
         <ToolbarButton
           title="Italic"
           onClick={() => insertInline("*", "*", "italic")}
           disabled={disabled}
         >
-          <Italic className="w-3.5 h-3.5" />
+          <Italic className="w-4 h-4" />
         </ToolbarButton>
         <ToolbarButton
           title="Inline code"
           onClick={() => insertInline("`", "`", "code")}
           disabled={disabled}
         >
-          <Code className="w-3.5 h-3.5" />
+          <Code className="w-4 h-4" />
         </ToolbarButton>
         <ToolbarButton
           title="Link"
           onClick={() => insertInline("[", "](url)", "link")}
           disabled={disabled}
         >
-          <Link2 className="w-3.5 h-3.5" />
+          <Link2 className="w-4 h-4" />
         </ToolbarButton>
 
         <ToolbarDivider />
@@ -268,28 +268,28 @@ export function MarkdownEditor({
           onClick={() => insertAtLineStart("## ")}
           disabled={disabled}
         >
-          <Heading className="w-3.5 h-3.5" />
+          <Heading className="w-4 h-4" />
         </ToolbarButton>
         <ToolbarButton
           title="Quote"
           onClick={() => insertAtLineStart("> ")}
           disabled={disabled}
         >
-          <Quote className="w-3.5 h-3.5" />
+          <Quote className="w-4 h-4" />
         </ToolbarButton>
         <ToolbarButton
           title="List"
           onClick={() => insertAtLineStart("- ")}
           disabled={disabled}
         >
-          <List className="w-3.5 h-3.5" />
+          <List className="w-4 h-4" />
         </ToolbarButton>
         <ToolbarButton
           title="Checklist"
           onClick={() => insertAtLineStart("- [ ] ")}
           disabled={disabled}
         >
-          <ListChecks className="w-3.5 h-3.5" />
+          <ListChecks className="w-4 h-4" />
         </ToolbarButton>
 
         <ToolbarDivider />
@@ -299,7 +299,7 @@ export function MarkdownEditor({
           onClick={() => insertBlock("```ts\n\n```", "```ts\n".length)}
           disabled={disabled}
         >
-          <Braces className="w-3.5 h-3.5" />
+          <Braces className="w-4 h-4" />
         </ToolbarButton>
         <ToolbarButton
           title="Mermaid diagram"
@@ -311,14 +311,14 @@ export function MarkdownEditor({
           }
           disabled={disabled}
         >
-          <Workflow className="w-3.5 h-3.5" />
+          <Workflow className="w-4 h-4" />
         </ToolbarButton>
         <ToolbarButton
           title="Callout"
           onClick={() => insertBlock("> [!NOTE]\n> ", "> [!NOTE]\n> ".length)}
           disabled={disabled}
         >
-          <AlertTriangle className="w-3.5 h-3.5" />
+          <AlertTriangle className="w-4 h-4" />
         </ToolbarButton>
         <ToolbarButton
           title="Table"
@@ -330,7 +330,7 @@ export function MarkdownEditor({
           }
           disabled={disabled}
         >
-          <Table2 className="w-3.5 h-3.5" />
+          <Table2 className="w-4 h-4" />
         </ToolbarButton>
 
         <div className="relative">
@@ -339,7 +339,7 @@ export function MarkdownEditor({
             variant="ghost"
             size="sm"
             onClick={() => setShowEmojiPicker((prev) => !prev)}
-            className="h-7 w-7 p-0 text-sm"
+            className="h-9 w-9 p-0 text-body-sm"
             title="Emoji"
             disabled={disabled}
           >
@@ -365,7 +365,7 @@ export function MarkdownEditor({
         <ToolbarDivider />
 
         <ModeButton mode={mode} target="write" onClick={setMode} title="Write">
-          <Edit3 className="w-3.5 h-3.5" />
+          <Edit3 className="w-4 h-4" />
         </ModeButton>
         <ModeButton
           mode={mode}
@@ -373,12 +373,12 @@ export function MarkdownEditor({
           onClick={setMode}
           title="Preview"
         >
-          <Eye className="w-3.5 h-3.5" />
+          <Eye className="w-4 h-4" />
         </ModeButton>
         <ModeButton mode={mode} target="split" onClick={setMode} title="Split">
-          <Columns2 className="w-3.5 h-3.5" />
+          <Columns2 className="w-4 h-4" />
         </ModeButton>
-        <span className="ml-auto px-2 text-[11px] tabular-nums text-muted-foreground">
+        <span className="ml-auto px-2 text-body-xs tabular-nums text-muted-foreground">
           {value.length}
         </span>
       </div>
@@ -396,7 +396,7 @@ export function MarkdownEditor({
 }
 
 function ToolbarDivider() {
-  return <div className="w-px h-4 bg-border mx-1" />;
+  return <div className="w-px h-5 bg-border mx-1" />;
 }
 
 function ToolbarButton({
@@ -416,7 +416,7 @@ function ToolbarButton({
       variant="ghost"
       size="sm"
       onClick={onClick}
-      className="h-7 w-7 p-0"
+      className="h-9 w-9 p-0"
       title={title}
       disabled={disabled}
     >
@@ -444,7 +444,7 @@ function ModeButton({
       variant={mode === target ? "secondary" : "ghost"}
       size="sm"
       onClick={() => onClick(target)}
-      className="h-7 w-7 p-0"
+      className="h-9 w-9 p-0"
       title={title}
     >
       {children}

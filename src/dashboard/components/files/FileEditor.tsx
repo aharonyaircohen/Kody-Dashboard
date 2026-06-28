@@ -153,12 +153,12 @@ export function FileEditor({
   return (
     <div className="flex flex-col h-full">
       {/* Metadata bar */}
-      <div className="flex items-center gap-4 px-4 py-2 border-b border-white/10 shrink-0">
+      <div className="flex items-center gap-4 px-4 py-3 border-b border-white/10 shrink-0">
         <div className="flex items-center gap-2 min-w-0">
-          <span className="text-sm font-medium truncate">{fileName}</span>
-          <span className="text-xs text-white/40 truncate">{path}</span>
+          <span className="text-body-sm font-medium truncate">{fileName}</span>
+          <span className="text-body-xs text-white/40 truncate">{path}</span>
           {isDirty && (
-            <span className="text-xs px-1.5 py-0.5 rounded bg-amber-500/20 text-amber-400">
+            <span className="text-body-xs px-2 py-1 rounded bg-amber-500/20 text-amber-400">
               Unsaved
             </span>
           )}
@@ -169,7 +169,7 @@ export function FileEditor({
             <div className="flex items-center gap-1 mr-2 border border-white/10 rounded">
               <button
                 className={cn(
-                  "p-1 rounded-l text-xs",
+                  "p-2 rounded-l text-body-xs",
                   viewMode === "edit"
                     ? "bg-white/10 text-white"
                     : "text-white/50 hover:text-white/70",
@@ -177,11 +177,11 @@ export function FileEditor({
                 onClick={() => setViewMode("edit")}
                 title="Edit mode"
               >
-                <Edit3 className="w-3.5 h-3.5" />
+                <Edit3 className="w-4 h-4" />
               </button>
               <button
                 className={cn(
-                  "p-1 text-xs",
+                  "p-2 text-body-xs",
                   viewMode === "preview"
                     ? "bg-white/10 text-white"
                     : "text-white/50 hover:text-white/70",
@@ -189,11 +189,11 @@ export function FileEditor({
                 onClick={() => setViewMode("preview")}
                 title="Preview mode"
               >
-                <Eye className="w-3.5 h-3.5" />
+                <Eye className="w-4 h-4" />
               </button>
               <button
                 className={cn(
-                  "p-1 rounded-r text-xs",
+                  "p-2 rounded-r text-body-xs",
                   viewMode === "split"
                     ? "bg-white/10 text-white"
                     : "text-white/50 hover:text-white/70",
@@ -201,7 +201,7 @@ export function FileEditor({
                 onClick={() => setViewMode("split")}
                 title="Split mode"
               >
-                <Columns className="w-3.5 h-3.5" />
+                <Columns className="w-4 h-4" />
               </button>
             </div>
           )}
@@ -209,11 +209,11 @@ export function FileEditor({
           <button
             onClick={handleCancel}
             className={cn(
-              "flex items-center gap-1.5 text-xs px-2 py-1 rounded",
+              "flex items-center gap-1.5 text-body-xs px-3 py-2 rounded",
               "text-white/60 hover:text-white/90 hover:bg-white/10",
             )}
           >
-            <X className="w-3.5 h-3.5" />
+            <X className="w-4 h-4" />
             Cancel
           </button>
 
@@ -221,15 +221,15 @@ export function FileEditor({
             onClick={() => setShowCommitDialog(true)}
             disabled={!isDirty || saving}
             className={cn(
-              "flex items-center gap-1.5 text-xs px-2 py-1 rounded",
+              "flex items-center gap-1.5 text-body-xs px-3 py-2 rounded",
               "bg-emerald-600/80 hover:bg-emerald-600 text-white",
               (!isDirty || saving) && "opacity-50 cursor-not-allowed",
             )}
           >
             {saving ? (
-              <Loader2 className="w-3.5 h-3.5 animate-spin" />
+              <Loader2 className="w-4 h-4 animate-spin" />
             ) : (
-              <Save className="w-3.5 h-3.5" />
+              <Save className="w-4 h-4" />
             )}
             Save
           </button>
@@ -262,7 +262,7 @@ export function FileEditor({
                 minimap: { enabled: true },
                 lineNumbers: "on",
                 scrollBeyondLastLine: false,
-                fontSize: 13,
+                fontSize: 15,
                 wordWrap: "on",
                 automaticLayout: true,
               }}

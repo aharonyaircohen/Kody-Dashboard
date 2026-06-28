@@ -43,16 +43,16 @@ export class ErrorBoundary extends Component<
   render() {
     if (this.state.hasError) {
       return (
-        <div className="flex flex-col items-center justify-center h-full gap-4 px-6 text-center">
-          <div className="w-14 h-14 rounded-2xl bg-red-500/10 ring-1 ring-red-500/20 flex items-center justify-center">
-            <AlertTriangle className="w-6 h-6 text-red-400" />
+        <div className="flex flex-col items-center justify-center h-full gap-5 px-6 py-12 text-center">
+          <div className="w-16 h-16 rounded-2xl bg-red-500/10 ring-1 ring-red-500/20 flex items-center justify-center">
+            <AlertTriangle className="w-7 h-7 text-red-400" />
           </div>
-          <div className="space-y-1">
-            <p className="text-sm font-medium text-foreground">
+          <div className="space-y-1.5">
+            <p className="text-body-sm font-medium text-foreground">
               Something went wrong
             </p>
             {this.state.error && (
-              <p className="text-xs text-muted-foreground max-w-sm break-words">
+              <p className="text-body-xs text-muted-foreground max-w-sm break-words">
                 {this.state.error.message}
               </p>
             )}

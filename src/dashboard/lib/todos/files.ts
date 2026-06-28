@@ -34,11 +34,15 @@ export interface TodoItemFile {
   completedAt: string | null;
 }
 
-export interface TodoFile {
-  slug: string;
+export interface TodoFileContent {
   title: string;
+  description: string;
   items: TodoItemFile[];
   createdAt: string;
+}
+
+export interface TodoFile extends TodoFileContent {
+  slug: string;
   sha: string;
   updatedAt: string;
   htmlUrl: string;
@@ -106,6 +110,10 @@ function stripQuotes(value: string): string {
 
 function serializeString(value: string): string {
   return `"${value.replace(/\\/g, "\\\\").replace(/"/g, '\\"')}"`;
+}
+
+function normalizeMarkdown(value: string): string {
+  return value.slice(0, BODY_MAX_LENGTH).trim();
 }
 
 function parseFrontmatter(
@@ -220,18 +228,51 @@ function parseLegacyTodo(
   ];
 }
 
-function joinTodoFile(meta: TodoFrontmatter, items: TodoItemFile[]): string {
-  return [
+function extractDescription(markdown: string): string {
+  return normalizeMarkdown(markdown.replace(ITEMS_BLOCK_RE, ""));
+}
+
+export function parseTodoFileContent(
+  raw: string,
+  slug: string,
+  updatedAt: string,
+): TodoFileContent {
+  const { frontmatter, markdown } = parseFrontmatter(raw, slug, updatedAt);
+  const hasItemsBlock = ITEMS_BLOCK_RE.test(markdown);
+  const items = hasItemsBlock
+    ? parseItems(markdown, frontmatter.createdAt)
+    : parseLegacyTodo(frontmatter, markdown, frontmatter.createdAt);
+
+  return {
+    title: frontmatter.title,
+    description: hasItemsBlock ? extractDescription(markdown) : "",
+    items,
+    createdAt: frontmatter.createdAt,
+  };
+}
+
+export function serializeTodoFileContent(content: TodoFileContent): string {
+  const description = normalizeMarkdown(content.description);
+  const lines = [
     "---",
-    `title: ${serializeString(meta.title)}`,
-    `createdAt: ${serializeString(meta.createdAt)}`,
+    `title: ${serializeString(content.title.trim().slice(0, TITLE_MAX_LENGTH))}`,
+    `createdAt: ${serializeString(content.createdAt)}`,
     "---",
     "",
+  ];
+
+  if (description) {
+    lines.push(description, "");
+  }
+
+  lines.push(
     "<!-- kody-todo-items-json",
-    JSON.stringify(items, null, 2),
+    JSON.stringify(normalizeItems(content.items, content.createdAt), null, 2),
     "-->",
     "",
-  ].join("\n");
+  );
+
+  return lines.join("\n");
 }
 
 export async function listTodoFiles(): Promise<TodoFile[]> {
@@ -270,19 +311,14 @@ export async function readTodoFile(
     if (!file) return null;
 
     const updatedAt = await fetchLastCommitDate(octokit, filePath);
-    const raw = file.content;
-    const { frontmatter, markdown } = parseFrontmatter(raw, slug, updatedAt);
-    const parsedItems = parseItems(markdown, frontmatter.createdAt);
-    const items =
-      parsedItems.length > 0
-        ? parsedItems
-        : parseLegacyTodo(frontmatter, markdown, frontmatter.createdAt);
+    const parsed = parseTodoFileContent(file.content, slug, updatedAt);
 
     return {
       slug,
-      title: frontmatter.title,
-      items,
-      createdAt: frontmatter.createdAt,
+      title: parsed.title,
+      description: parsed.description,
+      items: parsed.items,
+      createdAt: parsed.createdAt,
       sha: file.sha,
       updatedAt,
       htmlUrl: file.htmlUrl ?? "",
@@ -312,6 +348,7 @@ interface WriteTodoOptions {
   octokit: Octokit;
   slug: string;
   title: string;
+  description: string;
   items: TodoItemFile[];
   createdAt: string;
   sha?: string;
@@ -324,13 +361,12 @@ export async function writeTodoFile(opts: WriteTodoOptions): Promise<TodoFile> {
   }
 
   const filePath = `${TODOS_DIR}/${opts.slug}.md`;
-  const content = joinTodoFile(
-    {
-      title: opts.title.trim().slice(0, TITLE_MAX_LENGTH),
-      createdAt: opts.createdAt,
-    },
-    normalizeItems(opts.items, opts.createdAt),
-  );
+  const content = serializeTodoFileContent({
+    title: opts.title,
+    description: opts.description,
+    items: opts.items,
+    createdAt: opts.createdAt,
+  });
   const normalizedContent = content.endsWith("\n") ? content : `${content}\n`;
   const message =
     opts.message ??

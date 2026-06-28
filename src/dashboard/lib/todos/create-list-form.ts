@@ -8,6 +8,18 @@ export interface CreateTodoItemPayload {
   body: string;
 }
 
+export interface CreateTodoListDraft {
+  title: string;
+  description: string;
+  items: CreateTodoDraftItem[];
+}
+
+export interface CreateTodoListPayload {
+  title: string;
+  description: string;
+  items: CreateTodoItemPayload[];
+}
+
 function hasText(value: string): boolean {
   return value.trim().length > 0;
 }
@@ -27,4 +39,14 @@ export function buildCreateTodoItemsPayload(
       title: item.title.trim(),
       body: item.body,
     }));
+}
+
+export function buildCreateTodoListPayload(
+  draft: CreateTodoListDraft,
+): CreateTodoListPayload {
+  return {
+    title: draft.title.trim(),
+    description: draft.description,
+    items: buildCreateTodoItemsPayload(draft.items),
+  };
 }

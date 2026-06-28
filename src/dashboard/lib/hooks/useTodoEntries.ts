@@ -79,6 +79,7 @@ export function useCreateTodo(actorLogin?: string) {
     Error,
     {
       title: string;
+      description?: string;
       items?: Array<{
         id?: string;
         title: string;
@@ -113,6 +114,7 @@ export function useUpdateTodo(slug: string, actorLogin?: string) {
     Error,
     {
       title?: string;
+      description?: string;
       items?: TodoEntry["items"];
     }
   >({

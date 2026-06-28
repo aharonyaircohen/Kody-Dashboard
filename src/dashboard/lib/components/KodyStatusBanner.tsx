@@ -87,8 +87,8 @@ function RefreshIndicator({
   if (!dataUpdatedAt) return null;
   const ago = formatElapsed(new Date(dataUpdatedAt));
   return (
-    <span className="inline-flex items-center gap-1 text-[11px] text-muted-foreground/60 ml-auto shrink-0">
-      {isFetching ? <Loader2 className="w-3 h-3 animate-spin" /> : null}
+    <span className="inline-flex items-center gap-1.5 text-body-xs text-muted-foreground/60 ml-auto shrink-0">
+      {isFetching ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : null}
       <span className="hidden sm:inline">{ago} ago</span>
     </span>
   );
@@ -223,7 +223,7 @@ export function KodyStatusBanner({
     const failingCount = mainCi.failingRuns.length;
     const firstFailing = mainCi.failingRuns[0];
     primary = (
-      <span className="text-sm">
+      <span className="text-body-sm">
         <span className="text-red-400 font-medium">
           CI failing on {mainCi.branch}
         </span>{" "}
@@ -244,7 +244,7 @@ export function KodyStatusBanner({
     );
   } else if (ciState === "pending" && mainCi) {
     primary = (
-      <span className="text-sm">
+      <span className="text-body-sm">
         <span className="text-blue-400 font-medium">
           CI running on {mainCi.branch}
         </span>{" "}
@@ -264,18 +264,18 @@ export function KodyStatusBanner({
     );
   } else if (ciState === "success" && mainCi) {
     primary = (
-      <span className="text-sm text-muted-foreground">
+      <span className="text-body-sm text-muted-foreground">
         CI <span className="text-emerald-400 font-medium">green</span> on{" "}
         {mainCi.branch}
       </span>
     );
   } else if (ciState === "loading") {
     primary = (
-      <span className="text-sm text-muted-foreground">Checking CI…</span>
+      <span className="text-body-sm text-muted-foreground">Checking CI…</span>
     );
   } else {
     primary = (
-      <span className="text-sm text-muted-foreground">
+      <span className="text-body-sm text-muted-foreground">
         CI status <span className="text-foreground font-medium">unknown</span>
         {mainCi ? ` on ${mainCi.branch}` : ""}
       </span>
@@ -284,14 +284,14 @@ export function KodyStatusBanner({
 
   return (
     <div className={tone.container}>
-      <span className="relative flex h-2.5 w-2.5">
+      <span className="relative flex h-3 w-3">
         {tone.ping ? (
           <span
             className={`animate-ping absolute inline-flex h-full w-full rounded-full opacity-75 ${tone.ping}`}
           />
         ) : null}
         <span
-          className={`relative inline-flex rounded-full h-2.5 w-2.5 ${tone.dot}`}
+          className={`relative inline-flex rounded-full h-3 w-3 ${tone.dot}`}
         />
       </span>
       {primary}

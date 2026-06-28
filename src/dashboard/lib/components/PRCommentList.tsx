@@ -72,7 +72,7 @@ export function PRCommentList({
   if (error) {
     return (
       <div className="text-center py-8">
-        <p className="text-sm text-red-400">{error}</p>
+        <p className="text-body-sm text-red-400">{error}</p>
       </div>
     );
   }
@@ -81,7 +81,7 @@ export function PRCommentList({
     return (
       <div className="flex flex-col items-center justify-center py-8 gap-2 text-zinc-500">
         <MessageSquare className="w-6 h-6" />
-        <p className="text-sm">No PR comments yet</p>
+        <p className="text-body-sm">No PR comments yet</p>
       </div>
     );
   }
@@ -92,26 +92,26 @@ export function PRCommentList({
         {comments.map((comment) => (
           <div
             key={comment.id}
-            className="rounded-lg border border-zinc-800 bg-zinc-900/50 p-3"
+            className="rounded-lg border border-zinc-800 bg-zinc-900/50 p-4"
           >
             <div className="flex items-center gap-2 mb-2">
-              <Avatar className="h-5 w-5">
+              <Avatar className="h-6 w-6">
                 <AvatarImage
                   src={comment.user.avatar_url}
                   alt={comment.user.login}
                 />
-                <AvatarFallback className="text-[9px]">
+                <AvatarFallback className="text-[10px]">
                   {comment.user.login[0]?.toUpperCase()}
                 </AvatarFallback>
               </Avatar>
-              <span className="text-xs font-medium text-zinc-300">
+              <span className="text-body-xs font-medium text-zinc-300">
                 {comment.user.login}
               </span>
-              <span className="text-xs text-zinc-600">
+              <span className="text-body-xs text-zinc-600">
                 {formatRelativeTime(comment.created_at)}
               </span>
             </div>
-            <div {...autoDirProps} className="text-sm text-start">
+            <div {...autoDirProps} className="text-body-sm text-start">
               <MarkdownViewer content={comment.body} title="" />
             </div>
           </div>

@@ -5,9 +5,33 @@
  * @ai-summary Helpers for rendering user-authored LTR/RTL text with natural direction.
  */
 
+export type TextDirection = "auto" | "ltr" | "rtl";
+
+const isolatedTextStyle = { unicodeBidi: "plaintext" } as const;
+const rtlStrongCharacterPattern = /[\u0590-\u08FF\uFB1D-\uFDFD\uFE70-\uFEFC]/;
+const ltrStrongCharacterPattern = /[A-Za-z\u00C0-\u024F\u0370-\u052F]/;
+
+export function resolveTextDirection(text: string): TextDirection {
+  for (const character of text.trim()) {
+    if (rtlStrongCharacterPattern.test(character)) return "rtl";
+    if (ltrStrongCharacterPattern.test(character)) return "ltr";
+  }
+  return "auto";
+}
+
+export function textDirectionProps(text: string): {
+  dir: TextDirection;
+  style: typeof isolatedTextStyle;
+} {
+  return {
+    dir: resolveTextDirection(text),
+    style: isolatedTextStyle,
+  };
+}
+
 export const autoDirProps = {
   dir: "auto",
-  style: { unicodeBidi: "plaintext" },
+  style: isolatedTextStyle,
 } as const;
 
 export const rtlAwareMarkdownClassName =

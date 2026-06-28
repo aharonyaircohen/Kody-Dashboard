@@ -79,20 +79,20 @@ export function KodyHeader({
   } = useNotifications();
 
   return (
-    <div className="flex items-center justify-between px-4 md:px-6 py-3 md:py-4 border-b border-white/[0.06] bg-black/20">
-      <div className="flex items-center gap-3 min-w-0">
-        <div className="flex items-baseline gap-2 min-w-0">
+    <div className="flex min-h-16 items-center justify-between border-b border-white/[0.06] bg-black/20 px-5 py-4 md:px-7">
+      <div className="flex min-w-0 items-center gap-3.5">
+        <div className="flex min-w-0 items-baseline gap-2.5">
           <RepoSwitcher />
         </div>
       </div>
 
       {/* Desktop controls — data tools (search/filter) sit here, separated from
           the title/Vibe identity group, then a divider before app actions. */}
-      <div className="hidden md:flex items-center gap-3">
+      <div className="hidden items-center gap-3.5 md:flex">
         {filterBar ? (
           <>
             {filterBar}
-            <div className="h-5 w-px bg-white/[0.1] mx-1" aria-hidden="true" />
+            <div className="mx-1 h-6 w-px bg-white/[0.1]" aria-hidden="true" />
           </>
         ) : null}
 
@@ -116,7 +116,7 @@ export function KodyHeader({
               className="gap-1"
             >
               <RefreshCw
-                className={cn("w-4 h-4", isFetching && "animate-spin")}
+                className={cn("h-5 w-5", isFetching && "animate-spin")}
               />
             </Button>
           </SimpleTooltip>
@@ -127,16 +127,16 @@ export function KodyHeader({
 
       {/* Mobile cluster — chat opener (the rail is desktop-only) +
           page-specific extras (e.g. issue picker) + hamburger. */}
-      <div className="flex md:hidden items-center gap-1">
-          {auth && pathname !== "/chat" && (
-            <Button
-              variant="ghost"
+      <div className="flex items-center gap-1.5 md:hidden">
+        {auth && pathname !== "/chat" && (
+          <Button
+            variant="ghost"
             size="sm"
             aria-label="Open chat"
             title="Chat"
             onClick={openMobileChat}
           >
-            <MessageSquare className="w-5 h-5" />
+            <MessageSquare className="h-5 w-5" />
           </Button>
         )}
         {mobileExtras}
@@ -146,7 +146,7 @@ export function KodyHeader({
           aria-label="Open menu"
           onClick={onOpenMobileMenu}
         >
-          <Menu className="w-5 h-5" />
+          <Menu className="h-5 w-5" />
         </Button>
       </div>
     </div>

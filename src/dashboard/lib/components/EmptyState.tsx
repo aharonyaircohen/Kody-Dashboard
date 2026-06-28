@@ -24,11 +24,11 @@ export function EmptyState({
 }) {
   return (
     <div className="flex flex-col items-center justify-center text-center px-6 py-16 text-muted-foreground">
-      <div className="w-8 h-8 mb-3 opacity-60 [&>svg]:w-8 [&>svg]:h-8">
+      <div className="w-10 h-10 mb-3 opacity-60 [&>svg]:w-10 [&>svg]:h-10">
         {icon}
       </div>
-      <div className="text-sm font-medium text-white/70">{title}</div>
-      {hint ? <p className="text-xs mt-1 max-w-xs">{hint}</p> : null}
+      <div className="text-body-sm font-medium text-white/70">{title}</div>
+      {hint ? <p className="text-body-xs mt-1.5 max-w-xs">{hint}</p> : null}
       {action ? <div className="mt-4">{action}</div> : null}
     </div>
   );
