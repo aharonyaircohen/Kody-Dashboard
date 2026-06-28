@@ -26,6 +26,7 @@ import {
 } from "./adapters";
 import { defaultCmsAdapterSettings } from "./adapter-catalog";
 import { getCmsActorRole } from "./roles";
+import { getCmsDocumentValidationIssues } from "./validation";
 import type {
   CmsCollectionConfig,
   CmsDocument,
@@ -173,6 +174,7 @@ export async function createCmsDocument(
     actorRole,
     config.permissions,
   );
+  assertCmsDocumentMatchesSchema(collection, data);
 
   const { adapter, context } = getAdapterContext(
     req,
@@ -211,6 +213,7 @@ export async function updateCmsDocument(
     actorRole,
     config.permissions,
   );
+  assertCmsDocumentMatchesSchema(collection, data, { partial: true });
 
   const { adapter, context } = getAdapterContext(
     req,
@@ -343,6 +346,19 @@ async function callCmsAdapter<T>(operation: () => Promise<T>): Promise<T> {
     }
     throw error;
   }
+}
+
+function assertCmsDocumentMatchesSchema(
+  collection: CmsCollectionConfig,
+  data: CmsDocument,
+  options: { partial?: boolean } = {},
+): void {
+  const issues = getCmsDocumentValidationIssues(collection, data, options);
+  if (issues.length === 0) return;
+  throw new CmsConfigError(issues, {
+    code: "cms_document_invalid",
+    status: 400,
+  });
 }
 
 function parseFiltersParam(value: string | null): CmsListQuery["filters"] {

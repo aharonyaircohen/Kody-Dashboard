@@ -144,6 +144,27 @@ describe("CMS service GitHub adapter integration", () => {
     });
   });
 
+  it("rejects documents that do not match the CMS schema before adapter writes", async () => {
+    const req = request();
+
+    await expect(
+      createCmsDocument(
+        req,
+        octokit as never,
+        "A-Guy-educ",
+        "A-Guy-Web",
+        "articles",
+        { id: "intro", title: "Intro", status: "draft", summary: "Extra" },
+      ),
+    ).rejects.toMatchObject({
+      code: "cms_document_invalid",
+      status: 400,
+      issues: ["unknown field: summary."],
+    });
+
+    expect(octokit.writes).toEqual([]);
+  });
+
   it("updates and deletes GitHub-backed documents through Dashboard service", async () => {
     const req = request();
     await createCmsDocument(

@@ -370,17 +370,43 @@ async function upsertCollectionRef(
 ): Promise<string | null> {
   const rawCollections = root.collections;
   if (isRecord(rawCollections)) {
-    rawCollections[collection.name] = collection;
-    root.collections = sortCmsCollectionRecord(rawCollections);
+    const entries = Object.entries(rawCollections);
+    const existing = entries.find(([key, value]) =>
+      collectionRecordEntryMatches(key, value, collection.name),
+    );
+    const nextCollections = { ...rawCollections };
+    if (existing) {
+      delete nextCollections[existing[0]];
+      nextCollections[existing[0]] = collection;
+    } else {
+      nextCollections[collection.name] = collection;
+    }
+    root.collections = sortCmsCollectionRecord(nextCollections);
     return null;
   }
 
-  const inlineCollections = Array.isArray(rawCollections)
-    ? rawCollections.filter(
-        (entry) =>
-          isRecord(entry) && String(entry.name ?? "") !== collection.name,
-      )
-    : [];
+  const entries = Array.isArray(rawCollections) ? rawCollections : [];
+  const inlineCollections: unknown[] = [];
+  let replacedInline = false;
+  for (const entry of entries) {
+    if (!isRecord(entry)) continue;
+    const key = stringValue(entry.name) ?? collection.name;
+    if (collectionRecordEntryMatches(key, entry, collection.name)) {
+      if (!replacedInline) inlineCollections.push(collection);
+      replacedInline = true;
+      continue;
+    }
+    inlineCollections.push(entry);
+  }
+
+  if (replacedInline) {
+    root.collections = sortCmsCollectionEntries([
+      ...entries.filter((entry): entry is string => typeof entry === "string"),
+      ...inlineCollections,
+    ]);
+    return null;
+  }
+
   const collectionRefs = Array.isArray(rawCollections)
     ? rawCollections.filter(
         (entry): entry is string => typeof entry === "string",
@@ -388,10 +414,15 @@ async function upsertCollectionRef(
     : [];
   for (const ref of collectionRefs) {
     const path = `cms/${ref}`;
+    if (collectionNameMatches(cmsCollectionNameFromKey(ref), collection.name)) {
+      return path;
+    }
     const file = await readStateText(octokit, owner, repo, path);
     if (!file) continue;
     const existing = parseJsonRecord(file.content, path);
-    if (existing.name === collection.name) return path;
+    if (collectionRecordEntryMatches(ref, existing, collection.name)) {
+      return path;
+    }
   }
 
   const ref = `collections/${collection.name}.json`;

@@ -81,6 +81,14 @@ import {
   type SaveCmsPermissionsPayload,
 } from "./cms/client";
 import {
+  buildCmsFormPayload,
+  buildCmsFormValues,
+  splitCmsListValue,
+  toCmsStringArray,
+  type CmsFormValue,
+  type CmsFormValues,
+} from "./cms/form-values";
+import {
   buildCmsPageNumbers,
   parseCmsListState,
   serializeCmsListState,
@@ -98,7 +106,6 @@ import {
 } from "./cms/paths";
 import { selectionPath } from "../selection-routing";
 import { generateCmsMcpTools } from "@dashboard/lib/cms/mcp";
-import { assertCmsFieldValue } from "@dashboard/lib/cms/validation";
 import type {
   CmsCollectionConfig,
   CmsAdapterSettings,
@@ -1881,44 +1888,55 @@ function CmsPermissionsDialog({
           delete: rolesForWritePreset(globalPresets.delete),
         },
       },
-      collections: config.collections.map((collection) => {
+      collections: config.collections.flatMap((collection) => {
         const enabled = overrides[collection.name] === true;
+        const operations = {
+          create:
+            operationFlags[permissionPresetKey(collection.name, "create")] ??
+            collection.operations.create,
+          update:
+            operationFlags[permissionPresetKey(collection.name, "update")] ??
+            collection.operations.update,
+          delete:
+            operationFlags[permissionPresetKey(collection.name, "delete")] ??
+            collection.operations.delete,
+        };
+        const permissions = enabled
+          ? {
+              ...collection.permissions,
+              content: {
+                ...collection.permissions?.content,
+                create: rolesForWritePreset(
+                  collectionPresets[
+                    permissionPresetKey(collection.name, "create")
+                  ] ?? globalPresets.create,
+                ),
+                update: rolesForWritePreset(
+                  collectionPresets[
+                    permissionPresetKey(collection.name, "update")
+                  ] ?? globalPresets.update,
+                ),
+                delete: rolesForWritePreset(
+                  collectionPresets[
+                    permissionPresetKey(collection.name, "delete")
+                  ] ?? globalPresets.delete,
+                ),
+              },
+            }
+          : clearWritePermissionOverrides(collection.permissions);
+        if (
+          sameJson(operations, pickWriteOperations(collection.operations)) &&
+          sameJson(
+            compactCmsPermissions(permissions),
+            compactCmsPermissions(collection.permissions),
+          )
+        ) {
+          return [];
+        }
         return {
           name: collection.name,
-          operations: {
-            create:
-              operationFlags[permissionPresetKey(collection.name, "create")] ??
-              collection.operations.create,
-            update:
-              operationFlags[permissionPresetKey(collection.name, "update")] ??
-              collection.operations.update,
-            delete:
-              operationFlags[permissionPresetKey(collection.name, "delete")] ??
-              collection.operations.delete,
-          },
-          permissions: enabled
-            ? {
-                ...collection.permissions,
-                content: {
-                  ...collection.permissions?.content,
-                  create: rolesForWritePreset(
-                    collectionPresets[
-                      permissionPresetKey(collection.name, "create")
-                    ] ?? globalPresets.create,
-                  ),
-                  update: rolesForWritePreset(
-                    collectionPresets[
-                      permissionPresetKey(collection.name, "update")
-                    ] ?? globalPresets.update,
-                  ),
-                  delete: rolesForWritePreset(
-                    collectionPresets[
-                      permissionPresetKey(collection.name, "delete")
-                    ] ?? globalPresets.delete,
-                  ),
-                },
-              }
-            : clearWritePermissionOverrides(collection.permissions),
+          operations,
+          permissions,
         };
       }),
     });
@@ -2321,6 +2339,40 @@ function clearWritePermissionOverrides(
     delete next.content;
   }
   return next;
+}
+
+function pickWriteOperations(
+  operations: CmsCollectionConfig["operations"],
+): Record<CmsPermissionOperation, boolean> {
+  return {
+    create: operations.create,
+    update: operations.update,
+    delete: operations.delete,
+  };
+}
+
+function compactCmsPermissions(
+  permissions: CmsPermissionsConfig | undefined,
+): CmsPermissionsConfig | undefined {
+  if (!permissions) return undefined;
+  const content = compactPermissionRoleMap(permissions.content);
+  const schema = compactPermissionRoleMap(permissions.schema);
+  const next: CmsPermissionsConfig = {};
+  if (content) next.content = content;
+  if (schema) next.schema = schema;
+  return Object.keys(next).length > 0 ? next : undefined;
+}
+
+function compactPermissionRoleMap<T extends string>(
+  roleMap: Partial<Record<T, CmsRole[]>> | undefined,
+): Partial<Record<T, CmsRole[]>> | undefined {
+  if (!roleMap) return undefined;
+  const entries = Object.entries(roleMap).filter(([, roles]) =>
+    Array.isArray(roles),
+  );
+  return entries.length > 0
+    ? (Object.fromEntries(entries) as Partial<Record<T, CmsRole[]>>)
+    : undefined;
 }
 
 function permissionPresetKey(
@@ -2875,7 +2927,7 @@ function FilterValueControl({
           ...field,
           type: operator === "in" ? "relationMany" : "relation",
         }}
-        value={operator === "in" ? toStringArray(value) : valueString}
+        value={operator === "in" ? toCmsStringArray(value) : valueString}
         onChange={onChange}
         compact
       />
@@ -3409,9 +3461,6 @@ function ContentDetailPage({
   );
 }
 
-type CmsFormValue = string | boolean | string[];
-type CmsFormValues = Record<string, CmsFormValue>;
-
 function ContentFormPage({
   collection,
   document,
@@ -3428,12 +3477,12 @@ function ContentFormPage({
   const fields = useMemo(() => formViewFields(collection), [collection]);
   const isEdit = Boolean(document);
   const [values, setValues] = useState<CmsFormValues>(() =>
-    buildFormValues(fields, document),
+    buildCmsFormValues(fields, document),
   );
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    setValues(buildFormValues(fields, document));
+    setValues(buildCmsFormValues(fields, document));
     setError(null);
   }, [document, fields]);
 
@@ -3444,7 +3493,12 @@ function ContentFormPage({
         event.preventDefault();
         try {
           setError(null);
-          onSubmit(buildFormPayload(fields, values));
+          onSubmit(
+            buildCmsFormPayload(fields, values, {
+              clearBlankValues: isEdit,
+              originalDocument: document,
+            }),
+          );
         } catch (err) {
           setError(err instanceof Error ? err.message : "Invalid form value.");
         }
@@ -3688,8 +3742,8 @@ function RelationPicker({
   );
   const multiple = field.type === "relationMany";
   const selectedIds = multiple
-    ? toStringArray(value)
-    : toStringArray(value).slice(0, 1);
+    ? toCmsStringArray(value)
+    : toCmsStringArray(value).slice(0, 1);
   const relationSearch = useMemo(
     () => buildRelationSearchQuery(targetCollection, field, query),
     [field, query, targetCollection],
@@ -3766,7 +3820,9 @@ function RelationPicker({
         value={multiple ? selectedIds.join(", ") : (selectedIds[0] ?? "")}
         onChange={(event) =>
           onChange(
-            multiple ? splitListValue(event.target.value) : event.target.value,
+            multiple
+              ? splitCmsListValue(event.target.value)
+              : event.target.value,
           )
         }
         className={cn(
@@ -4105,148 +4161,6 @@ function FieldPanel({
       </div>
     </div>
   );
-}
-
-function buildFormValues(
-  fields: ResolvedViewField[],
-  document?: CmsDocument,
-): CmsFormValues {
-  const values: CmsFormValues = {};
-
-  for (const { field } of fields) {
-    const value = document?.[field.name];
-
-    if (field.type === "boolean") {
-      values[field.name] = Boolean(value);
-      continue;
-    }
-
-    if (field.type === "multiSelect" && Array.isArray(value)) {
-      values[field.name] = value.map((item) => String(item));
-      continue;
-    }
-
-    if (field.type === "relationMany") {
-      values[field.name] = Array.isArray(value)
-        ? value
-            .map((item) => relationId(item, field))
-            .filter((item): item is string => Boolean(item))
-        : [];
-      continue;
-    }
-
-    if (field.type === "relation") {
-      values[field.name] = relationId(value, field) ?? "";
-      continue;
-    }
-
-    if (field.type === "date") {
-      values[field.name] = toDateTimeLocalValue(value);
-      continue;
-    }
-
-    if (["json", "object", "array"].includes(field.type)) {
-      values[field.name] =
-        value === undefined ? "" : JSON.stringify(value, null, 2);
-      continue;
-    }
-
-    if (Array.isArray(value)) {
-      values[field.name] = value
-        .map((item) => formatShortValue(item))
-        .join(", ");
-      continue;
-    }
-
-    values[field.name] = value == null ? "" : String(value);
-  }
-
-  return values;
-}
-
-function buildFormPayload(
-  fields: ResolvedViewField[],
-  values: CmsFormValues,
-): CmsDocument {
-  const payload: CmsDocument = {};
-
-  for (const { field } of fields) {
-    const value = values[field.name];
-
-    if (isBlankFormValue(value)) {
-      if (field.required)
-        throw new Error(`${field.label ?? field.name} is required.`);
-      continue;
-    }
-
-    const parsed = parseFormValue(field, value);
-    assertCmsFieldValue(field, parsed);
-    payload[field.name] = parsed;
-  }
-
-  return payload;
-}
-
-function parseFormValue(field: CmsFieldConfig, value: CmsFormValue): unknown {
-  if (field.type === "boolean") return Boolean(value);
-  if (field.type === "number") {
-    const parsed = Number(value);
-    if (!Number.isFinite(parsed)) {
-      throw new Error(`${field.label ?? field.name} must be a number.`);
-    }
-    return parsed;
-  }
-  if (field.type === "date") {
-    const date = new Date(String(value));
-    if (Number.isNaN(date.getTime())) {
-      throw new Error(`${field.label ?? field.name} must be a date.`);
-    }
-    return date.toISOString();
-  }
-  if (["json", "object", "array"].includes(field.type)) {
-    try {
-      return JSON.parse(String(value));
-    } catch {
-      throw new Error(`${field.label ?? field.name} must be valid JSON.`);
-    }
-  }
-  if (field.type === "multiSelect") {
-    return Array.isArray(value) ? value : splitListValue(value);
-  }
-  if (field.type === "relationMany") {
-    return splitListValue(value);
-  }
-  return String(value);
-}
-
-function splitListValue(value: CmsFormValue): string[] {
-  return Array.isArray(value)
-    ? value
-    : String(value)
-        .split(",")
-        .map((item) => item.trim())
-        .filter(Boolean);
-}
-
-function toStringArray(value: unknown): string[] {
-  if (Array.isArray(value)) {
-    return value.map((item) => String(item)).filter(Boolean);
-  }
-  if (typeof value === "string") return splitListValue(value);
-  if (value === null || value === undefined || value === false) return [];
-  return [String(value)];
-}
-
-function isBlankFormValue(value: CmsFormValue | undefined): boolean {
-  if (Array.isArray(value)) return value.length === 0;
-  return value === undefined || value === "";
-}
-
-function toDateTimeLocalValue(value: unknown): string {
-  if (!value) return "";
-  const date = new Date(String(value));
-  if (Number.isNaN(date.getTime())) return "";
-  return date.toISOString().slice(0, 16);
 }
 
 function ValueInline({
@@ -4643,7 +4557,9 @@ function buildFilters(
       ? filterValue.operator
       : operators[0];
     const value =
-      operator === "in" ? toStringArray(filterValue.value) : filterValue.value;
+      operator === "in"
+        ? toCmsStringArray(filterValue.value)
+        : filterValue.value;
 
     result[filter.field] = { [operator]: value };
   }

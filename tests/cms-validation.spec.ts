@@ -1,10 +1,14 @@
 import { describe, expect, it } from "vitest";
 
 import {
+  getCmsDocumentValidationIssues,
   getCmsFieldValidationIssue,
   isBlankCmsValue,
 } from "@dashboard/lib/cms/validation";
-import type { CmsFieldConfig } from "@dashboard/lib/cms/types";
+import type {
+  CmsCollectionConfig,
+  CmsFieldConfig,
+} from "@dashboard/lib/cms/types";
 
 describe("CMS field validation", () => {
   it("treats optional blank values as valid and required blank values as invalid", () => {
@@ -93,4 +97,71 @@ describe("CMS field validation", () => {
       getCmsFieldValidationIssue(field, "2026-01-02T03:04:05Z"),
     ).toBeNull();
   });
+
+  it("validates a CMS document against the collection schema", () => {
+    const collection = testCollection();
+
+    expect(
+      getCmsDocumentValidationIssues(collection, {
+        id: "intro",
+        title: "Intro",
+        status: "archived",
+        published: "yes",
+        summary: "extra",
+      }),
+    ).toEqual([
+      "Status must be one of: draft, published.",
+      "Published must be a boolean.",
+      "unknown field: summary.",
+    ]);
+  });
+
+  it("allows partial update payloads but still rejects unknown fields", () => {
+    const collection = testCollection();
+
+    expect(
+      getCmsDocumentValidationIssues(collection, {}, { partial: true }),
+    ).toEqual([]);
+    expect(
+      getCmsDocumentValidationIssues(
+        collection,
+        { summary: "extra" },
+        { partial: true },
+      ),
+    ).toEqual(["unknown field: summary."]);
+  });
 });
+
+function testCollection(): CmsCollectionConfig {
+  return {
+    name: "lessons",
+    label: "Lessons",
+    adapter: "github",
+    titleField: "title",
+    searchFields: ["title"],
+    writePolicy: "enabled",
+    permissions: {},
+    source: { path: "content/lessons", idField: "id", extension: "json" },
+    operations: {
+      list: true,
+      get: true,
+      search: true,
+      create: true,
+      update: true,
+      delete: true,
+    },
+    defaultSort: [],
+    fields: [
+      { name: "id", type: "id", readOnly: true },
+      { name: "title", type: "text", label: "Title", required: true },
+      {
+        name: "status",
+        type: "select",
+        label: "Status",
+        options: ["draft", "published"],
+      },
+      { name: "published", type: "boolean", label: "Published" },
+    ],
+    filters: [],
+  };
+}

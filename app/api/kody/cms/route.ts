@@ -250,17 +250,18 @@ export async function PATCH(req: NextRequest) {
           sanitizePermissionsPayload(rawPayload),
         );
 
-    await writeStateFiles({
-      octokit,
-      owner: headerAuth.owner,
-      repo: headerAuth.repo,
-      files,
-      message: adapter
-        ? "chore(cms): update CMS adapter"
-        : "chore(cms): update CMS permissions",
-    });
-
-    invalidateCmsConfigCache(headerAuth.owner, headerAuth.repo);
+    if (files.length > 0) {
+      await writeStateFiles({
+        octokit,
+        owner: headerAuth.owner,
+        repo: headerAuth.repo,
+        files,
+        message: adapter
+          ? "chore(cms): update CMS adapter"
+          : "chore(cms): update CMS permissions",
+      });
+      invalidateCmsConfigCache(headerAuth.owner, headerAuth.repo);
+    }
     const cms = await listCmsCollections(
       octokit,
       headerAuth.owner,
@@ -532,14 +533,19 @@ async function buildCmsPermissionFiles(
   }
 
   const root = parseJsonRecord(configFile.content, "cms/config.json");
-  if (patch.permissions) root.permissions = patch.permissions;
+  const rootBefore = JSON.stringify(root);
+  if (patch.permissions !== undefined) {
+    applyPermissionsPatch(root, patch.permissions);
+  }
 
   const collectionPatchByName = buildCollectionPatchMap(patch.collections);
-  const files = [
-    { path: "cms/config.json", content: `${JSON.stringify(root, null, 2)}\n` },
-  ];
+  const files: Array<{ path: string; content: string }> = [];
+  let rootChanged = JSON.stringify(root) !== rootBefore;
 
-  if (collectionPatchByName.size === 0) return files;
+  if (collectionPatchByName.size === 0) {
+    if (rootChanged) files.push(buildStateFile("cms/config.json", root));
+    return files;
+  }
 
   const rawCollections = root.collections;
   if (Array.isArray(rawCollections)) {
@@ -556,11 +562,9 @@ async function buildCmsPermissionFiles(
           name,
         );
         if (!collectionPatch) continue;
-        applyCollectionPatch(collection, collectionPatch);
-        files.push({
-          path,
-          content: `${JSON.stringify(collection, null, 2)}\n`,
-        });
+        if (applyCollectionPatch(collection, collectionPatch)) {
+          files.push(buildStateFile(path, collection));
+        }
         continue;
       }
 
@@ -571,13 +575,15 @@ async function buildCmsPermissionFiles(
           collectionPatchByName,
           name,
         );
-        if (collectionPatch) applyCollectionPatch(collection, collectionPatch);
+        if (
+          collectionPatch &&
+          applyCollectionPatch(collection, collectionPatch)
+        ) {
+          rootChanged = true;
+        }
       }
     }
-    files[0] = {
-      path: "cms/config.json",
-      content: `${JSON.stringify(root, null, 2)}\n`,
-    };
+    if (rootChanged) files.unshift(buildStateFile("cms/config.json", root));
     return files;
   }
 
@@ -597,15 +603,19 @@ async function buildCmsPermissionFiles(
         typeof value === "object" &&
         !Array.isArray(value)
       ) {
-        applyCollectionPatch(value as Record<string, unknown>, collectionPatch);
+        if (
+          applyCollectionPatch(
+            value as Record<string, unknown>,
+            collectionPatch,
+          )
+        ) {
+          rootChanged = true;
+        }
       }
     }
-    files[0] = {
-      path: "cms/config.json",
-      content: `${JSON.stringify(root, null, 2)}\n`,
-    };
   }
 
+  if (rootChanged) files.unshift(buildStateFile("cms/config.json", root));
   return files;
 }
 
@@ -778,9 +788,10 @@ function shouldSwitchCollectionAdapter(
 function applyCollectionPatch(
   collection: Record<string, unknown>,
   patch: CmsPermissionsPatch["collections"][number],
-) {
-  collection.permissions = patch.permissions;
-  if (!patch.operations) return;
+): boolean {
+  const before = JSON.stringify(collection);
+  applyPermissionsPatch(collection, patch.permissions);
+  if (!patch.operations) return JSON.stringify(collection) !== before;
 
   const existingOperations =
     collection.operations &&
@@ -788,10 +799,60 @@ function applyCollectionPatch(
     !Array.isArray(collection.operations)
       ? (collection.operations as Record<string, unknown>)
       : {};
-  collection.operations = {
-    ...existingOperations,
-    ...patch.operations,
-  };
+  let nextOperations: Record<string, unknown> | null = null;
+  for (const operation of CMS_WRITE_OPERATIONS) {
+    if (!(operation in patch.operations)) continue;
+    const current =
+      typeof existingOperations[operation] === "boolean"
+        ? existingOperations[operation]
+        : false;
+    if (current !== patch.operations[operation]) {
+      nextOperations ??= { ...existingOperations };
+      nextOperations[operation] = patch.operations[operation];
+    }
+  }
+  if (nextOperations) collection.operations = nextOperations;
+  return JSON.stringify(collection) !== before;
+}
+
+function applyPermissionsPatch(
+  target: Record<string, unknown>,
+  permissions: CmsPermissionsConfig,
+) {
+  const compact = compactPermissions(permissions);
+  if (compact) {
+    target.permissions = compact;
+  } else {
+    delete target.permissions;
+  }
+}
+
+function compactPermissions(
+  permissions: CmsPermissionsConfig | undefined,
+): CmsPermissionsConfig | undefined {
+  if (!permissions) return undefined;
+  const content = compactRoleMap(permissions.content);
+  const schema = compactRoleMap(permissions.schema);
+  const result: CmsPermissionsConfig = {};
+  if (content) result.content = content;
+  if (schema) result.schema = schema;
+  return Object.keys(result).length > 0 ? result : undefined;
+}
+
+function compactRoleMap<T extends string>(
+  roleMap: Partial<Record<T, CmsRole[]>> | undefined,
+): Partial<Record<T, CmsRole[]>> | undefined {
+  if (!roleMap) return undefined;
+  const entries = Object.entries(roleMap).filter(([, roles]) =>
+    Array.isArray(roles),
+  );
+  return entries.length > 0
+    ? (Object.fromEntries(entries) as Partial<Record<T, CmsRole[]>>)
+    : undefined;
+}
+
+function buildStateFile(path: string, value: Record<string, unknown>) {
+  return { path, content: `${JSON.stringify(value, null, 2)}\n` };
 }
 
 function parseJsonRecord(

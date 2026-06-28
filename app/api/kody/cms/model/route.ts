@@ -12,6 +12,7 @@ import {
 import {
   assertSchemaOperationAllowed,
   CmsConfigError,
+  getCollection,
   invalidateCmsConfigCache,
   loadCmsConfigFromState,
   toPublicCmsConfig,
@@ -23,10 +24,7 @@ import {
   sanitizeCmsModelCollectionPayload,
 } from "@dashboard/lib/cms/model/server";
 import { getCmsActorRole } from "@dashboard/lib/cms/roles";
-import {
-  CmsRuntimeError,
-  listCmsCollections,
-} from "@dashboard/lib/cms/service";
+import { CmsRuntimeError } from "@dashboard/lib/cms/service";
 import { deleteStateFile, writeStateFiles } from "@dashboard/lib/state-repo";
 import { logger } from "@dashboard/lib/logger";
 
@@ -102,14 +100,23 @@ export async function PATCH(req: NextRequest) {
     });
     invalidateCmsConfigCache(headerAuth.owner, headerAuth.repo);
 
-    const cms = await listCmsCollections(
+    const savedConfig = await loadCmsConfigFromState(
       octokit,
       headerAuth.owner,
       headerAuth.repo,
-      actorRole,
+      { cache: false },
     );
+    if (!savedConfig) {
+      throw new CmsConfigError(["CMS is not configured"], {
+        code: "cms_not_configured",
+        status: 404,
+      });
+    }
+    const savedCollection = getCollection(savedConfig, collection.name);
+    assertCmsModelSavePersisted(collection, savedCollection);
+    const cms = toPublicCmsConfig(savedConfig, actorRole);
     return NextResponse.json(
-      { cms, collection },
+      { cms, collection: savedCollection },
       { headers: NO_STORE_HEADERS },
     );
   } catch (error) {
@@ -229,6 +236,46 @@ function resourceNameFromPayload(payload: unknown): unknown {
     return undefined;
   }
   return (payload as { name?: unknown }).name;
+}
+
+function assertCmsModelSavePersisted(
+  expected: ReturnType<typeof sanitizeCmsModelCollectionPayload>,
+  actual: ReturnType<typeof sanitizeCmsModelCollectionPayload>,
+): void {
+  if (
+    JSON.stringify(cmsModelSaveSignature(actual)) ===
+    JSON.stringify(cmsModelSaveSignature(expected))
+  ) {
+    return;
+  }
+
+  throw new CmsRuntimeError(
+    "cms_model_not_saved",
+    "CMS model save did not persist. Please retry.",
+    500,
+  );
+}
+
+function cmsModelSaveSignature(
+  collection: ReturnType<typeof sanitizeCmsModelCollectionPayload>,
+) {
+  return {
+    name: collection.name,
+    label: collection.label,
+    sourceCollection: collection.source.collection ?? collection.name,
+    fields: collection.fields.map((field) => ({
+      name: field.name,
+      label: field.label ?? "",
+      type: field.type,
+      required: Boolean(field.required),
+      readOnly: Boolean(field.readOnly),
+      hidden: Boolean(field.hidden),
+      target: field.target ?? "",
+      valueField: field.valueField ?? "",
+      labelField: field.labelField ?? "",
+      options: field.options ?? [],
+    })),
+  };
 }
 
 function handleModelError(error: unknown): NextResponse {
