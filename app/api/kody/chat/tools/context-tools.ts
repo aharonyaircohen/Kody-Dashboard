@@ -17,6 +17,7 @@ import {
   deleteContextFile,
   isValidSlug,
 } from "@dashboard/lib/context/files";
+import { dashboardContextUrl } from "@dashboard/lib/thread-link";
 
 interface Ctx {
   octokit: Octokit;
@@ -85,7 +86,7 @@ export function createContextTools(ctx: Ctx) {
             ok: true,
             action: existing ? "updated" : "created",
             slug: entry.slug,
-            htmlUrl: entry.htmlUrl,
+            htmlUrl: dashboardContextUrl(entry.slug),
           };
         } catch (err) {
           return { error: err instanceof Error ? err.message : String(err) };

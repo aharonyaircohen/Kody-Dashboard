@@ -22,6 +22,7 @@ import {
   writeAgentFile,
   isValidSlug,
 } from "@dashboard/lib/agent-files";
+import { dashboardAgentUrl } from "@dashboard/lib/thread-link";
 
 interface Ctx {
   octokit: Octokit;
@@ -132,7 +133,7 @@ export function createAgentTools(ctx: Ctx) {
         "commands and restrictions. Ask the user clarifying questions in small " +
         "batches until the agentIdentity is well-specified — never invent behavior. " +
         "Show the proposed markdown body for approval before calling.\n\n" +
-        "Returns the new file's slug, title, and html URL on success.",
+        "Returns the new agent's slug, title, and Kody URL on success.",
       inputSchema: createKodyAgentInputSchema,
       execute: async (input) => {
         const slug = (input.slug ?? slugifyTitle(input.title)).toLowerCase();
@@ -150,8 +151,8 @@ export function createAgentTools(ctx: Ctx) {
           if (existing) {
             return {
               error: "slug_taken",
-              message: `Agent member "${slug}" already exists at ${existing.htmlUrl}. Pick a different slug.`,
-              existingHtmlUrl: existing.htmlUrl,
+              message: `Agent member "${slug}" already exists at ${dashboardAgentUrl(existing.slug)}. Pick a different slug.`,
+              existingHtmlUrl: dashboardAgentUrl(existing.slug),
             };
           }
 
@@ -173,7 +174,7 @@ export function createAgentTools(ctx: Ctx) {
           return {
             slug: agentMember.slug,
             title: agentMember.title,
-            htmlUrl: agentMember.htmlUrl,
+            htmlUrl: dashboardAgentUrl(agentMember.slug),
             note:
               "AgentIdentity committed at `agents/<slug>.md` in the state repo. It can " +
               "now be referenced by other flows.",

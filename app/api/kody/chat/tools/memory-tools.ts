@@ -32,6 +32,7 @@ import {
   type MemoryType,
 } from "@dashboard/lib/memory-files";
 import { resolveStateRepo, stateRepoPath } from "@dashboard/lib/state-repo";
+import { dashboardMemoryUrl } from "@dashboard/lib/thread-link";
 
 interface Ctx {
   octokit: Octokit;
@@ -131,7 +132,7 @@ export function createMemoryTools(ctx: Ctx) {
               message:
                 `A memory with id "${id}" already exists (${existing.meta.name}). ` +
                 "Call `update_memory` to revise it, or pick a different id.",
-              existingHtmlUrl: existing.htmlUrl,
+              existingHtmlUrl: dashboardMemoryUrl(existing.id),
             };
           }
           const file = await writeMemoryFile({
@@ -155,7 +156,7 @@ export function createMemoryTools(ctx: Ctx) {
             id: file.id,
             name: file.meta.name,
             type: file.meta.type,
-            htmlUrl: file.htmlUrl,
+            htmlUrl: dashboardMemoryUrl(file.id),
           };
         } catch (err) {
           logger.warn({ err, owner, repo, id }, "remember failed");
@@ -203,7 +204,7 @@ export function createMemoryTools(ctx: Ctx) {
           created: file.meta.created,
           updatedAt: file.updatedAt,
           body: file.body,
-          htmlUrl: file.htmlUrl,
+          htmlUrl: dashboardMemoryUrl(file.id),
         };
       },
     }),
@@ -266,7 +267,7 @@ export function createMemoryTools(ctx: Ctx) {
             id: file.id,
             name: file.meta.name,
             type: file.meta.type,
-            htmlUrl: file.htmlUrl,
+            htmlUrl: dashboardMemoryUrl(file.id),
           };
         } catch (err) {
           logger.warn({ err, owner, repo, id }, "update_memory failed");
@@ -407,7 +408,7 @@ export function createMemoryTools(ctx: Ctx) {
                 {
                   id,
                   path: it.path,
-                  url: it.html_url,
+                  url: dashboardMemoryUrl(id ?? undefined),
                   snippet: "",
                   lineInFragment: null,
                 },
@@ -423,7 +424,7 @@ export function createMemoryTools(ctx: Ctx) {
               return {
                 id,
                 path: it.path,
-                url: it.html_url,
+                url: dashboardMemoryUrl(id ?? undefined),
                 snippet,
                 lineInFragment,
               };

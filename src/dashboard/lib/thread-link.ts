@@ -45,6 +45,40 @@ export function dashboardFileUrl(path: string | undefined): string {
   return `/files/${normalized.split("/").map(encodeURIComponent).join("/")}`;
 }
 
+function dashboardSlugUrl(basePath: string, slug: string | undefined): string {
+  const normalized = (slug ?? "").trim().replace(/^\/+|\/+$/g, "");
+  if (!normalized) return basePath;
+  return `${basePath}/${encodeURIComponent(normalized)}`;
+}
+
+export function dashboardMemoryUrl(id: string | undefined): string {
+  return dashboardSlugUrl("/memory", id);
+}
+
+export function dashboardContextUrl(slug: string | undefined): string {
+  return dashboardSlugUrl("/context", slug);
+}
+
+export function dashboardCapabilityUrl(slug: string | undefined): string {
+  return dashboardSlugUrl("/capabilities", slug);
+}
+
+export function dashboardTodoUrl(slug: string | undefined): string {
+  return dashboardSlugUrl("/todos", slug);
+}
+
+export function dashboardAgentUrl(slug: string | undefined): string {
+  return dashboardSlugUrl("/agents", slug);
+}
+
+export function dashboardCommandUrl(_slug?: string | undefined): string {
+  return "/commands";
+}
+
+export function dashboardInstructionsUrl(): string {
+  return "/instructions";
+}
+
 /**
  * Return the dashboard URL for an Issue/PR thread, or the original GitHub
  * URL for thread types with no in-app view (Discussion, Commit) or when

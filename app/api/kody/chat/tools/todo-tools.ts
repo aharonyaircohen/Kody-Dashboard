@@ -17,6 +17,7 @@ import {
   readTodoFile,
   writeTodoFile,
 } from "@dashboard/lib/todos/files";
+import { dashboardTodoUrl } from "@dashboard/lib/thread-link";
 
 interface Ctx {
   octokit: Octokit;
@@ -142,7 +143,7 @@ export function createTodoTools(ctx: Ctx) {
             slug: list.slug,
             title: list.title,
             itemCount: list.items.length,
-            htmlUrl: list.htmlUrl,
+            htmlUrl: dashboardTodoUrl(list.slug),
           };
         } catch (err) {
           return { error: err instanceof Error ? err.message : String(err) };

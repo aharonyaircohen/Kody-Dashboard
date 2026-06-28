@@ -20,6 +20,7 @@ import {
   validateProfile,
   PERMISSION_MODES,
 } from "@dashboard/lib/capabilities";
+import { dashboardCapabilityUrl } from "@dashboard/lib/thread-link";
 
 interface Ctx {
   octokit: Octokit;
@@ -166,7 +167,7 @@ export function createCapabilityTools(ctx: Ctx) {
                 .filter((n) => !input.shellScripts.some((s) => s.name === n))
             : [];
 
-          const capability = await writeCapabilityFile({
+          await writeCapabilityFile({
             octokit,
             fields,
             skills: input.skills,
@@ -179,7 +180,7 @@ export function createCapabilityTools(ctx: Ctx) {
             ok: true,
             action: existing ? "updated" : "created",
             slug: input.slug,
-            htmlUrl: capability.htmlUrl,
+            htmlUrl: dashboardCapabilityUrl(input.slug),
           };
         } catch (err) {
           return { error: err instanceof Error ? err.message : String(err) };

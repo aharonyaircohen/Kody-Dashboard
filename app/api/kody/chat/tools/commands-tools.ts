@@ -23,6 +23,7 @@ import {
   getEngineConfig,
   writeConfigPatch,
 } from "@dashboard/lib/engine/config";
+import { dashboardCommandUrl } from "@dashboard/lib/thread-link";
 
 interface Ctx {
   octokit: Octokit;
@@ -110,7 +111,7 @@ export function createCommandTools(ctx: Ctx) {
             ok: true,
             action: existing ? "updated" : "created",
             slug: command.slug,
-            htmlUrl: command.htmlUrl,
+            htmlUrl: dashboardCommandUrl(command.slug),
           };
         } catch (err) {
           return { error: err instanceof Error ? err.message : String(err) };

@@ -15,6 +15,7 @@ import {
   writeInstructionsFile,
   deleteInstructionsFile,
 } from "@dashboard/lib/instructions/files";
+import { dashboardInstructionsUrl } from "@dashboard/lib/thread-link";
 
 interface Ctx {
   octokit: Octokit;
@@ -35,7 +36,10 @@ export function createInstructionsTools(ctx: Ctx) {
       execute: async () => {
         try {
           const file = await readInstructionsFile(octokit);
-          return { body: file?.body ?? null, htmlUrl: file?.htmlUrl ?? null };
+          return {
+            body: file?.body ?? null,
+            htmlUrl: file ? dashboardInstructionsUrl() : null,
+          };
         } catch (err) {
           return { error: err instanceof Error ? err.message : String(err) };
         }
@@ -48,7 +52,7 @@ export function createInstructionsTools(ctx: Ctx) {
       execute: async ({ body }) => {
         try {
           const existing = await readInstructionsFile(octokit);
-          const file = await writeInstructionsFile({
+          await writeInstructionsFile({
             octokit,
             body,
             sha: existing?.sha,
@@ -57,7 +61,7 @@ export function createInstructionsTools(ctx: Ctx) {
           return {
             ok: true,
             action: existing ? "updated" : "created",
-            htmlUrl: file.htmlUrl,
+            htmlUrl: dashboardInstructionsUrl(),
           };
         } catch (err) {
           return { error: err instanceof Error ? err.message : String(err) };
