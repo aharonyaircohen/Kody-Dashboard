@@ -45,6 +45,15 @@ function countDivs(line: string): { opens: number; closes: number } {
   return { opens, closes };
 }
 
+function readOpeningTag(lines: string[], start: number): string {
+  let openingTag = "";
+  for (let i = start; i < Math.min(lines.length, start + 8); i++) {
+    openingTag += `${lines[i]}\n`;
+    if (lines[i].includes(">")) break;
+  }
+  return openingTag;
+}
+
 /**
  * Find the line range of the composer container — the outermost
  * `<div className={...}>…</div>` whose classes include the composer
@@ -83,9 +92,9 @@ function findComposerBlockRange(lines: string[]): {
 }
 
 /**
- * Find the line range of the *Nth* flex row (i.e. Nth
- * `<div className="flex `) inside the given range, using the same
- * depth tracking.
+ * Find the line range of the *Nth* flex row inside the given range, using the
+ * same depth tracking. The class can be a direct string or a conditional
+ * expression, but it must contain the standalone `flex` class, not `flex-1`.
  */
 function findFlexRowRange(
   lines: string[],
@@ -96,7 +105,11 @@ function findFlexRowRange(
   let count = 0;
   let rowStart = -1;
   for (let i = rangeStart; i <= rangeEnd; i++) {
-    if (lines[i].includes('<div className="flex ')) {
+    const openingTag = readOpeningTag(lines, i);
+    const hasFlexClass =
+      openingTag.includes("className") &&
+      /(?:className="flex\s|[?:]\s*"flex\s)/.test(openingTag);
+    if (lines[i].includes("<div") && hasFlexClass) {
       count += 1;
       if (count === occurrence) {
         rowStart = i;

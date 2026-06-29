@@ -19,12 +19,16 @@ const HELPER_SOURCE = readFileSync(
 );
 
 describe("Fly machines Brain fallback", () => {
-  it("adds the saved Brain app directly when the normal inventory misses it", () => {
+  it("adds the resolved Brain service when the normal inventory misses it", () => {
     expect(ROUTE_SOURCE).toContain("appendSavedBrainMachineToInventory");
-    expect(HELPER_SOURCE).toContain("readBrainApp(");
-    expect(HELPER_SOURCE).toContain("brainAppName(ctx.context.account)");
-    expect(HELPER_SOURCE).toContain("listMachines(app");
-    expect(HELPER_SOURCE).toContain("rowsForFlyApp(app, machines");
-    expect(HELPER_SOURCE).toContain('feature: "brain"');
+    expect(HELPER_SOURCE).toContain("resolveFlyContext(req)");
+    expect(HELPER_SOURCE).toContain("setGitHubContext(");
+    expect(HELPER_SOURCE).toContain("ctx.context.storeRepoUrl");
+    expect(HELPER_SOURCE).toContain("ctx.context.storeRef");
+    expect(HELPER_SOURCE).toContain("resolveBrainService({");
+    expect(HELPER_SOURCE).toContain(
+      "inventory.machines = inventory.machines.filter((m) => m.app !== app)",
+    );
+    expect(HELPER_SOURCE).toContain("inventory.machines.push(brain.machine)");
   });
 });
