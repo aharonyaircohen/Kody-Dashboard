@@ -6,7 +6,7 @@
  */
 "use client";
 
-import { useState, type ReactNode } from "react";
+import { Suspense, useState, type ReactNode } from "react";
 import Link from "next/link";
 import { usePathname, useSearchParams } from "next/navigation";
 import { Github, LogOut, Plus, Trash2 } from "lucide-react";
@@ -48,6 +48,26 @@ interface MobileMenuProps {
 }
 
 export function MobileMenu({
+  open,
+  onOpenChange,
+  workspacePrimary,
+  extras,
+  bottomCta,
+}: MobileMenuProps) {
+  return (
+    <Suspense fallback={null}>
+      <MobileMenuContent
+        open={open}
+        onOpenChange={onOpenChange}
+        workspacePrimary={workspacePrimary}
+        extras={extras}
+        bottomCta={bottomCta}
+      />
+    </Suspense>
+  );
+}
+
+function MobileMenuContent({
   open,
   onOpenChange,
   workspacePrimary,

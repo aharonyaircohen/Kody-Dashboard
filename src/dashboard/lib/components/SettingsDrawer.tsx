@@ -14,6 +14,7 @@ import Link from "next/link";
 import { usePathname, useSearchParams } from "next/navigation";
 import {
   createContext,
+  Suspense,
   useCallback,
   useContext,
   useMemo,
@@ -53,7 +54,9 @@ export function SettingsDrawerProvider({ children }: { children: ReactNode }) {
   return (
     <SettingsDrawerContext.Provider value={value}>
       {children}
-      <SettingsDrawer isOpen={isOpen} onOpenChange={setIsOpen} />
+      <Suspense fallback={null}>
+        <SettingsDrawer isOpen={isOpen} onOpenChange={setIsOpen} />
+      </Suspense>
     </SettingsDrawerContext.Provider>
   );
 }
