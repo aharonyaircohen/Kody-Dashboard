@@ -477,10 +477,6 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
     "GitHub webhook processed",
   );
 
-  if (result.requiredEffects?.length) {
-    await Promise.all(result.requiredEffects);
-  }
-
   // Fire-and-forget Slack notifications. Errors are swallowed inside; we
   // never want a failed Slack POST to cause GitHub to retry the delivery.
   if (typeof payload === "object" && payload !== null) {
