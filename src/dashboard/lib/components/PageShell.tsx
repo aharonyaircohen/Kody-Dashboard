@@ -53,7 +53,7 @@ export function PageHeader({
         className,
       )}
     >
-      <div className="flex min-w-0 items-center gap-3.5">
+      <div className="flex min-w-0 items-center gap-2.5 md:gap-3.5">
         {backHref && (
           <Button asChild variant="ghost" size="sm">
             <Link href={backHref} aria-label="Back">
@@ -66,16 +66,18 @@ export function PageHeader({
             className={cn("h-6 w-6 shrink-0", iconClassName ?? "text-white/70")}
           />
         )}
-        {titleContent ?? (
-          <h1 className="truncate text-heading-md font-semibold md:text-heading-lg">
-            {title}
-          </h1>
-        )}
-        {subtitle && (
-          <span className="truncate text-body-xs text-white/45">
-            {subtitle}
-          </span>
-        )}
+        <div className="min-w-0 flex flex-col sm:flex-row sm:items-baseline sm:gap-3">
+          {titleContent ?? (
+            <h1 className="truncate text-heading-md font-semibold md:text-heading-lg">
+              {title}
+            </h1>
+          )}
+          {subtitle && (
+            <span className="truncate text-body-xs text-white/45">
+              {subtitle}
+            </span>
+          )}
+        </div>
       </div>
       {actions && (
         <div className="flex shrink-0 items-center gap-2.5">{actions}</div>

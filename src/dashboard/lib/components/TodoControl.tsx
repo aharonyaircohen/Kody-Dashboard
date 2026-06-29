@@ -1057,6 +1057,135 @@ function TodoItemCard({
     transition: sortableTransition,
   } = useSortable({ id: item.id, disabled });
 
+  const controlButtons = (
+    <>
+      <button
+        type="button"
+        disabled={disabled}
+        aria-label={`Reorder ${item.title}`}
+        title="Drag to reorder"
+        className="mt-0.5 flex h-6 w-6 shrink-0 touch-none cursor-grab items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-muted/60 hover:text-foreground active:cursor-grabbing disabled:cursor-not-allowed disabled:opacity-40"
+        {...attributes}
+        {...listeners}
+      >
+        <GripVertical className="w-4 h-4" />
+      </button>
+      <button
+        type="button"
+        onClick={onToggle}
+        disabled={disabled}
+        aria-label={item.completed ? "Reopen item" : "Complete item"}
+        title={item.completed ? "Reopen item" : "Complete item"}
+        className={cn(
+          "mt-0.5 flex h-6 w-6 shrink-0 items-center justify-center rounded-full transition-colors",
+          item.completed
+            ? "text-emerald-600 hover:text-emerald-700 dark:text-emerald-300 dark:hover:text-emerald-200"
+            : "text-muted-foreground hover:text-emerald-600 dark:hover:text-emerald-300",
+        )}
+      >
+        {item.completed ? (
+          <CheckCircle2 className="w-5 h-5" />
+        ) : (
+          <Circle className="w-5 h-5" />
+        )}
+      </button>
+      <button
+        type="button"
+        onClick={onToggleExpanded}
+        aria-expanded={isExpanded}
+        aria-label={isExpanded ? "Collapse item" : "Expand item"}
+        title={isExpanded ? "Collapse item" : "Expand item"}
+        className="mt-0.5 flex h-6 w-6 shrink-0 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-muted/60 hover:text-foreground"
+      >
+        {isExpanded ? (
+          <ChevronDown className="w-4 h-4" />
+        ) : (
+          <ChevronRight className="w-4 h-4" />
+        )}
+      </button>
+    </>
+  );
+
+  const renderItemActions = () => (
+    <>
+      <TodoAssigneeMenu
+        assignee={assignee}
+        collaborators={collaborators}
+        isLoading={isLoadingCollaborators}
+        disabled={disabled}
+        onAssign={onAssign}
+      />
+      <Button
+        variant="outline"
+        size="sm"
+        onClick={onAskKody}
+        className="h-8 gap-1.5 border-emerald-500/40 bg-emerald-500/10 px-2.5 text-emerald-700 hover:bg-emerald-500/15 dark:text-emerald-200"
+      >
+        <Sparkles className="w-3.5 h-3.5" />
+        <span>Ask Kody</span>
+      </Button>
+      <DropdownMenu>
+        <DropdownMenuTrigger asChild>
+          <Button
+            variant="ghost"
+            size="sm"
+            className="w-8 h-8 px-0 text-muted-foreground"
+            title="Item actions"
+            aria-label={`Actions for ${item.title}`}
+          >
+            <MoreHorizontal className="w-3.5 h-3.5" />
+          </Button>
+        </DropdownMenuTrigger>
+        <DropdownMenuContent align="end" className="w-44">
+          <DropdownMenuItem onClick={onEdit} className="cursor-pointer gap-2">
+            <Pencil className="w-3.5 h-3.5" />
+            Edit item
+          </DropdownMenuItem>
+          <DropdownMenuItem
+            onClick={onDelete}
+            disabled={disabled}
+            className="cursor-pointer gap-2 text-red-600 dark:text-red-400"
+          >
+            <Trash2 className="w-3.5 h-3.5" />
+            Delete item
+          </DropdownMenuItem>
+        </DropdownMenuContent>
+      </DropdownMenu>
+    </>
+  );
+
+  const titleBlock = (
+    <div className="min-w-0 flex-1">
+      <h2
+        {...itemTitleDirectionProps}
+        className={cn(
+          "text-sm font-semibold break-words text-start leading-6",
+          item.completed && "text-muted-foreground line-through",
+        )}
+      >
+        {item.title}
+      </h2>
+      <p className="mt-1 text-[11px] text-muted-foreground">
+        {item.completedAt
+          ? `completed ${new Date(item.completedAt).toLocaleDateString()}`
+          : `created ${new Date(item.createdAt).toLocaleDateString()}`}
+      </p>
+    </div>
+  );
+
+  const expandedBody =
+    isExpanded && item.body.trim() ? (
+      <MarkdownPreview
+        {...autoDirProps}
+        content={item.body}
+        variant="compact"
+        className={cn(
+          "border-t border-border/70 pt-3 text-start",
+          rtlAwareMarkdownClassName,
+        )}
+      />
+    ) : null;
+
   return (
     <li
       ref={setSortableNodeRef}
@@ -1079,131 +1208,23 @@ function TodoItemCard({
           "relative z-10 opacity-80 shadow-lg ring-1 ring-emerald-400/40",
       )}
     >
-      <div className="flex items-start gap-3">
-        <button
-          type="button"
-          disabled={disabled}
-          aria-label={`Reorder ${item.title}`}
-          title="Drag to reorder"
-          className="mt-0.5 flex h-6 w-6 shrink-0 touch-none cursor-grab items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-muted/60 hover:text-foreground active:cursor-grabbing disabled:cursor-not-allowed disabled:opacity-40"
-          {...attributes}
-          {...listeners}
-        >
-          <GripVertical className="w-4 h-4" />
-        </button>
-        <button
-          type="button"
-          onClick={onToggle}
-          disabled={disabled}
-          aria-label={item.completed ? "Reopen item" : "Complete item"}
-          title={item.completed ? "Reopen item" : "Complete item"}
-          className={cn(
-            "mt-0.5 flex h-6 w-6 shrink-0 items-center justify-center rounded-full transition-colors",
-            item.completed
-              ? "text-emerald-600 hover:text-emerald-700 dark:text-emerald-300 dark:hover:text-emerald-200"
-              : "text-muted-foreground hover:text-emerald-600 dark:hover:text-emerald-300",
-          )}
-        >
-          {item.completed ? (
-            <CheckCircle2 className="w-5 h-5" />
-          ) : (
-            <Circle className="w-5 h-5" />
-          )}
-        </button>
-        <button
-          type="button"
-          onClick={onToggleExpanded}
-          aria-expanded={isExpanded}
-          aria-label={isExpanded ? "Collapse item" : "Expand item"}
-          title={isExpanded ? "Collapse item" : "Expand item"}
-          className="mt-0.5 flex h-6 w-6 shrink-0 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-muted/60 hover:text-foreground"
-        >
-          {isExpanded ? (
-            <ChevronDown className="w-4 h-4" />
-          ) : (
-            <ChevronRight className="w-4 h-4" />
-          )}
-        </button>
-
+      <div className="space-y-3 sm:flex sm:items-start sm:gap-3 sm:space-y-0">
+        <div className="flex items-center justify-between gap-3 sm:block">
+          <div className="flex items-center gap-3 sm:items-start">
+            {controlButtons}
+          </div>
+          <div className="flex shrink-0 items-center gap-1.5 sm:hidden">
+            {renderItemActions()}
+          </div>
+        </div>
         <div className="min-w-0 flex-1 space-y-2">
-          <div className="flex items-start justify-between gap-3 flex-wrap">
-            <div className="min-w-0 flex-1">
-              <h2
-                {...itemTitleDirectionProps}
-                className={cn(
-                  "text-sm font-semibold break-words text-start",
-                  item.completed && "text-muted-foreground line-through",
-                )}
-              >
-                {item.title}
-              </h2>
-              <p className="mt-1 text-[11px] text-muted-foreground">
-                {item.completedAt
-                  ? `completed ${new Date(item.completedAt).toLocaleDateString()}`
-                  : `created ${new Date(item.createdAt).toLocaleDateString()}`}
-              </p>
-            </div>
-            <div className="flex items-center gap-1.5 shrink-0 ml-auto">
-              <TodoAssigneeMenu
-                assignee={assignee}
-                collaborators={collaborators}
-                isLoading={isLoadingCollaborators}
-                disabled={disabled}
-                onAssign={onAssign}
-              />
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={onAskKody}
-                className="h-8 gap-1.5 border-emerald-500/40 bg-emerald-500/10 px-2.5 text-emerald-700 hover:bg-emerald-500/15 dark:text-emerald-200"
-              >
-                <Sparkles className="w-3.5 h-3.5" />
-                <span>Ask Kody</span>
-              </Button>
-              <DropdownMenu>
-                <DropdownMenuTrigger asChild>
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    className="w-8 h-8 px-0 text-muted-foreground"
-                    title="Item actions"
-                    aria-label={`Actions for ${item.title}`}
-                  >
-                    <MoreHorizontal className="w-3.5 h-3.5" />
-                  </Button>
-                </DropdownMenuTrigger>
-                <DropdownMenuContent align="end" className="w-44">
-                  <DropdownMenuItem
-                    onClick={onEdit}
-                    className="cursor-pointer gap-2"
-                  >
-                    <Pencil className="w-3.5 h-3.5" />
-                    Edit item
-                  </DropdownMenuItem>
-                  <DropdownMenuItem
-                    onClick={onDelete}
-                    disabled={disabled}
-                    className="cursor-pointer gap-2 text-red-600 dark:text-red-400"
-                  >
-                    <Trash2 className="w-3.5 h-3.5" />
-                    Delete item
-                  </DropdownMenuItem>
-                </DropdownMenuContent>
-              </DropdownMenu>
+          <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between sm:gap-3">
+            {titleBlock}
+            <div className="hidden shrink-0 items-center gap-1.5 sm:flex">
+              {renderItemActions()}
             </div>
           </div>
-
-          {isExpanded && item.body.trim() ? (
-            <MarkdownPreview
-              {...autoDirProps}
-              content={item.body}
-              variant="compact"
-              className={cn(
-                "border-t border-border/70 pt-3 text-start",
-                rtlAwareMarkdownClassName,
-              )}
-            />
-          ) : null}
+          {expandedBody}
         </div>
       </div>
     </li>
