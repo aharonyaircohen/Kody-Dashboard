@@ -111,6 +111,15 @@ export const PREVIEW_NAV_ITEM: SettingsNavItem = {
   tint: "text-sky-300 bg-sky-500/10",
 };
 
+export const TODOS_NAV_ITEM: SettingsNavItem = {
+  href: "/todos",
+  label: "Todos",
+  icon: CheckCircle2,
+  description:
+    "Visible worklists for regular tasks, goals, and loops.",
+  tint: "text-emerald-300 bg-emerald-500/10",
+};
+
 /**
  * Primary view switch (Dashboard / Tasks / Vibe), rendered at the very top of
  * the sidebar rail and mobile menu. Replaces the old header ViewToggle +
@@ -134,15 +143,6 @@ export const PRIMARY_NAV_ITEMS: readonly SettingsNavItem[] = [
     label: "Org",
     icon: Building2,
     description: "Org workspace — manage attached repositories.",
-    tint: "text-emerald-300 bg-emerald-500/10",
-  },
-
-  {
-    href: "/todos",
-    label: "Todos",
-    icon: CheckCircle2,
-    description:
-      "Repo worklist — lightweight action items Kody should keep visible.",
     tint: "text-emerald-300 bg-emerald-500/10",
   },
 
@@ -249,6 +249,7 @@ export const SETTINGS_NAV_SECTIONS: readonly SettingsNavSection[] = [
   {
     title: "AI Agency",
     items: [
+      TODOS_NAV_ITEM,
       {
         href: "/agents",
         label: "Agents",
@@ -469,11 +470,18 @@ export const VIBE_MODE_SECTIONS: readonly SettingsNavSection[] = [
     title: PRIMARY_NAV_TITLE,
     items: [
       navItemForHref("/org"),
-      navItemForHref("/todos"),
       navItemForHref("/messages"),
       navItemForHref("/reports"),
       navItemForHref("/docs"),
       navItemForHref("/changelog"),
+    ],
+  },
+  {
+    title: "AI Agency",
+    items: [
+      TODOS_NAV_ITEM,
+      navItemForHref("/agent-goals"),
+      navItemForHref("/agent-loops"),
     ],
   },
   settingsSection("Content"),
@@ -489,7 +497,6 @@ export const ENGINEER_MODE_SECTIONS: readonly SettingsNavSection[] = [
     title: PRIMARY_NAV_TITLE,
     items: [
       navItemForHref("/org"),
-      navItemForHref("/todos"),
       navItemForHref("/messages"),
       navItemForHref("/reports"),
       navItemForHref("/files"),
