@@ -593,6 +593,13 @@ async function main() {
       );
     }
 
+    if (isBaseBuild) {
+      console.log(
+        `[builder] base image ready; no runtime preview machine needed for ${appName}`,
+      );
+      process.exit(0);
+    }
+
     const image = `registry.fly.io/${appName}:${imageTag}`;
     console.log(`[builder] creating preview machine from ${image}`);
 

@@ -22,7 +22,6 @@ import {
   Image as ImageIcon,
   FileText,
   FileCode,
-  Github,
   MessageSquare,
   Eraser,
   Target,
@@ -1097,8 +1096,6 @@ export function KodyChat({
   const handleTerminalTargetChange = terminalRegistry.selectTarget;
   const handleTerminalSandboxTargetChange =
     terminalRegistry.selectSandboxTarget;
-  const handleTerminalGitHubActionsSandboxTargetChange =
-    terminalRegistry.selectGitHubActionsSandboxTarget;
   const handleTerminalFlyConnectToggle = terminalRegistry.toggleFlyConnection;
   const recordTerminalConnectionState = terminalRegistry.recordConnectionState;
   const activeSessionHasLiveTerminal = terminalRegistry.hasLiveTerminal(
@@ -1219,102 +1216,53 @@ export function KodyChat({
   useEffect(() => {
     loadedTerminalCheckpointKeyRef.current = null;
   }, [sessionStoreScope]);
-  const handleCreateSandbox = useCallback(
-    async (runtime: "local" | "github-actions") => {
-      setSandboxCreateMenuOpen(false);
-      const name = window.prompt(
-        "Sandbox name",
-        runtime === "github-actions"
-          ? "My GitHub Actions sandbox"
-          : "My sandbox",
-      );
-      if (name === null) return;
-      setSandboxBusy(true);
-      setSandboxBusyLabel(
-        runtime === "github-actions"
-          ? "Creating GitHub Actions sandbox..."
-          : "Creating local sandbox...",
-      );
-      try {
-        const res = await fetch("/api/kody/sandboxes", {
-          method: "POST",
-          headers: { "Content-Type": "application/json", ...authHeaders() },
-          body: JSON.stringify({
-            name,
-            runtime,
-            ...(activeTerminalTransport.type === "local" &&
-            activeTerminalTransport.sandboxId
-              ? { sourceSandboxId: activeTerminalTransport.sandboxId }
-              : {}),
-          }),
-        });
-        const body = (await res.json().catch(() => ({}))) as {
-          sandbox?: LocalSandboxSummary;
-          message?: string;
-          error?: string;
-        };
-        if (!res.ok || !body.sandbox) {
-          throw new Error(body.message ?? body.error ?? `HTTP ${res.status}`);
-        }
-        setLocalSandboxes((prev) => [
-          body.sandbox!,
-          ...prev.filter((sandbox) => sandbox.id !== body.sandbox!.id),
-        ]);
-        if (body.sandbox.runtime === "local") {
-          handleTerminalSandboxTargetChange(body.sandbox);
-        } else {
-          handleTerminalGitHubActionsSandboxTargetChange(body.sandbox);
-        }
-        toast.success(
-          body.sandbox.runtime === "github-actions"
-            ? "GitHub Actions sandbox selected"
-            : "Sandbox created",
-        );
-      } catch (err) {
-        toast.error(
-          err instanceof Error ? err.message : "Failed to create sandbox",
-        );
-      } finally {
-        setSandboxBusy(false);
-        setSandboxBusyLabel(null);
+  const handleCreateSandbox = useCallback(async () => {
+    setSandboxCreateMenuOpen(false);
+    const name = window.prompt("Sandbox name", "My sandbox");
+    if (name === null) return;
+    setSandboxBusy(true);
+    setSandboxBusyLabel("Creating local sandbox...");
+    try {
+      const res = await fetch("/api/kody/sandboxes", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", ...authHeaders() },
+        body: JSON.stringify({
+          name,
+          runtime: "local",
+          ...(activeTerminalTransport.type === "local" &&
+          activeTerminalTransport.sandboxId
+            ? { sourceSandboxId: activeTerminalTransport.sandboxId }
+            : {}),
+        }),
+      });
+      const body = (await res.json().catch(() => ({}))) as {
+        sandbox?: LocalSandboxSummary;
+        message?: string;
+        error?: string;
+      };
+      if (!res.ok || !body.sandbox) {
+        throw new Error(body.message ?? body.error ?? `HTTP ${res.status}`);
       }
-    },
-    [
-      activeTerminalTransport,
-      handleTerminalGitHubActionsSandboxTargetChange,
-      handleTerminalSandboxTargetChange,
-    ],
-  );
+      setLocalSandboxes((prev) => [
+        body.sandbox!,
+        ...prev.filter((sandbox) => sandbox.id !== body.sandbox!.id),
+      ]);
+      handleTerminalSandboxTargetChange(body.sandbox);
+      toast.success("Sandbox created");
+    } catch (err) {
+      toast.error(
+        err instanceof Error ? err.message : "Failed to create sandbox",
+      );
+    } finally {
+      setSandboxBusy(false);
+      setSandboxBusyLabel(null);
+    }
+  }, [activeTerminalTransport, handleTerminalSandboxTargetChange]);
   const handleSaveSandbox = useCallback(async () => {
     if (
-      (activeTerminalTransport.type !== "local" &&
-        activeTerminalTransport.type !== "github-actions") ||
+      activeTerminalTransport.type !== "local" ||
       !activeTerminalTransport.sandboxId
     ) {
-      return;
-    }
-    if (activeTerminalTransport.type === "github-actions") {
-      const terminal =
-        activeTerminalInstanceId !== null
-          ? terminalSurfaceRefs.current[activeTerminalInstanceId]
-          : null;
-      if (!terminal) {
-        toast.error("GitHub Actions terminal is not connected");
-        return;
-      }
-      setSandboxBusy(true);
-      setSandboxBusyLabel("Saving GitHub Actions sandbox...");
-      try {
-        await terminal.stop();
-        toast.success("Save requested. GitHub Actions will save after stop.");
-      } catch (err) {
-        toast.error(
-          err instanceof Error ? err.message : "Failed to save sandbox",
-        );
-      } finally {
-        setSandboxBusy(false);
-        setSandboxBusyLabel(null);
-      }
       return;
     }
     setSandboxBusy(true);
@@ -1348,11 +1296,10 @@ export function KodyChat({
       setSandboxBusy(false);
       setSandboxBusyLabel(null);
     }
-  }, [activeTerminalInstanceId, activeTerminalTransport]);
+  }, [activeTerminalTransport]);
   const handleDeleteSandbox = useCallback(async () => {
     if (
-      (activeTerminalTransport.type !== "local" &&
-        activeTerminalTransport.type !== "github-actions") ||
+      activeTerminalTransport.type !== "local" ||
       !activeTerminalTransport.sandboxId
     ) {
       return;
@@ -1369,13 +1316,6 @@ export function KodyChat({
     setSandboxBusyLabel("Deleting sandbox...");
     try {
       const sandboxId = activeTerminalTransport.sandboxId;
-      if (activeTerminalTransport.type === "github-actions") {
-        const terminal =
-          activeTerminalInstanceId !== null
-            ? terminalSurfaceRefs.current[activeTerminalInstanceId]
-            : null;
-        await terminal?.stop();
-      }
       const res = await fetch(
         `/api/kody/sandboxes/${encodeURIComponent(sandboxId)}`,
         { method: "DELETE", headers: authHeaders() },
@@ -1400,11 +1340,7 @@ export function KodyChat({
       setSandboxBusy(false);
       setSandboxBusyLabel(null);
     }
-  }, [
-    activeTerminalInstanceId,
-    activeTerminalTransport,
-    handleTerminalTargetChange,
-  ]);
+  }, [activeTerminalTransport, handleTerminalTargetChange]);
 
   const saveTerminalCheckpoint = useCallback(
     async (
@@ -1584,19 +1520,9 @@ export function KodyChat({
         if (sandbox) handleTerminalSandboxTargetChange(sandbox);
         return;
       }
-      if (value.startsWith("gha:")) {
-        const id = value.slice("gha:".length);
-        const sandbox = localSandboxes.find(
-          (candidate) =>
-            candidate.id === id && candidate.runtime === "github-actions",
-        );
-        if (sandbox) handleTerminalGitHubActionsSandboxTargetChange(sandbox);
-        return;
-      }
       handleTerminalTargetChange(value);
     },
     [
-      handleTerminalGitHubActionsSandboxTargetChange,
       handleTerminalSandboxTargetChange,
       handleTerminalTargetChange,
       localSandboxes,
@@ -6502,13 +6428,6 @@ export function KodyChat({
                           Local: {sandbox.name}
                         </option>
                       ))}
-                    {localSandboxes
-                      .filter((sandbox) => sandbox.runtime === "github-actions")
-                      .map((sandbox) => (
-                        <option key={sandbox.id} value={`gha:${sandbox.id}`}>
-                          GitHub Actions profile: {sandbox.name}
-                        </option>
-                      ))}
                     {activeTerminalTransport.type === "fly" &&
                       !terminalMachines.some(
                         (machine) =>
@@ -6571,24 +6490,11 @@ export function KodyChat({
                       <div className="absolute bottom-11 left-0 z-30 min-w-56 overflow-hidden rounded-md border bg-popover py-1.5 text-body-xs text-popover-foreground shadow-md">
                         <button
                           type="button"
-                          onClick={() => void handleCreateSandbox("local")}
+                          onClick={() => void handleCreateSandbox()}
                           className="flex w-full items-center gap-2 px-3 py-2 text-left hover:bg-muted"
                         >
                           <Plus className="h-3.5 w-3.5" />
                           Local sandbox
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() =>
-                            void handleCreateSandbox("github-actions")
-                          }
-                          className="flex w-full items-center gap-2 px-3 py-2 text-left hover:bg-muted"
-                        >
-                          <Github className="h-3.5 w-3.5" />
-                          {activeTerminalTransport.type === "local" &&
-                          activeTerminalTransport.sandboxId
-                            ? "Copy to GitHub Actions"
-                            : "GitHub Actions sandbox"}
                         </button>
                       </div>
                     )}
@@ -6623,8 +6529,7 @@ export function KodyChat({
                       <Eraser className="h-4 w-4" />
                     )}
                   </button>
-                  {(activeTerminalTransport.type === "local" ||
-                    activeTerminalTransport.type === "github-actions") &&
+                  {activeTerminalTransport.type === "local" &&
                     activeTerminalTransport.sandboxId && (
                       <>
                         <button

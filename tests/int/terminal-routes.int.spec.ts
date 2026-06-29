@@ -24,18 +24,48 @@ const previews = vi.hoisted(() => ({
   })),
 }));
 
+const flyContext = vi.hoisted(() => ({
+  resolveFlyContext: vi.fn(async () => ({
+    ok: true,
+    context: {
+      owner: "acme",
+      repo: "widgets",
+      account: "octocat",
+      githubToken: "ghp_test",
+      octokit: { rest: {} },
+      flyToken: "fly-token",
+      flyOrgSlug: "personal",
+      flyDefaultRegion: "fra",
+    },
+  })),
+  flyConfigFromContext: vi.fn(
+    (context: {
+      flyToken?: string;
+      flyOrgSlug: string;
+      flyDefaultRegion: string;
+    }) =>
+      context.flyToken
+        ? {
+            token: context.flyToken,
+            orgSlug: context.flyOrgSlug,
+            defaultRegion: context.flyDefaultRegion,
+          }
+        : null,
+  ),
+}));
+
 const inventory = vi.hoisted(() => ({
   listFlyInventory: vi.fn(async () => ({
     running: 1,
     total: 1,
     machines: [
       {
-        feature: "runner",
-        app: "kody-runner",
-        machineId: "runner-1",
+        feature: "brain",
+        app: "kody-brain-octocat",
+        machineId: "brain-1",
         state: "started",
         region: "fra",
-        label: "kody-runner",
+        label: "kody-brain-octocat",
         sizeLabel: "perf 1x",
       },
     ],
@@ -81,6 +111,7 @@ const token = vi.hoisted(() => ({
 
 vi.mock("@dashboard/lib/auth", () => auth);
 vi.mock("@dashboard/lib/previews/config", () => previews);
+vi.mock("@dashboard/lib/runners/fly-context", () => flyContext);
 vi.mock("@dashboard/lib/runners/fly-inventory", () => inventory);
 vi.mock("@dashboard/lib/runners/fly-inventory-server", () => inventoryServer);
 vi.mock("@dashboard/lib/previews/fly-previews", () => flyPreview);
@@ -123,6 +154,19 @@ beforeEach(() => {
     orgSlug: "personal",
     defaultRegion: "fra",
   });
+  flyContext.resolveFlyContext.mockResolvedValue({
+    ok: true,
+    context: {
+      owner: "acme",
+      repo: "widgets",
+      account: "octocat",
+      githubToken: "ghp_test",
+      octokit: { rest: {} },
+      flyToken: "fly-token",
+      flyOrgSlug: "personal",
+      flyDefaultRegion: "fra",
+    },
+  });
   inventoryServer.appendSavedBrainMachineToInventory.mockResolvedValue(false);
   token.mintTerminalBridgeToken.mockReturnValue("opaque-token");
 });
@@ -132,11 +176,11 @@ afterEach(() => {
 });
 
 describe("POST /api/kody/terminal/session", () => {
-  it("mints a chat-scoped Fly terminal token", async () => {
+  it("mints a chat-scoped Brain terminal token", async () => {
     const res = await sessionPOST(
       makeSessionReq({
-        app: "kody-runner",
-        machineId: "runner-1",
+        app: "kody-brain-octocat",
+        machineId: "brain-1",
         chatSessionId: "chat-1",
         resetSession: true,
         cols: 132,
@@ -147,8 +191,8 @@ describe("POST /api/kody/terminal/session", () => {
     expect(res.status).toBe(200);
     expect(await res.json()).toMatchObject({
       ok: true,
-      app: "kody-runner",
-      machineId: "runner-1",
+      app: "kody-brain-octocat",
+      machineId: "brain-1",
       bridgeApp: "kody-terminal",
       webSocketUrl: "wss://bridge.example/ws?token=opaque-token",
     });
@@ -156,8 +200,8 @@ describe("POST /api/kody/terminal/session", () => {
       expect.objectContaining({
         owner: "acme",
         repo: "widgets",
-        app: "kody-runner",
-        machineId: "runner-1",
+        app: "kody-brain-octocat",
+        machineId: "brain-1",
         chatSessionId: "chat-1",
         resetSession: true,
         cols: 132,

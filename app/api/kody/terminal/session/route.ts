@@ -12,14 +12,13 @@
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 
-import {
-  getRequestAuth,
-  getUserOctokit,
-  requireKodyAuth,
-} from "@dashboard/lib/auth";
+import { requireKodyAuth } from "@dashboard/lib/auth";
 import { logger } from "@dashboard/lib/logger";
-import { resolvePreviewConfigForOctokit } from "@dashboard/lib/previews/config";
 import { startMachine } from "@dashboard/lib/previews/fly-previews";
+import {
+  flyConfigFromContext,
+  resolveFlyContext,
+} from "@dashboard/lib/runners/fly-context";
 import { appendSavedBrainMachineToInventory } from "@dashboard/lib/runners/fly-inventory-server";
 import { listFlyInventory } from "@dashboard/lib/runners/fly-inventory";
 import { ensureTerminalBridge } from "@dashboard/lib/terminal/bridge-fly";
@@ -64,8 +63,7 @@ const TARGET_STATUS: Record<string, number> = {
 
 const TARGET_MESSAGE: Record<string, string> = {
   machine_not_found: "Machine not found.",
-  machine_not_terminal_capable:
-    "Only runner and Brain machines can open a terminal.",
+  machine_not_terminal_capable: "Only Brain machines can open a Fly terminal.",
   machine_not_running: "Machine is still waking up. Try Connect again.",
 };
 
@@ -79,11 +77,6 @@ function sleep(ms: number): Promise<void> {
 export async function POST(req: NextRequest) {
   const authError = await requireKodyAuth(req);
   if (authError) return authError;
-
-  const auth = getRequestAuth(req);
-  if (!auth) {
-    return NextResponse.json({ error: "no_repo_context" }, { status: 400 });
-  }
 
   let body: unknown;
   try {
@@ -99,16 +92,11 @@ export async function POST(req: NextRequest) {
     );
   }
 
-  const octokit = await getUserOctokit(req);
-  if (!octokit) {
-    return NextResponse.json({ error: "no_octokit" }, { status: 401 });
+  const ctx = await resolveFlyContext(req);
+  if (!ctx.ok) {
+    return NextResponse.json({ error: ctx.error }, { status: ctx.status });
   }
-
-  const cfg = await resolvePreviewConfigForOctokit({
-    octokit,
-    owner: auth.owner,
-    repo: auth.repo,
-  });
+  const cfg = flyConfigFromContext(ctx.context);
   if (!cfg) {
     return NextResponse.json({ error: "fly_token_missing" }, { status: 503 });
   }
@@ -181,8 +169,8 @@ export async function POST(req: NextRequest) {
     );
     const now = Math.floor(Date.now() / 1000);
     const token = mintTerminalBridgeToken({
-      owner: auth.owner,
-      repo: auth.repo,
+      owner: ctx.context.owner,
+      repo: ctx.context.repo,
       app: selected.machine.app,
       machineId: selected.machine.machineId,
       chatSessionId: parsed.data.chatSessionId,
@@ -207,7 +195,7 @@ export async function POST(req: NextRequest) {
     });
   } catch (err) {
     logger.error(
-      { err, owner: auth.owner, repo: auth.repo },
+      { err, owner: ctx.context.owner, repo: ctx.context.repo },
       "terminal: session start failed",
     );
     return NextResponse.json(

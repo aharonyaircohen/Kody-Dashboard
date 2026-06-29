@@ -9,7 +9,8 @@
  *   the stored file in.
  */
 
-import { classifyApp, type FlyFeature } from "./fly-inventory";
+import { classifyApp } from "./fly-inventory";
+import { isFlyMachineRunning, type FlyFeature } from "./fly-machine-model";
 import { estimateCost, type MachineSize } from "./fly-rates";
 
 /** One machine's state at one snapshot moment. */
@@ -61,11 +62,6 @@ export interface MachineActivity {
   samples: number;
 }
 
-/** Running = paying for CPU (not suspended/stopped/destroyed). */
-function isRunning(state: string): boolean {
-  return state !== "suspended" && state !== "stopped" && state !== "destroyed";
-}
-
 /**
  * Reduce the snapshot timeline to per-machine activity. Machines are keyed by
  * `app/machineId`. Between two consecutive snapshots, the machine is counted as
@@ -98,8 +94,13 @@ export function computeActivity(file: FlyActivityFile): MachineActivity[] {
       const cur = points[i];
       const nxt = points[i + 1];
       const gap = nxt.ts - cur.ts;
-      if (gap > 0 && isRunning(cur.s.state)) runningMs += gap;
-      if (isRunning(cur.s.state) && !isRunning(nxt.s.state)) suspendCount++;
+      if (gap > 0 && isFlyMachineRunning(cur.s.state)) runningMs += gap;
+      if (
+        isFlyMachineRunning(cur.s.state) &&
+        !isFlyMachineRunning(nxt.s.state)
+      ) {
+        suspendCount++;
+      }
     }
 
     // Size from the most recent sample that actually reported one.

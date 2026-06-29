@@ -62,5 +62,5 @@ export function isFlyMachineRunning(state: string): boolean {
 }
 
 export function isFlyTerminalCapable(feature: FlyFeature): boolean {
-  return feature === "runner" || feature === "brain";
+  return feature === "brain";
 }

@@ -15,13 +15,12 @@
  */
 import { NextRequest, NextResponse } from "next/server";
 
-import {
-  getRequestAuth,
-  getUserOctokit,
-  requireKodyAuth,
-} from "@dashboard/lib/auth";
+import { requireKodyAuth } from "@dashboard/lib/auth";
 import { logger } from "@dashboard/lib/logger";
-import { resolvePreviewConfigForOctokit } from "@dashboard/lib/previews/config";
+import {
+  flyConfigFromContext,
+  resolveFlyContext,
+} from "@dashboard/lib/runners/fly-context";
 import { computeActivity } from "@dashboard/lib/runners/fly-activity";
 import {
   readActivityFile,
@@ -36,20 +35,11 @@ export async function GET(req: NextRequest) {
   const authError = await requireKodyAuth(req);
   if (authError) return authError;
 
-  const auth = getRequestAuth(req);
-  if (!auth) {
-    return NextResponse.json({ error: "no_repo_context" }, { status: 400 });
+  const ctx = await resolveFlyContext(req);
+  if (!ctx.ok) {
+    return NextResponse.json({ error: ctx.error }, { status: ctx.status });
   }
-
-  const octokit = await getUserOctokit(req);
-  if (!octokit)
-    return NextResponse.json({ error: "no_octokit" }, { status: 401 });
-
-  const cfg = await resolvePreviewConfigForOctokit({
-    octokit,
-    owner: auth.owner,
-    repo: auth.repo,
-  });
+  const cfg = flyConfigFromContext(ctx.context);
   if (!cfg) {
     return NextResponse.json(
       {
@@ -68,19 +58,23 @@ export async function GET(req: NextRequest) {
     const now = Date.now();
     try {
       await recordSnapshot(
-        octokit,
-        auth.owner,
-        auth.repo,
+        ctx.context.octokit,
+        ctx.context.owner,
+        ctx.context.repo,
         snapshotFromInventory(inventory, now),
       );
     } catch (err) {
       logger.warn(
-        { err, owner: auth.owner, repo: auth.repo },
+        { err, owner: ctx.context.owner, repo: ctx.context.repo },
         "fly-activity: snapshot record failed (non-fatal)",
       );
     }
 
-    const file = await readActivityFile(octokit, auth.owner, auth.repo);
+    const file = await readActivityFile(
+      ctx.context.octokit,
+      ctx.context.owner,
+      ctx.context.repo,
+    );
     const activity = computeActivity(file);
     return NextResponse.json({
       activity,
@@ -89,7 +83,7 @@ export async function GET(req: NextRequest) {
     });
   } catch (err) {
     logger.error(
-      { err, owner: auth.owner, repo: auth.repo },
+      { err, owner: ctx.context.owner, repo: ctx.context.repo },
       "fly-activity: failed",
     );
     return NextResponse.json(

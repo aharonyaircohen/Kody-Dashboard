@@ -9,11 +9,14 @@ import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
 
 import {
+  canUseChatTerminalFlyMachine,
   findMountedBrainTerminal,
   isBrainTerminalTransport,
   normalizeMountedChatTerminals,
+  upsertMountedChatTerminal,
   type MountedChatTerminal,
 } from "@dashboard/lib/hooks/useChatTerminalRegistry";
+import type { FlyMachineRow } from "@dashboard/lib/runners/fly-machine-model";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const REGISTRY_SOURCE = readFileSync(
@@ -46,6 +49,24 @@ function terminal(
 }
 
 describe("chat terminal registry Brain singleton", () => {
+  it("filters Fly terminal choices to Brain machines only", () => {
+    const baseMachine = {
+      app: "kody-runner",
+      machineId: "machine-1",
+      state: "started",
+      region: "fra",
+      label: "machine",
+      sizeLabel: "perf 1x · 2 GB",
+    } satisfies Omit<FlyMachineRow, "feature">;
+
+    expect(
+      canUseChatTerminalFlyMachine({ ...baseMachine, feature: "brain" }),
+    ).toBe(true);
+    expect(
+      canUseChatTerminalFlyMachine({ ...baseMachine, feature: "runner" }),
+    ).toBe(false);
+  });
+
   it("recognizes Brain as the singleton terminal transport", () => {
     expect(
       isBrainTerminalTransport({
@@ -75,7 +96,31 @@ describe("chat terminal registry Brain singleton", () => {
     );
     expect(
       normalizeMountedChatTerminals([firstBrain, runner, secondBrain]),
-    ).toEqual([runner, secondBrain]);
+    ).toEqual([secondBrain]);
+  });
+
+  it("updates the mounted Brain terminal when Brain is selected again", () => {
+    const local = {
+      id: "chat-1::local",
+      sessionId: "chat-1",
+      transport: { type: "local" },
+    } satisfies MountedChatTerminal;
+    const previousBrain = terminal("brain-old", "chat-1", "brain");
+    const selectedBrain = {
+      id: "chat-1::fly:brain-app:brain-new",
+      sessionId: "chat-1",
+      transport: {
+        type: "fly",
+        app: "brain-app",
+        machineId: "brain-new",
+        feature: "brain",
+        label: "Brain",
+      },
+    } satisfies MountedChatTerminal;
+
+    expect(
+      upsertMountedChatTerminal([local, previousBrain], selectedBrain),
+    ).toEqual([local, selectedBrain]);
   });
 
   it("focuses the existing Brain session instead of creating another one", () => {
@@ -85,7 +130,7 @@ describe("chat terminal registry Brain singleton", () => {
       "switchSession?.(existingBrain.sessionId)",
     );
     expect(REGISTRY_SOURCE).toContain(
-      "if (focusMountedBrainTerminal(transport)) return;",
+      "if (focusMountedBrainTerminal(nextTransport)) return;",
     );
     expect(CHAT_SOURCE).toContain("switchSession: sessionHook.switchSession");
   });

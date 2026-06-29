@@ -57,8 +57,8 @@ export async function appendSavedBrainMachineToInventory(
       defaultRegion: ctx.context.flyDefaultRegion,
     });
     const app = brain.app;
-    if (inventory.machines.some((m) => m.app === app)) return false;
     if (!brain.machine) return false;
+    inventory.machines = inventory.machines.filter((m) => m.app !== app);
     inventory.machines.push(brain.machine);
     return true;
   } catch (err) {

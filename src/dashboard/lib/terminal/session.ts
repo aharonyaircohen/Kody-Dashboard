@@ -27,7 +27,7 @@ export interface TerminalTargetFailure {
   error: TerminalTargetError;
 }
 
-const TERMINAL_FEATURES = new Set<FlyFeature>(["runner", "brain"]);
+const TERMINAL_FEATURES = new Set<FlyFeature>(["brain"]);
 const LIVE_STATES = new Set(["started", "running"]);
 const STARTABLE_STATES = new Set(["suspended", "stopped"]);
 

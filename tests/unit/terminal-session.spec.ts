@@ -13,7 +13,7 @@ import type { FlyInventory } from "@dashboard/lib/runners/fly-inventory";
 
 const INVENTORY: FlyInventory = {
   running: 2,
-  total: 3,
+  total: 5,
   machines: [
     {
       feature: "runner",
@@ -31,6 +31,15 @@ const INVENTORY: FlyInventory = {
       state: "started",
       region: "fra",
       label: "kody-brain-alice",
+      sizeLabel: "perf 1x · 2 GB",
+    },
+    {
+      feature: "brain",
+      app: "kody-brain-bob",
+      machineId: "brain-2",
+      state: "suspended",
+      region: "fra",
+      label: "kody-brain-bob",
       sizeLabel: "perf 1x · 2 GB",
     },
     {
@@ -55,22 +64,22 @@ const INVENTORY: FlyInventory = {
 };
 
 describe("terminal session policy", () => {
-  it("allows runner and brain machines", () => {
-    expect(isTerminalFeatureAllowed("runner")).toBe(true);
+  it("allows only Brain machines as Fly terminal targets", () => {
+    expect(isTerminalFeatureAllowed("runner")).toBe(false);
     expect(isTerminalFeatureAllowed("brain")).toBe(true);
     expect(isTerminalFeatureAllowed("preview")).toBe(false);
     expect(isTerminalFeatureAllowed("builder")).toBe(false);
   });
 
-  it("selects a live runner machine", () => {
+  it("rejects live runner machines", () => {
     const selected = selectTerminalTarget(INVENTORY, {
       app: "kody-runner",
       machineId: "runner-1",
     });
 
-    expect(selected).toMatchObject({
-      ok: true,
-      machine: { machineId: "runner-1" },
+    expect(selected).toEqual({
+      ok: false,
+      error: "machine_not_terminal_capable",
     });
   });
 
@@ -104,7 +113,7 @@ describe("terminal session policy", () => {
     });
   });
 
-  it("rejects non-runner machines", () => {
+  it("rejects non-Brain machines", () => {
     const selected = selectTerminalTarget(INVENTORY, {
       app: "kp-acme-widgets-pr-7",
       machineId: "preview-1",
@@ -116,25 +125,25 @@ describe("terminal session policy", () => {
     });
   });
 
-  it("rejects suspended machines", () => {
+  it("rejects suspended Brain machines until they wake", () => {
     const selected = selectTerminalTarget(INVENTORY, {
-      app: "kody-runner",
-      machineId: "runner-2",
+      app: "kody-brain-bob",
+      machineId: "brain-2",
     });
 
     expect(selected).toEqual({ ok: false, error: "machine_not_running" });
   });
 
-  it("identifies sleeping runners as startable terminal targets", () => {
+  it("identifies sleeping Brain machines as startable terminal targets", () => {
     expect(isTerminalMachineStartable("suspended")).toBe(true);
     expect(isTerminalMachineStartable("stopped")).toBe(true);
     expect(isTerminalMachineStartable("destroyed")).toBe(false);
     expect(
       findTerminalTargetMachine(INVENTORY, {
-        app: "kody-runner",
-        machineId: "runner-2",
+        app: "kody-brain-bob",
+        machineId: "brain-2",
       }),
-    ).toMatchObject({ state: "suspended", feature: "runner" });
+    ).toMatchObject({ state: "suspended", feature: "brain" });
   });
 
   it("builds the bridge websocket URL without leaking another query shape", () => {

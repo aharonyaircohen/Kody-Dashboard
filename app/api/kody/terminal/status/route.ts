@@ -10,12 +10,11 @@
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 
+import { requireKodyAuth } from "@dashboard/lib/auth";
 import {
-  getRequestAuth,
-  getUserOctokit,
-  requireKodyAuth,
-} from "@dashboard/lib/auth";
-import { resolvePreviewConfigForOctokit } from "@dashboard/lib/previews/config";
+  flyConfigFromContext,
+  resolveFlyContext,
+} from "@dashboard/lib/runners/fly-context";
 import { findTerminalBridge } from "@dashboard/lib/terminal/bridge-fly";
 import { mintTerminalBridgeToken } from "@dashboard/lib/terminal/terminal-token";
 
@@ -32,11 +31,6 @@ export async function POST(req: NextRequest) {
   const authError = await requireKodyAuth(req);
   if (authError) return authError;
 
-  const auth = getRequestAuth(req);
-  if (!auth) {
-    return NextResponse.json({ error: "no_repo_context" }, { status: 400 });
-  }
-
   let body: unknown;
   try {
     body = await req.json();
@@ -52,16 +46,11 @@ export async function POST(req: NextRequest) {
     );
   }
 
-  const octokit = await getUserOctokit(req);
-  if (!octokit) {
-    return NextResponse.json({ error: "no_octokit" }, { status: 401 });
+  const ctx = await resolveFlyContext(req);
+  if (!ctx.ok) {
+    return NextResponse.json({ ok: true, alive: false });
   }
-
-  const cfg = await resolvePreviewConfigForOctokit({
-    octokit,
-    owner: auth.owner,
-    repo: auth.repo,
-  });
+  const cfg = flyConfigFromContext(ctx.context);
   if (!cfg) {
     return NextResponse.json({ ok: true, alive: false });
   }
@@ -72,8 +61,8 @@ export async function POST(req: NextRequest) {
   }
 
   const token = mintTerminalBridgeToken({
-    owner: auth.owner,
-    repo: auth.repo,
+    owner: ctx.context.owner,
+    repo: ctx.context.repo,
     app: parsed.data.app,
     machineId: parsed.data.machineId,
     chatSessionId: parsed.data.chatSessionId,
