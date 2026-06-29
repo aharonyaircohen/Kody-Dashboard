@@ -3,25 +3,29 @@
  * @domain previews
  * @pattern preview-cleanup
  * @ai-summary Cleanup for per-PR preview apps: repair old machines so they
- *   sleep/wake correctly, actively sleep started previews, and garbage-collect
- *   apps past TTL. Trap: the per-repo BASE image (`kp-…-base`) is always
- *   exempt — destroying it would invalidate the build cache and re-cold-build
- *   every PR.
+ *   sleep/wake correctly, actively sleep started previews, destroy closed-PR
+ *   apps, and garbage-collect apps past TTL. Trap: the per-repo BASE image
+ *   (`kp-…-base`) is always exempt — destroying it would invalidate the build
+ *   cache and re-cold-build every PR.
  *
  * Repair and sweep per-PR preview apps.
  *
  * Previews accumulate: every open PR (and stale bot PRs never close) keeps a
  * Fly app alive. Even when machines suspend they still cost rootfs storage,
- * and the app count balloons. This sweep enumerates a repo's preview apps and
- * destroys any whose oldest machine is older than `fly.previews.ttlDays`. For
- * the rest, it updates sleep/wake settings and puts started machines to sleep
- * immediately when `fly.previews.idleSuspend` is enabled.
+ * and the app count balloons. This sweep enumerates a repo's preview apps,
+ * destroys PR apps whose PR is no longer open, and destroys any remaining app
+ * whose oldest machine is older than `fly.previews.ttlDays`. For the rest, it
+ * updates sleep/wake settings and puts started machines to sleep immediately
+ * when `fly.previews.idleSuspend` is enabled.
  *
  * TTL is opt-in: `ttlDays <= 0` (the default) sweeps nothing. The per-repo
  * BASE image (`kp-…-base`) is always skipped — it's the build cache, not a
  * preview.
  */
 
+import { Octokit } from "@octokit/rest";
+
+import { resolveBackgroundToken } from "@dashboard/lib/auth/background-token";
 import { logger } from "@dashboard/lib/logger";
 import {
   alignPreviewMachineSleep,
@@ -38,6 +42,19 @@ import { repoPreviewPrefix } from "@dashboard/lib/previews/preview-key";
 
 const MS_PER_DAY = 24 * 60 * 60 * 1000;
 
+export type PullRequestOpenResolver = (
+  prNumber: number,
+) => Promise<boolean | null>;
+
+export interface SweepOptions {
+  now?: number;
+  /**
+   * null means GitHub state is unavailable, so the sweep falls back to TTL.
+   * undefined means the sweep should build the default background-token lookup.
+   */
+  isPullRequestOpen?: PullRequestOpenResolver | null;
+}
+
 export interface SweepResult {
   /** Whether a TTL is configured at all (false = nothing to do). */
   enabled: boolean;
@@ -46,6 +63,8 @@ export interface SweepResult {
   inspected: number;
   /** App names destroyed because they were past TTL. */
   destroyed: string[];
+  /** App names destroyed because the matching GitHub PR is closed. */
+  closedPrDestroyed: string[];
   /** Machine refs updated so Fly can sleep them and wake them on request. */
   aligned: string[];
   /** Machine refs already matching the desired sleep/wake config. */
@@ -58,6 +77,67 @@ export interface SweepResult {
   errored: string[];
 }
 
+function normalizeSweepOptions(nowOrOptions?: number | SweepOptions): {
+  now: number;
+  isPullRequestOpen?: PullRequestOpenResolver | null;
+} {
+  if (typeof nowOrOptions === "number") {
+    return { now: nowOrOptions };
+  }
+  return {
+    now: nowOrOptions?.now ?? Date.now(),
+    isPullRequestOpen: nowOrOptions?.isPullRequestOpen,
+  };
+}
+
+function parsePrNumberFromAppName(
+  prefix: string,
+  appName: string,
+): number | null {
+  if (!appName.startsWith(prefix)) return null;
+  const suffix = appName.slice(prefix.length);
+  const match = /^pr-(\d+)$/.exec(suffix);
+  if (!match) return null;
+  const prNumber = Number.parseInt(match[1], 10);
+  return Number.isSafeInteger(prNumber) && prNumber > 0 ? prNumber : null;
+}
+
+async function createPullRequestOpenResolver(
+  owner: string,
+  repo: string,
+): Promise<PullRequestOpenResolver | null> {
+  const bg = await resolveBackgroundToken(owner, repo);
+  if (!bg) {
+    logger.warn(
+      { owner, repo },
+      "preview-sweep: no GitHub background token — closed-PR cleanup disabled",
+    );
+    return null;
+  }
+
+  const octokit = new Octokit({ auth: bg.token });
+  try {
+    const pulls = (await octokit.paginate(octokit.rest.pulls.list, {
+      owner,
+      repo,
+      state: "open",
+      per_page: 100,
+    })) as Array<{ number?: number }>;
+    const openPrs = new Set(
+      pulls
+        .map((pull) => pull.number)
+        .filter((n): n is number => typeof n === "number"),
+    );
+    return async (prNumber: number) => openPrs.has(prNumber);
+  } catch (err) {
+    logger.warn(
+      { err, owner, repo },
+      "preview-sweep: open PR lookup failed — closed-PR cleanup disabled",
+    );
+    return null;
+  }
+}
+
 /**
  * Clean one repo's preview apps. Best-effort: a failure on one app is logged
  * and recorded in `errored` but never aborts the rest. `now` is injectable for
@@ -65,8 +145,10 @@ export interface SweepResult {
  */
 export async function sweepExpiredPreviews(
   repo: string,
-  now: number = Date.now(),
+  nowOrOptions: number | SweepOptions = Date.now(),
 ): Promise<SweepResult> {
+  const { now, isPullRequestOpen: optionPullRequestOpen } =
+    normalizeSweepOptions(nowOrOptions);
   const previews = await resolveFlyPreviewsForRepo(repo);
   const ttlDays = previews.ttlDays;
   if (!ttlDays || ttlDays <= 0) {
@@ -75,6 +157,7 @@ export async function sweepExpiredPreviews(
       ttlDays: 0,
       inspected: 0,
       destroyed: [],
+      closedPrDestroyed: [],
       aligned: [],
       unchanged: [],
       skipped: [],
@@ -90,6 +173,7 @@ export async function sweepExpiredPreviews(
       ttlDays,
       inspected: 0,
       destroyed: [],
+      closedPrDestroyed: [],
       aligned: [],
       unchanged: [],
       skipped: [],
@@ -108,6 +192,7 @@ export async function sweepExpiredPreviews(
       ttlDays,
       inspected: 0,
       destroyed: [],
+      closedPrDestroyed: [],
       aligned: [],
       unchanged: [],
       skipped: [],
@@ -120,9 +205,21 @@ export async function sweepExpiredPreviews(
   const apps = (await listAppsByPrefix(prefix, cfg)).filter(
     (name) => !name.endsWith("-base"),
   );
+  const prApps = new Map<string, number>();
+  for (const appName of apps) {
+    const prNumber = parsePrNumberFromAppName(prefix, appName);
+    if (prNumber) prApps.set(appName, prNumber);
+  }
+  const isPullRequestOpen =
+    optionPullRequestOpen !== undefined
+      ? optionPullRequestOpen
+      : prApps.size > 0
+        ? await createPullRequestOpenResolver(owner, name)
+        : null;
 
   const cutoffMs = ttlDays * MS_PER_DAY;
   const destroyed: string[] = [];
+  const closedPrDestroyed: string[] = [];
   const aligned: string[] = [];
   const unchanged: string[] = [];
   const skipped: string[] = [];
@@ -131,6 +228,17 @@ export async function sweepExpiredPreviews(
 
   for (const appName of apps) {
     try {
+      const prNumber = prApps.get(appName);
+      if (prNumber && isPullRequestOpen) {
+        const isOpen = await isPullRequestOpen(prNumber);
+        if (isOpen === false) {
+          await destroyApp(appName, cfg);
+          destroyed.push(appName);
+          closedPrDestroyed.push(appName);
+          continue;
+        }
+      }
+
       const machines = await listMachines(appName, cfg);
       // Oldest machine's creation time = the app's effective age. No machines
       // (a half-torn-down app) → treat as sweepable so it doesn't linger.
@@ -189,6 +297,7 @@ export async function sweepExpiredPreviews(
       ttlDays,
       inspected: apps.length,
       destroyed: destroyed.length,
+      closedPrDestroyed: closedPrDestroyed.length,
       aligned: aligned.length,
       slept: slept.length,
     },
@@ -199,6 +308,7 @@ export async function sweepExpiredPreviews(
     ttlDays,
     inspected: apps.length,
     destroyed,
+    closedPrDestroyed,
     aligned,
     unchanged,
     skipped,

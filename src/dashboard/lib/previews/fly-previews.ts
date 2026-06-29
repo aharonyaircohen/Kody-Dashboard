@@ -597,6 +597,11 @@ export async function destroyApp(
   appName: string,
   cfg: FlyPreviewConfig,
 ): Promise<void> {
+  const machines = await listMachines(appName, cfg);
+  for (const machine of machines) {
+    await destroyMachine(appName, machine.id, cfg);
+  }
+
   const res = await flyFetch(
     `${FLY_MACHINES_BASE}/apps/${encodeURIComponent(appName)}`,
     { method: "DELETE" },

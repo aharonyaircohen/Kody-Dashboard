@@ -8,10 +8,14 @@ const mocks = vi.hoisted(() => ({
   destroyApp: vi.fn(),
   alignPreviewMachineSleep: vi.fn(),
   sleepPreviewMachine: vi.fn(),
+  resolveBackgroundToken: vi.fn(),
 }));
 
 vi.mock("@dashboard/lib/logger", () => ({
   logger: { warn: vi.fn(), info: vi.fn(), error: vi.fn() },
+}));
+vi.mock("@dashboard/lib/auth/background-token", () => ({
+  resolveBackgroundToken: mocks.resolveBackgroundToken,
 }));
 vi.mock("@dashboard/lib/previews/config", () => ({
   resolveFlyPreviewsForRepo: mocks.resolveFlyPreviewsForRepo,
@@ -26,6 +30,7 @@ vi.mock("@dashboard/lib/previews/fly-previews", () => ({
 }));
 
 import { sweepExpiredPreviews } from "@dashboard/lib/previews/sweep";
+import { repoPreviewPrefix } from "@dashboard/lib/previews/preview-key";
 
 const CFG = {
   token: "fly-token",
@@ -52,6 +57,7 @@ describe("sweepExpiredPreviews", () => {
       slept: true,
       mode: "suspend",
     });
+    mocks.resolveBackgroundToken.mockResolvedValue(null);
   });
 
   it("repairs and sleeps live previews, then destroys expired previews", async () => {
@@ -117,6 +123,49 @@ describe("sweepExpiredPreviews", () => {
       unchanged: [],
       skipped: [],
       slept: ["kp-repo-pr-1/m-fresh"],
+      errored: [],
+    });
+  });
+
+  it("destroys closed PR apps before TTL repair", async () => {
+    const now = Date.parse("2026-06-10T00:00:00.000Z");
+    const fresh = new Date(now - 2 * 24 * 60 * 60 * 1000).toISOString();
+    const prefix = repoPreviewPrefix("acme/widgets");
+    const closedPrApp = `${prefix}pr-1`;
+    const openPrApp = `${prefix}pr-2`;
+    const branchApp = `${prefix}br-abc123`;
+    const isPullRequestOpen = vi.fn(async (prNumber: number) => prNumber === 2);
+
+    mocks.listAppsByPrefix.mockResolvedValue([
+      closedPrApp,
+      openPrApp,
+      branchApp,
+      `${prefix}base`,
+    ]);
+    mocks.listMachines.mockResolvedValue([
+      {
+        id: "m-live",
+        state: "started",
+        region: "fra",
+        createdAt: fresh,
+        guest: { memoryMb: 2048 },
+      },
+    ]);
+
+    const result = await sweepExpiredPreviews("acme/widgets", {
+      now,
+      isPullRequestOpen,
+    });
+
+    expect(isPullRequestOpen).toHaveBeenCalledWith(1);
+    expect(isPullRequestOpen).toHaveBeenCalledWith(2);
+    expect(mocks.destroyApp).toHaveBeenCalledWith(closedPrApp, CFG);
+    expect(mocks.listMachines).not.toHaveBeenCalledWith(closedPrApp, CFG);
+    expect(mocks.listMachines).toHaveBeenCalledWith(openPrApp, CFG);
+    expect(mocks.listMachines).toHaveBeenCalledWith(branchApp, CFG);
+    expect(result).toMatchObject({
+      destroyed: [closedPrApp],
+      closedPrDestroyed: [closedPrApp],
       errored: [],
     });
   });

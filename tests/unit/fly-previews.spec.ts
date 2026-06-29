@@ -19,6 +19,7 @@ import {
   alignPreviewMachineSleep,
   alignPreviewMachineSleepConfig,
   createMachine,
+  destroyApp,
   sleepPreviewMachine,
   type FlyPreviewConfig,
 } from "@dashboard/lib/previews/fly-previews";
@@ -420,5 +421,66 @@ describe("sleepPreviewMachine", () => {
     ).resolves.toEqual({ slept: false, reason: "not_started" });
 
     expect(globalThis.fetch).not.toHaveBeenCalled();
+  });
+});
+
+describe("destroyApp", () => {
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  it("force-deletes machines before deleting the app", async () => {
+    const requests: Array<{ url: string; method: string }> = [];
+    globalThis.fetch = vi.fn(
+      async (input: RequestInfo | URL, init?: RequestInit) => {
+        const url = typeof input === "string" ? input : input.toString();
+        const method = init?.method ?? "GET";
+        requests.push({ url, method });
+
+        if (method === "GET" && url.endsWith("/apps/kp-test-app/machines")) {
+          return new Response(
+            JSON.stringify([
+              { id: "m-suspended", state: "suspended", region: "fra" },
+              { id: "m-stopped", state: "stopped", region: "fra" },
+            ]),
+            { status: 200, headers: { "content-type": "application/json" } },
+          );
+        }
+
+        return new Response(JSON.stringify({ ok: true }), {
+          status: 200,
+          headers: { "content-type": "application/json" },
+        });
+      },
+    ) as unknown as typeof fetch;
+
+    await expect(destroyApp("kp-test-app", CFG)).resolves.toBeUndefined();
+
+    expect(requests).toEqual([
+      {
+        url: "https://api.machines.dev/v1/apps/kp-test-app/machines",
+        method: "GET",
+      },
+      {
+        url: "https://api.machines.dev/v1/apps/kp-test-app/machines/m-suspended/stop",
+        method: "POST",
+      },
+      {
+        url: "https://api.machines.dev/v1/apps/kp-test-app/machines/m-suspended?force=true",
+        method: "DELETE",
+      },
+      {
+        url: "https://api.machines.dev/v1/apps/kp-test-app/machines/m-stopped/stop",
+        method: "POST",
+      },
+      {
+        url: "https://api.machines.dev/v1/apps/kp-test-app/machines/m-stopped?force=true",
+        method: "DELETE",
+      },
+      {
+        url: "https://api.machines.dev/v1/apps/kp-test-app",
+        method: "DELETE",
+      },
+    ]);
   });
 });
