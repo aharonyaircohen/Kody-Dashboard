@@ -25,6 +25,23 @@ describe("builder createPreviewMachine autostop", () => {
     vi.restoreAllMocks();
   });
 
+  it("allows the final Fly machine create call more time than regular API reads", async () => {
+    const timeoutSpy = vi.spyOn(AbortSignal, "timeout");
+    const captured: CapturedRequest[] = [];
+    mockCreateResponse(captured);
+
+    await createPreviewMachine(
+      {
+        appName: "kp-test-app",
+        region: "fra",
+        image: "registry.fly.io/kp-test-app:sha",
+      },
+      "fly-test-token",
+    );
+
+    expect(timeoutSpy).toHaveBeenCalledWith(180_000);
+  });
+
   it("uses suspend for previews at or below Fly's 2 GB suspend limit", async () => {
     const captured: CapturedRequest[] = [];
     mockCreateResponse(captured);

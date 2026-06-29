@@ -9,6 +9,7 @@
 const FLY_MACHINES_BASE = "https://api.machines.dev/v1";
 const FLY_GRAPHQL = "https://api.fly.io/graphql";
 const REQUEST_TIMEOUT_MS = 30_000;
+const MACHINE_CREATE_TIMEOUT_MS = 180_000;
 const FLY_SUSPEND_MEMORY_LIMIT_MB = 2048;
 
 function authHeader(token: string): HeadersInit {
@@ -240,7 +241,7 @@ export async function createPreviewMachine(
         method: "POST",
         headers: authHeader(token),
         body: JSON.stringify(body),
-        signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
+        signal: AbortSignal.timeout(MACHINE_CREATE_TIMEOUT_MS),
       },
     );
     if (res.ok) {

@@ -37,6 +37,7 @@ const BUILDER_HOST_APP =
 const SPAWN_TIMEOUT_MS = 30_000;
 const BUILDER_MAINTENANCE_TIMEOUT_MS = 10_000;
 const BUILDER_STALE_MS = 2 * 60 * 60 * 1000;
+const BUILDER_START_GRACE_MS = 2 * 60 * 1000;
 const DEFAULT_BUILDER_CPUS = 4;
 const DEFAULT_BUILDER_MEMORY_MB = 4096;
 
@@ -122,9 +123,17 @@ function isDestroyableBuilderState(state?: string): boolean {
 }
 
 function isStaleBuilder(machine: BuilderMachineInfo, now: number): boolean {
-  if (!machine.created_at) return false;
+  const age = builderAgeMs(machine, now);
+  return age !== null && age > BUILDER_STALE_MS;
+}
+
+function builderAgeMs(
+  machine: BuilderMachineInfo,
+  now: number,
+): number | null {
+  if (!machine.created_at) return null;
   const created = Date.parse(machine.created_at);
-  return Number.isFinite(created) && now - created > BUILDER_STALE_MS;
+  return Number.isFinite(created) ? now - created : null;
 }
 
 function shouldDestroyBuilder(
@@ -134,26 +143,46 @@ function shouldDestroyBuilder(
 ): boolean {
   if (!machine.id || !isDestroyableBuilderState(machine.state)) return false;
   const samePreview = machine.config?.env?.APP_NAME === targetAppName;
-  return samePreview || isStaleBuilder(machine, now);
+  return samePreview
+    ? !isReusableBuilder(machine, now)
+    : isStaleBuilder(machine, now);
 }
 
-function isActiveBuilderState(state?: string): boolean {
+function isRunnableBuilderState(state?: string): boolean {
+  return state === "started" || state === "starting";
+}
+
+function isFreshCreatedBuilder(
+  machine: BuilderMachineInfo,
+  now: number,
+): boolean {
+  if (machine.state !== "created") return false;
+  const age = builderAgeMs(machine, now);
+  return age !== null && age <= BUILDER_START_GRACE_MS;
+}
+
+function isReusableBuilder(machine: BuilderMachineInfo, now: number): boolean {
   return (
-    state !== "destroyed" &&
-    state !== "destroying" &&
-    state !== "stopped" &&
-    state !== "failed"
+    Boolean(machine.id) &&
+    (isRunnableBuilderState(machine.state) ||
+      isFreshCreatedBuilder(machine, now))
   );
+}
+
+function reusableFirst(
+  now: number,
+): (a: BuilderMachineInfo, b: BuilderMachineInfo) => number {
+  return (a, b) => {
+    const aRank = isRunnableBuilderState(a.state) ? 0 : 1;
+    const bRank = isRunnableBuilderState(b.state) ? 0 : 1;
+    return aRank - bRank || newestFirst(a, b);
+  };
 }
 
 function newestFirst(a: BuilderMachineInfo, b: BuilderMachineInfo): number {
   const aTime = a.created_at ? Date.parse(a.created_at) : 0;
   const bTime = b.created_at ? Date.parse(b.created_at) : 0;
   return bTime - aTime;
-}
-
-function oldestFirst(a: BuilderMachineInfo, b: BuilderMachineInfo): number {
-  return -newestFirst(a, b);
 }
 
 export async function getPreviewBuilderStatus(
@@ -173,9 +202,10 @@ export async function getPreviewBuilderStatus(
       .sort(newestFirst);
     const latest = machines[0];
     if (!latest) return null;
+    const now = Date.now();
 
     return {
-      state: isActiveBuilderState(latest.state) ? "building" : "failed",
+      state: isReusableBuilder(latest, now) ? "building" : "failed",
       machineId: latest.id,
       machineState: latest.state,
       createdAt: latest.created_at,
@@ -222,17 +252,11 @@ async function pruneBuilderMachines(
           (m) =>
             m.id &&
             m.config?.env?.APP_NAME === targetAppName &&
-            isActiveBuilderState(m.state),
+            isReusableBuilder(m, now),
         )
-        .sort(oldestFirst)[0] ?? null;
+        .sort(reusableFirst(now))[0] ?? null;
     const doomed = machines.filter((m) => {
       if (reusable?.id === m.id) return false;
-      if (
-        m.config?.env?.APP_NAME === targetAppName &&
-        isActiveBuilderState(m.state)
-      ) {
-        return false;
-      }
       return shouldDestroyBuilder(m, targetAppName, now);
     });
     await Promise.all(

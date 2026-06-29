@@ -118,6 +118,81 @@ describe("spawnPreviewBuilder", () => {
     expect(JSON.stringify(calls)).not.toContain("other-pr?force=true");
   });
 
+  it("does not reuse an old created builder left behind by a spawn timeout", async () => {
+    vi.setSystemTime(NOW);
+    const calls: Call[] = [];
+    globalThis.fetch = vi.fn(async (input: RequestInfo | URL, init = {}) => {
+      const url = input.toString();
+      const method = init.method ?? "GET";
+      calls.push({
+        method,
+        url,
+        body: init.body ? JSON.parse(init.body as string) : undefined,
+      });
+      if (method === "GET") {
+        return Response.json([
+          {
+            id: "timed-out-created",
+            state: "created",
+            created_at: "2026-06-08T11:55:00Z",
+            config: { env: { APP_NAME: "kp-acme-widgets-pr-7" } },
+          },
+        ]);
+      }
+      if (method === "DELETE") return Response.json({ ok: true });
+      return Response.json({ id: "new-builder" });
+    }) as unknown as typeof fetch;
+
+    const out = await spawnPreviewBuilder(baseInput());
+
+    expect(out.machineId).toBe("new-builder");
+    expect(calls.map((c) => `${c.method} ${c.url}`)).toEqual([
+      "GET https://api.machines.dev/v1/apps/kody-preview-builder/machines",
+      "DELETE https://api.machines.dev/v1/apps/kody-preview-builder/machines/timed-out-created?force=true",
+      "POST https://api.machines.dev/v1/apps/kody-preview-builder/machines",
+    ]);
+  });
+
+  it("uses a running builder instead of an old created builder for the same preview", async () => {
+    vi.setSystemTime(NOW);
+    const calls: Call[] = [];
+    globalThis.fetch = vi.fn(async (input: RequestInfo | URL, init = {}) => {
+      const url = input.toString();
+      const method = init.method ?? "GET";
+      calls.push({
+        method,
+        url,
+        body: init.body ? JSON.parse(init.body as string) : undefined,
+      });
+      if (method === "GET") {
+        return Response.json([
+          {
+            id: "timed-out-created",
+            state: "created",
+            created_at: "2026-06-08T11:55:00Z",
+            config: { env: { APP_NAME: "kp-acme-widgets-pr-7" } },
+          },
+          {
+            id: "running-builder",
+            state: "started",
+            created_at: "2026-06-08T11:59:00Z",
+            config: { env: { APP_NAME: "kp-acme-widgets-pr-7" } },
+          },
+        ]);
+      }
+      if (method === "DELETE") return Response.json({ ok: true });
+      return Response.json({ id: "new-builder" });
+    }) as unknown as typeof fetch;
+
+    const out = await spawnPreviewBuilder(baseInput());
+
+    expect(out.machineId).toBe("running-builder");
+    expect(calls.map((c) => `${c.method} ${c.url}`)).toEqual([
+      "GET https://api.machines.dev/v1/apps/kody-preview-builder/machines",
+      "DELETE https://api.machines.dev/v1/apps/kody-preview-builder/machines/timed-out-created?force=true",
+    ]);
+  });
+
   it("uses configured builder worker size in the Fly machine payload", async () => {
     const calls: Call[] = [];
     globalThis.fetch = vi.fn(async (input: RequestInfo | URL, init = {}) => {
