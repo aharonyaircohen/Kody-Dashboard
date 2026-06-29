@@ -28,16 +28,15 @@ const SWITCHER_SOURCE = readFileSync(PREVIEW_ENV_SWITCHER_PATH, "utf8");
 const UPLOAD_BUTTON_SOURCE = readFileSync(PREVIEW_UPLOAD_BUTTON_PATH, "utf8");
 
 describe("Preview upload controls", () => {
-  it("opens uploads through a topmost native file input", () => {
+  it("opens uploads through the shared native picker trigger", () => {
     expect(WORKSPACE_SOURCE).toMatch(/<PreviewFileUploadButton/);
     expect(SWITCHER_SOURCE).toMatch(/<PreviewFileUploadButton/);
     expect(UPLOAD_BUTTON_SOURCE).toMatch(/type="file"/);
-    expect(UPLOAD_BUTTON_SOURCE).toMatch(
-      /className="absolute inset-0 z-10 h-full w-full cursor-pointer opacity-0 disabled:cursor-not-allowed"/,
-    );
-    expect(UPLOAD_BUTTON_SOURCE).toMatch(/pointer-events-none/);
-    expect(UPLOAD_BUTTON_SOURCE).not.toMatch(/role="button"/);
-    expect(UPLOAD_BUTTON_SOURCE).not.toMatch(/\.click\(\)/);
+    expect(UPLOAD_BUTTON_SOURCE).toMatch(/showOpenFilePicker/);
+    expect(UPLOAD_BUTTON_SOURCE).toMatch(/openFallbackInput/);
+    expect(UPLOAD_BUTTON_SOURCE).toMatch(/<button/);
+    expect(UPLOAD_BUTTON_SOURCE).toMatch(/className="hidden"/);
+    expect(UPLOAD_BUTTON_SOURCE).not.toMatch(/opacity-0/);
   });
 
   it("clears the file input after each selection", () => {
