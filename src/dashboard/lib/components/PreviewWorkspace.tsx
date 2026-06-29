@@ -147,7 +147,6 @@ export function PreviewWorkspace({
 
   // Remember the last-picked environment per repo so /preview restores it.
   const [storedId, setStoredId] = useState<string | null>(null);
-  const [isUploadingFiles, setIsUploadingFiles] = useState(false);
   const pendingSelectionRef = useRef<string | null>(null);
   useEffect(() => {
     if (!owner || !repo) return;
@@ -409,7 +408,6 @@ export function PreviewWorkspace({
   // add the dashboard-served URL as a named preview environment.
   const uploadFiles = async (files: File[]): Promise<void> => {
     if (files.length === 0) return;
-    setIsUploadingFiles(true);
     try {
       const uploadContext =
         files.length === 1 ? await createUploadContext(files[0]!) : undefined;
@@ -432,8 +430,6 @@ export function PreviewWorkspace({
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Upload failed");
       throw err;
-    } finally {
-      setIsUploadingFiles(false);
     }
   };
 
@@ -515,34 +511,20 @@ export function PreviewWorkspace({
         isSavingCurrentUrl={saveMutation.isPending}
         leadingToolbar={
           environments.length > 0 ? (
-            <div className="flex min-w-0 items-center gap-2">
-              <PreviewEnvSwitcher
-                environments={environments}
-                repoFullName={repoFullName}
-                selectedId={selectedEnv?.id ?? null}
-                onSelect={selectEnv}
-                onSave={persist}
-                onAddBranch={addBranch}
-                onRemoveStatic={removeStatic}
-                onRemoveRepoView={removeRepoView}
-                onExtend={extendEnv}
-                isSaving={saveMutation.isPending}
-                variant="address"
-              />
-              <PreviewFileUploadButton
-                title="Upload static files to state views"
-                disabled={isUploadingFiles}
-                onFiles={(files) => void uploadFiles(files)}
-                className="h-10 rounded-md border border-zinc-700/80 bg-zinc-800/40 px-3 text-xs font-medium text-zinc-300 transition hover:bg-zinc-700/70 hover:text-white"
-              >
-                {isUploadingFiles ? (
-                  <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                ) : (
-                  <Upload className="w-3.5 h-3.5" />
-                )}
-                {isUploadingFiles ? "Uploading..." : "Upload"}
-              </PreviewFileUploadButton>
-            </div>
+            <PreviewEnvSwitcher
+              environments={environments}
+              repoFullName={repoFullName}
+              selectedId={selectedEnv?.id ?? null}
+              onSelect={selectEnv}
+              onSave={persist}
+              onAddBranch={addBranch}
+              onUpload={uploadFiles}
+              onRemoveStatic={removeStatic}
+              onRemoveRepoView={removeRepoView}
+              onExtend={extendEnv}
+              isSaving={saveMutation.isPending}
+              variant="address"
+            />
           ) : null
         }
         emptyState={
@@ -577,16 +559,11 @@ export function PreviewWorkspace({
                   <span className="h-px flex-1 bg-zinc-800" />
                 </div>
                 <PreviewFileUploadButton
-                  disabled={isUploadingFiles}
                   onFiles={(files) => void uploadFiles(files)}
                   className="items-center justify-center rounded-md border border-zinc-700 bg-zinc-800/40 px-3 py-1.5 text-xs font-medium text-zinc-200 transition hover:bg-zinc-800"
                 >
-                  {isUploadingFiles ? (
-                    <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                  ) : (
-                    <Upload className="w-3.5 h-3.5" />
-                  )}
-                  {isUploadingFiles ? "Uploading..." : "Upload view files"}
+                  <Upload className="w-3.5 h-3.5" />
+                  Upload view files
                 </PreviewFileUploadButton>
               </div>
             </div>

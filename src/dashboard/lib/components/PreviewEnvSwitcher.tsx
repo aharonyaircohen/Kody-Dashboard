@@ -19,6 +19,7 @@ import {
   Loader2,
   Pencil,
   Trash2,
+  Upload,
 } from "lucide-react";
 import { cn } from "../utils";
 import {
@@ -31,6 +32,7 @@ import {
 } from "../preview-environments";
 import { PreviewBranchEnvForm } from "./PreviewBranchEnvForm";
 import { PreviewEnvForm } from "./PreviewEnvForm";
+import { PreviewFileUploadButton } from "./PreviewFileUploadButton";
 import { PreviewFloatingMenu } from "./PreviewFloatingMenu";
 
 /** Compact expiry chip text + tone for an uploaded preview. */
@@ -55,6 +57,8 @@ interface PreviewEnvSwitcherProps {
   onSave: (next: PreviewEnvironment[]) => Promise<void>;
   /** Add a Fly branch preview environment (parent persists + selects). */
   onAddBranch: (repo: string, branch: string) => Promise<void>;
+  /** Upload file(s) into a repo-backed view environment. */
+  onUpload?: (files: File[]) => Promise<void>;
   /** Destroy the Fly app behind an uploaded environment, if it has one. */
   onRemoveStatic?: (staticId: string) => Promise<void>;
   /** Delete repo-backed view files behind uploaded view, if any. */
@@ -72,6 +76,7 @@ export function PreviewEnvSwitcher({
   onSelect,
   onSave,
   onAddBranch,
+  onUpload,
   onRemoveStatic,
   onRemoveRepoView,
   onExtend,
@@ -81,6 +86,7 @@ export function PreviewEnvSwitcher({
   const [menuOpen, setMenuOpen] = useState(false);
   const [addOpen, setAddOpen] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
+  const [uploading, setUploading] = useState(false);
   const [extendingId, setExtendingId] = useState<string | null>(null);
   const rootRef = useRef<HTMLDivElement | null>(null);
   const now = Date.now();
@@ -134,6 +140,18 @@ export function PreviewEnvSwitcher({
     }
     if (removed?.repoViewPath && onRemoveRepoView) {
       await onRemoveRepoView(removed.repoViewPath);
+    }
+  };
+
+  const handleUpload = async (files: File[]): Promise<void> => {
+    if (!onUpload) return;
+    if (files.length === 0) return;
+    setUploading(true);
+    try {
+      await onUpload(files);
+      setMenuOpen(false);
+    } finally {
+      setUploading(false);
     }
   };
 
@@ -324,6 +342,21 @@ export function PreviewEnvSwitcher({
                 <GitBranch className="w-3.5 h-3.5" />
                 Add branch preview
               </button>
+              {onUpload && (
+                <PreviewFileUploadButton
+                  title="Upload static files to state views"
+                  disabled={uploading}
+                  onFiles={(files) => void handleUpload(files)}
+                  className="items-center border-l border-zinc-800 px-3 py-1.5 text-xs font-medium text-sky-300 hover:bg-zinc-800/70"
+                >
+                  {uploading ? (
+                    <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                  ) : (
+                    <Upload className="w-3.5 h-3.5" />
+                  )}
+                  {uploading ? "Uploading..." : "Upload view files"}
+                </PreviewFileUploadButton>
+              )}
             </div>
           )}
         </div>

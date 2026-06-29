@@ -1,9 +1,9 @@
 /**
  * @fileType component
  * @domain preview
- * @pattern native-file-input
- * @ai-summary Reusable preview upload control. Renders a real visible file
- *   input so the browser owns opening the file chooser directly.
+ * @pattern native-file-input-label
+ * @ai-summary Reusable preview upload control. Keeps the existing visual
+ *   button/menu UI while a real file input owns the chooser activation.
  */
 "use client";
 
@@ -45,15 +45,15 @@ export function PreviewFileUploadButton({
         className,
       )}
     >
-      <span className="inline-flex shrink-0 items-center gap-2">{children}</span>
       <input
         type="file"
         multiple={multiple}
         aria-label={ariaLabel}
-        className="min-w-0 max-w-[11rem] cursor-pointer text-[11px] text-zinc-600 file:mr-2 file:cursor-pointer file:rounded file:border-0 file:bg-zinc-800 file:px-2 file:py-1 file:text-[11px] file:font-medium file:text-white hover:file:bg-zinc-700 disabled:cursor-not-allowed disabled:file:cursor-not-allowed"
+        className="sr-only"
         disabled={disabled}
         onChange={handleInputChange}
       />
+      {children}
     </label>
   );
 }

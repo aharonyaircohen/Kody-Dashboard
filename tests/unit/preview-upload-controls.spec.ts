@@ -28,15 +28,18 @@ const SWITCHER_SOURCE = readFileSync(PREVIEW_ENV_SWITCHER_PATH, "utf8");
 const UPLOAD_BUTTON_SOURCE = readFileSync(PREVIEW_UPLOAD_BUTTON_PATH, "utf8");
 
 describe("Preview upload controls", () => {
-  it("opens uploads through a visible native file input owned by the workspace", () => {
+  it("keeps the existing upload menu UI while using native input activation", () => {
     expect(WORKSPACE_SOURCE).toMatch(/<PreviewFileUploadButton/);
-    expect(SWITCHER_SOURCE).not.toMatch(/<PreviewFileUploadButton/);
+    expect(WORKSPACE_SOURCE).toMatch(/onUpload=\{uploadFiles\}/);
+    expect(WORKSPACE_SOURCE).not.toMatch(/isUploadingFiles/);
+    expect(SWITCHER_SOURCE).toMatch(/<PreviewFileUploadButton/);
+    expect(SWITCHER_SOURCE).toMatch(/handleUpload/);
     expect(UPLOAD_BUTTON_SOURCE).toMatch(/type="file"/);
+    expect(UPLOAD_BUTTON_SOURCE).toMatch(/<label/);
     expect(UPLOAD_BUTTON_SOURCE).not.toMatch(/showOpenFilePicker/);
     expect(UPLOAD_BUTTON_SOURCE).not.toMatch(/\.click\(\)/);
-    expect(UPLOAD_BUTTON_SOURCE).not.toMatch(/className="hidden"/);
+    expect(UPLOAD_BUTTON_SOURCE).not.toMatch(/<button/);
     expect(UPLOAD_BUTTON_SOURCE).not.toMatch(/opacity-0/);
-    expect(WORKSPACE_SOURCE).toMatch(/isUploadingFiles/);
   });
 
   it("clears the file input after each selection", () => {
