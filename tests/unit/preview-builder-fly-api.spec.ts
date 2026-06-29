@@ -42,6 +42,37 @@ describe("builder createPreviewMachine autostop", () => {
     expect(timeoutSpy).toHaveBeenCalledWith(180_000);
   });
 
+  it("retries transient Fly timeouts while creating the preview machine", async () => {
+    const captured: CapturedRequest[] = [];
+    globalThis.fetch = vi
+      .fn()
+      .mockResolvedValueOnce(new Response("", { status: 408 }))
+      .mockImplementationOnce(
+        async (_input: RequestInfo | URL, init?: RequestInit) => {
+          captured.push(JSON.parse(init?.body as string) as CapturedRequest);
+          return new Response(JSON.stringify({ id: "m-builder-preview" }), {
+            status: 200,
+            headers: { "content-type": "application/json" },
+          });
+        },
+      ) as unknown as typeof fetch;
+
+    const id = await createPreviewMachine(
+      {
+        appName: "kp-test-app",
+        region: "fra",
+        image: "registry.fly.io/kp-test-app:sha",
+      },
+      "fly-test-token",
+    );
+
+    expect(id).toBe("m-builder-preview");
+    expect(globalThis.fetch).toHaveBeenCalledTimes(2);
+    expect(captured[0].config).toMatchObject({
+      image: "registry.fly.io/kp-test-app:sha",
+    });
+  });
+
   it("uses suspend for previews at or below Fly's 2 GB suspend limit", async () => {
     const captured: CapturedRequest[] = [];
     mockCreateResponse(captured);

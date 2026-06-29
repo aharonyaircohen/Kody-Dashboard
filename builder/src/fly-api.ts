@@ -19,6 +19,18 @@ function authHeader(token: string): HeadersInit {
   };
 }
 
+function shouldRetryCreatePreviewMachine(
+  status: number,
+  body: string,
+): boolean {
+  return (
+    status === 408 ||
+    status === 429 ||
+    status >= 500 ||
+    /MANIFEST_UNKNOWN|manifest unknown/i.test(body)
+  );
+}
+
 async function expectOk(res: Response, ctx: string): Promise<void> {
   if (!res.ok) {
     const text = await res.text().catch(() => "");
@@ -252,7 +264,7 @@ export async function createPreviewMachine(
     lastErr = new Error(
       `createPreviewMachine ${res.status}: ${text.slice(0, 400)}`,
     );
-    if (!/MANIFEST_UNKNOWN|manifest unknown/i.test(text)) break;
+    if (!shouldRetryCreatePreviewMachine(res.status, text)) break;
     await new Promise((r) => setTimeout(r, 2000 * (attempt + 1)));
   }
   throw lastErr ?? new Error("createPreviewMachine failed (unknown)");
