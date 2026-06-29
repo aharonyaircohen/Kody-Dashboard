@@ -13,10 +13,10 @@ import { z } from "zod";
 
 import { requireKodyAuth } from "@dashboard/lib/auth";
 import {
-  readBrainApp,
   readBrainImage,
   writeBrainImage,
 } from "@dashboard/lib/brain/store";
+import { resolveBrainService } from "@dashboard/lib/brain/service-resolver";
 import {
   brainFlyImageRef,
   brainImageBuildCommand,
@@ -28,8 +28,6 @@ import {
 } from "@dashboard/lib/github-client";
 import { logger } from "@dashboard/lib/logger";
 import {
-  brainAppName,
-  brainStatus,
   DEFAULT_IMAGE,
   waitForBrainHealth,
 } from "@dashboard/lib/runners/brain-fly";
@@ -67,8 +65,9 @@ async function runBrainExport(input: {
     },
     body: JSON.stringify({
       command: input.command,
+      local: true,
       timeoutMs: 240_000,
-      maxOutputBytes: 1024 * 1024,
+      maxOutputBytes: 8 * 1024 * 1024,
     }),
   });
   const body = (await res.json().catch(() => ({}))) as {
@@ -126,6 +125,15 @@ export async function POST(req: NextRequest) {
       { status: 400 },
     );
   }
+  if (parsed.data.app && !parsed.data.machineId) {
+    return NextResponse.json(
+      {
+        error: "machine_required",
+        message: "Selected Brain app needs a machine id.",
+      },
+      { status: 400 },
+    );
+  }
 
   setGitHubContext(
     ctx.context.owner,
@@ -136,52 +144,33 @@ export async function POST(req: NextRequest) {
   );
 
   try {
-    const stored = await readBrainApp(
-      ctx.context.account,
-      ctx.context.githubToken,
-    ).catch(() => null);
-    const defaultApp = brainAppName(ctx.context.account);
-    const app = parsed.data.app ?? stored?.appName ?? defaultApp;
-    if (
-      parsed.data.app &&
-      stored?.appName &&
-      parsed.data.app !== stored.appName
-    ) {
-      return NextResponse.json(
-        {
-          error: "brain_app_mismatch",
-          message: "Selected app is not the saved Brain app.",
-        },
-        { status: 409 },
-      );
-    }
-    if (parsed.data.app && !stored?.appName && parsed.data.app !== defaultApp) {
-      return NextResponse.json(
-        {
-          error: "brain_app_mismatch",
-          message: "Selected app is not the default Brain app.",
-        },
-        { status: 409 },
-      );
-    }
-
-    const status = await brainStatus({
+    const brain = await resolveBrainService({
       flyToken: ctx.context.flyToken,
       account: ctx.context.account,
+      githubToken: ctx.context.githubToken,
       orgSlug: ctx.context.flyOrgSlug,
       defaultRegion: ctx.context.flyDefaultRegion,
-      appNameOverride: app,
+      appNameOverride: parsed.data.app,
+      machineIdOverride: parsed.data.machineId,
     });
-    if (status.state === "off" || !status.machineId || !status.url) {
+    const app = brain.app;
+    const machineId = parsed.data.machineId ?? brain.machineId;
+    if (
+      brain.state === "off" ||
+      !machineId ||
+      !brain.url ||
+      (parsed.data.machineId && brain.machineId !== parsed.data.machineId)
+    ) {
       return NextResponse.json(
         {
           error: "brain_not_found",
           message: "No Brain machine found to save.",
+          reason: brain.reason,
         },
         { status: 404 },
       );
     }
-    await waitForBrainHealth(status.url, 120_000);
+    await waitForBrainHealth(brain.url, 120_000);
 
     const bridge = await ensureTerminalBridge({
       token: ctx.context.flyToken,
@@ -192,8 +181,9 @@ export async function POST(req: NextRequest) {
       owner: ctx.context.owner,
       repo: ctx.context.repo,
       app,
-      machineId: status.machineId,
+      machineId,
       flyToken: ctx.context.flyToken,
+      localExec: true,
       ttlSeconds: 300,
       secret: bridge.secret,
     });
@@ -205,7 +195,7 @@ export async function POST(req: NextRequest) {
       token,
       command: brainImageBuildCommand({
         app,
-        machineId: status.machineId,
+        machineId,
         tag,
         baseImageRef: DEFAULT_IMAGE,
       }),
@@ -229,7 +219,7 @@ export async function POST(req: NextRequest) {
       ok: true,
       imageRef,
       app,
-      machineId: status.machineId,
+      machineId,
     });
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);

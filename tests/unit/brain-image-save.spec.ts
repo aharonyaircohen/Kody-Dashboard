@@ -34,5 +34,7 @@ describe("Brain image save helpers", () => {
     expect(command).toContain("--push");
     expect(command).toContain("registry.fly.io/kody-brain-alice");
     expect(command).toContain("__KODY_BRAIN_IMAGE_REF=");
+    expect(command).toContain('> "$tmpdir/build.log" 2>&1');
+    expect(command).toContain('tail -n 200 "$tmpdir/build.log"');
   });
 });

@@ -17,7 +17,7 @@ const REQUEST_TIMEOUT_MS = 30_000;
 const BRIDGE_HEALTH_TIMEOUT_MS = 90_000;
 const BRIDGE_HEALTH_INTERVAL_MS = 2_000;
 
-export const TERMINAL_BRIDGE_VERSION = "2026-06-25.1";
+export const TERMINAL_BRIDGE_VERSION = "2026-06-29.1";
 export const TERMINAL_BRIDGE_BASE_IMAGE =
   process.env.KODY_TERMINAL_BRIDGE_BASE_IMAGE ?? "node:22-bookworm";
 
@@ -239,6 +239,12 @@ function verifyTerminalToken(token) {
   ) {
     throw new Error("terminal token activity limit invalid");
   }
+  if (
+    claims.localExec !== undefined &&
+    typeof claims.localExec !== "boolean"
+  ) {
+    throw new Error("terminal token local exec flag invalid");
+  }
   return claims;
 }
 
@@ -380,6 +386,67 @@ function runOneShotFlyCommand(claims, command, timeoutMs, maxOutputBytes) {
       command,
     ];
     const child = spawn("flyctl", args, {
+      env,
+      stdio: ["ignore", "pipe", "pipe"],
+    });
+    const stdout = [];
+    const stderr = [];
+    const stdoutState = { size: 0 };
+    const stderrState = { size: 0 };
+    let settled = false;
+    const finish = (fn, value) => {
+      if (settled) return;
+      settled = true;
+      clearTimeout(timer);
+      fn(value);
+    };
+    const timer = setTimeout(() => {
+      try {
+        child.kill("SIGTERM");
+      } catch {}
+      finish(reject, new Error("command timed out"));
+    }, timeoutMs);
+    child.stdout.on("data", (chunk) => {
+      try {
+        appendOutput(stdout, stdoutState, chunk, maxOutputBytes);
+      } catch (err) {
+        try {
+          child.kill("SIGTERM");
+        } catch {}
+        finish(reject, err);
+      }
+    });
+    child.stderr.on("data", (chunk) => {
+      try {
+        appendOutput(stderr, stderrState, chunk, 1024 * 1024);
+      } catch (err) {
+        try {
+          child.kill("SIGTERM");
+        } catch {}
+        finish(reject, err);
+      }
+    });
+    child.on("error", (err) => finish(reject, err));
+    child.on("close", (code) => {
+      finish(resolve, {
+        code: code ?? 0,
+        stdout: Buffer.concat(stdout).toString("utf8"),
+        stderr: Buffer.concat(stderr).toString("utf8"),
+      });
+    });
+  });
+}
+
+function runOneShotLocalCommand(claims, command, timeoutMs, maxOutputBytes) {
+  return new Promise((resolve, reject) => {
+    const env = {
+      ...process.env,
+      FLY_API_TOKEN: claims.flyToken,
+      FLY_ACCESS_TOKEN: claims.flyToken,
+      NO_COLOR: "1",
+      TERM: "dumb",
+    };
+    const child = spawn("/bin/bash", ["-lc", command], {
       env,
       stdio: ["ignore", "pipe", "pipe"],
     });
@@ -754,7 +821,18 @@ const server = http.createServer((req, res) => {
             ),
             MAX_EXEC_OUTPUT_BYTES,
           );
-          return runOneShotFlyCommand(
+          if (body.local === true && claims.localExec !== true) {
+            jsonResponse(res, 403, {
+              ok: false,
+              error: "local exec not allowed",
+            });
+            return;
+          }
+          const runner =
+            body.local === true
+              ? runOneShotLocalCommand
+              : runOneShotFlyCommand;
+          return runner(
             claims,
             command,
             timeoutMs,

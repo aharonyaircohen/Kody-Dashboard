@@ -48,6 +48,7 @@ export async function resolveBrainService(input: {
   orgSlug: string;
   defaultRegion: string;
   appNameOverride?: string;
+  machineIdOverride?: string;
 }): Promise<BrainServiceResolution> {
   const stored = await readBrainApp(input.account, input.githubToken).catch(
     () => null,
@@ -72,11 +73,12 @@ export async function resolveBrainService(input: {
       orgSlug,
       defaultRegion: input.defaultRegion,
     });
+    const targetMachineId = input.machineIdOverride ?? status.machineId;
     machine = rowsForFlyApp(app, machines, Date.now(), {
       feature: "brain",
       label: app,
     }).find((row) =>
-      status.machineId ? row.machineId === status.machineId : true,
+      targetMachineId ? row.machineId === targetMachineId : true,
     );
   } catch {
     machineLookupFailed = true;
@@ -100,7 +102,7 @@ export async function resolveBrainService(input: {
     stored,
     state: status.state,
     url: status.url,
-    machineId: status.machineId,
+    machineId: machine?.machineId ?? status.machineId,
     machine,
     reason,
   };

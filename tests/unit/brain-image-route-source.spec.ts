@@ -30,13 +30,19 @@ describe("Brain image save route", () => {
     expect(ROUTE_SOURCE).toContain("/exec");
     expect(ROUTE_SOURCE).toContain("brainImageBuildCommand");
     expect(ROUTE_SOURCE).toContain("brainFlyImageRef");
+    expect(ROUTE_SOURCE).toContain("resolveBrainService");
+    expect(ROUTE_SOURCE).toContain("machineIdOverride");
+    expect(ROUTE_SOURCE).toContain("local: true");
     expect(ROUTE_SOURCE).toContain("readBrainImage");
     expect(ROUTE_SOURCE).toContain("writeBrainImage");
+    expect(ROUTE_SOURCE).not.toContain("brain_app_mismatch");
   });
 
   it("supports authenticated non-interactive bridge commands", () => {
     expect(BRIDGE_SOURCE).toContain('url.pathname === "/exec"');
     expect(BRIDGE_SOURCE).toContain("runOneShotFlyCommand");
+    expect(BRIDGE_SOURCE).toContain("runOneShotLocalCommand");
+    expect(BRIDGE_SOURCE).toContain("body.local === true");
     expect(BRIDGE_SOURCE).toContain('"--command"');
     expect(BRIDGE_SOURCE).toContain("MAX_EXEC_OUTPUT_BYTES");
   });

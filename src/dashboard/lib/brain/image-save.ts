@@ -106,9 +106,12 @@ image=${shellQuote(imageRef)}
 tmpdir="$(mktemp -d)"
 trap 'rm -rf "$tmpdir"' EXIT
 
-flyctl ssh console --app "$app" --machine "$machine" --command ${shellQuote(
+if ! flyctl ssh console --app "$app" --machine "$machine" --command ${shellQuote(
     exportCommand,
-  )} > "$tmpdir/root-state.tgz.b64"
+  )} > "$tmpdir/root-state.tgz.b64" 2>"$tmpdir/export.log"; then
+  tail -n 200 "$tmpdir/export.log" >&2
+  exit 1
+fi
 base64 -d "$tmpdir/root-state.tgz.b64" > "$tmpdir/root-state.tgz"
 
 cat > "$tmpdir/Dockerfile" <<EOF
@@ -124,13 +127,16 @@ app = "$app"
   dockerfile = "Dockerfile"
 EOF
 
-NO_COLOR=1 flyctl deploy "$tmpdir" \
+if ! NO_COLOR=1 flyctl deploy "$tmpdir" \
   --app "$app" \
   --config "$tmpdir/fly.toml" \
   --build-only \
   --push \
   --depot=false \
-  --image-label "$tag"
+  --image-label "$tag" > "$tmpdir/build.log" 2>&1; then
+  tail -n 200 "$tmpdir/build.log" >&2
+  exit 1
+fi
 
 printf '\\n__KODY_BRAIN_IMAGE_REF=%s\\n' "$image"
 `)}`;
