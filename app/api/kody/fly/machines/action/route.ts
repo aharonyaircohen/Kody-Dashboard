@@ -18,19 +18,20 @@ import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 
 import {
-  getRequestAuth,
-  getUserOctokit,
   requireKodyAuth,
   verifyActorLogin,
 } from "@dashboard/lib/auth";
 import { logger } from "@dashboard/lib/logger";
-import { resolvePreviewConfigForOctokit } from "@dashboard/lib/previews/config";
 import {
   destroyApp,
   destroyMachine,
   startMachine,
   suspendMachine,
 } from "@dashboard/lib/previews/fly-previews";
+import {
+  flyConfigFromContext,
+  resolveFlyContext,
+} from "@dashboard/lib/runners/fly-context";
 
 export const runtime = "nodejs";
 
@@ -49,11 +50,6 @@ const Body = z
 export async function POST(req: NextRequest) {
   const authError = await requireKodyAuth(req);
   if (authError) return authError;
-
-  const auth = getRequestAuth(req);
-  if (!auth) {
-    return NextResponse.json({ error: "no_repo_context" }, { status: 400 });
-  }
 
   let body: unknown;
   try {
@@ -75,15 +71,11 @@ export async function POST(req: NextRequest) {
     if ("status" in verify) return verify;
   }
 
-  const octokit = await getUserOctokit(req);
-  if (!octokit)
-    return NextResponse.json({ error: "no_octokit" }, { status: 401 });
-
-  const cfg = await resolvePreviewConfigForOctokit({
-    octokit,
-    owner: auth.owner,
-    repo: auth.repo,
-  });
+  const ctx = await resolveFlyContext(req);
+  if (!ctx.ok) {
+    return NextResponse.json({ error: ctx.error }, { status: ctx.status });
+  }
+  const cfg = flyConfigFromContext(ctx.context);
   if (!cfg) {
     return NextResponse.json({ error: "fly_token_missing" }, { status: 503 });
   }

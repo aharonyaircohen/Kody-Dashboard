@@ -14,8 +14,8 @@ import { describe, expect, it, vi } from "vitest";
 import {
   batchSuspendRunning,
   countRunningInGroup,
-  isRunningState,
 } from "@dashboard/lib/runners/fly-suspend-all";
+import { isFlyMachineRunning } from "@dashboard/lib/runners/fly-machine-model";
 import type { FlyMachineRow } from "@dashboard/lib/runners/fly-inventory";
 
 function row(
@@ -34,16 +34,16 @@ function row(
   };
 }
 
-describe("isRunningState", () => {
+describe("isFlyMachineRunning", () => {
   it("treats running/started as running", () => {
-    expect(isRunningState("running")).toBe(true);
-    expect(isRunningState("started")).toBe(true);
+    expect(isFlyMachineRunning("running")).toBe(true);
+    expect(isFlyMachineRunning("started")).toBe(true);
   });
 
   it("treats suspended/stopped/destroyed as not running", () => {
-    expect(isRunningState("suspended")).toBe(false);
-    expect(isRunningState("stopped")).toBe(false);
-    expect(isRunningState("destroyed")).toBe(false);
+    expect(isFlyMachineRunning("suspended")).toBe(false);
+    expect(isFlyMachineRunning("stopped")).toBe(false);
+    expect(isFlyMachineRunning("destroyed")).toBe(false);
   });
 });
 

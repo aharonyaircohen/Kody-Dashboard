@@ -27,13 +27,12 @@
 import { NextRequest, NextResponse } from "next/server";
 
 import { requireKodyAuth } from "@dashboard/lib/auth";
-import { readBrainApp } from "@dashboard/lib/brain/store";
+import { resolveBrainService } from "@dashboard/lib/brain/service-resolver";
 import {
   clearGitHubContext,
   setGitHubContext,
 } from "@dashboard/lib/github-client";
 import { logger } from "@dashboard/lib/logger";
-import { brainStatus } from "@dashboard/lib/runners/brain-fly";
 import { resolveFlyContext } from "@dashboard/lib/runners/fly-context";
 
 export const runtime = "nodejs";
@@ -63,27 +62,22 @@ export async function GET(req: NextRequest) {
     // Read the stored record first so the live-status call targets the
     // actual app name (which may carry a `-2`/`-3` suffix from an earlier
     // auto-rename when the default slug was taken).
-    let storedAppName: string | undefined;
-    let storedRecord: Awaited<ReturnType<typeof readBrainApp>> = null;
-    try {
-      storedRecord = await readBrainApp(
-        ctx.context.account,
-        ctx.context.githubToken,
-      );
-      storedAppName = storedRecord?.appName;
-    } catch (err) {
-      logger.warn(
-        { err, owner: ctx.context.owner },
-        "brain status: stored record read failed (non-fatal)",
-      );
-    }
-
-    const result = await brainStatus({
+    const result = await resolveBrainService({
       flyToken: ctx.context.flyToken,
       account: ctx.context.account,
-      ...(storedAppName ? { appNameOverride: storedAppName } : {}),
+      githubToken: ctx.context.githubToken,
+      orgSlug: ctx.context.flyOrgSlug,
+      defaultRegion: ctx.context.flyDefaultRegion,
     });
-    return NextResponse.json({ ...result, stored: storedRecord });
+    return NextResponse.json({
+      app: result.app,
+      state: result.state,
+      url: result.url,
+      machineId: result.machineId,
+      org: result.orgSlug,
+      reason: result.reason,
+      stored: result.stored,
+    });
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
     logger.error({ err, owner: ctx.context.owner }, "brain status failed");

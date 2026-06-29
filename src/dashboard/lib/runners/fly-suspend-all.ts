@@ -16,11 +16,7 @@
  * without a network.
  */
 import type { FlyMachineRow } from "./fly-inventory";
-
-/** A machine is "running" (paying for CPU) unless suspended/stopped/destroyed. */
-export function isRunningState(state: string): boolean {
-  return state !== "suspended" && state !== "stopped" && state !== "destroyed";
-}
+import { isFlyMachineRunning } from "./fly-machine-model";
 
 export interface SuspendResult {
   machineId: string;
@@ -37,7 +33,7 @@ export interface BatchSuspendResult {
 
 /** How many of `rows` are currently running (i.e. a target for batch-suspend). */
 export function countRunningInGroup(rows: FlyMachineRow[]): number {
-  return rows.filter((r) => isRunningState(r.state)).length;
+  return rows.filter((r) => isFlyMachineRunning(r.state)).length;
 }
 
 /** Run `fn` over `items` with bounded concurrency. Mirrors `mapLimit` in
@@ -74,7 +70,7 @@ export async function batchSuspendRunning(
   suspendOne: (row: FlyMachineRow) => Promise<void>,
   concurrency = 6,
 ): Promise<BatchSuspendResult> {
-  const running = rows.filter((r) => isRunningState(r.state));
+  const running = rows.filter((r) => isFlyMachineRunning(r.state));
   const results = await mapLimit(running, concurrency, async (row) => {
     try {
       await suspendOne(row);

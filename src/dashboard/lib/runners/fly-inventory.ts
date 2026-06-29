@@ -19,40 +19,14 @@ import {
   type MachineInfo,
   type FlyPreviewConfig,
 } from "@dashboard/lib/previews/fly-previews";
+import {
+  isFlyMachineRunning,
+  type FlyFeature,
+  type FlyInventory,
+  type FlyMachineRow,
+} from "./fly-machine-model";
 
-export type FlyFeature =
-  | "preview"
-  | "preview-base"
-  | "runner"
-  | "brain"
-  | "builder"
-  | "other";
-
-export interface FlyMachineRow {
-  feature: FlyFeature;
-  app: string;
-  machineId: string;
-  name?: string;
-  state: string;
-  region: string;
-  /** Human label, e.g. "PR #2350", "branch", "kody-runner". */
-  label: string;
-  /** "shared 2x · 4 GB" or "—" when size is unknown. */
-  sizeLabel: string;
-  /** Raw guest sizing — consumed by the activity snapshot store / cost
-   * estimate. `sizeLabel` is the display form of this. */
-  guest?: { cpuKind?: string; cpus?: number; memoryMb?: number };
-  createdAt?: string;
-  ageDays?: number;
-}
-
-export interface FlyInventory {
-  machines: FlyMachineRow[];
-  /** Count in a live (non-suspended/stopped) state — the ones costing CPU. */
-  running: number;
-  /** Total machines across all features. */
-  total: number;
-}
+export type { FlyFeature, FlyInventory, FlyMachineRow } from "./fly-machine-model";
 
 const MS_PER_DAY = 24 * 60 * 60 * 1000;
 
@@ -113,11 +87,6 @@ async function mapLimit<T, R>(
     Array.from({ length: Math.min(limit, items.length) }, () => worker()),
   );
   return out;
-}
-
-/** A machine is "running" (paying for CPU) unless suspended/stopped. */
-function isRunning(state: string): boolean {
-  return state !== "suspended" && state !== "stopped" && state !== "destroyed";
 }
 
 export function rowsForFlyApp(
@@ -182,7 +151,7 @@ export async function listFlyInventory(
   const machines = perApp.flat();
   return {
     machines,
-    running: machines.filter((m) => isRunning(m.state)).length,
+    running: machines.filter((m) => isFlyMachineRunning(m.state)).length,
     total: machines.length,
   };
 }

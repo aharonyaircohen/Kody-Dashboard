@@ -9,19 +9,15 @@ import "server-only";
 
 import type { NextRequest } from "next/server";
 
-import { readBrainApp } from "@dashboard/lib/brain/store";
+import { resolveBrainService } from "@dashboard/lib/brain/service-resolver";
 import {
   clearGitHubContext,
   setGitHubContext,
 } from "@dashboard/lib/github-client";
 import { logger } from "@dashboard/lib/logger";
-import { listMachines } from "@dashboard/lib/previews/fly-previews";
-import { brainAppName } from "@dashboard/lib/runners/brain-fly";
 import { resolveFlyContext } from "@dashboard/lib/runners/fly-context";
-import {
-  rowsForFlyApp,
-  type FlyInventory,
-} from "@dashboard/lib/runners/fly-inventory";
+import type { FlyInventory } from "@dashboard/lib/runners/fly-inventory";
+import { isFlyMachineRunning } from "@dashboard/lib/runners/fly-machine-model";
 
 export function emptyFlyInventory(): FlyInventory {
   return { machines: [], running: 0, total: 0 };
@@ -32,12 +28,8 @@ export function refreshFlyInventoryCounts(
 ): FlyInventory {
   return {
     machines: inventory.machines,
-    running: inventory.machines.filter(
-      (m) =>
-        m.state !== "suspended" &&
-        m.state !== "stopped" &&
-        m.state !== "destroyed",
-    ).length,
+    running: inventory.machines.filter((m) => isFlyMachineRunning(m.state))
+      .length,
     total: inventory.machines.length,
   };
 }
@@ -57,26 +49,17 @@ export async function appendSavedBrainMachineToInventory(
     ctx.context.storeRef,
   );
   try {
-    const stored = await readBrainApp(
-      ctx.context.account,
-      ctx.context.githubToken,
-    ).catch(() => null);
-    const app = stored?.appName ?? brainAppName(ctx.context.account);
-    if (inventory.machines.some((m) => m.app === app)) return false;
-
-    const machines = await listMachines(app, {
-      token: ctx.context.flyToken,
-      orgSlug: stored?.orgSlug ?? "personal",
-      defaultRegion: "fra",
+    const brain = await resolveBrainService({
+      flyToken: ctx.context.flyToken,
+      account: ctx.context.account,
+      githubToken: ctx.context.githubToken,
+      orgSlug: ctx.context.flyOrgSlug,
+      defaultRegion: ctx.context.flyDefaultRegion,
     });
-    if (machines.length === 0) return false;
-
-    inventory.machines.push(
-      ...rowsForFlyApp(app, machines, Date.now(), {
-        feature: "brain",
-        label: app,
-      }),
-    );
+    const app = brain.app;
+    if (inventory.machines.some((m) => m.app === app)) return false;
+    if (!brain.machine) return false;
+    inventory.machines.push(brain.machine);
     return true;
   } catch (err) {
     logger.warn(

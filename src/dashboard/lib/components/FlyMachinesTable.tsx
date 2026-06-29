@@ -30,35 +30,14 @@ import {
   batchSuspendRunning,
   countRunningInGroup,
 } from "@dashboard/lib/runners/fly-suspend-all";
+import {
+  FLY_FEATURE_TITLE,
+  isFlyMachineRunning,
+  type FlyFeature,
+  type FlyInventory,
+  type FlyMachineRow,
+} from "@dashboard/lib/runners/fly-machine-model";
 import { ConfirmDialog } from "./ConfirmDialog";
-
-type FlyFeature =
-  | "preview"
-  | "preview-base"
-  | "runner"
-  | "brain"
-  | "builder"
-  | "other";
-
-interface FlyMachineRow {
-  feature: FlyFeature;
-  app: string;
-  machineId: string;
-  name?: string;
-  state: string;
-  region: string;
-  label: string;
-  sizeLabel: string;
-  ageDays?: number;
-  /** ISO creation time — rendered as the start time + age duration. */
-  createdAt?: string;
-}
-
-interface Inventory {
-  machines: FlyMachineRow[];
-  running: number;
-  total: number;
-}
 
 interface FlyMachinesTableProps {
   headers: Record<string, string>;
@@ -74,24 +53,11 @@ const FEATURE_ORDER: FlyFeature[] = [
   "preview-base",
   "other",
 ];
-const FEATURE_TITLE: Record<FlyFeature, string> = {
-  preview: "Previews",
-  runner: "Runners",
-  brain: "Brain",
-  builder: "Builders",
-  "preview-base": "Preview base images",
-  other: "Other",
-};
-
 // Preview apps are throwaway per-PR envs — "Destroy" should remove the whole
 // app (URL + IPs), not just one machine. Long-lived service apps keep the app
 // and only destroy the machine.
 function destroysWholeApp(feature: FlyFeature): boolean {
   return feature === "preview" || feature === "preview-base";
-}
-
-function isRunning(state: string): boolean {
-  return state !== "suspended" && state !== "stopped" && state !== "destroyed";
 }
 
 /** Absolute start time, e.g. "Jun 1, 14:30". Empty when unknown. */
@@ -139,7 +105,7 @@ export function FlyMachinesTable({
 }: FlyMachinesTableProps) {
   const hasAuth = Object.keys(headers).length > 0;
 
-  const [inv, setInv] = useState<Inventory | null>(null);
+  const [inv, setInv] = useState<FlyInventory | null>(null);
   const [loading, setLoading] = useState(false);
   const [busyId, setBusyId] = useState<string | null>(null);
   const [confirm, setConfirm] = useState<FlyMachineRow | null>(null);
@@ -158,7 +124,7 @@ export function FlyMachinesTable({
         setInv(null);
         return;
       }
-      setInv((await res.json()) as Inventory);
+      setInv((await res.json()) as FlyInventory);
     } catch {
       setInv(null);
     } finally {
@@ -232,7 +198,7 @@ export function FlyMachinesTable({
       );
       if (failCount === 0) {
         toast.success(
-          `Suspended ${okCount} machine(s) in ${FEATURE_TITLE[feature]}.`,
+          `Suspended ${okCount} machine(s) in ${FLY_FEATURE_TITLE[feature]}.`,
         );
       } else {
         const failedIds = results
@@ -240,7 +206,7 @@ export function FlyMachinesTable({
           .map((r) => r.machineId)
           .join(", ");
         toast.error(
-          `Suspended ${okCount}, ${failCount} failed in ${FEATURE_TITLE[feature]}: ${failedIds}`,
+          `Suspended ${okCount}, ${failCount} failed in ${FLY_FEATURE_TITLE[feature]}: ${failedIds}`,
         );
       }
       await refresh();
@@ -301,7 +267,7 @@ export function FlyMachinesTable({
             <div key={feature} className="space-y-1">
               <div className="flex items-center gap-2 pt-1">
                 <h3 className="text-[11px] font-semibold uppercase tracking-wider text-white/40">
-                  {FEATURE_TITLE[feature]}
+                  {FLY_FEATURE_TITLE[feature]}
                 </h3>
                 <span className="text-[11px] text-white/25">{rows.length}</span>
                 {runningInGroup > 0 && (
@@ -325,7 +291,7 @@ export function FlyMachinesTable({
               <div className="divide-y divide-white/[0.06]">
                 {rows.map((row) => {
                   const busy = groupBusy || busyId === row.machineId;
-                  const running = isRunning(row.state);
+                  const running = isFlyMachineRunning(row.state);
                   return (
                     <div
                       key={row.machineId}
@@ -432,7 +398,7 @@ export function FlyMachinesTable({
         open={confirmFeature !== null}
         title={
           confirmFeature
-            ? `Suspend all in ${FEATURE_TITLE[confirmFeature]}?`
+            ? `Suspend all in ${FLY_FEATURE_TITLE[confirmFeature]}?`
             : "Suspend all?"
         }
         description={
@@ -441,7 +407,7 @@ export function FlyMachinesTable({
                 (inv?.machines ?? []).filter(
                   (m) => m.feature === confirmFeature,
                 ),
-              )} running machine(s) in ${FEATURE_TITLE[confirmFeature]}. Already-suspended machines are skipped.`
+              )} running machine(s) in ${FLY_FEATURE_TITLE[confirmFeature]}. Already-suspended machines are skipped.`
             : ""
         }
         confirmLabel="Suspend all"

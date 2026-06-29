@@ -22,6 +22,7 @@ import {
 } from "@dashboard/lib/auth";
 import { logger } from "@dashboard/lib/logger";
 import { getEngineConfig } from "@dashboard/lib/engine/config";
+import type { FlyPreviewConfig } from "@dashboard/lib/previews/fly-previews";
 import { readVault } from "@dashboard/lib/vault/store";
 import type { PerfTier } from "./fly";
 
@@ -56,6 +57,8 @@ export interface FlyContext {
   /** Secrets the engine reads at runtime; FLY_API_TOKEN is already extracted. */
   allSecrets: Record<string, string>;
   flyToken: string | undefined;
+  flyOrgSlug: string;
+  flyDefaultRegion: string;
   perfTier: PerfTier | undefined;
 }
 
@@ -66,6 +69,17 @@ export interface FlyContext {
 export type FlyContextResult =
   | { ok: true; context: FlyContext }
   | { ok: false; error: string; status: number };
+
+export function flyConfigFromContext(
+  context: FlyContext,
+): FlyPreviewConfig | null {
+  if (!context.flyToken) return null;
+  return {
+    token: context.flyToken,
+    orgSlug: context.flyOrgSlug,
+    defaultRegion: context.flyDefaultRegion,
+  };
+}
 
 /**
  * Decrypt the per-repo secrets vault and flatten it into the env shape
@@ -164,6 +178,14 @@ export async function resolveFlyContext(
     vaultFlyToken ??
     process.env.FLY_API_TOKEN?.trim() ??
     process.env.FLY_IO_TOKEN?.trim();
+  const flyOrgSlug =
+    allSecrets.FLY_ORG_SLUG?.trim() ||
+    process.env.FLY_ORG_SLUG?.trim() ||
+    "personal";
+  const flyDefaultRegion =
+    allSecrets.FLY_DEFAULT_REGION?.trim() ||
+    process.env.FLY_DEFAULT_REGION?.trim() ||
+    "fra";
 
   const rawPerf = req.headers.get("x-kody-fly-perf");
   const perfTier: PerfTier | undefined =
@@ -184,6 +206,8 @@ export async function resolveFlyContext(
       storeRef: headerAuth?.storeRef,
       allSecrets,
       flyToken,
+      flyOrgSlug,
+      flyDefaultRegion,
       perfTier,
     },
   };

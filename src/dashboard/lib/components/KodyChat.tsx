@@ -64,6 +64,7 @@ import {
   terminalMachineIdShort,
   useChatTerminalRegistry,
 } from "../hooks/useChatTerminalRegistry";
+import { flyMachineTerminalLabel } from "../runners/fly-machine-model";
 import {
   useSlashCommands,
   parseSlashTrigger,
@@ -1109,9 +1110,6 @@ export function KodyChat({
       : activeTerminalConnectionState === "connecting"
         ? "Starting"
         : "Off";
-  const isActiveFlyBrainTerminal =
-    activeTerminalTransport.type === "fly" &&
-    activeTerminalTransport.feature === "brain";
   const [localSandboxes, setLocalSandboxes] = useState<LocalSandboxSummary[]>(
     [],
   );
@@ -1452,22 +1450,20 @@ export function KodyChat({
   );
 
   const handleSaveBrainImage = useCallback(async () => {
-    if (
-      activeTerminalTransport.type !== "fly" ||
-      activeTerminalTransport.feature !== "brain"
-    ) {
-      toast.error("Select a Fly Brain terminal before saving its image");
-      return;
-    }
+    const requestBody =
+      activeTerminalTransport.type === "fly" &&
+      activeTerminalTransport.feature === "brain"
+        ? {
+            app: activeTerminalTransport.app,
+            machineId: activeTerminalTransport.machineId,
+          }
+        : {};
     setBrainImageBusy(true);
     try {
       const res = await fetch("/api/kody/brain/image", {
         method: "POST",
         headers: { "Content-Type": "application/json", ...authHeaders() },
-        body: JSON.stringify({
-          app: activeTerminalTransport.app,
-          machineId: activeTerminalTransport.machineId,
-        }),
+        body: JSON.stringify(requestBody),
       });
       const body = (await res.json().catch(() => ({}))) as {
         imageRef?: string;
@@ -6530,7 +6526,8 @@ export function KodyChat({
                         key={terminalFlyMachineKey(machine)}
                         value={terminalFlyMachineKey(machine)}
                       >
-                        {machine.label} · {machine.state} · {machine.region} ·{" "}
+                        {flyMachineTerminalLabel(machine)} · {machine.state} ·{" "}
+                        {machine.region} ·{" "}
                         {terminalMachineIdShort(machine.machineId)}
                       </option>
                     ))}
@@ -6596,22 +6593,20 @@ export function KodyChat({
                       </div>
                     )}
                   </div>
-                  {isActiveFlyBrainTerminal && (
-                    <button
-                      type="button"
-                      onClick={() => void handleSaveBrainImage()}
-                      disabled={brainImageBusy}
-                      className="inline-flex h-10 w-10 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-muted hover:text-foreground disabled:cursor-not-allowed disabled:opacity-50"
-                      title="Save Brain image"
-                      aria-label="Save Brain image"
-                    >
-                      {brainImageBusy ? (
-                        <Loader2 className="h-4 w-4 animate-spin" />
-                      ) : (
-                        <Save className="h-4 w-4" />
-                      )}
-                    </button>
-                  )}
+                  <button
+                    type="button"
+                    onClick={() => void handleSaveBrainImage()}
+                    disabled={brainImageBusy}
+                    className="inline-flex h-10 w-10 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-muted hover:text-foreground disabled:cursor-not-allowed disabled:opacity-50"
+                    title="Save Brain image"
+                    aria-label="Save Brain image"
+                  >
+                    {brainImageBusy ? (
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                    ) : (
+                      <Save className="h-4 w-4" />
+                    )}
+                  </button>
                   <button
                     type="button"
                     onClick={() => void handleResetTerminalCheckpoint()}

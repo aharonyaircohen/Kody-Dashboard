@@ -155,6 +155,8 @@ export async function POST(req: NextRequest) {
         githubToken: ctx.context.githubToken,
         allSecrets: ctx.context.allSecrets,
         perfTier: ctx.context.perfTier,
+        orgSlug: ctx.context.flyOrgSlug,
+        defaultRegion: ctx.context.flyDefaultRegion,
         suspendOnIdle: brainSuspendOnIdleFrom(req),
         dashboardUrl,
         ...(appNameOverride ? { appNameOverride } : {}),

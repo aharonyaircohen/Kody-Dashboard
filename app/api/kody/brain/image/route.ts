@@ -54,14 +54,6 @@ function bridgeBaseUrl(url: string): string {
   return url.replace(/\/+$/, "");
 }
 
-function flyOrgFromSecrets(secrets: Record<string, string>): string {
-  return secrets.FLY_ORG_SLUG ?? process.env.FLY_ORG_SLUG ?? "personal";
-}
-
-function flyRegionFromSecrets(secrets: Record<string, string>): string {
-  return secrets.FLY_DEFAULT_REGION ?? process.env.FLY_DEFAULT_REGION ?? "fra";
-}
-
 async function runBrainExport(input: {
   bridgeUrl: string;
   token: string;
@@ -176,6 +168,8 @@ export async function POST(req: NextRequest) {
     const status = await brainStatus({
       flyToken: ctx.context.flyToken,
       account: ctx.context.account,
+      orgSlug: ctx.context.flyOrgSlug,
+      defaultRegion: ctx.context.flyDefaultRegion,
       appNameOverride: app,
     });
     if (status.state === "off" || !status.machineId || !status.url) {
@@ -191,8 +185,8 @@ export async function POST(req: NextRequest) {
 
     const bridge = await ensureTerminalBridge({
       token: ctx.context.flyToken,
-      orgSlug: flyOrgFromSecrets(ctx.context.allSecrets),
-      defaultRegion: flyRegionFromSecrets(ctx.context.allSecrets),
+      orgSlug: ctx.context.flyOrgSlug,
+      defaultRegion: ctx.context.flyDefaultRegion,
     });
     const token = mintTerminalBridgeToken({
       owner: ctx.context.owner,

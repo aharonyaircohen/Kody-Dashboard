@@ -313,7 +313,7 @@ export const SETTINGS_NAV_SECTIONS: readonly SettingsNavSection[] = [
     ],
   },
   {
-    title: "Agent",
+    title: "Agent Settings",
     items: [
       {
         href: "/models",
@@ -507,7 +507,7 @@ export const ENGINEER_MODE_SECTIONS: readonly SettingsNavSection[] = [
   settingsSection("Content"),
   settingsSection("Monitoring"),
   settingsSection("Fly"),
-  settingsSection("Agent"),
+  settingsSection("Agent Settings"),
   settingsSection("Engine"),
   settingsSection("Infrastructure"),
   settingsSection("Alerts"),

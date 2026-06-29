@@ -231,16 +231,16 @@ export function ChatRailShell({ children }: { children: ReactNode }) {
   // window). Without this the user is stuck and has to reach for the
   // browser back button.
   useEffect(() => {
-    if (pathname !== "/chat") return;
+    if (currentRepoPath !== "/chat") return;
     const onKey = (e: KeyboardEvent) => {
       if (e.key === "Escape") {
         e.preventDefault();
-        router.push(preExpandRouteRef.current || "/tasks");
+        router.push(preExpandRouteRef.current || scopedHref("/tasks"));
       }
     };
     document.addEventListener("keydown", onKey);
     return () => document.removeEventListener("keydown", onKey);
-  }, [pathname, router]);
+  }, [currentRepoPath, router, scopedHref]);
 
   const [dragging, setDragging] = useState(false);
   const startResize = useCallback((e: React.PointerEvent) => {
@@ -371,9 +371,9 @@ export function ChatRailShell({ children }: { children: ReactNode }) {
   //              sheet via the FAB below.
   // Kody Live remains the default agent (only it can edit code); the model
   // dropdown still lets the user pick any configured LLM for chat-only turns.
-  const isChatRoute = pathname === "/chat";
+  const isChatRoute = currentRepoPath === "/chat";
   const isVibeRoute =
-    pathname === "/vibe" || (pathname?.startsWith("/vibe/") ?? false);
+    currentRepoPath === "/vibe" || currentRepoPath.startsWith("/vibe/");
   const isOrgRoute =
     pathname === "/org" || (pathname?.startsWith("/org/") ?? false);
   const repoRouteBlocksPage =
@@ -390,7 +390,7 @@ export function ChatRailShell({ children }: { children: ReactNode }) {
   const pageOwnsHeader =
     !!auth &&
     !repoRouteBlocksPage &&
-    (routeOwnsAppHeader(pathname) || pageHeaderOwnedByChild);
+    (routeOwnsAppHeader(currentRepoPath) || pageHeaderOwnedByChild);
   const lockedAgentId = isOrgRoute ? "kody" : undefined;
   const pageContent =
     repoRouteAuthSync.status === "switch" ? (
@@ -508,7 +508,7 @@ export function ChatRailShell({ children }: { children: ReactNode }) {
           {mobileOpen &&
             auth &&
             !isChatRoute &&
-            !pathname?.startsWith("/messages") && (
+            !currentRepoPath.startsWith("/messages") && (
               <div className="fixed inset-x-0 bottom-0 top-16 z-30 flex flex-col border-t border-border bg-background md:hidden">
                 {auth ? (
                   <KodyChat

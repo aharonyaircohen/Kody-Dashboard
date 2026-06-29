@@ -15,32 +15,10 @@ import { Copy, ExternalLink, Globe, Loader2, RefreshCw } from "lucide-react";
 import { toast } from "sonner";
 
 import { Button } from "@dashboard/ui/button";
-
-type FlyFeature =
-  | "preview"
-  | "preview-base"
-  | "runner"
-  | "brain"
-  | "builder"
-  | "other";
-
-interface FlyMachineRow {
-  feature: FlyFeature;
-  app: string;
-  machineId: string;
-  name?: string;
-  state: string;
-  region: string;
-  label: string;
-  sizeLabel: string;
-  createdAt?: string;
-}
-
-interface Inventory {
-  machines: FlyMachineRow[];
-  running: number;
-  total: number;
-}
+import type {
+  FlyInventory,
+  FlyMachineRow,
+} from "@dashboard/lib/runners/fly-machine-model";
 
 interface BranchPreviewResponse {
   previews?: Array<{
@@ -112,7 +90,7 @@ export function FlyPreviewsList({
   flyTokenConfigured,
 }: FlyPreviewsListProps) {
   const hasAuth = Object.keys(headers).length > 0;
-  const [inventory, setInventory] = useState<Inventory | null>(null);
+  const [inventory, setInventory] = useState<FlyInventory | null>(null);
   const [branchNamesByApp, setBranchNamesByApp] = useState<
     Record<string, string>
   >({});
@@ -137,7 +115,7 @@ export function FlyPreviewsList({
           setBranchNamesByApp({});
           return;
         }
-        setInventory((await machinesRes.json()) as Inventory);
+        setInventory((await machinesRes.json()) as FlyInventory);
 
         if (branchesRes.ok) {
           const branchBody =

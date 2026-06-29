@@ -96,8 +96,14 @@ interface BrainFlyCardProps {
 interface StatusResponse {
   state?: BrainFlyState;
   app?: string;
+  org?: string;
   url?: string;
   machineId?: string;
+  reason?:
+    | "not_provisioned"
+    | "stored_app_not_found"
+    | "app_has_no_machine"
+    | "machine_lookup_failed";
   error?: string;
   stored?: {
     version: 1;
@@ -158,6 +164,21 @@ function pillLabel(state: BrainFlyState): string {
   }
 }
 
+function brainReasonLabel(reason: StatusResponse["reason"]): string | null {
+  switch (reason) {
+    case "stored_app_not_found":
+      return "Stored Brain app was not found in Fly.";
+    case "app_has_no_machine":
+      return "Brain app exists but has no machine.";
+    case "machine_lookup_failed":
+      return "Brain machine lookup failed.";
+    case "not_provisioned":
+      return null;
+    default:
+      return null;
+  }
+}
+
 export function BrainFlyCard({
   headers,
   flyTokenConfigured,
@@ -172,6 +193,10 @@ export function BrainFlyCard({
       : BRAIN_SUSPENSION_DEFAULT);
   const [state, setState] = useState<BrainFlyState>("unknown");
   const [app, setApp] = useState<string | null>(null);
+  const [machineId, setMachineId] = useState<string | null>(null);
+  const [org, setOrg] = useState<string | null>(null);
+  const [statusReason, setStatusReason] =
+    useState<StatusResponse["reason"]>(undefined);
   const [stored, setStored] = useState<StatusResponse["stored"]>(null);
   const [loading, setLoading] = useState(false);
   const [busy, setBusy] = useState<
@@ -222,6 +247,9 @@ export function BrainFlyCard({
     if (!flyTokenConfigured || Object.keys(headers).length === 0) {
       setState("off");
       setApp(null);
+      setMachineId(null);
+      setOrg(null);
+      setStatusReason(undefined);
       setStored(null);
       return;
     }
@@ -235,6 +263,9 @@ export function BrainFlyCard({
       const body = (await res.json()) as StatusResponse;
       setState(body.state ?? "unknown");
       setApp(body.app ?? null);
+      setMachineId(body.machineId ?? null);
+      setOrg(body.org ?? null);
+      setStatusReason(body.reason);
       setStored(body.stored ?? null);
     } catch {
       setState("unknown");
@@ -437,6 +468,9 @@ export function BrainFlyCard({
       toast.success("Brain on Fly is off");
       setState("off");
       setApp(null);
+      setMachineId(null);
+      setOrg(null);
+      setStatusReason(undefined);
       setStored(null);
     } catch (err) {
       toast.error(`Destroy failed: ${(err as Error).message}`);
@@ -544,6 +578,7 @@ export function BrainFlyCard({
   // record to start fresh, or just hit Turn on and let the auto-rename
   // in `ensureApp` pick a new slug.
   const isOrphan = state === "off" && stored !== null;
+  const statusDetail = brainReasonLabel(statusReason);
 
   return (
     <>
@@ -731,6 +766,19 @@ export function BrainFlyCard({
                 autoComplete="off"
                 className="w-full rounded-md border border-white/10 bg-black/30 px-2 py-1.5 text-xs font-mono text-white/85 placeholder:text-white/30 focus:border-violet-500/50 focus:outline-none"
               />
+            </div>
+          )}
+          {(app || org || machineId || statusDetail) && (
+            <div className="rounded-md border border-white/[0.08] bg-black/20 px-2.5 py-2 text-[11px] text-white/45">
+              <div className="font-medium text-white/60">Brain server</div>
+              {app && <div className="font-mono truncate">app {app}</div>}
+              {org && <div className="font-mono truncate">org {org}</div>}
+              {machineId && (
+                <div className="font-mono truncate">machine {machineId}</div>
+              )}
+              {statusDetail && (
+                <div className="mt-1 text-amber-200">{statusDetail}</div>
+              )}
             </div>
           )}
           {app && (

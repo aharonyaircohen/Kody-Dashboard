@@ -35,6 +35,16 @@ describe("repo-scoped navigation surfaces", () => {
   it("scopes chat rail expansion under repo routes", () => {
     const chatRailShell = source("ChatRailShell.tsx");
     expect(chatRailShell).toContain("repoPathForNavMatching");
+    expect(chatRailShell).toContain(
+      'const isChatRoute = currentRepoPath === "/chat"',
+    );
+    expect(chatRailShell).toContain(
+      'routeOwnsAppHeader(currentRepoPath)',
+    );
+    expect(chatRailShell).not.toContain('pathname === "/chat"');
+    expect(chatRailShell).not.toContain(
+      'routeOwnsAppHeader(pathname)',
+    );
     expect(chatRailShell).toContain('router.push(scopedHref("/chat"))');
     expect(chatRailShell).toContain('scopedHref("/tasks")');
   });

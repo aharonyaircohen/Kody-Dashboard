@@ -12,19 +12,18 @@
  */
 import { NextRequest, NextResponse } from "next/server";
 
-import {
-  getRequestAuth,
-  getUserOctokit,
-  requireKodyAuth,
-} from "@dashboard/lib/auth";
+import { requireKodyAuth } from "@dashboard/lib/auth";
 import { logger } from "@dashboard/lib/logger";
-import { resolvePreviewConfigForOctokit } from "@dashboard/lib/previews/config";
 import {
   appendSavedBrainMachineToInventory,
   emptyFlyInventory,
   refreshFlyInventoryCounts,
 } from "@dashboard/lib/runners/fly-inventory-server";
 import { listFlyInventory } from "@dashboard/lib/runners/fly-inventory";
+import {
+  flyConfigFromContext,
+  resolveFlyContext,
+} from "@dashboard/lib/runners/fly-context";
 
 export const runtime = "nodejs";
 
@@ -32,20 +31,11 @@ export async function GET(req: NextRequest) {
   const authError = await requireKodyAuth(req);
   if (authError) return authError;
 
-  const auth = getRequestAuth(req);
-  if (!auth) {
-    return NextResponse.json({ error: "no_repo_context" }, { status: 400 });
+  const ctx = await resolveFlyContext(req);
+  if (!ctx.ok) {
+    return NextResponse.json({ error: ctx.error }, { status: ctx.status });
   }
-
-  const octokit = await getUserOctokit(req);
-  if (!octokit)
-    return NextResponse.json({ error: "no_octokit" }, { status: 401 });
-
-  const cfg = await resolvePreviewConfigForOctokit({
-    octokit,
-    owner: auth.owner,
-    repo: auth.repo,
-  });
+  const cfg = flyConfigFromContext(ctx.context);
 
   const inventory = emptyFlyInventory();
   let inventoryErr: unknown = null;
@@ -75,7 +65,7 @@ export async function GET(req: NextRequest) {
 
   if (inventoryErr) {
     logger.error(
-      { err: inventoryErr, owner: auth.owner, repo: auth.repo },
+      { err: inventoryErr, owner: ctx.context.owner, repo: ctx.context.repo },
       "fly-machines: inventory failed",
     );
     return NextResponse.json(

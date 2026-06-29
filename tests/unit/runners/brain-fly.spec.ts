@@ -1004,7 +1004,11 @@ describe("brainStatus", () => {
   it("returns state='off' when no app exists", async () => {
     installFetchStub(() => ({ status: 404 }));
     const out = await brainStatus({ flyToken: TOKEN, account: "alice" });
-    expect(out).toEqual({ app: "kody-brain-alice", state: "off" });
+    expect(out).toEqual({
+      app: "kody-brain-alice",
+      state: "off",
+      org: "personal",
+    });
   });
 
   it("returns state='off' with url when the app exists but has no live machines", async () => {

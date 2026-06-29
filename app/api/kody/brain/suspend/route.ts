@@ -69,6 +69,8 @@ export async function POST(req: NextRequest) {
     await suspendBrain({
       flyToken: ctx.context.flyToken,
       account: ctx.context.account,
+      orgSlug: ctx.context.flyOrgSlug,
+      defaultRegion: ctx.context.flyDefaultRegion,
       ...(storedAppName ? { appNameOverride: storedAppName } : {}),
     });
     return NextResponse.json({ ok: true });

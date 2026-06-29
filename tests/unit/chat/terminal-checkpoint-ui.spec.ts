@@ -52,11 +52,14 @@ describe("terminal checkpoint UI", () => {
     expect(SURFACE_SOURCE).toContain("notifyTerminalSessionEnded");
   });
 
-  it("uses the save icon for Brain image saves on Fly Brain terminals", () => {
+  it("uses the save icon for Brain image saves from the terminal toolbar", () => {
     expect(CHAT_SOURCE).toContain("Save Brain image");
     expect(CHAT_SOURCE).toContain("handleSaveBrainImage");
     expect(CHAT_SOURCE).toContain("/api/kody/brain/image");
-    expect(CHAT_SOURCE).toContain("isActiveFlyBrainTerminal");
+    expect(CHAT_SOURCE).not.toContain("isActiveFlyBrainTerminal");
+    expect(CHAT_SOURCE).not.toContain(
+      "Select a Fly Brain terminal before saving its image",
+    );
   });
 
   it("keeps the terminal target, actions, and mode toggle in stable footer columns", () => {

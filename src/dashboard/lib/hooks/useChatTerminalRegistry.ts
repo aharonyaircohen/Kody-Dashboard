@@ -14,28 +14,15 @@ import type {
   ChatTerminalTransport,
 } from "../components/ChatTerminalSurface";
 import { authHeaders } from "../components/kody-chat-live-session";
+import {
+  isFlyTerminalCapable,
+  type FlyMachineRow,
+} from "../runners/fly-machine-model";
 
 export type ChatTerminalMode = "ai" | "terminal";
 
-export type TerminalFlyFeature =
-  | "preview"
-  | "preview-base"
-  | "runner"
-  | "brain"
-  | "builder"
-  | "other";
-
-export interface TerminalFlyMachine {
-  feature: TerminalFlyFeature;
-  app: string;
-  machineId: string;
-  state: string;
-  region: string;
-  label: string;
-}
-
 interface TerminalFlyInventory {
-  machines: TerminalFlyMachine[];
+  machines: FlyMachineRow[];
 }
 
 interface UseChatTerminalRegistryOptions {
@@ -199,9 +186,9 @@ function savePersistedTerminalRegistry(
 }
 
 export function canUseChatTerminalFlyMachine(
-  machine: TerminalFlyMachine,
+  machine: FlyMachineRow,
 ): boolean {
-  return machine.feature === "runner" || machine.feature === "brain";
+  return isFlyTerminalCapable(machine.feature);
 }
 
 export function terminalFlyMachineKey(machine: {

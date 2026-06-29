@@ -88,6 +88,10 @@ export interface ProvisionBrainInput {
   model?: string;
   /** Performance tier — maps to a fixed Fly guest shape. */
   perfTier?: PerfTier;
+  /** Fly org from the connected repo's Fly config. */
+  orgSlug?: string;
+  /** Fly region from the connected repo's Fly config. */
+  defaultRegion?: string;
   /** Optional saved Brain image ref. Defaults to the public base Brain image. */
   imageRef?: string;
   /** Default true. False disables Fly's idle auto-suspend for the Brain app. */
@@ -128,24 +132,32 @@ export interface DestroyBrainInput {
   flyToken: string;
   account: string;
   appNameOverride?: string;
+  orgSlug?: string;
+  defaultRegion?: string;
 }
 
 export interface BrainStatusInput {
   flyToken: string;
   account: string;
   appNameOverride?: string;
+  orgSlug?: string;
+  defaultRegion?: string;
 }
 
 export interface SuspendBrainInput {
   flyToken: string;
   account: string;
   appNameOverride?: string;
+  orgSlug?: string;
+  defaultRegion?: string;
 }
 
 export interface ResumeBrainInput {
   flyToken: string;
   account: string;
   appNameOverride?: string;
+  orgSlug?: string;
+  defaultRegion?: string;
 }
 
 export interface BrainStatusResult {
@@ -154,6 +166,7 @@ export interface BrainStatusResult {
   state: "running" | "suspended" | "stopped" | "off";
   url?: string;
   machineId?: string;
+  org?: string;
 }
 
 /**
@@ -235,6 +248,14 @@ export function sameImageRepoTag(a: string, b: string): boolean {
 
 function brainAppUrl(app: string): string {
   return `https://${app}.fly.dev`;
+}
+
+function brainOrgSlug(input: { orgSlug?: string }): string {
+  return input.orgSlug?.trim() || ORGANIZATION;
+}
+
+function brainRegion(input: { defaultRegion?: string }): string {
+  return input.defaultRegion?.trim() || DEFAULT_REGION;
 }
 
 function buildMachineEnv(
@@ -355,7 +376,11 @@ interface FlyMachine {
  * the user picks a different name in the UI. No auto-rename, no
  * multi-org iteration, no retry loop.
  */
-async function ensureApp(flyToken: string, appName: string): Promise<FlyApp> {
+async function ensureApp(
+  flyToken: string,
+  appName: string,
+  orgSlug: string,
+): Promise<FlyApp> {
   // Probe: does the app already exist? 404 and 403 (orphan: another
   // account owns the slug) both mean "create it". Anything else (real
   // auth failure, etc.) is fatal.
@@ -382,7 +407,7 @@ async function ensureApp(flyToken: string, appName: string): Promise<FlyApp> {
   const created = await flyFetch<FlyApp>("/apps", {
     method: "POST",
     token: flyToken,
-    body: { app_name: appName, org_slug: ORGANIZATION },
+    body: { app_name: appName, org_slug: orgSlug },
   });
   if (!created) {
     throw new Error("brain-fly: create app returned empty");
@@ -648,7 +673,7 @@ async function createMachine(
 ): Promise<FlyMachine> {
   const tier: PerfTier = input.perfTier ?? DEFAULT_PERF_TIER;
   const guest = PERF_GUEST[tier];
-  const region = DEFAULT_REGION;
+  const region = brainRegion(input);
   const image = brainImageRef(input);
 
   const body = {
@@ -723,7 +748,9 @@ export async function provisionBrain(
     );
   }
   const requested = input.appNameOverride ?? brainAppName(input.account);
-  const flyApp = await ensureApp(input.flyToken, requested);
+  const orgSlug = brainOrgSlug(input);
+  const defaultRegion = brainRegion(input);
+  const flyApp = await ensureApp(input.flyToken, requested, orgSlug);
   const app = flyApp.name;
   const url = brainAppUrl(app);
   const originalName = app !== requested ? requested : undefined;
@@ -761,8 +788,8 @@ export async function provisionBrain(
         url,
         apiKey,
         machineId: machine.id,
-        region: machine.region ?? DEFAULT_REGION,
-        org: flyApp.organization?.slug ?? ORGANIZATION,
+        region: machine.region ?? defaultRegion,
+        org: flyApp.organization?.slug ?? orgSlug,
         ...(originalName ? { originalName } : {}),
       };
     }
@@ -809,8 +836,8 @@ export async function provisionBrain(
       url,
       apiKey: existingKey,
       machineId: existing.id,
-      region: existing.region ?? DEFAULT_REGION,
-      org: flyApp.organization?.slug ?? ORGANIZATION,
+      region: existing.region ?? defaultRegion,
+      org: flyApp.organization?.slug ?? orgSlug,
       ...(originalName ? { originalName } : {}),
     };
   }
@@ -819,7 +846,7 @@ export async function provisionBrain(
   const machine = await createMachine(input.flyToken, app, input, apiKey);
 
   logger.info(
-    { app, machineId: machine.id, region: machine.region ?? DEFAULT_REGION },
+    { app, machineId: machine.id, region: machine.region ?? defaultRegion },
     "brain-fly: machine provisioned",
   );
 
@@ -828,8 +855,8 @@ export async function provisionBrain(
     url,
     apiKey,
     machineId: machine.id,
-    region: machine.region ?? DEFAULT_REGION,
-    org: flyApp.organization?.slug ?? ORGANIZATION,
+    region: machine.region ?? defaultRegion,
+    org: flyApp.organization?.slug ?? orgSlug,
     ...(originalName ? { originalName } : {}),
   };
 }
@@ -941,18 +968,24 @@ export async function brainStatus(
     throw new Error("brain-fly: flyToken required");
   }
   const app = input.appNameOverride ?? brainAppName(input.account);
+  const orgSlug = brainOrgSlug(input);
 
   const existing = await flyFetch<FlyApp>(`/apps/${encodeURIComponent(app)}`, {
     token: input.flyToken,
     allow404: true,
   });
   if (!existing) {
-    return { app, state: "off" };
+    return { app, state: "off", org: orgSlug };
   }
 
   const machine = await findExistingMachine(input.flyToken, app);
   if (!machine) {
-    return { app, state: "off", url: brainAppUrl(app) };
+    return {
+      app,
+      state: "off",
+      url: brainAppUrl(app),
+      org: existing.organization?.slug ?? orgSlug,
+    };
   }
 
   // Fly machine states we care about: started/starting/created/replacing
@@ -974,5 +1007,6 @@ export async function brainStatus(
     state,
     url: brainAppUrl(app),
     machineId: machine.id,
+    org: existing.organization?.slug ?? orgSlug,
   };
 }

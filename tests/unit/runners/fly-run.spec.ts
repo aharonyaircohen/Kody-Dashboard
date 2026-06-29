@@ -28,6 +28,8 @@ function ctx(over: Partial<FlyContext> = {}): FlyContext {
     octokit: {} as FlyContext["octokit"],
     allSecrets: { MINIMAX_API_KEY: "k" },
     flyToken: "fly_tok",
+    flyOrgSlug: "personal",
+    flyDefaultRegion: "fra",
     perfTier: "medium",
     ...over,
   };
