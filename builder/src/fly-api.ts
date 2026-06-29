@@ -248,7 +248,7 @@ export async function createPreviewMachine(
   let lastErr: Error | null = null;
   for (let attempt = 0; attempt < 6; attempt++) {
     const res = await fetch(
-      `${FLY_MACHINES_BASE}/apps/${encodeURIComponent(input.appName)}/machines`,
+      `${FLY_MACHINES_BASE}/apps/${encodeURIComponent(input.appName)}/machines?skip_launch=true`,
       {
         method: "POST",
         headers: authHeader(token),

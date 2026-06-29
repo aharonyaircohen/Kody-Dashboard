@@ -23,6 +23,7 @@ function mockCreateResponse(captured: CapturedRequest[]) {
 describe("builder createPreviewMachine autostop", () => {
   afterEach(() => {
     vi.restoreAllMocks();
+    vi.useRealTimers();
   });
 
   it("allows the final Fly machine create call more time than regular API reads", async () => {
@@ -40,9 +41,16 @@ describe("builder createPreviewMachine autostop", () => {
     );
 
     expect(timeoutSpy).toHaveBeenCalledWith(180_000);
+    const fetchMock = globalThis.fetch as unknown as {
+      mock: { calls: Array<[RequestInfo | URL, RequestInit?]> };
+    };
+    expect(fetchMock.mock.calls[0]?.[0]).toBe(
+      "https://api.machines.dev/v1/apps/kp-test-app/machines?skip_launch=true",
+    );
   });
 
   it("retries transient Fly timeouts while creating the preview machine", async () => {
+    vi.useFakeTimers();
     const captured: CapturedRequest[] = [];
     globalThis.fetch = vi
       .fn()
@@ -57,7 +65,7 @@ describe("builder createPreviewMachine autostop", () => {
         },
       ) as unknown as typeof fetch;
 
-    const id = await createPreviewMachine(
+    const created = createPreviewMachine(
       {
         appName: "kp-test-app",
         region: "fra",
@@ -65,7 +73,9 @@ describe("builder createPreviewMachine autostop", () => {
       },
       "fly-test-token",
     );
+    await vi.runAllTimersAsync();
 
+    const id = await created;
     expect(id).toBe("m-builder-preview");
     expect(globalThis.fetch).toHaveBeenCalledTimes(2);
     expect(captured[0].config).toMatchObject({
