@@ -2,8 +2,8 @@
  * @fileType api-endpoint
  * @domain kody
  * @pattern managed-goals-api
- * @ai-summary Managed goals API. Lists and creates engine goal files under
- *   `goals/instances/<id>/state.json` in the configured Kody state repo.
+ * @ai-summary Managed goals API. Lists and creates engine goal todo files
+ * under `todos/<id>.md` in the configured Kody state repo.
  */
 /* eslint-disable @typescript-eslint/no-explicit-any */
 

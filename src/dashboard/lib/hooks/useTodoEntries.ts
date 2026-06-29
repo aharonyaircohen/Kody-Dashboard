@@ -88,6 +88,7 @@ export function useCreateTodo(actorLogin?: string) {
         completed?: boolean;
         createdAt?: string;
         completedAt?: string | null;
+        meta?: Record<string, unknown>;
       }>;
     }
   >({

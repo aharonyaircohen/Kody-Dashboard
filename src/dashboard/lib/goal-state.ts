@@ -5,7 +5,7 @@
  * @ai-summary Goal runtime state — separate from the goals manifest. The
  *   manifest (kody:goals-manifest issue) describes goals; this state file
  *   tracks whether a goal is being actively driven by the engine. One file
- *   per goal at `<statePath>/goals/instances/<id>/state.json` keeps engine and dashboard
+ *   per goal at `<statePath>/todos/<id>.md` keeps engine and dashboard
  *   writes from racing on the manifest, and matches the per-entity-file
  *   convention the engine uses for capabilities.
  */
@@ -70,7 +70,7 @@ export function goalStatePath(goalId: string): string {
   if (!goalId || /[\\/]/.test(goalId)) {
     throw new Error(`Invalid goalId for state path: ${JSON.stringify(goalId)}`);
   }
-  return `goals/instances/${goalId}/state.json`;
+  return `todos/${goalId}.md`;
 }
 
 export function makeInitialActiveState(now = new Date()): GoalRunState {

@@ -3,7 +3,7 @@
  * @domain kody
  * @pattern goal-runtime-state
  * @ai-summary Goal runtime state API. Reads/writes
- *   `goals/instances/<id>/state.json` in the configured Kody state repo so
+ *   `todos/<id>.md` in the configured Kody state repo so
  *   the state lives in the repo (engine and dashboard share one source of
  *   truth). GET returns 404 when the file doesn't exist (= "not started").
  *   PUT creates or updates the file with the user's GitHub token, so the
@@ -22,7 +22,6 @@ import {
   setGitHubContext,
   clearGitHubContext,
 } from "@dashboard/lib/github-client";
-import { readStateText, writeStateText } from "@dashboard/lib/state-repo";
 import { logger } from "@dashboard/lib/logger";
 import { recordAudit } from "@dashboard/lib/activity/audit";
 import { runScheduledKodyOnRunner } from "@dashboard/lib/runners/kody-runner";
@@ -33,6 +32,11 @@ import {
   type GoalRunState,
   type GoalRunStateValue,
 } from "@dashboard/lib/goal-state";
+import {
+  readManagedGoalFile,
+  writeManagedGoalFile,
+} from "@dashboard/lib/managed-goals-files";
+import type { ManagedGoalState } from "@dashboard/lib/managed-goals";
 
 function mapGithubError(error: any, fallback: string, status = 500) {
   if (error?.status === 401) {
@@ -67,18 +71,6 @@ const putBodySchema = z.object({
   actorLogin: z.string().optional(),
 });
 
-async function fetchExisting(
-  octokit: NonNullable<Awaited<ReturnType<typeof getUserOctokit>>>,
-  owner: string,
-  repo: string,
-  path: string,
-): Promise<{ raw: string; sha: string } | null> {
-  const file = await readStateText(octokit, owner, repo, path, {
-    headers: { "If-None-Match": "" },
-  });
-  return file ? { raw: file.content, sha: file.sha } : null;
-}
-
 export async function GET(
   req: NextRequest,
   { params }: { params: Promise<{ id: string }> },
@@ -109,16 +101,16 @@ export async function GET(
       return NextResponse.json({ error: "invalid_goal_id" }, { status: 400 });
     }
 
-    const existing = await fetchExisting(
+    const existing = await readManagedGoalFile(
+      id,
       octokit,
       headerAuth.owner,
       headerAuth.repo,
-      path,
     );
     if (!existing) {
       return NextResponse.json({ state: null }, { status: 200 });
     }
-    const parsed = JSON.parse(existing.raw) as GoalRunState;
+    const parsed = existing.state as unknown as GoalRunState;
     return NextResponse.json({ state: parsed }, { status: 200 });
   } catch (err) {
     return mapGithubError(err, "failed_to_read_goal_state");
@@ -169,15 +161,15 @@ export async function PUT(
     if (!octokit) {
       return NextResponse.json({ error: "no_user_token" }, { status: 401 });
     }
-    const existing = await fetchExisting(
+    const existing = await readManagedGoalFile(
+      id,
       octokit,
       headerAuth.owner,
       headerAuth.repo,
-      path,
     );
     const now = new Date().toISOString();
     const previous: GoalRunState | null = existing
-      ? (JSON.parse(existing.raw) as GoalRunState)
+      ? (existing.state as unknown as GoalRunState)
       : null;
 
     // Refuse client → done. Only the engine completes a goal.
@@ -217,14 +209,14 @@ export async function PUT(
         ? `chore(goals): start runner for ${id}`
         : `chore(goals): pause runner for ${id}`;
 
-    await writeStateText({
+    await writeManagedGoalFile({
       octokit,
       owner: headerAuth.owner,
       repo: headerAuth.repo,
-      path,
+      id,
       message,
-      content: JSON.stringify(next, null, 2),
-      sha: existing?.sha,
+      state: next as unknown as ManagedGoalState,
+      sha: existing?.source === "todo" ? existing.sha : undefined,
     });
 
     // Starting a goal must take effect now, not on the next cron tick.

@@ -843,7 +843,7 @@ export async function findStatusOnBranch(
 }
 
 /**
- * Read `goals/instances/<id>/state.json` from the configured Kody state repo with cache +
+ * Read `todos/<id>.md` from the configured Kody state repo with cache +
  * ETag/304 revalidation. Returns `null` when the file is missing (= the
  * engine has never ticked this goal) or unparseable.
  *
@@ -857,7 +857,8 @@ export async function fetchGoalStateFromRepo(goalId: string): Promise<{
   goalPrUrl?: string;
 } | null> {
   if (!goalId || /[\\/]|\.\./.test(goalId)) return null;
-  const path = `goals/instances/${goalId}/state.json`;
+  const path = `todos/${goalId}.md`;
+  const legacyPath = `goals/instances/${goalId}/state.json`;
   const cacheKey = `goal-state:${getOwner()}:${getRepo()}:${goalId}`;
   const cached = getCached<{
     goalIssueNumber?: number;
@@ -872,16 +873,25 @@ export async function fetchGoalStateFromRepo(goalId: string): Promise<{
   const octokit = getOctokit();
 
   try {
-    const file = await readStateText(octokit, getOwner(), getRepo(), path, {
-      headers: stale?.etag ? { "If-None-Match": stale.etag } : undefined,
-    });
+    const file =
+      (await readStateText(octokit, getOwner(), getRepo(), path, {
+        headers: stale?.etag ? { "If-None-Match": stale.etag } : undefined,
+      }).catch((error: any) => {
+        if (error.status === 404) return null;
+        throw error;
+      })) ??
+      (await readStateText(octokit, getOwner(), getRepo(), legacyPath, {
+        headers: stale?.etag ? { "If-None-Match": stale.etag } : undefined,
+      }));
     if (!file) {
       setCache(cacheKey, CACHE_TTL.tasks, null);
       return null;
     }
     let parsed: Record<string, unknown>;
     try {
-      parsed = JSON.parse(file.content) as Record<string, unknown>;
+      parsed = file.content.trimStart().startsWith("---")
+        ? parseGoalStateFrontmatter(file.content)
+        : (JSON.parse(file.content) as Record<string, unknown>);
     } catch {
       setCache(cacheKey, CACHE_TTL.tasks, null, { etag: file.etag });
       return null;
@@ -909,6 +919,33 @@ export async function fetchGoalStateFromRepo(goalId: string): Promise<{
     console.error(`[Kody] Error reading goal state for ${goalId}:`, error);
     return null;
   }
+}
+
+function parseGoalStateFrontmatter(raw: string): Record<string, unknown> {
+  const match = /^---\r?\n([\s\S]*?)\r?\n---/.exec(raw);
+  if (!match) return {};
+  const parsed: Record<string, unknown> = {};
+  for (const rawLine of (match[1] ?? "").split(/\r?\n/)) {
+    const line = rawLine.trim();
+    if (!line || line.startsWith("#")) continue;
+    const colon = line.indexOf(":");
+    if (colon === -1) continue;
+    const key = line.slice(0, colon).trim();
+    let value = line.slice(colon + 1).trim();
+    if (
+      (value.startsWith('"') && value.endsWith('"')) ||
+      (value.startsWith("'") && value.endsWith("'"))
+    ) {
+      value = value.slice(1, -1).replace(/\\"/g, '"').replace(/\\\\/g, "\\");
+    }
+    if (key === "goalIssueNumber") {
+      const number = Number(value);
+      if (Number.isFinite(number)) parsed.goalIssueNumber = number;
+    } else if (key === "goalPrUrl" && value) {
+      parsed.goalPrUrl = value;
+    }
+  }
+  return parsed;
 }
 
 /**

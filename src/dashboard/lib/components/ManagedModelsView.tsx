@@ -7,6 +7,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import {
   ArrowDown,
@@ -16,6 +17,7 @@ import {
   CircleDot,
   Clock3,
   FileText,
+  ListTodo,
   Loader2,
   Package,
   Pause,
@@ -1795,6 +1797,18 @@ function GoalDetail({
               </div>
             </div>
             <div className="flex items-center gap-2 shrink-0">
+              <Button
+                asChild
+                variant="outline"
+                size="sm"
+                className="h-8 w-8 px-0"
+                title={`Manage ${copy.singular} todos`}
+                aria-label={`Manage ${copy.singular} todos`}
+              >
+                <Link href={`/todos/${encodeURIComponent(goal.id)}`}>
+                  <ListTodo className="w-3.5 h-3.5" />
+                </Link>
+              </Button>
               <Button
                 variant="outline"
                 size="sm"

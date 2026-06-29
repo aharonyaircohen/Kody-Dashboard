@@ -32,6 +32,7 @@ export interface TodoItemFile {
   completed: boolean;
   createdAt: string;
   completedAt: string | null;
+  meta?: Record<string, unknown>;
 }
 
 export interface TodoFileContent {
@@ -39,6 +40,7 @@ export interface TodoFileContent {
   description: string;
   items: TodoItemFile[];
   createdAt: string;
+  frontmatter?: Record<string, unknown>;
 }
 
 export interface TodoFile extends TodoFileContent {
@@ -51,6 +53,7 @@ export interface TodoFile extends TodoFileContent {
 interface TodoFrontmatter {
   title: string;
   createdAt: string;
+  [key: string]: unknown;
 }
 
 export function isValidTodoSlug(slug: string): boolean {
@@ -108,8 +111,40 @@ function stripQuotes(value: string): string {
   return value;
 }
 
+function parseFrontmatterValue(value: string): unknown {
+  const stripped = stripQuotes(value.trim());
+  if (!stripped) return "";
+  if (stripped === "true") return true;
+  if (stripped === "false") return false;
+  if (stripped === "null") return null;
+  if (
+    stripped.startsWith("{") ||
+    stripped.startsWith("[") ||
+    /^-?\d+(\.\d+)?$/.test(stripped)
+  ) {
+    try {
+      return JSON.parse(stripped);
+    } catch {
+      return stripped;
+    }
+  }
+  return stripped;
+}
+
 function serializeString(value: string): string {
   return `"${value.replace(/\\/g, "\\\\").replace(/"/g, '\\"')}"`;
+}
+
+function serializeFrontmatterValue(value: unknown): string {
+  if (typeof value === "string") return serializeString(value);
+  if (
+    value === null ||
+    typeof value === "boolean" ||
+    typeof value === "number"
+  ) {
+    return JSON.stringify(value);
+  }
+  return serializeString(JSON.stringify(value));
 }
 
 function normalizeMarkdown(value: string): string {
@@ -137,11 +172,13 @@ function parseFrontmatter(
     if (colon === -1) continue;
 
     const key = line.slice(0, colon).trim();
-    const value = stripQuotes(line.slice(colon + 1).trim());
-    if (key === "title" && value.trim()) {
-      frontmatter.title = value.trim().slice(0, TITLE_MAX_LENGTH);
-    } else if (key === "createdAt" && value.trim()) {
-      frontmatter.createdAt = value.trim();
+    const value = parseFrontmatterValue(line.slice(colon + 1).trim());
+    if (key === "title" && String(value).trim()) {
+      frontmatter.title = String(value).trim().slice(0, TITLE_MAX_LENGTH);
+    } else if (key === "createdAt" && String(value).trim()) {
+      frontmatter.createdAt = String(value).trim();
+    } else {
+      frontmatter[key] = value;
     }
   }
 
@@ -192,6 +229,11 @@ function normalizeItems(items: unknown, fallbackDate: string): TodoItemFile[] {
           record.completedAt.trim()
             ? record.completedAt.trim()
             : null,
+        ...(record.meta &&
+        typeof record.meta === "object" &&
+        !Array.isArray(record.meta)
+          ? { meta: record.meta as Record<string, unknown> }
+          : {}),
       };
     })
     .filter((item): item is TodoItemFile => item !== null);
@@ -248,15 +290,22 @@ export function parseTodoFileContent(
     description: hasItemsBlock ? extractDescription(markdown) : "",
     items,
     createdAt: frontmatter.createdAt,
+    frontmatter,
   };
 }
 
 export function serializeTodoFileContent(content: TodoFileContent): string {
   const description = normalizeMarkdown(content.description);
+  const frontmatter = {
+    ...(content.frontmatter ?? {}),
+    title: content.title.trim().slice(0, TITLE_MAX_LENGTH),
+    createdAt: content.createdAt,
+  };
   const lines = [
     "---",
-    `title: ${serializeString(content.title.trim().slice(0, TITLE_MAX_LENGTH))}`,
-    `createdAt: ${serializeString(content.createdAt)}`,
+    ...Object.entries(frontmatter)
+      .filter(([, value]) => value !== undefined)
+      .map(([key, value]) => `${key}: ${serializeFrontmatterValue(value)}`),
     "---",
     "",
   ];
@@ -319,6 +368,7 @@ export async function readTodoFile(
       description: parsed.description,
       items: parsed.items,
       createdAt: parsed.createdAt,
+      frontmatter: parsed.frontmatter,
       sha: file.sha,
       updatedAt,
       htmlUrl: file.htmlUrl ?? "",
@@ -351,6 +401,7 @@ interface WriteTodoOptions {
   description: string;
   items: TodoItemFile[];
   createdAt: string;
+  frontmatter?: Record<string, unknown>;
   sha?: string;
   message?: string;
 }
@@ -366,6 +417,7 @@ export async function writeTodoFile(opts: WriteTodoOptions): Promise<TodoFile> {
     description: opts.description,
     items: opts.items,
     createdAt: opts.createdAt,
+    frontmatter: opts.frontmatter,
   });
   const normalizedContent = content.endsWith("\n") ? content : `${content}\n`;
   const message =

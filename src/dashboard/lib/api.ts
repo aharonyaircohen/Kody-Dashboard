@@ -1296,6 +1296,8 @@ export interface TodoEntry {
   updatedAt: string;
   /** Convenience link to file on github.com. */
   htmlUrl: string;
+  /** List-level metadata from frontmatter. */
+  frontmatter?: Record<string, unknown>;
 }
 
 export interface TodoItem {
@@ -1308,6 +1310,7 @@ export interface TodoItem {
   completed: boolean;
   createdAt: string;
   completedAt: string | null;
+  meta?: Record<string, unknown>;
 }
 
 export const todosApi = {
@@ -1337,6 +1340,7 @@ export const todosApi = {
       completed?: boolean;
       createdAt?: string;
       completedAt?: string | null;
+      meta?: Record<string, unknown>;
     }>;
     actorLogin?: string;
   }): Promise<TodoEntry> => {

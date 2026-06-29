@@ -36,6 +36,7 @@ const todoItemSchema = z.object({
   completed: z.boolean().default(false),
   createdAt: z.string().optional(),
   completedAt: z.string().nullable().optional(),
+  meta: z.record(z.string(), z.unknown()).optional(),
 });
 
 const createTodoListSchema = z.object({
@@ -63,6 +64,7 @@ function normalizeCreateItems(
     completed: item.completed,
     createdAt: item.createdAt ?? now,
     completedAt: item.completed ? (item.completedAt ?? now) : null,
+    ...(item.meta ? { meta: item.meta } : {}),
   }));
 }
 

@@ -32,6 +32,7 @@ const todoItemSchema = z.object({
   completed: z.boolean().default(false),
   createdAt: z.string(),
   completedAt: z.string().nullable().optional(),
+  meta: z.record(z.string(), z.unknown()).optional(),
 });
 
 const updateTodoListSchema = z
@@ -147,6 +148,7 @@ export async function PATCH(
       description: description ?? existing.description,
       items: items ? normalizeUpdateItems(items) : existing.items,
       createdAt: existing.createdAt,
+      frontmatter: existing.frontmatter,
       sha: existing.sha,
     });
 

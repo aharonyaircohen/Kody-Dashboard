@@ -24,17 +24,15 @@ import {
 } from "../../src/dashboard/lib/managed-goals";
 
 describe("managedGoalPath", () => {
-  it("points to live goal instances, not templates or flat goal files", () => {
-    expect(managedGoalPath("simple-rollout")).toBe(
-      "goals/instances/simple-rollout/state.json",
-    );
+  it("points managed state to the todo list file", () => {
+    expect(managedGoalPath("simple-rollout")).toBe("todos/simple-rollout.md");
   });
 });
 
 describe("goalStatePath", () => {
-  it("points Tasks-page goals to live goal instances", () => {
+  it("points Tasks-page goals to the todo list file", () => {
     expect(goalStatePath("legacy-dashboard-goal")).toBe(
-      "goals/instances/legacy-dashboard-goal/state.json",
+      "todos/legacy-dashboard-goal.md",
     );
   });
 });

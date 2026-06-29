@@ -102,6 +102,8 @@ type ItemEditorState =
   | null;
 
 type TodoItemFilter = "all" | "open" | "done" | "mine" | "unassigned";
+type TodoListKind = "list" | "goal" | "loop";
+type TodoListFilter = "all" | TodoListKind;
 
 const TODO_ITEM_FILTERS: TodoItemFilter[] = [
   "all",
@@ -117,6 +119,14 @@ const TODO_ITEM_FILTER_LABELS: Record<TodoItemFilter, string> = {
   done: "Done",
   mine: "Mine",
   unassigned: "Unassigned",
+};
+
+const TODO_LIST_FILTERS: TodoListFilter[] = ["all", "list", "goal", "loop"];
+const TODO_LIST_FILTER_LABELS: Record<TodoListFilter, string> = {
+  all: "All",
+  list: "Lists",
+  goal: "Goals",
+  loop: "Loops",
 };
 
 interface TodoControlProps {
@@ -142,6 +152,26 @@ function listStats(list: TodoEntry): {
   const total = list.items.length;
   const done = list.items.filter((item) => item.completed).length;
   return { total, done, active: total - done };
+}
+
+function todoListKind(list: TodoEntry): TodoListKind {
+  const model = list.frontmatter?.managedModel;
+  if (model === "agentGoal") return "goal";
+  if (model === "agentLoop") return "loop";
+  return "list";
+}
+
+function todoListKindLabel(kind: TodoListKind): string {
+  if (kind === "goal") return "Goal";
+  if (kind === "loop") return "Loop";
+  return "List";
+}
+
+function todoListKindClass(kind: TodoListKind): string {
+  if (kind === "goal") return "border-sky-400/25 bg-sky-400/10 text-sky-200";
+  if (kind === "loop")
+    return "border-violet-400/25 bg-violet-400/10 text-violet-200";
+  return "border-emerald-400/25 bg-emerald-400/10 text-emerald-200";
 }
 
 function normalizeAssignee(login: string | null | undefined): string | null {
@@ -230,12 +260,15 @@ export function TodoControlInner({
   const [editingList, setEditingList] = useState<TodoEntry | null>(null);
   const [pendingDelete, setPendingDelete] = useState<TodoEntry | null>(null);
   const [search, setSearch] = useState("");
+  const [listFilter, setListFilter] = useState<TodoListFilter>("all");
   const { githubUser } = useGitHubIdentity();
   const deleteMutation = useDeleteTodo(githubUser?.login);
 
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase();
     return todoLists.filter((list) => {
+      const kind = todoListKind(list);
+      if (listFilter !== "all" && kind !== listFilter) return false;
       if (!q) return true;
       return (
         list.title.toLowerCase().includes(q) ||
@@ -249,7 +282,7 @@ export function TodoControlInner({
         )
       );
     });
-  }, [todoLists, search]);
+  }, [todoLists, listFilter, search]);
 
   const selectedList = useMemo(
     () => todoLists.find((list) => list.slug === selectedSlug) ?? null,
@@ -267,6 +300,15 @@ export function TodoControlInner({
     );
     return { totalItems, activeItems };
   }, [todoLists]);
+  const listFilterCounts = useMemo<Record<TodoListFilter, number>>(
+    () => ({
+      all: todoLists.length,
+      list: todoLists.filter((list) => todoListKind(list) === "list").length,
+      goal: todoLists.filter((list) => todoListKind(list) === "goal").length,
+      loop: todoLists.filter((list) => todoListKind(list) === "loop").length,
+    }),
+    [todoLists],
+  );
 
   useEffect(() => {
     if (isLoading) return;
@@ -335,6 +377,26 @@ export function TodoControlInner({
         >
           {todoLists.length > 0 ? (
             <div className="sticky top-0 z-10 space-y-2 bg-background/95 backdrop-blur px-3 md:px-4 py-2 md:py-3 border-b border-border">
+              <div className="grid grid-cols-4 gap-1 rounded-md border border-white/[0.08] bg-black/30 p-1">
+                {TODO_LIST_FILTERS.map((filter) => (
+                  <button
+                    key={filter}
+                    type="button"
+                    onClick={() => setListFilter(filter)}
+                    className={cn(
+                      "rounded px-2 py-1 text-xs transition-colors",
+                      listFilter === filter
+                        ? "bg-emerald-500/15 text-emerald-200"
+                        : "text-muted-foreground hover:bg-white/[0.05] hover:text-foreground",
+                    )}
+                  >
+                    {TODO_LIST_FILTER_LABELS[filter]}
+                    <span className="ml-1 text-[10px] opacity-60">
+                      {listFilterCounts[filter]}
+                    </span>
+                  </button>
+                ))}
+              </div>
               <ListSearch
                 value={search}
                 onChange={setSearch}
@@ -364,6 +426,7 @@ export function TodoControlInner({
               {filtered.map((list) => {
                 const isActive = selectedSlug === list.slug;
                 const stats = listStats(list);
+                const kind = todoListKind(list);
                 const sidebarTitleDirectionProps = textDirectionProps(
                   list.title,
                 );
@@ -397,6 +460,14 @@ export function TodoControlInner({
                             {list.title}
                           </div>
                           <div className="text-xs text-muted-foreground mt-1 flex items-center gap-2 flex-wrap">
+                            <span
+                              className={cn(
+                                "rounded border px-1.5 py-0.5 text-[10px]",
+                                todoListKindClass(kind),
+                              )}
+                            >
+                              {todoListKindLabel(kind)}
+                            </span>
                             <span>
                               {stats.done}/{stats.total} done
                             </span>
@@ -510,6 +581,7 @@ function TodoListDetail({
   const currentUserLogin = normalizeAssignee(githubUser?.login);
   const hasListDescription = list.description.trim().length > 0;
   const listTitleDirectionProps = textDirectionProps(list.title);
+  const listKind = todoListKind(list);
   const progressPercent =
     stats.total > 0 ? Math.round((stats.done / stats.total) * 100) : 0;
   const filterCounts = useMemo<Record<TodoItemFilter, number>>(
@@ -702,6 +774,14 @@ function TodoListDetail({
                 >
                   {list.title}
                 </h1>
+                <span
+                  className={cn(
+                    "rounded border px-2 py-0.5 text-[11px]",
+                    todoListKindClass(listKind),
+                  )}
+                >
+                  {todoListKindLabel(listKind)}
+                </span>
               </div>
               {hasListDescription ? (
                 <MarkdownPreview
@@ -1061,10 +1141,16 @@ function TodoItemCard({
                 {item.completedAt
                   ? `completed ${new Date(item.completedAt).toLocaleDateString()}`
                   : `created ${new Date(item.createdAt).toLocaleDateString()}`}
-                {assignee ? ` · @${assignee}` : " · unassigned"}
               </p>
             </div>
             <div className="flex items-center gap-1.5 shrink-0 ml-auto">
+              <TodoAssigneeMenu
+                assignee={assignee}
+                collaborators={collaborators}
+                isLoading={isLoadingCollaborators}
+                disabled={disabled}
+                onAssign={onAssign}
+              />
               <Button
                 variant="outline"
                 size="sm"
@@ -1074,13 +1160,6 @@ function TodoItemCard({
                 <Sparkles className="w-3.5 h-3.5" />
                 <span>Ask Kody</span>
               </Button>
-              <TodoAssigneeMenu
-                assignee={assignee}
-                collaborators={collaborators}
-                isLoading={isLoadingCollaborators}
-                disabled={disabled}
-                onAssign={onAssign}
-              />
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
                   <Button

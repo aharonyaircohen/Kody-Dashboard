@@ -16,6 +16,12 @@ describe("todo file content", () => {
       title: "Checkout work",
       description,
       createdAt,
+      frontmatter: {
+        title: "Checkout work",
+        createdAt,
+        state: "active",
+        managed: true,
+      },
       items: [
         {
           id: "item-1",
@@ -25,6 +31,7 @@ describe("todo file content", () => {
           completed: false,
           createdAt,
           completedAt: null,
+          meta: { evidence: "cartVerified", stage: "verify" },
         },
       ],
     };

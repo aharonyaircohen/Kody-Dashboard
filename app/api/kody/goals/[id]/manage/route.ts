@@ -3,7 +3,7 @@
  * @domain kody
  * @pattern goal-runtime-state
  * @ai-summary Toggle "let Kody manage this goal end-to-end". Writes the
- *   `managed` boolean into `goals/instances/<id>/state.json` in the configured Kody state repo. When enabling on
+ *   `managed` boolean into `todos/<id>.md` in the configured Kody state repo. When enabling on
  *   a goal that was never started, it also creates the state file as
  *   `active` + `managed` and dispatches the engine so both `goal-tick`
  *   and the `goal-manager` agent pick it up within seconds. Separate
@@ -31,7 +31,11 @@ import {
   makeInitialSimpleGoalState,
   type GoalRunState,
 } from "@dashboard/lib/goal-state";
-import { readStateText, writeStateText } from "@dashboard/lib/state-repo";
+import {
+  readManagedGoalFile,
+  writeManagedGoalFile,
+} from "@dashboard/lib/managed-goals-files";
+import type { ManagedGoalState } from "@dashboard/lib/managed-goals";
 
 function mapGithubError(error: any, fallback: string, status = 500) {
   if (error?.status === 401) {
@@ -56,18 +60,6 @@ const bodySchema = z.object({
   managed: z.boolean(),
   actorLogin: z.string().optional(),
 });
-
-async function fetchExisting(
-  octokit: NonNullable<Awaited<ReturnType<typeof getUserOctokit>>>,
-  owner: string,
-  repo: string,
-  path: string,
-): Promise<{ raw: string; sha: string } | null> {
-  const file = await readStateText(octokit, owner, repo, path, {
-    headers: { "If-None-Match": "" },
-  });
-  return file ? { raw: file.content, sha: file.sha } : null;
-}
 
 export async function POST(
   req: NextRequest,
@@ -112,15 +104,15 @@ export async function POST(
       return NextResponse.json({ error: "no_user_token" }, { status: 401 });
     }
 
-    const existing = await fetchExisting(
+    const existing = await readManagedGoalFile(
+      id,
       octokit,
       headerAuth.owner,
       headerAuth.repo,
-      path,
     );
     const now = new Date().toISOString();
     const previous: GoalRunState | null = existing
-      ? (JSON.parse(existing.raw) as GoalRunState)
+      ? (existing.state as unknown as GoalRunState)
       : null;
 
     // Enabling management on a never-started goal implies it should run:
@@ -151,16 +143,16 @@ export async function POST(
       updatedAt: now,
     };
 
-    await writeStateText({
+    await writeManagedGoalFile({
       octokit,
       owner: headerAuth.owner,
       repo: headerAuth.repo,
-      path,
+      id,
       message: `chore(goals): ${
         parsed.data.managed ? "enable" : "disable"
       } Kody management for ${id}`,
-      content: JSON.stringify(next, null, 2),
-      sha: existing?.sha,
+      state: next as unknown as ManagedGoalState,
+      sha: existing?.source === "todo" ? existing.sha : undefined,
     });
 
     // Take effect now, not on the next cron. Dispatch on the repo's

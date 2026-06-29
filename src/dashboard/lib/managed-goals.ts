@@ -2,8 +2,8 @@
  * @fileType utility
  * @domain kody
  * @pattern managed-goals
- * @ai-summary Engine managed goal contract. These goals live as one JSON file
- * per goal at `<statePath>/goals/instances/<id>/state.json`.
+ * @ai-summary Engine managed goal contract. These goals live as one todo list
+ * per goal at `<statePath>/todos/<id>.md`.
  */
 
 export type ManagedGoalStateValue = "inactive" | "active" | "paused" | "done";
@@ -418,6 +418,13 @@ export interface UpdateManagedGoalInput {
 }
 
 export function managedGoalPath(goalId: string): string {
+  if (!goalId || /[\\/]/.test(goalId) || goalId.includes("..")) {
+    throw new Error(`Invalid goalId path: ${JSON.stringify(goalId)}`);
+  }
+  return `todos/${goalId}.md`;
+}
+
+export function legacyManagedGoalPath(goalId: string): string {
   if (!goalId || /[\\/]/.test(goalId) || goalId.includes("..")) {
     throw new Error(`Invalid goalId path: ${JSON.stringify(goalId)}`);
   }

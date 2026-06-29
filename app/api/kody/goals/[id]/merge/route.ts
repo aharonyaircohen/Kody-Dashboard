@@ -27,7 +27,11 @@ import { logger } from "@dashboard/lib/logger";
 import { runScheduledKodyOnRunner } from "@dashboard/lib/runners/kody-runner";
 import { goalRunRequest } from "@dashboard/lib/runners/run-request";
 import { goalStatePath, type GoalRunState } from "@dashboard/lib/goal-state";
-import { readStateText, writeStateText } from "@dashboard/lib/state-repo";
+import {
+  readManagedGoalFile,
+  writeManagedGoalFile,
+} from "@dashboard/lib/managed-goals-files";
+import type { ManagedGoalState } from "@dashboard/lib/managed-goals";
 
 function mapGithubError(error: any, fallback: string, status = 500) {
   if (error?.status === 401) {
@@ -46,18 +50,6 @@ function mapGithubError(error: any, fallback: string, status = 500) {
     { error: fallback, message: error?.message ?? fallback },
     { status },
   );
-}
-
-async function fetchExisting(
-  octokit: NonNullable<Awaited<ReturnType<typeof getUserOctokit>>>,
-  owner: string,
-  repo: string,
-  path: string,
-): Promise<{ raw: string; sha: string } | null> {
-  const file = await readStateText(octokit, owner, repo, path, {
-    headers: { "If-None-Match": "" },
-  });
-  return file ? { raw: file.content, sha: file.sha } : null;
 }
 
 export async function POST(
@@ -98,11 +90,11 @@ export async function POST(
       return NextResponse.json({ error: "no_user_token" }, { status: 401 });
     }
 
-    const existing = await fetchExisting(
+    const existing = await readManagedGoalFile(
+      id,
       octokit,
       headerAuth.owner,
       headerAuth.repo,
-      path,
     );
     if (!existing) {
       return NextResponse.json(
@@ -114,7 +106,7 @@ export async function POST(
       );
     }
 
-    const previous = JSON.parse(existing.raw) as GoalRunState;
+    const previous = existing.state as unknown as GoalRunState;
 
     // Only a parked goal can be merged. Guard against double-clicks and
     // merging a goal that's still running.
@@ -140,14 +132,14 @@ export async function POST(
     };
     delete next.pausedReason;
 
-    await writeStateText({
+    await writeManagedGoalFile({
       octokit,
       owner: headerAuth.owner,
       repo: headerAuth.repo,
-      path,
+      id,
       message: `chore(goals): approve merge for ${id}`,
-      content: JSON.stringify(next, null, 2),
-      sha: existing.sha,
+      state: next as unknown as ManagedGoalState,
+      sha: existing.source === "todo" ? existing.sha : undefined,
     });
 
     // Take effect now, not on the next 15-min cron. Dispatch on the repo's

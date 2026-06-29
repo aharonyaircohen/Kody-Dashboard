@@ -3,7 +3,7 @@
  * @domain kody
  * @pattern goal-runtime-state
  * @ai-summary React Query hooks for a single goal's runtime state file
- *   (`goals/instances/<id>/state.json` in the configured Kody state repo). One query per goal id; cache is
+ *   (`todos/<id>.md` in the configured Kody state repo). One query per goal id; cache is
  *   conservative (60s stale) since states change rarely. The mutation
  *   invalidates only the affected goal's state, not the goal list.
  */

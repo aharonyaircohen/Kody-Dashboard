@@ -21,14 +21,16 @@ import { logger } from "@dashboard/lib/logger";
 import { invalidateIssueCache } from "@dashboard/lib/github-client";
 import { readGoalsManifestFresh } from "@dashboard/lib/goals-server";
 import { GOAL_LABEL_PREFIX, type Goal } from "@dashboard/lib/goals";
-import { listStateDirectory, readStateText, writeStateText } from "@dashboard/lib/state-repo";
 import {
   buildManagedGoalState,
-  isManagedGoalState,
   managedGoalPath,
   slugifyManagedGoalId,
-  type ManagedGoalRecord,
 } from "@dashboard/lib/managed-goals";
+import {
+  listManagedGoalFiles,
+  readManagedGoalFile,
+  writeManagedGoalFile,
+} from "@dashboard/lib/managed-goals-files";
 
 interface Ctx {
   octokit: Octokit;
@@ -38,57 +40,6 @@ interface Ctx {
 
 const MAX_DESC_CHARS = 4_000;
 const MAX_ATTACHED_TASKS = 50;
-
-async function readManagedGoalFile(
-  octokit: Octokit,
-  owner: string,
-  repo: string,
-  goalId: string,
-): Promise<{ raw: string; sha: string } | null> {
-  const file = await readStateText(octokit, owner, repo, managedGoalPath(goalId), {
-    headers: { "If-None-Match": "" },
-  });
-  return file ? { raw: file.content, sha: file.sha } : null;
-}
-
-async function listManagedGoalDirs(
-  octokit: Octokit,
-  owner: string,
-  repo: string,
-): Promise<Array<{ name: string }>> {
-  const { entries } = await listStateDirectory(
-    octokit,
-    owner,
-    repo,
-    "goals/instances",
-    { headers: { "If-None-Match": "" } },
-  );
-  return entries
-    .filter((item) => item.type === "dir" && typeof item.name === "string")
-    .map((item) => ({ name: item.name }));
-}
-
-async function listManagedGoals(
-  octokit: Octokit,
-  owner: string,
-  repo: string,
-): Promise<ManagedGoalRecord[]> {
-  const dirs = await listManagedGoalDirs(octokit, owner, repo);
-  const goals: ManagedGoalRecord[] = [];
-  for (const dir of dirs) {
-    if (!dir.name) continue;
-    const file = await readManagedGoalFile(octokit, owner, repo, dir.name);
-    if (!file) continue;
-    const parsed = JSON.parse(file.raw) as unknown;
-    if (!isManagedGoalState(parsed)) continue;
-    goals.push({
-      id: dir.name,
-      path: managedGoalPath(dir.name),
-      state: parsed,
-    });
-  }
-  return goals.sort((a, b) => a.id.localeCompare(b.id));
-}
 
 async function dispatchGoalWorkflow(
   octokit: Octokit,
@@ -244,12 +195,12 @@ export function createGoalTools(ctx: Ctx) {
 
     list_managed_goals: tool({
       description:
-        "List engine-managed goals stored in the configured Kody state repo at goals/instances/<id>/state.json. " +
+        "List engine-managed goals stored in the configured Kody state repo as todo lists. " +
         "Use for AI Agency goals with outcome, evidence, route, facts, and blockers.",
       inputSchema: z.object({}),
       execute: async () => {
         try {
-          const goals = await listManagedGoals(octokit, owner, repo);
+          const goals = await listManagedGoalFiles(octokit, owner, repo);
           return {
             goals: goals.map((goal) => ({
               id: goal.id,
@@ -278,17 +229,13 @@ export function createGoalTools(ctx: Ctx) {
       }),
       execute: async ({ id }) => {
         try {
-          const file = await readManagedGoalFile(octokit, owner, repo, id);
+          const file = await readManagedGoalFile(id, octokit, owner, repo);
           if (!file) return { error: `Managed goal "${id}" not found.` };
-          const parsed = JSON.parse(file.raw) as unknown;
-          if (!isManagedGoalState(parsed)) {
-            return { error: `Goal "${id}" is not a managed-goal file.` };
-          }
           return {
             goal: {
               id,
-              path: managedGoalPath(id),
-              state: parsed,
+              path: file.path,
+              state: file.state,
             },
           };
         } catch (err) {
@@ -302,7 +249,7 @@ export function createGoalTools(ctx: Ctx) {
       description:
         "Create an engine-managed AI Agency goal. Provide a finish-line outcome, " +
         "proof/evidence keys, and route steps that name the capability work. " +
-        "Writes the configured Kody state repo at goals/instances/<id>/state.json and wakes Kody.",
+        "Writes a managed-goal todo list in the configured Kody state repo and wakes Kody.",
       inputSchema: z.object({
         id: z
           .string()
@@ -344,24 +291,19 @@ export function createGoalTools(ctx: Ctx) {
           if (!goalId) return { error: "Could not derive a valid goal id." };
 
           const path = managedGoalPath(goalId);
-          const existing = await readManagedGoalFile(
-            octokit,
-            owner,
-            repo,
-            goalId,
-          );
+          const existing = await readManagedGoalFile(goalId, octokit, owner, repo);
           if (existing) {
             return { error: `Managed goal "${goalId}" already exists.` };
           }
 
           const state = buildManagedGoalState(input);
-          await writeStateText({
+          await writeManagedGoalFile({
             octokit,
             owner,
             repo,
-            path,
+            id: goalId,
             message: `chore(goals): create managed goal ${goalId}`,
-            content: JSON.stringify(state, null, 2),
+            state,
           });
 
           const engineDispatched = await dispatchGoalWorkflow(
