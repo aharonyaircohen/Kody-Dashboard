@@ -151,22 +151,6 @@ function parseFrontmatterValue(value: string): unknown {
   return stripped;
 }
 
-function serializeString(value: string): string {
-  return `"${value.replace(/\\/g, "\\\\").replace(/"/g, '\\"')}"`;
-}
-
-function serializeFrontmatterValue(value: unknown): string {
-  if (typeof value === "string") return serializeString(value);
-  if (
-    value === null ||
-    typeof value === "boolean" ||
-    typeof value === "number"
-  ) {
-    return JSON.stringify(value);
-  }
-  return serializeString(JSON.stringify(value));
-}
-
 function normalizeMarkdown(value: string): string {
   return value.slice(0, BODY_MAX_LENGTH).trim();
 }
@@ -376,7 +360,6 @@ export function serializeTodoFileContent(content: TodoFileContent): string {
     title: content.title.trim().slice(0, TITLE_MAX_LENGTH),
     createdAt: content.createdAt,
   };
-  void serializeFrontmatterValue;
   return `${JSON.stringify(
     {
       version: TODO_JSON_VERSION,
