@@ -57,7 +57,7 @@ beforeEach(() => {
 });
 
 describe("state repo branch", () => {
-  it("reads runtime state from the state repo main branch", async () => {
+  it("reads runtime state from the dedicated state repo branch", async () => {
     const octokit = octokitForRead();
 
     const file = await readStateText(
@@ -68,7 +68,7 @@ describe("state repo branch", () => {
     );
 
     expect(file?.content).toBe("hello");
-    expect(STATE_BRANCH).toBe("main");
+    expect(STATE_BRANCH).toBe("kody-state");
     expect(octokit.repos.getContent).toHaveBeenCalledWith(
       expect.objectContaining({
         owner: "acme",
@@ -79,7 +79,28 @@ describe("state repo branch", () => {
     );
   });
 
-  it("writes runtime state to the state repo main branch", async () => {
+  it("can read user-level state from the state repo root", async () => {
+    const octokit = octokitForRead();
+
+    await readStateText(
+      octokit as unknown as ReadOctokit,
+      "acme",
+      "widgets",
+      "users/alice/data/brain.json",
+      { scope: "root" },
+    );
+
+    expect(octokit.repos.getContent).toHaveBeenCalledWith(
+      expect.objectContaining({
+        owner: "acme",
+        repo: "kody-state",
+        path: "users/alice/data/brain.json",
+        ref: STATE_BRANCH,
+      }),
+    );
+  });
+
+  it("writes runtime state to the dedicated state repo branch", async () => {
     const octokit = octokitForWrite();
 
     await writeStateText({
@@ -104,6 +125,30 @@ describe("state repo branch", () => {
         path: "widgets/reports/check.md",
         branch: STATE_BRANCH,
         message: "save report",
+      }),
+    );
+  });
+
+  it("can write user-level state to the state repo root", async () => {
+    const octokit = octokitForWrite();
+
+    await writeStateText({
+      octokit: octokit as unknown as WriteOctokit,
+      owner: "acme",
+      repo: "widgets",
+      path: "users/alice/data/brain.json",
+      content: "{}",
+      message: "save brain",
+      scope: "root",
+    });
+
+    expect(octokit.repos.createOrUpdateFileContents).toHaveBeenCalledWith(
+      expect.objectContaining({
+        owner: "acme",
+        repo: "kody-state",
+        path: "users/alice/data/brain.json",
+        branch: STATE_BRANCH,
+        message: "save brain",
       }),
     );
   });

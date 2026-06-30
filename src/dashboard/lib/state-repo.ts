@@ -23,6 +23,8 @@ export interface StateRepoTarget {
   basePath: string;
 }
 
+export type StateRepoScope = "repo" | "root";
+
 export interface StateRepoFile {
   path: string;
   content: string;
@@ -194,6 +196,17 @@ export function stateRepoPath(
   return [target.basePath, relative].filter(Boolean).join("/");
 }
 
+function stateRepoScopedPath(
+  target: StateRepoTarget,
+  filePath: string,
+  scope: StateRepoScope = "repo",
+): string {
+  if (scope === "root") {
+    return normalizeStatePath(filePath, "state file path");
+  }
+  return stateRepoPath(target, filePath);
+}
+
 async function ensureStateBranch(
   octokit: Octokit,
   target: StateRepoTarget,
@@ -237,10 +250,10 @@ export async function readStateText(
   owner: string,
   repo: string,
   filePath: string,
-  options: { headers?: Record<string, string> } = {},
+  options: { headers?: Record<string, string>; scope?: StateRepoScope } = {},
 ): Promise<StateRepoFile | null> {
   const target = await resolveStateRepo(octokit, owner, repo);
-  const path = stateRepoPath(target, filePath);
+  const path = stateRepoScopedPath(target, filePath, options.scope);
   try {
     const res = await octokit.repos.getContent({
       owner: target.owner,
@@ -362,6 +375,7 @@ export async function writeStateText({
   message,
   sha,
   maxAttempts,
+  scope,
 }: {
   octokit: Octokit;
   owner: string;
@@ -371,20 +385,22 @@ export async function writeStateText({
   message: string;
   sha?: string;
   maxAttempts?: number;
-}): Promise<{ sha: string | null }> {
+  scope?: StateRepoScope;
+}): Promise<{ sha: string | null; path: string; htmlUrl: string | null }> {
   const target = await resolveStateRepo(octokit, owner, repo);
   await ensureStateBranch(octokit, target);
+  const targetPath = stateRepoScopedPath(target, path, scope);
   const res = await writeGitHubFileWithRetry(octokit, {
     owner: target.owner,
     repo: target.repo,
-    path: stateRepoPath(target, path),
+    path: targetPath,
     branch: STATE_BRANCH,
     message,
     content: Buffer.from(content, "utf8").toString("base64"),
     ...(sha ? { sha } : {}),
     ...(maxAttempts ? { maxAttempts } : {}),
   });
-  return { sha: res.sha };
+  return { sha: res.sha, path: targetPath, htmlUrl: res.htmlUrl };
 }
 
 export async function writeStateBase64({
@@ -396,6 +412,7 @@ export async function writeStateBase64({
   message,
   sha,
   maxAttempts,
+  scope,
 }: {
   octokit: Octokit;
   owner: string;
@@ -405,10 +422,11 @@ export async function writeStateBase64({
   message: string;
   sha?: string;
   maxAttempts?: number;
+  scope?: StateRepoScope;
 }): Promise<{ sha: string | null; path: string; htmlUrl: string | null }> {
   const target = await resolveStateRepo(octokit, owner, repo);
   await ensureStateBranch(octokit, target);
-  const targetPath = stateRepoPath(target, path);
+  const targetPath = stateRepoScopedPath(target, path, scope);
   const res = await writeGitHubFileWithRetry(octokit, {
     owner: target.owner,
     repo: target.repo,
@@ -556,6 +574,7 @@ export async function deleteStateFile({
   path,
   sha,
   message,
+  scope,
 }: {
   octokit: Octokit;
   owner: string;
@@ -563,13 +582,14 @@ export async function deleteStateFile({
   path: string;
   sha: string;
   message: string;
+  scope?: StateRepoScope;
 }): Promise<void> {
   const target = await resolveStateRepo(octokit, owner, repo);
   await ensureStateBranch(octokit, target);
   await octokit.repos.deleteFile({
     owner: target.owner,
     repo: target.repo,
-    path: stateRepoPath(target, path),
+    path: stateRepoScopedPath(target, path, scope),
     branch: STATE_BRANCH,
     message,
     sha,

@@ -4,7 +4,8 @@
  * @pattern brain-app-file-store
  * @ai-summary Per-user record of the Brain Fly app the dashboard provisioned.
  *   One JSON file per GitHub login at
- *   `users/<login>/data/brain.json` in the configured Kody state repo.
+ *   `users/<login>/data/brain.json` at the root of the configured Kody
+ *   state repo.
  *
  *   Mirrors `notifications/prefs-store.ts`: ETag/If-None-Match for free 304s,
  *   CAS writes (fetch SHA → write with SHA → retry once on 409). The folder
@@ -61,13 +62,8 @@ function setCache<T>(key: string, data: T, etag?: string): void {
   cache.set(key, { data, expires: Date.now() + BRAIN_CACHE_TTL_MS, etag });
 }
 
-function cacheKey(
-  kind: "app" | "image" | "image-save",
-  owner: string,
-  repo: string,
-  login: string,
-): string {
-  return `brain-${kind}:${owner}:${repo}:${login.toLowerCase()}`;
+function cacheKey(kind: "app" | "image" | "image-save", login: string): string {
+  return `brain-${kind}:${login.toLowerCase()}`;
 }
 
 function appFilePath(login: string): string {
@@ -185,13 +181,14 @@ export async function readBrainApp(
   const owner = getOwner();
   const repo = getRepo();
   const path = appFilePath(login);
-  const key = cacheKey("app", owner, repo, login);
+  const key = cacheKey("app", login);
 
   const cached = getCache<BrainAppFile | null>(key);
   const octokit = getOctokit();
 
   try {
     const file = await readStateText(octokit, owner, repo, path, {
+      scope: "root",
       headers: cached?.etag ? { "If-None-Match": cached.etag } : undefined,
     });
     if (file) {
@@ -201,6 +198,16 @@ export async function readBrainApp(
         return null;
       }
       setCache(key, parsed, file.etag);
+      return parsed;
+    }
+    const legacyFile = await readStateText(octokit, owner, repo, path);
+    if (legacyFile) {
+      const parsed: unknown = JSON.parse(legacyFile.content);
+      if (!isBrainAppFile(parsed)) {
+        setCache(key, null, legacyFile.etag);
+        return null;
+      }
+      setCache(key, parsed, legacyFile.etag);
       return parsed;
     }
     setCache(key, null);
@@ -231,7 +238,7 @@ export async function writeBrainApp(
   const owner = getOwner();
   const repo = getRepo();
   const path = appFilePath(login);
-  const key = cacheKey("app", owner, repo, login);
+  const key = cacheKey("app", login);
 
   cache.delete(key);
 
@@ -239,7 +246,9 @@ export async function writeBrainApp(
 
   try {
     const octokit = getOctokit();
-    const current = await readStateText(octokit, owner, repo, path);
+    const current = await readStateText(octokit, owner, repo, path, {
+      scope: "root",
+    });
     sha = current?.sha;
   } catch (error: unknown) {
     const status = (error as { status?: number })?.status;
@@ -259,13 +268,16 @@ export async function writeBrainApp(
       message,
       content,
       sha,
+      scope: "root",
     });
     return;
   } catch (error: unknown) {
     if ((error as { status?: number })?.status === 409) {
       try {
         const octokit = getOctokit();
-        const current = await readStateText(octokit, owner, repo, path);
+        const current = await readStateText(octokit, owner, repo, path, {
+          scope: "root",
+        });
         await writeStateText({
           octokit,
           owner,
@@ -274,6 +286,7 @@ export async function writeBrainApp(
           message,
           content,
           sha: current?.sha,
+          scope: "root",
         });
         return;
       } catch {
@@ -297,22 +310,37 @@ export async function clearBrainApp(
   const owner = getOwner();
   const repo = getRepo();
   const path = appFilePath(login);
-  const key = cacheKey("app", owner, repo, login);
+  const key = cacheKey("app", login);
 
   cache.delete(key);
 
   try {
     const octokit = getOctokit();
-    const current = await readStateText(octokit, owner, repo, path);
-    if (!current?.sha) return;
-    await deleteStateFile({
-      octokit,
-      owner,
-      repo,
-      path,
-      message: `feat(brain): clear brain app for ${login}`,
-      sha: current.sha,
+    const current = await readStateText(octokit, owner, repo, path, {
+      scope: "root",
     });
+    if (current?.sha) {
+      await deleteStateFile({
+        octokit,
+        owner,
+        repo,
+        path,
+        message: `feat(brain): clear brain app for ${login}`,
+        sha: current.sha,
+        scope: "root",
+      });
+    }
+    const legacy = await readStateText(octokit, owner, repo, path);
+    if (legacy?.sha) {
+      await deleteStateFile({
+        octokit,
+        owner,
+        repo,
+        path,
+        message: `feat(brain): clear legacy repo brain app for ${login}`,
+        sha: legacy.sha,
+      });
+    }
   } catch (error: unknown) {
     const status = (error as { status?: number })?.status;
     if (status === 404) return;
@@ -327,13 +355,14 @@ export async function readBrainImage(
   const owner = getOwner();
   const repo = getRepo();
   const path = imageFilePath(login);
-  const key = cacheKey("image", owner, repo, login);
+  const key = cacheKey("image", login);
 
   const cached = getCache<BrainImageFile | null>(key);
   const octokit = getOctokit();
 
   try {
     const file = await readStateText(octokit, owner, repo, path, {
+      scope: "root",
       headers: cached?.etag ? { "If-None-Match": cached.etag } : undefined,
     });
     if (file) {
@@ -343,6 +372,16 @@ export async function readBrainImage(
         return null;
       }
       setCache(key, parsed, file.etag);
+      return parsed;
+    }
+    const legacyFile = await readStateText(octokit, owner, repo, path);
+    if (legacyFile) {
+      const parsed: unknown = JSON.parse(legacyFile.content);
+      if (!isBrainImageFile(parsed)) {
+        setCache(key, null, legacyFile.etag);
+        return null;
+      }
+      setCache(key, parsed, legacyFile.etag);
       return parsed;
     }
     setCache(key, null);
@@ -372,14 +411,16 @@ export async function writeBrainImage(
   const owner = getOwner();
   const repo = getRepo();
   const path = imageFilePath(login);
-  const key = cacheKey("image", owner, repo, login);
+  const key = cacheKey("image", login);
 
   cache.delete(key);
 
   let sha: string | undefined;
   try {
     const octokit = getOctokit();
-    const current = await readStateText(octokit, owner, repo, path);
+    const current = await readStateText(octokit, owner, repo, path, {
+      scope: "root",
+    });
     sha = current?.sha;
   } catch (error: unknown) {
     const status = (error as { status?: number })?.status;
@@ -399,13 +440,16 @@ export async function writeBrainImage(
       message,
       content,
       sha,
+      scope: "root",
     });
     return;
   } catch (error: unknown) {
     if ((error as { status?: number })?.status === 409) {
       try {
         const octokit = getOctokit();
-        const current = await readStateText(octokit, owner, repo, path);
+        const current = await readStateText(octokit, owner, repo, path, {
+          scope: "root",
+        });
         await writeStateText({
           octokit,
           owner,
@@ -414,6 +458,7 @@ export async function writeBrainImage(
           message,
           content,
           sha: current?.sha,
+          scope: "root",
         });
         return;
       } catch {
@@ -431,13 +476,14 @@ export async function readBrainImageSave(
   const owner = getOwner();
   const repo = getRepo();
   const path = imageSaveFilePath(login);
-  const key = cacheKey("image-save", owner, repo, login);
+  const key = cacheKey("image-save", login);
 
   const cached = getCache<BrainImageSaveFile | null>(key);
   const octokit = getOctokit();
 
   try {
     const file = await readStateText(octokit, owner, repo, path, {
+      scope: "root",
       headers: cached?.etag ? { "If-None-Match": cached.etag } : undefined,
     });
     if (file) {
@@ -447,6 +493,16 @@ export async function readBrainImageSave(
         return null;
       }
       setCache(key, parsed, file.etag);
+      return parsed;
+    }
+    const legacyFile = await readStateText(octokit, owner, repo, path);
+    if (legacyFile) {
+      const parsed: unknown = JSON.parse(legacyFile.content);
+      if (!isBrainImageSaveFile(parsed)) {
+        setCache(key, null, legacyFile.etag);
+        return null;
+      }
+      setCache(key, parsed, legacyFile.etag);
       return parsed;
     }
     setCache(key, null);
@@ -476,14 +532,16 @@ export async function writeBrainImageSave(
   const owner = getOwner();
   const repo = getRepo();
   const path = imageSaveFilePath(login);
-  const key = cacheKey("image-save", owner, repo, login);
+  const key = cacheKey("image-save", login);
 
   cache.delete(key);
 
   let sha: string | undefined;
   try {
     const octokit = getOctokit();
-    const current = await readStateText(octokit, owner, repo, path);
+    const current = await readStateText(octokit, owner, repo, path, {
+      scope: "root",
+    });
     sha = current?.sha;
   } catch (error: unknown) {
     const status = (error as { status?: number })?.status;
@@ -503,13 +561,16 @@ export async function writeBrainImageSave(
       message,
       content,
       sha,
+      scope: "root",
     });
     return;
   } catch (error: unknown) {
     if ((error as { status?: number })?.status === 409) {
       try {
         const octokit = getOctokit();
-        const current = await readStateText(octokit, owner, repo, path);
+        const current = await readStateText(octokit, owner, repo, path, {
+          scope: "root",
+        });
         await writeStateText({
           octokit,
           owner,
@@ -518,6 +579,7 @@ export async function writeBrainImageSave(
           message,
           content,
           sha: current?.sha,
+          scope: "root",
         });
         return;
       } catch {
@@ -535,22 +597,37 @@ export async function clearBrainImageSave(
   const owner = getOwner();
   const repo = getRepo();
   const path = imageSaveFilePath(login);
-  const key = cacheKey("image-save", owner, repo, login);
+  const key = cacheKey("image-save", login);
 
   cache.delete(key);
 
   try {
     const octokit = getOctokit();
-    const current = await readStateText(octokit, owner, repo, path);
-    if (!current?.sha) return;
-    await deleteStateFile({
-      octokit,
-      owner,
-      repo,
-      path,
-      message: `feat(brain): clear brain image save job for ${login}`,
-      sha: current.sha,
+    const current = await readStateText(octokit, owner, repo, path, {
+      scope: "root",
     });
+    if (current?.sha) {
+      await deleteStateFile({
+        octokit,
+        owner,
+        repo,
+        path,
+        message: `feat(brain): clear brain image save job for ${login}`,
+        sha: current.sha,
+        scope: "root",
+      });
+    }
+    const legacy = await readStateText(octokit, owner, repo, path);
+    if (legacy?.sha) {
+      await deleteStateFile({
+        octokit,
+        owner,
+        repo,
+        path,
+        message: `feat(brain): clear legacy repo brain image save job for ${login}`,
+        sha: legacy.sha,
+      });
+    }
   } catch (error: unknown) {
     const status = (error as { status?: number })?.status;
     if (status === 404) return;

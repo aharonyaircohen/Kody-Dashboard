@@ -1,13 +1,49 @@
-import { describe, expect, it } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
+
+const mocks = vi.hoisted(() => ({
+  githubClient: {
+    getOctokit: vi.fn(() => ({})),
+    getOwner: vi.fn(() => "acme"),
+    getRepo: vi.fn(() => "widgets"),
+  },
+  stateRepo: {
+    deleteStateFile: vi.fn(),
+    listStateDirectory: vi.fn(),
+    readStateText: vi.fn(),
+    resolveStateRepo: vi.fn(),
+    stateRepoPath: vi.fn(),
+    writeStateText: vi.fn(),
+  },
+}));
+
+vi.mock("@dashboard/lib/github-client", () => mocks.githubClient);
+vi.mock("@dashboard/lib/state-repo", () => mocks.stateRepo);
 
 import {
   parseTodoFileContent,
   serializeTodoFileContent,
+  writeTodoFile,
   type TodoFileContent,
 } from "@dashboard/lib/todos/files";
 
 const createdAt = "2026-06-28T00:00:00.000Z";
 const updatedAt = "2026-06-28T01:00:00.000Z";
+
+beforeEach(() => {
+  vi.clearAllMocks();
+  mocks.githubClient.getOctokit.mockReturnValue({});
+  mocks.githubClient.getOwner.mockReturnValue("acme");
+  mocks.githubClient.getRepo.mockReturnValue("widgets");
+  mocks.stateRepo.resolveStateRepo.mockResolvedValue({
+    owner: "acme",
+    repo: "kody-state",
+    basePath: "widgets",
+  });
+  mocks.stateRepo.stateRepoPath.mockImplementation(
+    (target: { basePath: string }, path: string) =>
+      [target.basePath, path].filter(Boolean).join("/"),
+  );
+});
 
 describe("todo file content", () => {
   it("round-trips one todo list as JSON", () => {
@@ -87,5 +123,53 @@ describe("todo file content", () => {
     expect(parsed.description).toBe("");
     expect(parsed.items).toEqual([]);
     expect(parsed.title).toBe("legacy-list");
+  });
+
+  it("returns the written todo when a new file cannot be re-read immediately", async () => {
+    mocks.stateRepo.readStateText.mockResolvedValueOnce(null);
+    mocks.stateRepo.writeStateText.mockResolvedValueOnce({
+      sha: "todo-sha",
+      path: "widgets/todos/checkout-work.json",
+      htmlUrl:
+        "https://github.com/acme/kody-state/blob/kody-state/widgets/todos/checkout-work.json",
+    });
+
+    const todo = await writeTodoFile({
+      octokit: {} as Parameters<typeof writeTodoFile>[0]["octokit"],
+      slug: "checkout-work",
+      title: "Checkout work",
+      description: "Track checkout work.",
+      items: [
+        {
+          id: "item-1",
+          title: "Verify cart",
+          body: "",
+          assignee: null,
+          completed: false,
+          createdAt,
+          completedAt: null,
+        },
+      ],
+      createdAt,
+    });
+
+    expect(todo).toMatchObject({
+      slug: "checkout-work",
+      path: "todos/checkout-work.json",
+      title: "Checkout work",
+      description: "Track checkout work.",
+      sha: "todo-sha",
+      htmlUrl:
+        "https://github.com/acme/kody-state/blob/kody-state/widgets/todos/checkout-work.json",
+      items: [
+        {
+          id: "item-1",
+          title: "Verify cart",
+          completed: false,
+        },
+      ],
+    });
+    expect(Date.parse(todo.updatedAt)).not.toBeNaN();
+    expect(mocks.stateRepo.readStateText).toHaveBeenCalledTimes(1);
   });
 });

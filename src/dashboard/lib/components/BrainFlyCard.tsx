@@ -481,7 +481,7 @@ export function BrainFlyCard({
   }
 
   /**
-   * Clear the stored record at `users/<login>/data/brain.json` in the configured Kody state repo
+   * Clear the stored record at state-repo root `users/<login>/data/brain.json`
    * without touching Fly. Use this for the orphan case: the dashboard
    * remembers a brain app the user can no longer reach (token revoked,
    * app moved orgs, etc.) and the user wants to start fresh.

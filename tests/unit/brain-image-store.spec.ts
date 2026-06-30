@@ -58,7 +58,120 @@ describe("Brain image store", () => {
       "aharonyaircohen",
       "Kody-Dashboard",
       "users/alice/data/brain-image.json",
-      expect.any(Object),
+      expect.objectContaining({ scope: "root" }),
+    );
+  });
+
+  it("falls back to the old repo-scoped Brain image record during migration", async () => {
+    state.readStateText
+      .mockResolvedValueOnce(null)
+      .mockResolvedValueOnce({
+        content: JSON.stringify({
+          version: 1,
+          imageRef: "ghcr.io/alice/kody-brain-snapshot:20260625",
+          createdAt: "2026-06-25T10:00:00.000Z",
+          updatedAt: "2026-06-25T10:00:00.000Z",
+        }),
+        sha: "sha",
+      });
+    const { readBrainImage } = await import("@dashboard/lib/brain/store");
+
+    await expect(readBrainImage("Alice", "token")).resolves.toMatchObject({
+      imageRef: "ghcr.io/alice/kody-brain-snapshot:20260625",
+    });
+    expect(state.readStateText).toHaveBeenNthCalledWith(
+      1,
+      { id: "octokit" },
+      "aharonyaircohen",
+      "Kody-Dashboard",
+      "users/alice/data/brain-image.json",
+      expect.objectContaining({ scope: "root" }),
+    );
+    expect(state.readStateText.mock.calls[1]).toEqual([
+      { id: "octokit" },
+      "aharonyaircohen",
+      "Kody-Dashboard",
+      "users/alice/data/brain-image.json",
+    ]);
+  });
+
+  it("reads the stored Brain app from user-level state", async () => {
+    state.readStateText.mockResolvedValue({
+      content: JSON.stringify({
+        version: 1,
+        appName: "kody-brain-alice",
+        orgSlug: "personal",
+        createdAt: "2026-06-25T10:00:00.000Z",
+      }),
+      sha: "sha",
+      etag: "etag",
+    });
+    const { readBrainApp } = await import("@dashboard/lib/brain/store");
+
+    await expect(readBrainApp("Alice", "token")).resolves.toMatchObject({
+      appName: "kody-brain-alice",
+    });
+    expect(state.readStateText).toHaveBeenCalledWith(
+      { id: "octokit" },
+      "aharonyaircohen",
+      "Kody-Dashboard",
+      "users/alice/data/brain.json",
+      expect.objectContaining({ scope: "root" }),
+    );
+  });
+
+  it("writes the stored Brain app to user-level state", async () => {
+    state.readStateText.mockResolvedValue(null);
+    state.writeStateText.mockResolvedValue({ sha: "new-sha" });
+    const { writeBrainApp } = await import("@dashboard/lib/brain/store");
+
+    await writeBrainApp("Alice", "token", {
+      version: 1,
+      appName: "kody-brain-alice",
+      orgSlug: "personal",
+      createdAt: "2026-06-25T10:00:00.000Z",
+    });
+
+    expect(state.writeStateText).toHaveBeenCalledWith(
+      expect.objectContaining({
+        path: "users/alice/data/brain.json",
+        message: "feat(brain): record brain app for Alice",
+        scope: "root",
+      }),
+    );
+  });
+
+  it("clears the user-level Brain app and the old repo-scoped app record", async () => {
+    state.readStateText
+      .mockResolvedValueOnce({
+        sha: "root-sha",
+        content: "{}",
+      })
+      .mockResolvedValueOnce({
+        sha: "legacy-sha",
+        content: "{}",
+      });
+    state.deleteStateFile.mockResolvedValue(undefined);
+    const { clearBrainApp } = await import("@dashboard/lib/brain/store");
+
+    await clearBrainApp("Alice", "token");
+
+    expect(state.deleteStateFile).toHaveBeenNthCalledWith(
+      1,
+      expect.objectContaining({
+        path: "users/alice/data/brain.json",
+        message: "feat(brain): clear brain app for Alice",
+        sha: "root-sha",
+        scope: "root",
+      }),
+    );
+    expect(state.deleteStateFile).toHaveBeenNthCalledWith(
+      2,
+      expect.objectContaining({
+        path: "users/alice/data/brain.json",
+        message: "feat(brain): clear legacy repo brain app for Alice",
+        sha: "legacy-sha",
+      }),
     );
   });
 
@@ -78,6 +191,7 @@ describe("Brain image store", () => {
       expect.objectContaining({
         path: "users/alice/data/brain-image.json",
         message: "feat(brain): record brain image for Alice",
+        scope: "root",
       }),
     );
   });
@@ -142,6 +256,7 @@ describe("Brain image store", () => {
       expect.objectContaining({
         path: "users/alice/data/brain-image-save.json",
         message: "feat(brain): record brain image save job for Alice",
+        scope: "root",
       }),
     );
 
@@ -155,6 +270,7 @@ describe("Brain image store", () => {
       expect.objectContaining({
         path: "users/alice/data/brain-image-save.json",
         message: "feat(brain): clear brain image save job for Alice",
+        scope: "root",
       }),
     );
   });

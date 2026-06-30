@@ -354,7 +354,7 @@ export async function writeTodoFile(opts: WriteTodoOptions): Promise<TodoFile> {
     filePath,
   );
 
-  await writeStateText({
+  const writeResult = await writeStateText({
     octokit: opts.octokit,
     owner: getOwner(),
     repo: getRepo(),
@@ -364,11 +364,20 @@ export async function writeTodoFile(opts: WriteTodoOptions): Promise<TodoFile> {
     sha: existingJson ? (opts.sha ?? existingJson.sha) : undefined,
   });
 
-  const refreshed = await readTodoFile(opts.slug, opts.octokit);
-  if (!refreshed) {
-    throw new Error("writeTodoFile: file was written but could not be re-read");
-  }
-  return refreshed;
+  const updatedAt = new Date().toISOString();
+  const parsed = parseTodoFileContent(normalizedContent, opts.slug, updatedAt);
+  return {
+    slug: opts.slug,
+    path: filePath,
+    title: parsed.title,
+    description: parsed.description,
+    items: parsed.items,
+    createdAt: parsed.createdAt,
+    frontmatter: parsed.frontmatter,
+    sha: writeResult.sha ?? existingJson?.sha ?? opts.sha ?? "",
+    updatedAt,
+    htmlUrl: writeResult.htmlUrl ?? existingJson?.htmlUrl ?? "",
+  };
 }
 
 export async function deleteTodoFile(
