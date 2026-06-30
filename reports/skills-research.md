@@ -1,5 +1,5 @@
 ---
-generatedAt: "2026-06-28T23:06:51Z"
+generatedAt: "2026-06-30T20:31:45Z"
 dutySlug: skills-research
 reviewStatus: action-needed
 reviewArea: engineering-capability
@@ -16,6 +16,10 @@ findings:
     severity: medium
     title: Add next-best-practices to architecture-audit (CTO)
     linkedUrl: https://www.skills.sh/vercel-labs/next-skills/next-best-practices
+  - id: missing-improve-codebase-architecture
+    severity: medium
+    title: Add improve-codebase-architecture to architecture-audit (CTO)
+    linkedUrl: https://www.skills.sh/mattpocock/skills/improve-codebase-architecture
   - id: missing-extract-design-system
     severity: low
     title: Add extract-design-system to design-review (no design system yet)
@@ -52,6 +56,15 @@ for design; selectors/fixtures/parallelism for qa; App Router/RSC boundaries
 for architecture) but their bodies delegate the method to a delegating runbook
 without an external reference. That's where the high-leverage skills sit.
 
+**What changed since 2026-06-28:** one genuinely new placement — `mattpocock/skills/improve-codebase-architecture`
+fits `architecture-audit` (cto) directly: the audit's stated scope (shallow
+modules, dead abstractions, coupling, duplication) is exactly the rubric this
+skill encodes (Ousterhout's "deep module" principle + organic exploration +
+refactor RFCs). It complements rather than overlaps the existing
+`next-best-practices` recommendation: that one covers Next.js framework
+correctness (RSC boundaries, async APIs, metadata); this one covers module
+quality. Five previous recommendations remain valid — no churn.
+
 ## Existing Coverage
 
 - **UI coherence + design-system drift:** `design-review` (ux-designer)
@@ -72,6 +85,7 @@ without an external reference. That's where the high-leverage skills sit.
 | `web-design-guidelines` (vercel-labs/agent-skills) | high | `design-review` (ux-designer) | The capability body lists the exact rubric this skill encodes — spacing scale, type ramp, color roles, interaction, a11y/WCAG AA — but lacks the external reference for the delegated analysis to score against. Pairs 1:1 with the existing sweep scope; without it, reviewers drift into subjective feedback. |
 | `playwright-best-practices` (currents-dev) | high | `qa`, `qa-sweep` (qa) | Kody Dashboard already runs Playwright (`@playwright/test` 1.59, `pnpm test:e2e`); the qa capability delegates to a browser-side `qa-engineer`. The skill covers resilient selectors, fixtures, parallelism, CI integration — exactly the failure modes that produce flaky tests on this kind of dynamic, GitHub-driven UI. Drops the rate of re-runs the in-flight changelog gate would otherwise have to chase. |
 | `next-best-practices` (vercel-labs/next-skills) | high | `architecture-audit` (cto) | Kody Dashboard is App Router through and through; CLAUDE.md describes the App Router file layout, route handlers, and metadata wiring. The current CTO sweep covers boundaries and dependency direction but says nothing about RSC/client-component placement, async route APIs, metadata, error boundaries, or route-segment config. Without this skill the audit misses Next.js-specific correctness issues that show up as prod hot-fixes. |
+| `improve-codebase-architecture` (mattpocock/skills) | medium | `architecture-audit` (cto) | The audit body already enumerates "module boundaries / single responsibility," "premature / dead abstractions," "duplication" — i.e. exactly the surface this skill covers, with a concrete method (organic exploration, Ousterhout's "deep modules" — small interfaces hiding large implementations, multiple radically different refactor designs via sub-agents, GitHub-issue RFCs for each). The current capability lacks that method. Complements `next-best-practices` (this = module quality; that = framework correctness). |
 | `extract-design-system` (arvindrk) | medium | `design-review` (ux-designer) | CLAUDE.md says "if the repo has no design system at all, the first report should propose one" and `design-review/capability.md` already says this verbatim. The capability lacks the concrete method for that first pass. extract-design-system provides a deterministic token/component extraction flow rather than a vibes-only audit. |
 | `next-cache-components` (vercel-labs/next-skills) | medium | `architecture-audit` (cto) | CLAUDE.md calls out the open follow-up: replace the in-memory cache with Vercel Data Cache (`fetch` + `revalidateTag`) so other instances stop serving stale data until TTL. PPR / `use cache` / `cacheLife` / `cacheTag` are the API the eventual implementation will touch. CTO reviews the live PR; the skill is the rubric for whether the change respects the new caching model end-to-end. |
 
@@ -81,7 +95,9 @@ without an external reference. That's where the high-leverage skills sit.
 - `vercel-react-best-practices` — no Kody agent currently owns UI build work (executables inventory has ceo/coo/cto/qa/tech-writer/ux-designer); "add to feature/plan" from the placement rules does not map onto an existing capability in this repo.
 - `vercel-composition-patterns` — useful but no clear placement; CTO audit is architecture-level, design-review is coherence-level.
 - `shadcn` (shadcn/ui) — repo already imports shadcn-style components (Radix + Tailwind, `src/dashboard/lib/utils/ui.ts` mentions "installing other shadcn components"); no review gap surfaced.
+- `ui-ux-pro-max`, `design-taste-frontend`, `canvas-design` — all overlap `web-design-guidelines` without filling a distinct gap; the existing recommendation covers the rubric.
 - `tdd` / `test-driven-development` (obra), `webapp-testing` (anthropics), `playwright-cli` (microsoft), `verification-before-completion` (obra) — all overlap `coverage-floor` / `qa` / `qa-sweep` without filling a distinct gap; `coverage-floor` already enforces coverage discipline.
+- `systematic-debugging`, `writing-plans`, `executing-plans`, `dispatching-parallel-agents`, `subagent-driven-development`, `requesting-code-review`, `using-git-worktrees`, `finishing-a-development-branch` (obra/superpowers) — no Kody executable matches: there is no build/plan/feature/orchestration agent. `redispatch` is fully scripted and `pr-health-triage` is fully scripted; neither has a method gap.
 - `polish` / `critique` / `bolder` / `delight` / `distill` / `quieter` (impeccable) — taste micro-skills; no placement mapped to an existing ux-designer job slot.
 - `tailwind-design-system` — repo already uses Tailwind 4 with merge/animate/typography pre-configured; not a gap.
 - `typescript-advanced-types` — overlaps `type-debt`.
@@ -89,14 +105,19 @@ without an external reference. That's where the high-leverage skills sit.
 - `deploy-to-vercel` — overlaps `publish-release`.
 - `turborepo` — not a Turborepo monorepo.
 - `sleek-design-mobile-apps`, `high-end-visual-design`, `emil-design-eng` — aesthetic-direction skills; the dashboard's design system, when it exists, will not be mobile-first or luxury-editorial.
-- `lark-approval`, `azure-*`, `microsoft-foundry`, `agentspace`, `to-prd`, `caveman`, `video-edit`, `kling-3-0`, `remotion-best-practices` — out of scope for Kody Dashboard's stack.
+- `lark-approval`, `azure-*`, `microsoft-foundry`, `agentspace`, `to-prd`, `to-issues`, `caveman`, `video-edit`, `kling-3-0`, `remotion-best-practices`, `remotion-render`, `viral-short-form`, `image-inpainting`, `image-outpainting`, `nano-banana-edit`, `elevenlabs-music-generation`, `happyhorse-1-0`, `ace-step`, `wan-2-7`, `controlnet-pose`, `ralph-*` — out of scope for Kody Dashboard's stack (Feishu, Azure, media generation, video gen).
+- `grill-me` / `grill-with-docs` / `grilling` (mattpocock) — interrogative prompting patterns; no Kody capability currently needs an interrogation rubric.
+- `handoff` (mattpocock) — agent-to-agent handoff; no orchestration agent in this repo.
+- `brainstorming`, `browser-use`, `agent-browser` — agent workflow patterns with no executable placement.
 - `find-skills`, `skill-creator` — meta skills for the skills.sh ecosystem itself; no value to a Kody run.
 
 ## Notes
 
-- The recommendations are deliberately **review-side** (design-review / qa / cto). Kody Dashboard has no "feature" or "plan" agent in the current inventory, so build-time skills (`vercel-react-best-practices`, `vercel-composition-patterns`, `tdd`) have no executable placement and were skipped to keep the delta small. Revisit if a `feature` executable is added.
-- Five recommendations is the floor of what's clearly missing; nothing else on the leaderboard fills a gap an existing capability already covers.
+- The recommendations are deliberately **review-side** (design-review / qa / cto). Kody Dashboard has no "feature" or "plan" agent in the current inventory, so build-time skills (`vercel-react-best-practices`, `vercel-composition-patterns`, `tdd`, superpowers workflow skills) have no executable placement and were skipped to keep the delta small. Revisit if a `feature` executable is added.
+- Six recommendations is the floor of what's clearly missing; nothing else on the leaderboard fills a gap an existing capability already covers.
+- `improve-codebase-architecture` and `next-best-practices` are *both* recommended for `architecture-audit` because the audit's own scope is broad: framework correctness (`next-best-practices`) and module quality (`improve-codebase-architecture`) are different rubrics the same reviewer needs.
 - **Risk:** `web-design-guidelines` and `next-best-practices` are opinionated. Recommendation: treat them as a **rubric + checklist**, not as the source of truth — keep the existing capability bodies as the contract, and have the delegated run cite the skill when scoring a finding. Risk of "drift into boilerplate" rather than into site-specific issues is real; mitigate by requiring file:line citations in every report.
 - **Risk:** `playwright-best-practices` may push the qa engineer toward writing new selectors that fight the existing test suite. Prefer selective fixture reuse over adopting the full pattern wholesale.
+- **Risk:** `improve-codebase-architecture` recommends running sub-agents and producing GitHub-issue RFCs. The current architecture-audit capability body already delegates via a tracking issue; the skill's RFC format maps cleanly onto that. Watch that RFC volume stays bounded (one RFC per finding, not one per file).
 - **Risk:** `extract-design-system` is best used once, when the design system is greenfield. Once the design system exists, retire it; the recurring `design-review` sweep takes over.
-- All five skill names map cleanly to existing `.kody/capabilities/<slug>/` folders; no new executable required.
+- All six skill names map cleanly to existing `.kody/capabilities/<slug>/` folders; no new executable required.
