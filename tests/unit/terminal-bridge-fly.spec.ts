@@ -174,6 +174,17 @@ describe("ensureTerminalBridge", () => {
     );
   });
 
+  it("does not replay old terminal buffers when a browser reattaches", () => {
+    const attachSession = TERMINAL_BRIDGE_SCRIPT.match(
+      /function attachSocketToSession[\s\S]*?\n}\n\nfunction startFlyConsole/,
+    )?.[0];
+
+    expect(attachSession).toBeTruthy();
+    expect(attachSession).not.toContain("session.outputBuffer");
+    expect(attachSession).not.toContain("session.pendingOutput");
+    expect(attachSession).toContain('type: "ready"');
+  });
+
   it("does not mirror typed input when the wrapped process enables PTY echo", async () => {
     const dir = mkdtempSync(join(tmpdir(), "kody-pty-relay-"));
     const relayPath = join(dir, "relay.py");

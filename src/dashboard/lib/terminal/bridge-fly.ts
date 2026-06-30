@@ -17,7 +17,7 @@ const REQUEST_TIMEOUT_MS = 90_000;
 const BRIDGE_HEALTH_TIMEOUT_MS = 90_000;
 const BRIDGE_HEALTH_INTERVAL_MS = 2_000;
 
-export const TERMINAL_BRIDGE_VERSION = "2026-06-30.5";
+export const TERMINAL_BRIDGE_VERSION = "2026-06-30.6";
 export const TERMINAL_BRIDGE_BASE_IMAGE =
   process.env.KODY_TERMINAL_BRIDGE_BASE_IMAGE ?? "node:22-bookworm";
 
@@ -837,11 +837,6 @@ function attachSocketToSession(socket, session) {
   });
   if (session.ready) {
     sendJson(socket, { type: "ready" });
-    if (session.outputBuffer) {
-      sendJson(socket, { type: "output", data: session.outputBuffer });
-    }
-  } else if (session.pendingOutput) {
-    sendJson(socket, { type: "output", data: session.pendingOutput });
   }
 
   function detach() {

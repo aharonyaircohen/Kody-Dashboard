@@ -188,8 +188,11 @@ export const ChatTerminalSurface = forwardRef<
   const flySocketRef = useRef<WebSocket | null>(null);
   const flyConnectionStateRef = useRef<ChatTerminalConnectionState>("idle");
   const flyTargetKeyRef = useRef<string | null>(null);
+  const flyConnectSeqRef = useRef(0);
+  const flyConnectInFlightKeyRef = useRef<string | null>(null);
   const flyConnectFailureKeyRef = useRef<string | null>(null);
   const localStartFailureKeyRef = useRef<string | null>(null);
+  const disposedRef = useRef(false);
   const activeRef = useRef(active);
   const outputCaptureRef = useRef("");
   const sessionEndNotifiedRef = useRef(false);
@@ -521,6 +524,8 @@ export const ChatTerminalSurface = forwardRef<
     if (flySocketRef.current || flyTargetKeyRef.current) {
       notifyTerminalSessionEnded();
     }
+    flyConnectSeqRef.current += 1;
+    flyConnectInFlightKeyRef.current = null;
     flySocketRef.current?.close(1000, "terminal transport changed");
     flySocketRef.current = null;
     flyTargetKeyRef.current = null;
@@ -538,7 +543,10 @@ export const ChatTerminalSurface = forwardRef<
       const attemptKey = `${chatSessionId}:${key}`;
       if (opts.force) {
         flyConnectFailureKeyRef.current = null;
+        flyConnectInFlightKeyRef.current = null;
       } else if (flyConnectFailureKeyRef.current === attemptKey) {
+        return;
+      } else if (flyConnectInFlightKeyRef.current === attemptKey) {
         return;
       }
       if (
@@ -555,6 +563,14 @@ export const ChatTerminalSurface = forwardRef<
       flySocketRef.current?.close(1000, "reconnecting terminal");
       flySocketRef.current = null;
       flyTargetKeyRef.current = key;
+      const seq = flyConnectSeqRef.current + 1;
+      flyConnectSeqRef.current = seq;
+      flyConnectInFlightKeyRef.current = attemptKey;
+      const isCurrentFlyConnect = () =>
+        !disposedRef.current &&
+        flyConnectSeqRef.current === seq &&
+        flyTargetKeyRef.current === key &&
+        transportRef.current.type === "fly";
       sessionEndNotifiedRef.current = false;
       updateFlyConnectionState("connecting");
       setError(null);
@@ -589,6 +605,7 @@ export const ChatTerminalSurface = forwardRef<
           },
           FLY_CONNECT_TIMEOUT_MS,
         );
+        if (!isCurrentFlyConnect()) return;
         if (!res.ok) {
           const body = (await res.json().catch(() => ({}))) as {
             message?: string;
@@ -598,10 +615,16 @@ export const ChatTerminalSurface = forwardRef<
         }
         flyConnectFailureKeyRef.current = null;
         const session = (await res.json()) as { webSocketUrl: string };
+        if (!isCurrentFlyConnect()) return;
         const ws = new WebSocket(session.webSocketUrl);
+        if (!isCurrentFlyConnect()) {
+          ws.close(1000, "stale terminal connection");
+          return;
+        }
         flySocketRef.current = ws;
 
         ws.onopen = () => {
+          if (flySocketRef.current !== ws || !isCurrentFlyConnect()) return;
           if (terminalRef.current) {
             ws.send(
               JSON.stringify({
@@ -613,6 +636,7 @@ export const ChatTerminalSurface = forwardRef<
           }
         };
         ws.onmessage = async (event) => {
+          if (flySocketRef.current !== ws || !isCurrentFlyConnect()) return;
           const raw =
             typeof event.data === "string"
               ? event.data
@@ -648,6 +672,7 @@ export const ChatTerminalSurface = forwardRef<
           }
         };
         ws.onerror = () => {
+          if (flySocketRef.current !== ws || !isCurrentFlyConnect()) return;
           setError("Terminal websocket error.");
           updateFlyConnectionState("error");
           terminalRef.current?.writeln(
@@ -655,7 +680,7 @@ export const ChatTerminalSurface = forwardRef<
           );
         };
         ws.onclose = () => {
-          if (flySocketRef.current !== ws) return;
+          if (flySocketRef.current !== ws || !isCurrentFlyConnect()) return;
           flySocketRef.current = null;
           notifyTerminalSessionEnded();
           if (flyConnectionStateRef.current !== "error") {
@@ -663,12 +688,20 @@ export const ChatTerminalSurface = forwardRef<
           }
         };
       } catch (err) {
+        if (!isCurrentFlyConnect()) return;
         const message =
           err instanceof Error ? err.message : "Failed to connect terminal";
         flyConnectFailureKeyRef.current = attemptKey;
         setError(message);
         updateFlyConnectionState("error");
         terminal.writeln(`\x1b[31m${message}\x1b[0m`);
+      } finally {
+        if (
+          flyConnectSeqRef.current === seq &&
+          flyConnectInFlightKeyRef.current === attemptKey
+        ) {
+          flyConnectInFlightKeyRef.current = null;
+        }
       }
     },
     [
@@ -811,7 +844,11 @@ export const ChatTerminalSurface = forwardRef<
   }, [currentTransportKey, stop, transport.type]);
 
   useEffect(() => {
+    disposedRef.current = false;
     return () => {
+      disposedRef.current = true;
+      flyConnectSeqRef.current += 1;
+      flyConnectInFlightKeyRef.current = null;
       flySocketRef.current?.close(1000, "terminal unmounted");
     };
   }, []);

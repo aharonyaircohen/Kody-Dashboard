@@ -46,4 +46,11 @@ describe("ChatTerminalSurface timeout guard", () => {
     );
     expect(SOURCE).toContain("pollBusyRef.current = false");
   });
+
+  it("guards Fly socket writes so stale connect attempts cannot duplicate terminal output", () => {
+    expect(SOURCE).toContain("flyConnectSeqRef");
+    expect(SOURCE).toContain("flyConnectInFlightKeyRef");
+    expect(SOURCE).toContain("isCurrentFlyConnect");
+    expect(SOURCE).toContain("flySocketRef.current !== ws");
+  });
 });
