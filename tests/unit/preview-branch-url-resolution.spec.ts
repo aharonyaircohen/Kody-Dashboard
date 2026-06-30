@@ -14,9 +14,13 @@ describe("preview branch URL resolution", () => {
       const source = readComponent(file);
 
       expect(source, file).toContain("fetchBranchPreviews");
+      expect(source, file).toContain("branchPreviewNeedsPoll");
+      expect(source, file).toContain("BRANCH_PREVIEW_POLL_MS");
       expect(source, file).not.toContain("mintBranchPreviewUrl");
       expect(source, file).not.toContain("kody-branch-preview-ticket");
-      expect(source, file).toContain("refetchInterval: 15_000");
+      expect(source, file).toMatch(
+        /refetchInterval:\s*\(query\)\s*=>[\s\S]*branchPreviewNeedsPoll/,
+      );
       expect(source, file).toMatch(
         /\? \(resolvedBranchPreview\?\.url \?\? null\)/,
       );

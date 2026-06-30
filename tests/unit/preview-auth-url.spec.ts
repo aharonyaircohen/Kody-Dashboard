@@ -34,6 +34,14 @@ describe("preview auth URL helpers", () => {
     ).toBe("https://kp-test.fly.dev/start?locale=he#top");
   });
 
+  it("removes Vercel bypass params from visible preview addresses", () => {
+    expect(
+      stripPreviewAuthParams(
+        "https://example.vercel.app/start?x-vercel-protection-bypass=secret&locale=he&x-vercel-set-bypass-cookie=samesitenone#top",
+      ),
+    ).toBe("https://example.vercel.app/start?locale=he#top");
+  });
+
   it("detects protected Fly preview URLs", () => {
     expect(hasPreviewAuthParams("https://kp-test.fly.dev/?kp=secret")).toBe(
       true,

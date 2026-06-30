@@ -44,7 +44,11 @@ import {
   resolveEnvironments,
   type PreviewEnvironment,
 } from "../preview-environments";
-import { fetchBranchPreviews } from "../previews/branch-preview-client";
+import {
+  BRANCH_PREVIEW_POLL_MS,
+  branchPreviewNeedsPoll,
+  fetchBranchPreviews,
+} from "../previews/branch-preview-client";
 import { previewChatContextBlock } from "../chat/preview-context";
 import { tasksApi, getStoredAuth } from "../api";
 import { RateLimitError, NoTokenError, SessionExpiredError } from "../api";
@@ -529,6 +533,9 @@ export function VibePage() {
     : null;
   const selectedFlyBranchMatchesRepo =
     !!selectedFlyBranch && selectedFlyBranch.repo === repoFullName;
+  const selectedPollingBranch = selectedFlyBranchMatchesRepo
+    ? selectedFlyBranch.branch
+    : null;
   const branchPreviewsQuery = useQuery({
     queryKey: ["kody-branch-previews", ownerForViews, repoForViews],
     queryFn: fetchBranchPreviews,
@@ -538,7 +545,10 @@ export function VibePage() {
       !!ownerForViews &&
       !!repoForViews,
     staleTime: 15 * 60 * 1000,
-    refetchInterval: 15_000,
+    refetchInterval: (query) =>
+      branchPreviewNeedsPoll(selectedPollingBranch, query.state.data)
+        ? BRANCH_PREVIEW_POLL_MS
+        : false,
     retry: false,
   });
   const resolvedBranchPreview = selectedFlyBranch

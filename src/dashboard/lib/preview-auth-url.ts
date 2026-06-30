@@ -7,6 +7,8 @@
  */
 
 const PREVIEW_TICKET_PARAM = "kp";
+export const VERCEL_PROTECTION_BYPASS_PARAM = "x-vercel-protection-bypass";
+export const VERCEL_SET_BYPASS_COOKIE_PARAM = "x-vercel-set-bypass-cookie";
 
 function parseUrl(url: string, baseUrl?: string): URL | null {
   try {
@@ -27,9 +29,10 @@ export function stripPreviewAuthParams(
   if (!url) return null;
   const parsed = parseUrl(url, baseUrl);
   if (!parsed) return url;
-  if (!isFlyPreviewUrl(parsed)) return parsed.toString();
 
-  parsed.searchParams.delete(PREVIEW_TICKET_PARAM);
+  if (isFlyPreviewUrl(parsed)) parsed.searchParams.delete(PREVIEW_TICKET_PARAM);
+  parsed.searchParams.delete(VERCEL_PROTECTION_BYPASS_PARAM);
+  parsed.searchParams.delete(VERCEL_SET_BYPASS_COOKIE_PARAM);
   return parsed.toString();
 }
 

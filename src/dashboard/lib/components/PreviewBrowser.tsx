@@ -114,11 +114,26 @@ function toBrowserAddress(url: string | null): string {
   return stripPreviewAuthParams(absolute, window.location.origin) ?? absolute;
 }
 
+function sameBrowserAddress(
+  left: string | null | undefined,
+  right: string | null | undefined,
+): boolean {
+  if (!left || !right || typeof window === "undefined") return left === right;
+  return (
+    stripPreviewAuthParams(left, window.location.origin) ===
+    stripPreviewAuthParams(right, window.location.origin)
+  );
+}
+
 function pushBrowserHistory(
   state: BrowserHistoryState,
   nextUrl: string,
 ): BrowserHistoryState {
-  if (state.entries[state.index] === nextUrl) return state;
+  const currentUrl = state.entries[state.index];
+  if (currentUrl === nextUrl) return state;
+  if (sameBrowserAddress(currentUrl, nextUrl)) {
+    return state;
+  }
 
   const currentEntries =
     state.index >= 0 ? state.entries.slice(0, state.index + 1) : [];
@@ -202,6 +217,7 @@ export function PreviewBrowser({
     entries: [],
     index: -1,
   });
+  const [iframeSourceUrl, setIframeSourceUrl] = useState<string | null>(null);
 
   const [previewDevice, setPreviewDevice] = useState<PreviewDevice>("desktop");
   const viewportMenuRef = useRef<HTMLDivElement>(null);
@@ -251,11 +267,13 @@ export function PreviewBrowser({
   useEffect(() => {
     if (!previewUrl) {
       setBrowserHistory({ entries: [], index: -1 });
+      setIframeSourceUrl(null);
       previousBaseUrlRef.current = baseUrl;
       return;
     }
 
     const previousBaseUrl = previousBaseUrlRef.current;
+    let nextIframeSourceUrl: string | null = null;
     setBrowserHistory((state) => {
       const activeUrl = state.entries[state.index];
       const nextUrl =
@@ -263,8 +281,16 @@ export function PreviewBrowser({
           ? rebasePreviewUrl(activeUrl, previousBaseUrl, baseUrl ?? previewUrl)
           : previewUrl;
 
+      nextIframeSourceUrl = nextUrl;
       return pushBrowserHistory(state, nextUrl);
     });
+    if (nextIframeSourceUrl) {
+      setIframeSourceUrl((current) =>
+        sameBrowserAddress(current, nextIframeSourceUrl)
+          ? current
+          : nextIframeSourceUrl,
+      );
+    }
     previousBaseUrlRef.current = baseUrl;
   }, [baseUrl, previewUrl, showBrowserChrome]);
 
@@ -285,11 +311,16 @@ export function PreviewBrowser({
   }, [getPreviewAuthSourceUrl, rawActivePreviewUrl]);
   activePreviewUrlRef.current = activePreviewUrl;
 
-  const previewLoadKey = activePreviewUrl
-    ? `${activePreviewUrl}-${iframeKey}-${reloadKey}`
+  const iframeLoadUrl = iframeSourceUrl ?? previewUrl;
+  const previewLoadKey = iframeLoadUrl
+    ? `${iframeLoadUrl}-${iframeKey}-${reloadKey}`
     : null;
   const [loadedPreviewKey, setLoadedPreviewKey] = useState<string | null>(null);
-  const bypassedUrl = useMemo(
+  const iframeBypassedUrl = useMemo(
+    () => getPreviewBypassUrl(iframeLoadUrl),
+    [iframeLoadUrl],
+  );
+  const externalPreviewUrl = useMemo(
     () => getPreviewBypassUrl(activePreviewUrl),
     [activePreviewUrl],
   );
@@ -394,12 +425,14 @@ export function PreviewBrowser({
     browserHistory.index < browserHistory.entries.length - 1;
 
   const moveBrowserHistory = (direction: "back" | "forward"): void => {
-    setBrowserHistory((state) => {
-      const nextIndex =
-        direction === "back" ? state.index - 1 : state.index + 1;
-      if (nextIndex < 0 || nextIndex >= state.entries.length) return state;
-      return { ...state, index: nextIndex };
-    });
+    const nextIndex =
+      direction === "back"
+        ? browserHistory.index - 1
+        : browserHistory.index + 1;
+    if (nextIndex < 0 || nextIndex >= browserHistory.entries.length) return;
+    const nextUrl = browserHistory.entries[nextIndex] ?? null;
+    if (nextUrl) setIframeSourceUrl(nextUrl);
+    setBrowserHistory({ ...browserHistory, index: nextIndex });
   };
 
   const normalizeAddressInput = (value: string): string | null => {
@@ -441,12 +474,14 @@ export function PreviewBrowser({
             window.location.origin,
           ) ?? nextUrl);
     activePreviewUrlRef.current = authedNextUrl;
+    setIframeSourceUrl(authedNextUrl);
     setBrowserUrl(toBrowserAddress(authedNextUrl));
     setBrowserHistory((state) => pushBrowserHistory(state, authedNextUrl));
   };
 
   const refreshPreview = async (): Promise<void> => {
     const currentUrl = activePreviewUrlRef.current;
+    let nextRefreshSourceUrl = currentUrl;
     if (onRefreshPreviewUrl && currentUrl) {
       try {
         const freshPreviewUrl = await onRefreshPreviewUrl(currentUrl);
@@ -467,6 +502,7 @@ export function PreviewBrowser({
             previewAuthSourceUrlRef.current = refreshedUrl;
           }
           activePreviewUrlRef.current = refreshedUrl;
+          nextRefreshSourceUrl = refreshedUrl;
           setBrowserUrl(toBrowserAddress(refreshedUrl));
           setBrowserHistory((state) =>
             replaceCurrentBrowserHistory(state, refreshedUrl),
@@ -477,6 +513,7 @@ export function PreviewBrowser({
       }
     }
 
+    if (nextRefreshSourceUrl) setIframeSourceUrl(nextRefreshSourceUrl);
     setIframeKey((key) => key + 1);
   };
 
@@ -669,7 +706,7 @@ export function PreviewBrowser({
             />
             {activePreviewUrl && (
               <a
-                href={bypassedUrl ?? activePreviewUrl}
+                href={externalPreviewUrl ?? activePreviewUrl}
                 target="_blank"
                 rel="noopener noreferrer"
                 title="Open preview in a new tab"
@@ -701,7 +738,7 @@ export function PreviewBrowser({
       >
         {activePreviewUrl ? (
           <PreviewIframe
-            src={bypassedUrl ?? undefined}
+            src={iframeBypassedUrl ?? undefined}
             title={iframeTitle}
             reloadKey={previewLoadKey ?? ""}
             onLoad={() => setLoadedPreviewKey(previewLoadKey)}

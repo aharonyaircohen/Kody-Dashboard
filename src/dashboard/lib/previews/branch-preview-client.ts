@@ -38,6 +38,29 @@ export interface BranchPreviewTicket {
   expiresAt: number;
 }
 
+export const BRANCH_PREVIEW_POLL_MS = 15_000;
+
+const POLLING_BRANCH_PREVIEW_STATES = new Set<BranchPreviewState>([
+  "building",
+  "pending",
+  "starting",
+  "unknown",
+]);
+
+export function branchPreviewNeedsPoll(
+  branch: string | null | undefined,
+  data: BranchPreviewsResponse | undefined,
+): boolean {
+  if (!branch) return false;
+  if (!data) return true;
+  const preview = data.previews.find(
+    (candidate) => candidate.branch === branch,
+  );
+  if (!preview) return false;
+  if (preview.url) return false;
+  return POLLING_BRANCH_PREVIEW_STATES.has(preview.state);
+}
+
 function authHeaders(): Record<string, string> {
   const auth = getStoredAuth();
   if (!auth) throw new NoTokenError("No auth");

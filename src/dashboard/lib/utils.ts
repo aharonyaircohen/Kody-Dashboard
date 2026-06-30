@@ -7,6 +7,10 @@
 
 // Re-export cn from infra/utils/ui (uses tailwind-merge for proper class merging)
 export { cn } from "@dashboard/lib/utils/ui";
+import {
+  VERCEL_PROTECTION_BYPASS_PARAM,
+  VERCEL_SET_BYPASS_COOKIE_PARAM,
+} from "./preview-auth-url";
 
 /**
  * Format duration in ms to human readable
@@ -278,8 +282,8 @@ export function getPreviewBypassUrl(
 
   try {
     const url = new URL(previewUrl);
-    url.searchParams.set("x-vercel-protection-bypass", bypassSecret);
-    url.searchParams.set("x-vercel-set-bypass-cookie", "samesitenone");
+    url.searchParams.set(VERCEL_PROTECTION_BYPASS_PARAM, bypassSecret);
+    url.searchParams.set(VERCEL_SET_BYPASS_COOKIE_PARAM, "samesitenone");
     return url.toString();
   } catch (error) {
     console.warn(
