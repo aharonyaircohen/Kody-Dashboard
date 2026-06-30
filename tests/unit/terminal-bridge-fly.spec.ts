@@ -209,13 +209,14 @@ os.write(sys.stdout.fileno(), b"REMOTE:" + data)
       child.stderr.on("data", (chunk) => {
         stderr += chunk;
       });
+      const closePromise = new Promise<number | null>((resolve) => {
+        child.on("close", resolve);
+      });
 
       child.stdin.write("abc\n");
       await waitForOutput(() => stdout, "REMOTE:abc");
       child.stdin.end();
-      const code = await new Promise<number | null>((resolve) => {
-        child.on("close", resolve);
-      });
+      const code = await closePromise;
 
       expect(stderr).toBe("");
       expect(code).toBe(0);
