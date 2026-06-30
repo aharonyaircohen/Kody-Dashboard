@@ -25,14 +25,14 @@ import {
 
 describe("managedGoalPath", () => {
   it("points managed state to the todo list file", () => {
-    expect(managedGoalPath("simple-rollout")).toBe("todos/simple-rollout.md");
+    expect(managedGoalPath("simple-rollout")).toBe("todos/simple-rollout.json");
   });
 });
 
 describe("goalStatePath", () => {
   it("points Tasks-page goals to the todo list file", () => {
     expect(goalStatePath("legacy-dashboard-goal")).toBe(
-      "todos/legacy-dashboard-goal.md",
+      "todos/legacy-dashboard-goal.json",
     );
   });
 });

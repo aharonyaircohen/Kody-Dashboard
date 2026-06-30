@@ -3,7 +3,7 @@
  * @domain todos
  * @pattern todo-control-hooks
  * @ai-summary React Query hooks for the Kody worklist page. Backed by
- * `todos/<slug>.md` files in the state repo via the API.
+ * `todos/<slug>.json` files in the state repo via the API.
  */
 "use client";
 

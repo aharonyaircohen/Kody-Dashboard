@@ -194,7 +194,7 @@ function buildAskCodeContext(list: TodoEntry, item: TodoItem): string {
     "Please help with this todo item.",
     "",
     `Todo list: ${list.title}`,
-    `Todo file: todos/${list.slug}.md`,
+    `Todo file: ${list.path || `todos/${list.slug}.json`}`,
     "",
     "List description:",
     list.description.trim() || "(none)",

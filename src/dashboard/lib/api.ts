@@ -1283,8 +1283,10 @@ export const contextApi = {
 
 // ============ Todos API ============
 export interface TodoEntry {
-  /** Filename without `.md` stable identity. */
+  /** Filename without `.json` stable identity. */
   slug: string;
+  /** State-repo path, usually `todos/<slug>.json` during migration. */
+  path?: string;
   title: string;
   /** Markdown description for the list itself. */
   description: string;

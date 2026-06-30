@@ -3,7 +3,7 @@
  * @domain kody
  * @pattern managed-goal-detail-api
  * @ai-summary Updates and deletes engine managed goal todo files under
- * `todos/<id>.md` in the configured Kody state repo.
+ * `todos/<id>.json` in the configured Kody state repo.
  */
 /* eslint-disable @typescript-eslint/no-explicit-any */
 

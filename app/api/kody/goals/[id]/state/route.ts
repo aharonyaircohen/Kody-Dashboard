@@ -3,7 +3,7 @@
  * @domain kody
  * @pattern goal-runtime-state
  * @ai-summary Goal runtime state API. Reads/writes
- *   `todos/<id>.md` in the configured Kody state repo so
+ *   `todos/<id>.json` in the configured Kody state repo so
  *   the state lives in the repo (engine and dashboard share one source of
  *   truth). GET returns 404 when the file doesn't exist (= "not started").
  *   PUT creates or updates the file with the user's GitHub token, so the

@@ -72,6 +72,7 @@ describe("managed goal todo-backed files", () => {
   it("normalizes legacy JSON when no todo file exists", async () => {
     stateRepo.readStateText.mockImplementation(
       async (_octokit, _owner, _repo, path: string) => {
+        if (path === "todos/goal-creation-works.json") return null;
         if (path === "todos/goal-creation-works.md") return null;
         if (path === "goals/instances/goal-creation-works/state.json") {
           return {
@@ -102,6 +103,7 @@ describe("managed goal todo-backed files", () => {
   it("migrates legacy JSON to a todo file on write", async () => {
     stateRepo.readStateText.mockImplementation(
       async (_octokit, _owner, _repo, path: string) => {
+        if (path === "todos/goal-creation-works.json") return null;
         if (path === "todos/goal-creation-works.md") return null;
         if (path === "goals/instances/goal-creation-works/state.json") {
           return {
@@ -126,7 +128,7 @@ describe("managed goal todo-backed files", () => {
     expect(stateRepo.writeStateText).toHaveBeenCalledTimes(1);
     const write = stateRepo.writeStateText.mock.calls[0]![0];
     expect(write).toMatchObject({
-      path: "todos/goal-creation-works.md",
+      path: "todos/goal-creation-works.json",
       sha: undefined,
     });
     const parsed = parseTodoFileContent(
@@ -179,7 +181,7 @@ describe("managed goal todo-backed files", () => {
     );
 
     expect(file).toBeNull();
-    expect(stateRepo.readStateText).toHaveBeenCalledTimes(1);
+    expect(stateRepo.readStateText).toHaveBeenCalledTimes(2);
   });
 
   it("does not delete a regular todo list through managed goal deletion", async () => {
@@ -282,8 +284,8 @@ describe("managed goal todo-backed files", () => {
 
     const write = stateRepo.writeStateText.mock.calls[0]![0];
     expect(write).toMatchObject({
-      path: "todos/goal-creation-works.md",
-      sha: "todo-sha",
+      path: "todos/goal-creation-works.json",
+      sha: undefined,
     });
     const parsed = parseTodoFileContent(
       write.content,

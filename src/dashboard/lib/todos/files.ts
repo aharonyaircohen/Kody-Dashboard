@@ -2,9 +2,9 @@
  * @fileType util
  * @domain todos
  * @pattern todo-list-files
- * @ai-summary Read/write Kody todo-list files under `todos/<slug>.md`
- * in the configured Kody state repo. Each file is one list; each item is a
- * note-like markdown record with its own completed state.
+ * @ai-summary Read/write Kody todo-list files under `todos/<slug>.json`
+ * in the configured Kody state repo. Each file is one list; legacy markdown
+ * files are still readable during migration.
  */
 import type { Octokit } from "@octokit/rest";
 import { getOctokit, getOwner, getRepo } from "../github-client";
@@ -18,6 +18,7 @@ import {
 } from "../state-repo";
 
 const TODOS_DIR = "todos";
+const TODO_JSON_VERSION = 1;
 const FRONTMATTER_RE = /^---\r?\n([\s\S]*?)\r?\n---\r?\n?/;
 const ITEMS_BLOCK_RE = /<!--\s*kody-todo-items-json\s*\r?\n([\s\S]*?)\r?\n-->/;
 const SLUG_RE = /^[a-z0-9][a-z0-9_-]{0,63}$/;
@@ -45,6 +46,7 @@ export interface TodoFileContent {
 
 export interface TodoFile extends TodoFileContent {
   slug: string;
+  path: string;
   sha: string;
   updatedAt: string;
   htmlUrl: string;
@@ -60,10 +62,28 @@ export function isValidTodoSlug(slug: string): boolean {
   return SLUG_RE.test(slug);
 }
 
-function slugFromName(name: string): string | null {
-  if (!name.endsWith(".md")) return null;
-  const slug = name.slice(0, -".md".length);
-  return isValidTodoSlug(slug) ? slug : null;
+type TodoFileFormat = "json" | "markdown";
+
+function slugFromName(
+  name: string,
+): { slug: string; format: TodoFileFormat } | null {
+  if (name.endsWith(".json")) {
+    const slug = name.slice(0, -".json".length);
+    return isValidTodoSlug(slug) ? { slug, format: "json" } : null;
+  }
+  if (name.endsWith(".md")) {
+    const slug = name.slice(0, -".md".length);
+    return isValidTodoSlug(slug) ? { slug, format: "markdown" } : null;
+  }
+  return null;
+}
+
+function todoJsonPath(slug: string): string {
+  return `${TODOS_DIR}/${slug}.json`;
+}
+
+function legacyTodoMarkdownPath(slug: string): string {
+  return `${TODOS_DIR}/${slug}.md`;
 }
 
 function slugifyTitle(title: string): string {
@@ -239,6 +259,12 @@ function normalizeItems(items: unknown, fallbackDate: string): TodoItemFile[] {
     .filter((item): item is TodoItemFile => item !== null);
 }
 
+function asRecord(value: unknown): Record<string, unknown> | null {
+  return value && typeof value === "object" && !Array.isArray(value)
+    ? (value as Record<string, unknown>)
+    : null;
+}
+
 function parseItems(markdown: string, fallbackDate: string): TodoItemFile[] {
   const match = ITEMS_BLOCK_RE.exec(markdown);
   if (!match) return [];
@@ -279,6 +305,9 @@ export function parseTodoFileContent(
   slug: string,
   updatedAt: string,
 ): TodoFileContent {
+  const json = parseTodoJsonFileContent(raw, slug, updatedAt);
+  if (json) return json;
+
   const { frontmatter, markdown } = parseFrontmatter(raw, slug, updatedAt);
   const hasItemsBlock = ITEMS_BLOCK_RE.test(markdown);
   const items = hasItemsBlock
@@ -294,6 +323,52 @@ export function parseTodoFileContent(
   };
 }
 
+function parseTodoJsonFileContent(
+  raw: string,
+  slug: string,
+  updatedAt: string,
+): TodoFileContent | null {
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(raw);
+  } catch {
+    return null;
+  }
+  const record = asRecord(parsed);
+  if (!record) return null;
+
+  const title =
+    typeof record.title === "string" && record.title.trim()
+      ? record.title.trim().slice(0, TITLE_MAX_LENGTH)
+      : slug;
+  const createdAt =
+    typeof record.createdAt === "string" && record.createdAt.trim()
+      ? record.createdAt.trim()
+      : updatedAt;
+  const frontmatter: Record<string, unknown> = {
+    ...(asRecord(record.frontmatter) ?? {}),
+  };
+  for (const [key, value] of Object.entries(record)) {
+    if (key === "description" || key === "items" || key === "frontmatter") {
+      continue;
+    }
+    frontmatter[key] = value;
+  }
+  frontmatter.title = title;
+  frontmatter.createdAt = createdAt;
+
+  return {
+    title,
+    description:
+      typeof record.description === "string"
+        ? normalizeMarkdown(record.description)
+        : "",
+    items: normalizeItems(record.items, createdAt),
+    createdAt,
+    frontmatter,
+  };
+}
+
 export function serializeTodoFileContent(content: TodoFileContent): string {
   const description = normalizeMarkdown(content.description);
   const frontmatter = {
@@ -301,27 +376,19 @@ export function serializeTodoFileContent(content: TodoFileContent): string {
     title: content.title.trim().slice(0, TITLE_MAX_LENGTH),
     createdAt: content.createdAt,
   };
-  const lines = [
-    "---",
-    ...Object.entries(frontmatter)
-      .filter(([, value]) => value !== undefined)
-      .map(([key, value]) => `${key}: ${serializeFrontmatterValue(value)}`),
-    "---",
-    "",
-  ];
-
-  if (description) {
-    lines.push(description, "");
-  }
-
-  lines.push(
-    "<!-- kody-todo-items-json",
-    JSON.stringify(normalizeItems(content.items, content.createdAt), null, 2),
-    "-->",
-    "",
-  );
-
-  return lines.join("\n");
+  void serializeFrontmatterValue;
+  return `${JSON.stringify(
+    {
+      version: TODO_JSON_VERSION,
+      ...frontmatter,
+      title: frontmatter.title,
+      description,
+      createdAt: frontmatter.createdAt,
+      items: normalizeItems(content.items, content.createdAt),
+    },
+    null,
+    2,
+  )}\n`;
 }
 
 export async function listTodoFiles(): Promise<TodoFile[]> {
@@ -333,12 +400,17 @@ export async function listTodoFiles(): Promise<TodoFile[]> {
     TODOS_DIR,
   );
 
+  const slugs = new Map<string, TodoFileFormat>();
+  for (const entry of entries) {
+    const parsed = slugFromName(entry.name);
+    if (!parsed) continue;
+    if (parsed.format === "json" || !slugs.has(parsed.slug)) {
+      slugs.set(parsed.slug, parsed.format);
+    }
+  }
+
   const files = await Promise.all(
-    entries.map(async (entry) => {
-      const slug = slugFromName(entry.name);
-      if (!slug) return null;
-      return readTodoFile(slug, octokit);
-    }),
+    Array.from(slugs.keys()).map((slug) => readTodoFile(slug, octokit)),
   );
 
   return files
@@ -353,26 +425,30 @@ export async function readTodoFile(
 ): Promise<TodoFile | null> {
   if (!isValidTodoSlug(slug)) return null;
   const octokit = octokitOverride ?? getOctokit();
-  const filePath = `${TODOS_DIR}/${slug}.md`;
 
   try {
-    const file = await readStateText(octokit, getOwner(), getRepo(), filePath);
-    if (!file) return null;
+    const candidates = [todoJsonPath(slug), legacyTodoMarkdownPath(slug)];
+    for (const filePath of candidates) {
+      const file = await readStateText(octokit, getOwner(), getRepo(), filePath);
+      if (!file) continue;
 
-    const updatedAt = await fetchLastCommitDate(octokit, filePath);
-    const parsed = parseTodoFileContent(file.content, slug, updatedAt);
+      const updatedAt = await fetchLastCommitDate(octokit, filePath);
+      const parsed = parseTodoFileContent(file.content, slug, updatedAt);
 
-    return {
-      slug,
-      title: parsed.title,
-      description: parsed.description,
-      items: parsed.items,
-      createdAt: parsed.createdAt,
-      frontmatter: parsed.frontmatter,
-      sha: file.sha,
-      updatedAt,
-      htmlUrl: file.htmlUrl ?? "",
-    };
+      return {
+        slug,
+        path: filePath,
+        title: parsed.title,
+        description: parsed.description,
+        items: parsed.items,
+        createdAt: parsed.createdAt,
+        frontmatter: parsed.frontmatter,
+        sha: file.sha,
+        updatedAt,
+        htmlUrl: file.htmlUrl ?? "",
+      };
+    }
+    return null;
   } catch (error: unknown) {
     if ((error as { status?: number })?.status === 404) return null;
     throw error;
@@ -411,7 +487,7 @@ export async function writeTodoFile(opts: WriteTodoOptions): Promise<TodoFile> {
     throw new Error(`Invalid todo list slug: "${opts.slug}".`);
   }
 
-  const filePath = `${TODOS_DIR}/${opts.slug}.md`;
+  const filePath = todoJsonPath(opts.slug);
   const content = serializeTodoFileContent({
     title: opts.title,
     description: opts.description,
@@ -426,6 +502,13 @@ export async function writeTodoFile(opts: WriteTodoOptions): Promise<TodoFile> {
       opts.sha ? "update" : "add"
     } ${opts.slug}`;
 
+  const existingJson = await readStateText(
+    opts.octokit,
+    getOwner(),
+    getRepo(),
+    filePath,
+  );
+
   await writeStateText({
     octokit: opts.octokit,
     owner: getOwner(),
@@ -433,7 +516,7 @@ export async function writeTodoFile(opts: WriteTodoOptions): Promise<TodoFile> {
     path: filePath,
     message,
     content: normalizedContent,
-    sha: opts.sha,
+    sha: existingJson ? (opts.sha ?? existingJson.sha) : undefined,
   });
 
   const refreshed = await readTodoFile(opts.slug, opts.octokit);
@@ -450,15 +533,17 @@ export async function deleteTodoFile(
   if (!isValidTodoSlug(slug)) {
     throw new Error(`Invalid todo list slug: "${slug}".`);
   }
-  const existing = await readTodoFile(slug, octokit);
-  if (!existing) return;
-
-  await deleteStateFile({
-    octokit,
-    owner: getOwner(),
-    repo: getRepo(),
-    path: `${TODOS_DIR}/${slug}.md`,
-    message: `chore(todos): remove ${slug}`,
-    sha: existing.sha,
-  });
+  const paths = [todoJsonPath(slug), legacyTodoMarkdownPath(slug)];
+  for (const path of paths) {
+    const existing = await readStateText(octokit, getOwner(), getRepo(), path);
+    if (!existing) continue;
+    await deleteStateFile({
+      octokit,
+      owner: getOwner(),
+      repo: getRepo(),
+      path,
+      message: `chore(todos): remove ${slug}`,
+      sha: existing.sha,
+    });
+  }
 }

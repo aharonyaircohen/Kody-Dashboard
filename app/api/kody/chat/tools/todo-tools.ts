@@ -3,7 +3,7 @@
  * @domain todos
  * @pattern chat-tools
  * @ai-summary Chat tools to manage repo-scoped todo lists stored as
- * `todos/<slug>.md` in the state repo. A todo file is one list; each list owns note-like
+ * `todos/<slug>.json` in the state repo. A todo file is one list; each list owns note-like
  * items with independent completed state.
  */
 import { tool } from "ai";
@@ -156,7 +156,7 @@ export function createTodoTools(ctx: Ctx) {
     }),
 
     delete_todo_list: tool({
-      description: `Delete one todo list from ${repoRef} (removes todos/<slug>.md from the state repo).`,
+      description: `Delete one todo list from ${repoRef} (removes todos/<slug>.json from the state repo).`,
       inputSchema: z.object({
         slug: z.string().min(1).max(64),
       }),

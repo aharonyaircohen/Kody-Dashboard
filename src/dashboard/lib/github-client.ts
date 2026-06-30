@@ -843,7 +843,7 @@ export async function findStatusOnBranch(
 }
 
 /**
- * Read `todos/<id>.md` from the configured Kody state repo with cache +
+ * Read `todos/<id>.json` from the configured Kody state repo with cache +
  * ETag/304 revalidation. Returns `null` when the file is missing (= the
  * engine has never ticked this goal) or unparseable.
  *
@@ -857,7 +857,8 @@ export async function fetchGoalStateFromRepo(goalId: string): Promise<{
   goalPrUrl?: string;
 } | null> {
   if (!goalId || /[\\/]|\.\./.test(goalId)) return null;
-  const path = `todos/${goalId}.md`;
+  const path = `todos/${goalId}.json`;
+  const legacyTodoPath = `todos/${goalId}.md`;
   const legacyPath = `goals/instances/${goalId}/state.json`;
   const cacheKey = `goal-state:${getOwner()}:${getRepo()}:${goalId}`;
   const cached = getCached<{
@@ -875,6 +876,12 @@ export async function fetchGoalStateFromRepo(goalId: string): Promise<{
   try {
     const file =
       (await readStateText(octokit, getOwner(), getRepo(), path, {
+        headers: stale?.etag ? { "If-None-Match": stale.etag } : undefined,
+      }).catch((error: any) => {
+        if (error.status === 404) return null;
+        throw error;
+      })) ??
+      (await readStateText(octokit, getOwner(), getRepo(), legacyTodoPath, {
         headers: stale?.etag ? { "If-None-Match": stale.etag } : undefined,
       }).catch((error: any) => {
         if (error.status === 404) return null;

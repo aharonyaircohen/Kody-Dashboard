@@ -169,7 +169,7 @@ describe("POST /api/kody/goals/[id]/manage", () => {
     expect(getRefCalls).toHaveLength(1);
     expect(createRefCalls).toHaveLength(0);
     expect(capturedWriteBranch).toBe(STATE_BRANCH);
-    expect(capturedWritePath).toBe("test-repo/todos/capability-migration.md");
+    expect(capturedWritePath).toBe("test-repo/todos/capability-migration.json");
 
     // The dispatch must pass the goal as the explicit target, not as an issue.
     expect(h.runScheduledKodyOnRunner).toHaveBeenCalledWith(

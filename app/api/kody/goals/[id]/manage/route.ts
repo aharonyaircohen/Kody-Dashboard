@@ -3,7 +3,7 @@
  * @domain kody
  * @pattern goal-runtime-state
  * @ai-summary Toggle "let Kody manage this goal end-to-end". Writes the
- *   `managed` boolean into `todos/<id>.md` in the configured Kody state repo. When enabling on
+ *   `managed` boolean into `todos/<id>.json` in the configured Kody state repo. When enabling on
  *   a goal that was never started, it also creates the state file as
  *   `active` + `managed` and dispatches the engine so both `goal-tick`
  *   and the `goal-manager` agent pick it up within seconds. Separate

@@ -57,7 +57,7 @@ export interface CompanyCapabilityEntry {
   files: Record<string, string>;
 }
 
-/** A managed company goal under `todos/<id>.md` in the configured Kody state repo. */
+/** A managed company goal under `todos/<id>.json` in the configured Kody state repo. */
 export interface CompanyGoalEntry {
   id: string;
   state: ManagedGoalState;

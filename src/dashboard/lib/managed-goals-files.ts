@@ -29,6 +29,7 @@ import {
   todoToManagedGoalState,
 } from "./managed-goals-todo";
 import {
+  legacyManagedGoalTodoPath,
   legacyManagedGoalPath,
   managedGoalPath,
   normalizeManagedGoalState,
@@ -60,14 +61,7 @@ export async function readManagedGoalFile(
   path: string;
   source: "todo" | "legacy";
 } | null> {
-  const path = managedGoalPath(goalId);
-  const todoFile = await readStateText(octokit, owner, repo, path, {
-    headers: { "If-None-Match": "" },
-  }).catch((error: unknown) => {
-    if ((error as { status?: number })?.status === 404) return null;
-    throw error;
-  });
-
+  const todoFile = await readManagedGoalTodoFile(goalId, octokit, owner, repo);
   if (todoFile) {
     const todo = parseTodoFileContent(
       todoFile.content,
@@ -76,7 +70,8 @@ export async function readManagedGoalFile(
     );
     if (!isManagedGoalTodo(todo)) return null;
     const state = todoToManagedGoalState(goalId, todo);
-    if (state) return { state, sha: todoFile.sha, path, source: "todo" };
+    if (state)
+      return { state, sha: todoFile.sha, path: todoFile.path, source: "todo" };
   }
 
   const legacyPath = legacyManagedGoalPath(goalId);
@@ -143,9 +138,17 @@ export async function listManagedGoalFiles(
   const goals: ManagedGoalRecord[] = [];
   const seen = new Set<string>();
 
-  for (const entry of await listManagedTodoFiles(octokit, owner, repo)) {
-    if (!entry.name?.endsWith(".md")) continue;
-    const id = entry.name.slice(0, -3);
+  const todoEntries = (await listManagedTodoFiles(octokit, owner, repo)).sort(
+    (a, b) => Number(!a.name?.endsWith(".json")) - Number(!b.name?.endsWith(".json")),
+  );
+  for (const entry of todoEntries) {
+    if (!entry.name?.endsWith(".json") && !entry.name?.endsWith(".md")) {
+      continue;
+    }
+    const id = entry.name.endsWith(".json")
+      ? entry.name.slice(0, -5)
+      : entry.name.slice(0, -3);
+    if (seen.has(id)) continue;
     const file = await readManagedGoalFile(id, octokit, owner, repo);
     if (!file) continue;
     goals.push({
@@ -246,8 +249,29 @@ export async function writeManagedGoalFile({
     path: managedGoalPath(id),
     message: message ?? `chore(goals): update managed goal ${id}`,
     content,
-    sha: existing?.source === "todo" ? (sha ?? existing.sha) : undefined,
+    sha:
+      existing?.source === "todo" && existing.path === managedGoalPath(id)
+        ? (sha ?? existing.sha)
+        : undefined,
   });
+}
+
+async function readManagedGoalTodoFile(
+  id: string,
+  octokit: Octokit,
+  owner: string,
+  repo: string,
+): Promise<{ path: string; content: string; sha?: string } | null> {
+  for (const path of [managedGoalPath(id), legacyManagedGoalTodoPath(id)]) {
+    const file = await readStateText(octokit, owner, repo, path, {
+      headers: { "If-None-Match": "" },
+    }).catch((error: unknown) => {
+      if ((error as { status?: number })?.status === 404) return null;
+      throw error;
+    });
+    if (file) return { path, content: file.content, sha: file.sha };
+  }
+  return null;
 }
 
 async function readManagedGoalTodoContent(
@@ -256,12 +280,7 @@ async function readManagedGoalTodoContent(
   owner: string,
   repo: string,
 ): Promise<TodoFileContent | null> {
-  const file = await readStateText(octokit, owner, repo, managedGoalPath(id), {
-    headers: { "If-None-Match": "" },
-  }).catch((error: unknown) => {
-    if ((error as { status?: number })?.status === 404) return null;
-    throw error;
-  });
+  const file = await readManagedGoalTodoFile(id, octokit, owner, repo);
   return file
     ? parseTodoFileContent(file.content, id, new Date().toISOString())
     : null;
@@ -290,7 +309,7 @@ export async function deleteManagedGoalFile({
     repo,
     path:
       existing.source === "todo"
-        ? managedGoalPath(id)
+        ? existing.path
         : legacyManagedGoalPath(id),
     message: message ?? `chore(goals): delete managed goal ${id}`,
     sha: sha ?? existing.sha,

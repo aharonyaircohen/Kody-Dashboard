@@ -10,7 +10,7 @@ const createdAt = "2026-06-28T00:00:00.000Z";
 const updatedAt = "2026-06-28T01:00:00.000Z";
 
 describe("todo file content", () => {
-  it("round-trips list markdown description outside the item JSON block", () => {
+  it("round-trips one todo list as JSON", () => {
     const description = "## Scope\n\nTrack checkout work.\n\n- verify cart";
     const content: TodoFileContent = {
       title: "Checkout work",
@@ -38,10 +38,22 @@ describe("todo file content", () => {
 
     const serialized = serializeTodoFileContent(content);
     const parsed = parseTodoFileContent(serialized, "checkout-work", updatedAt);
+    const stored = JSON.parse(serialized) as Record<string, unknown>;
 
-    expect(serialized).toContain(description);
-    expect(serialized).toContain("<!-- kody-todo-items-json");
-    expect(parsed).toEqual(content);
+    expect(stored).toMatchObject({
+      version: 1,
+      title: "Checkout work",
+      description,
+      managed: true,
+      state: "active",
+    });
+    expect(parsed).toMatchObject({
+      ...content,
+      frontmatter: {
+        ...content.frontmatter,
+        version: 1,
+      },
+    });
   });
 
   it("keeps a described empty list empty instead of creating a legacy item", () => {
