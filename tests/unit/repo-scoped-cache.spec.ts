@@ -16,6 +16,7 @@ import { contextQueryKeys } from "@dashboard/lib/hooks/useContextEntries";
 import { memoryQueryKeys } from "@dashboard/lib/hooks/useMemory";
 import { reportQueryKeys } from "@dashboard/lib/hooks/useReports";
 import { agentQueryKeys } from "@dashboard/lib/hooks/useAgents";
+import { changelogQueryKeys } from "@dashboard/lib/hooks/useChangelog";
 
 function stubAuth() {
   vi.stubGlobal("localStorage", {
@@ -60,6 +61,11 @@ describe("repo-scoped dashboard caches", () => {
       "A-Guy-educ",
       "A-Guy",
     ]);
+    expect(changelogQueryKeys.file(scope)).toEqual([
+      "kody-changelog",
+      "A-Guy-educ",
+      "A-Guy",
+    ]);
     expect(capabilityQueryKeys.list(scope)).toEqual([
       "kody-capabilities",
       "capabilities",
@@ -101,6 +107,9 @@ describe("repo-scoped dashboard caches", () => {
     );
     expect(reportQueryKeys.list(scope)).not.toEqual(
       reportQueryKeys.list(other),
+    );
+    expect(changelogQueryKeys.file(scope)).not.toEqual(
+      changelogQueryKeys.file(other),
     );
     expect(capabilityQueryKeys.list(scope)).not.toEqual(
       capabilityQueryKeys.list(other),

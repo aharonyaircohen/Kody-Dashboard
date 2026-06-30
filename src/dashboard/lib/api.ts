@@ -151,10 +151,18 @@ export function getStoredBrainConfig(): { url: string; apiKey: string } | null {
   }
 }
 
+interface ApiAuthContext {
+  token: string;
+  owner: string;
+  repo: string;
+  userLogin?: string;
+}
+
 function buildHeaders(
   extra: Record<string, string> = {},
+  authOverride?: ApiAuthContext | null,
 ): Record<string, string> {
-  const auth = getStoredAuth();
+  const auth = authOverride ?? getStoredAuth();
   return {
     "Content-Type": "application/json",
     ...(auth
@@ -1964,9 +1972,11 @@ export interface ChangelogPayload {
 }
 
 export const changelogApi = {
-  get: async (): Promise<ChangelogPayload> => {
+  get: async (
+    auth?: ApiAuthContext | null,
+  ): Promise<ChangelogPayload> => {
     const res = await fetch(`${API_BASE}/changelog`, {
-      headers: buildHeaders(),
+      headers: buildHeaders({}, auth),
     });
     return handleResponse<ChangelogPayload>(res);
   },
