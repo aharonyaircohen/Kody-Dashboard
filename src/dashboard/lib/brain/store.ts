@@ -37,7 +37,11 @@ const cache = new Map<string, CacheEntry<unknown>>();
 /** Exported for unit tests — clears all brain-store cache entries. */
 export function _resetBrainAppCache(): void {
   for (const key of cache.keys()) {
-    if (key.startsWith("brain-app:") || key.startsWith("brain-image:")) {
+    if (
+      key.startsWith("brain-app:") ||
+      key.startsWith("brain-image:") ||
+      key.startsWith("brain-image-save:")
+    ) {
       cache.delete(key);
     }
   }
@@ -58,7 +62,7 @@ function setCache<T>(key: string, data: T, etag?: string): void {
 }
 
 function cacheKey(
-  kind: "app" | "image",
+  kind: "app" | "image" | "image-save",
   owner: string,
   repo: string,
   login: string,
@@ -74,6 +78,10 @@ function imageFilePath(login: string): string {
   return `users/${login.toLowerCase()}/data/brain-image.json`;
 }
 
+function imageSaveFilePath(login: string): string {
+  return `users/${login.toLowerCase()}/data/brain-image-save.json`;
+}
+
 /** Persisted Brain app record. Versioned for future migrations. */
 export interface BrainAppFile {
   version: 1;
@@ -82,12 +90,27 @@ export interface BrainAppFile {
   createdAt: string;
 }
 
-/** Persisted Brain image record. Stores only the private GHCR image ref. */
+/** Persisted Brain image record. Stores only the GHCR image ref. */
 export interface BrainImageFile {
   version: 1;
   imageRef: string;
   createdAt: string;
   updatedAt: string;
+}
+
+export interface BrainImageSaveFile {
+  version: 1;
+  status: "running" | "completed" | "failed";
+  jobId: string;
+  app: string;
+  machineId: string;
+  bridgeApp: string;
+  orgSlug: string;
+  defaultRegion: string;
+  expectedImageRef: string;
+  startedAt: string;
+  updatedAt: string;
+  error?: string;
 }
 
 function isBrainAppFile(value: unknown): value is BrainAppFile {
@@ -103,13 +126,8 @@ function isBrainAppFile(value: unknown): value is BrainAppFile {
 }
 
 export function isValidBrainImageRef(value: string): boolean {
-  return (
-    /^ghcr\.io\/[a-z0-9][a-z0-9._-]*(?:\/[a-z0-9][a-z0-9._-]*)+:[A-Za-z0-9_][A-Za-z0-9_.-]{0,127}(?:@sha256:[a-f0-9]{64})?$/.test(
-      value,
-    ) ||
-    /^registry\.fly\.io\/[a-z0-9][a-z0-9-]{0,62}:[A-Za-z0-9_][A-Za-z0-9_.-]{0,127}(?:@sha256:[a-f0-9]{64})?$/.test(
-      value,
-    )
+  return /^ghcr\.io\/[a-z0-9][a-z0-9._-]*(?:\/[a-z0-9][a-z0-9._-]*)+:[A-Za-z0-9_][A-Za-z0-9_.-]{0,127}(?:@sha256:[a-f0-9]{64})?$/.test(
+    value,
   );
 }
 
@@ -122,6 +140,35 @@ function isBrainImageFile(value: unknown): value is BrainImageFile {
     isValidBrainImageRef(v.imageRef) &&
     typeof v.createdAt === "string" &&
     typeof v.updatedAt === "string"
+  );
+}
+
+function isBrainImageSaveFile(value: unknown): value is BrainImageSaveFile {
+  if (!value || typeof value !== "object") return false;
+  const v = value as Record<string, unknown>;
+  return (
+    v.version === 1 &&
+    (v.status === "running" ||
+      v.status === "completed" ||
+      v.status === "failed") &&
+    typeof v.jobId === "string" &&
+    /^[a-f0-9]{32}$/.test(v.jobId) &&
+    typeof v.app === "string" &&
+    /^[a-z0-9][a-z0-9-]{0,62}$/.test(v.app) &&
+    typeof v.machineId === "string" &&
+    v.machineId.length > 0 &&
+    v.machineId.length <= 120 &&
+    typeof v.bridgeApp === "string" &&
+    /^[a-z0-9][a-z0-9-]{0,62}$/.test(v.bridgeApp) &&
+    typeof v.orgSlug === "string" &&
+    v.orgSlug.length > 0 &&
+    typeof v.defaultRegion === "string" &&
+    v.defaultRegion.length > 0 &&
+    typeof v.expectedImageRef === "string" &&
+    isValidBrainImageRef(v.expectedImageRef) &&
+    typeof v.startedAt === "string" &&
+    typeof v.updatedAt === "string" &&
+    (v.error === undefined || typeof v.error === "string")
   );
 }
 
@@ -373,6 +420,140 @@ export async function writeBrainImage(
         // fall through to throw
       }
     }
+    throw error;
+  }
+}
+
+export async function readBrainImageSave(
+  login: string,
+  _token: string,
+): Promise<BrainImageSaveFile | null> {
+  const owner = getOwner();
+  const repo = getRepo();
+  const path = imageSaveFilePath(login);
+  const key = cacheKey("image-save", owner, repo, login);
+
+  const cached = getCache<BrainImageSaveFile | null>(key);
+  const octokit = getOctokit();
+
+  try {
+    const file = await readStateText(octokit, owner, repo, path, {
+      headers: cached?.etag ? { "If-None-Match": cached.etag } : undefined,
+    });
+    if (file) {
+      const parsed: unknown = JSON.parse(file.content);
+      if (!isBrainImageSaveFile(parsed)) {
+        setCache(key, null, file.etag);
+        return null;
+      }
+      setCache(key, parsed, file.etag);
+      return parsed;
+    }
+    setCache(key, null);
+    return null;
+  } catch (error: unknown) {
+    const status = (error as { status?: number })?.status;
+    if (status === 304 && cached) {
+      setCache(key, cached.data, cached.etag);
+      return cached.data;
+    }
+    if (status === 404) {
+      setCache(key, null);
+      return null;
+    }
+    throw error;
+  }
+}
+
+export async function writeBrainImageSave(
+  login: string,
+  _token: string,
+  file: BrainImageSaveFile,
+): Promise<void> {
+  if (!isBrainImageSaveFile(file)) {
+    throw new Error("Invalid Brain image save record");
+  }
+  const owner = getOwner();
+  const repo = getRepo();
+  const path = imageSaveFilePath(login);
+  const key = cacheKey("image-save", owner, repo, login);
+
+  cache.delete(key);
+
+  let sha: string | undefined;
+  try {
+    const octokit = getOctokit();
+    const current = await readStateText(octokit, owner, repo, path);
+    sha = current?.sha;
+  } catch (error: unknown) {
+    const status = (error as { status?: number })?.status;
+    if (status !== 404) throw error;
+  }
+
+  const content = JSON.stringify(file, null, 2);
+  const message = `feat(brain): record brain image save job for ${login}`;
+
+  try {
+    const octokit = getOctokit();
+    await writeStateText({
+      octokit,
+      owner,
+      repo,
+      path,
+      message,
+      content,
+      sha,
+    });
+    return;
+  } catch (error: unknown) {
+    if ((error as { status?: number })?.status === 409) {
+      try {
+        const octokit = getOctokit();
+        const current = await readStateText(octokit, owner, repo, path);
+        await writeStateText({
+          octokit,
+          owner,
+          repo,
+          path,
+          message,
+          content,
+          sha: current?.sha,
+        });
+        return;
+      } catch {
+        // fall through to throw
+      }
+    }
+    throw error;
+  }
+}
+
+export async function clearBrainImageSave(
+  login: string,
+  _token: string,
+): Promise<void> {
+  const owner = getOwner();
+  const repo = getRepo();
+  const path = imageSaveFilePath(login);
+  const key = cacheKey("image-save", owner, repo, login);
+
+  cache.delete(key);
+
+  try {
+    const octokit = getOctokit();
+    const current = await readStateText(octokit, owner, repo, path);
+    if (!current?.sha) return;
+    await deleteStateFile({
+      octokit,
+      owner,
+      repo,
+      path,
+      message: `feat(brain): clear brain image save job for ${login}`,
+      sha: current.sha,
+    });
+  } catch (error: unknown) {
+    const status = (error as { status?: number })?.status;
+    if (status === 404) return;
     throw error;
   }
 }

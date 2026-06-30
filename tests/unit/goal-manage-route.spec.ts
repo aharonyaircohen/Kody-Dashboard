@@ -4,12 +4,11 @@
  * @testFramework vitest
  * @domain goals
  *
- * Tests the branch-creation-on-missing logic: when the `kody-state` branch
- * does not exist, the endpoint must create it before writing the goal state
- * file. This was the bug reported in issue #79.
+ * Tests the current state-repo write path used by managed goals.
  */
 import { describe, it, expect, vi, afterEach } from "vitest";
 import { NextRequest } from "next/server";
+import { STATE_BRANCH } from "@dashboard/lib/state-branch";
 
 const h = vi.hoisted(() => ({
   runScheduledKodyOnRunner: vi.fn(async () => ({
@@ -146,10 +145,6 @@ describe("POST /api/kody/goals/[id]/manage", () => {
         git: {
           getRef: vi.fn().mockImplementation((opts: unknown) => {
             getRefCalls.push(opts);
-            const ref = (opts as { ref: string }).ref;
-            if (ref === "heads/kody-state") {
-              return Promise.reject({ status: 404 });
-            }
             return Promise.resolve({
               data: { object: { sha: "main-sha-abc" } },
             });
@@ -171,9 +166,9 @@ describe("POST /api/kody/goals/[id]/manage", () => {
     const res = await POST(req, makeParams("capability-migration"));
 
     expect(res.status).toBe(200);
-    expect(getRefCalls).toHaveLength(2);
-    expect(createRefCalls).toHaveLength(1);
-    expect(capturedWriteBranch).toBe("kody-state");
+    expect(getRefCalls).toHaveLength(1);
+    expect(createRefCalls).toHaveLength(0);
+    expect(capturedWriteBranch).toBe(STATE_BRANCH);
     expect(capturedWritePath).toBe("test-repo/todos/capability-migration.md");
 
     // The dispatch must pass the goal as the explicit target, not as an issue.
@@ -240,7 +235,7 @@ describe("POST /api/kody/goals/[id]/manage", () => {
     const json = await res.json();
     expect(json.state?.managed).toBe(false);
     expect(createRefCalls).toHaveLength(0);
-    expect(capturedWriteBranch).toBe("kody-state");
+    expect(capturedWriteBranch).toBe(STATE_BRANCH);
   });
 
   it("returns 409 when trying to unmanage a goal that has no prior state", async () => {

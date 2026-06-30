@@ -122,9 +122,7 @@ test.describe("REPRO — Vibe chat hand-off delivers the kickoff", () => {
     });
     await expect(runButton).toBeVisible({ timeout: 60_000 });
     await runButton.click();
-    await expect
-      .poll(() => executeCalled, { timeout: 30_000 })
-      .toBe(true);
+    await expect.poll(() => executeCalled, { timeout: 30_000 }).toBe(true);
     // eslint-disable-next-line no-console
     console.log(`[repro-handoff] executeCalled=${executeCalled}`);
 

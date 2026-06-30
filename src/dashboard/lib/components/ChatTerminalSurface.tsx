@@ -32,8 +32,7 @@ interface TerminalSessionState {
 }
 
 export type ChatTerminalTransport =
-  | { type: "local"; sandboxId?: string; label?: string }
-  | { type: "github-actions"; sandboxId: string; label?: string }
+  | { type: "local"; label?: string }
   | {
       type: "fly";
       app: string;
@@ -73,8 +72,6 @@ type TerminalOutputEvent =
 interface ChatTerminalSurfaceProps {
   active: boolean;
   chatSessionId: string;
-  connectNonce?: number;
-  suppressFlyAutoConnect?: boolean;
   transport?: ChatTerminalTransport;
   onAddToChat: (context: string) => void;
   onConnectionStateChange?: (state: ChatTerminalConnectionState) => void;
@@ -98,7 +95,6 @@ const TERMINAL_INPUT_TIMEOUT_MS = 8_000;
 const TERMINAL_STOP_TIMEOUT_MS = 8_000;
 const LOCAL_POLL_TIMEOUT_MS = 5_000;
 const TERMINAL_START_TIMEOUT_MS = 20_000;
-const GITHUB_ACTIONS_POLL_TIMEOUT_MS = 15_000;
 const FLY_CONNECT_TIMEOUT_MS = 30_000;
 
 function fetchWithTimeout(
@@ -116,10 +112,7 @@ function fetchWithTimeout(
 function transportKey(transport: ChatTerminalTransport): string {
   if (transport.type === "fly")
     return `fly:${transport.app}:${transport.machineId}`;
-  if (transport.type === "github-actions") {
-    return `github-actions-sandbox:${transport.sandboxId}`;
-  }
-  return transport.sandboxId ? `local-sandbox:${transport.sandboxId}` : "local";
+  return "local";
 }
 
 function parseBridgeMessage(
@@ -180,8 +173,6 @@ export const ChatTerminalSurface = forwardRef<
   {
     active,
     chatSessionId,
-    connectNonce = 0,
-    suppressFlyAutoConnect = false,
     transport = { type: "local" },
     onAddToChat,
     onConnectionStateChange,
@@ -198,13 +189,11 @@ export const ChatTerminalSurface = forwardRef<
   const flyConnectionStateRef = useRef<ChatTerminalConnectionState>("idle");
   const flyTargetKeyRef = useRef<string | null>(null);
   const flyConnectFailureKeyRef = useRef<string | null>(null);
-  const handledFlyConnectNonceKeyRef = useRef<string | null>(null);
   const localStartFailureKeyRef = useRef<string | null>(null);
   const activeRef = useRef(active);
   const outputCaptureRef = useRef("");
   const sessionEndNotifiedRef = useRef(false);
   const pollBusyRef = useRef(false);
-  const githubActionsInputBufferRef = useRef("");
   const stopRef = useRef<() => Promise<void>>(async () => {});
   const [ready, setReady] = useState(false);
   const [connecting, setConnecting] = useState(false);
@@ -218,7 +207,6 @@ export const ChatTerminalSurface = forwardRef<
   useEffect(() => {
     localStartFailureKeyRef.current = null;
     flyConnectFailureKeyRef.current = null;
-    handledFlyConnectNonceKeyRef.current = null;
   }, [chatSessionId, currentTransportKey]);
 
   useEffect(() => {
@@ -259,7 +247,7 @@ export const ChatTerminalSurface = forwardRef<
       return;
     }
     const current = sessionRef.current;
-    if (!current) return;
+    if (!current?.alive) return;
     void fetchWithTimeout(
       "/api/kody/chat/terminal/resize",
       {
@@ -276,44 +264,6 @@ export const ChatTerminalSurface = forwardRef<
       const ws = flySocketRef.current;
       if (ws?.readyState === WebSocket.OPEN) {
         ws.send(JSON.stringify({ type: "input", data: input }));
-      }
-      return;
-    }
-    if (transportRef.current.type === "github-actions") {
-      const current = sessionRef.current;
-      if (!current?.alive) return;
-      for (const char of input) {
-        if (char === "\r" || char === "\n") {
-          const command = githubActionsInputBufferRef.current.trimEnd();
-          githubActionsInputBufferRef.current = "";
-          terminalRef.current?.write("\r\n");
-          if (command.trim().length > 0) {
-            void fetchWithTimeout(
-              "/api/kody/chat/terminal/github/input",
-              {
-                method: "POST",
-                headers: {
-                  "Content-Type": "application/json",
-                  ...authHeaders(),
-                },
-                body: JSON.stringify({
-                  sessionId: current.sessionId,
-                  input: command,
-                }),
-              },
-              TERMINAL_INPUT_TIMEOUT_MS,
-            ).catch(() => {});
-          }
-          continue;
-        }
-        if (char === "\u007f" || char === "\b") {
-          githubActionsInputBufferRef.current =
-            githubActionsInputBufferRef.current.slice(0, -1);
-          terminalRef.current?.write("\b \b");
-          continue;
-        }
-        githubActionsInputBufferRef.current += char;
-        terminalRef.current?.write(char);
       }
       return;
     }
@@ -518,11 +468,7 @@ export const ChatTerminalSurface = forwardRef<
 
   const start = useCallback(async () => {
     const terminal = terminalRef.current;
-    if (
-      transportRef.current.type !== "local" &&
-      transportRef.current.type !== "github-actions"
-    )
-      return;
+    if (transportRef.current.type !== "local") return;
     if (!terminal || connecting || sessionRef.current?.alive) return;
 
     const currentTransport = transportRef.current;
@@ -533,20 +479,13 @@ export const ChatTerminalSurface = forwardRef<
     setError(null);
     try {
       fitAddonRef.current?.fit();
-      const startEndpoint =
-        currentTransport.type === "github-actions"
-          ? "/api/kody/chat/terminal/github/start"
-          : "/api/kody/chat/terminal/start";
       const res = await fetchWithTimeout(
-        startEndpoint,
+        "/api/kody/chat/terminal/start",
         {
           method: "POST",
           headers: { "Content-Type": "application/json", ...authHeaders() },
           body: JSON.stringify({
             chatSessionId,
-            ...(currentTransport.sandboxId
-              ? { sandboxId: currentTransport.sandboxId }
-              : {}),
             cols: terminal.cols,
             rows: terminal.rows,
           }),
@@ -750,18 +689,10 @@ export const ChatTerminalSurface = forwardRef<
         sessionId: current.sessionId,
         cursor: String(current.cursor),
       });
-      const outputEndpoint =
-        transportRef.current.type === "github-actions"
-          ? "/api/kody/chat/terminal/github/output"
-          : "/api/kody/chat/terminal/output";
-      const timeoutMs =
-        transportRef.current.type === "github-actions"
-          ? GITHUB_ACTIONS_POLL_TIMEOUT_MS
-          : LOCAL_POLL_TIMEOUT_MS;
       const res = await fetchWithTimeout(
-        `${outputEndpoint}?${params}`,
+        `/api/kody/chat/terminal/output?${params}`,
         { headers: authHeaders() },
-        timeoutMs,
+        LOCAL_POLL_TIMEOUT_MS,
       );
       const data = (await res.json().catch(() => ({}))) as {
         events?: TerminalOutputEvent[];
@@ -819,14 +750,6 @@ export const ChatTerminalSurface = forwardRef<
     if (!ready || !active) return;
     fitAddonRef.current?.fit();
     if (transport.type === "fly") {
-      if (suppressFlyAutoConnect) {
-        if (flySocketRef.current || flyTargetKeyRef.current) {
-          disconnectFly();
-        } else {
-          updateFlyConnectionState("closed");
-        }
-        return;
-      }
       void connectFly();
       return;
     }
@@ -839,20 +762,13 @@ export const ChatTerminalSurface = forwardRef<
     disconnectFly,
     ready,
     start,
-    suppressFlyAutoConnect,
     transport.type,
-    updateFlyConnectionState,
   ]);
 
   useEffect(() => {
-    if (
-      !active ||
-      !session?.sessionId ||
-      (transport.type !== "local" && transport.type !== "github-actions")
-    )
+    if (!active || !session?.sessionId || transport.type !== "local")
       return;
-    const intervalMs = transport.type === "github-actions" ? 2_000 : 200;
-    const interval = setInterval(() => void pollOutput(), intervalMs);
+    const interval = setInterval(() => void pollOutput(), 200);
     void pollOutput();
     return () => clearInterval(interval);
   }, [
@@ -871,12 +787,8 @@ export const ChatTerminalSurface = forwardRef<
       sessionRef.current = null;
       setSession(null);
       onConnectionStateChange?.("closed");
-      const stopEndpoint =
-        transportRef.current.type === "github-actions"
-          ? "/api/kody/chat/terminal/github/stop"
-          : "/api/kody/chat/terminal/stop";
       await fetchWithTimeout(
-        stopEndpoint,
+        "/api/kody/chat/terminal/stop",
         {
           method: "POST",
           headers: { "Content-Type": "application/json", ...authHeaders() },
@@ -897,24 +809,6 @@ export const ChatTerminalSurface = forwardRef<
       void stop(false);
     }
   }, [currentTransportKey, stop, transport.type]);
-
-  useEffect(() => {
-    if (!ready || !active || transport.type !== "fly" || connectNonce === 0) {
-      return;
-    }
-    const nonceKey = `${chatSessionId}:${currentTransportKey}:${connectNonce}`;
-    if (handledFlyConnectNonceKeyRef.current === nonceKey) return;
-    handledFlyConnectNonceKeyRef.current = nonceKey;
-    void connectFly({ force: true });
-  }, [
-    active,
-    chatSessionId,
-    connectFly,
-    connectNonce,
-    currentTransportKey,
-    ready,
-    transport.type,
-  ]);
 
   useEffect(() => {
     return () => {
@@ -953,19 +847,8 @@ export const ChatTerminalSurface = forwardRef<
           {transport.type === "fly"
             ? (error ??
               `${transport.label ?? transport.app} · ${flyConnectionState}`)
-            : transport.type === "github-actions"
-              ? (error ??
-                (session?.alive
-                  ? `${transport.label ?? "GitHub Actions sandbox"} · running`
-                  : connecting
-                    ? "Starting GitHub Actions terminal..."
-                    : "closed"))
-              : (error ??
-                (session?.alive
-                  ? session.cwd
-                  : connecting
-                    ? "starting"
-                    : "closed"))}
+            : (error ??
+              (session?.alive ? session.cwd : connecting ? "starting" : "closed"))}
         </span>
         <div className="flex shrink-0 items-center gap-1">
           <button

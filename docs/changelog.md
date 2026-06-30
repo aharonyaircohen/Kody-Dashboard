@@ -19,7 +19,7 @@ QA-capability side of this.
 | Piece                        | What it is                                                                                                                                                                      | Where                                                                                                        |
 | ---------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------ |
 | `## [Unreleased]` **bullet** | One merged PR, formatted `- <title> ([#<pr>](<url>)) — @<author>`, optionally suffixed with a QA marker joined by `·`. Idempotent on PR number.                                 | [`../CHANGELOG.md`](../CHANGELOG.md)                                                                         |
-| **QA marker**                | The authoritative per-PR QA state — none / `🔄` / `✅` / `⚠️` — written by the `qa` capability, never by the append handler.                                                          | trailing segment of each bullet                                                                              |
+| **QA marker**                | The authoritative per-PR QA state — none / `🔄` / `✅` / `⚠️` — written by the `qa` capability, never by the append handler.                                                    | trailing segment of each bullet                                                                              |
 | **Append handler**           | On `pull_request closed + merged`, inserts a bullet at the top of `## [Unreleased]`. Fire-and-forget; never marks QA.                                                           | [`../src/dashboard/lib/changelog/handlers.ts`](../src/dashboard/lib/changelog/handlers.ts)                   |
 | **Promote handler**          | On `release published`, renames `## [Unreleased]` → `## [<version>] - <date>` and inserts a fresh empty Unreleased above. No-op on draft/prerelease or an empty section.        | [`../src/dashboard/lib/changelog/handlers.ts`](../src/dashboard/lib/changelog/handlers.ts)                   |
 | **Pure transforms**          | `appendUnreleasedEntry` / `promoteUnreleased` / `formatEntry` — no I/O, idempotent, the entire format spec lives here.                                                          | [`../src/dashboard/lib/changelog/format.ts`](../src/dashboard/lib/changelog/format.ts)                       |
@@ -40,7 +40,7 @@ with `·`. The marker is the authoritative QA state for that entry:
 
 | State        | Marker                               | Meaning                                                                       |
 | ------------ | ------------------------------------ | ----------------------------------------------------------------------------- |
-| **untested** | _(none)_                             | Merged, never QA'd. The capability's queue is "oldest bullet with no marker".       |
+| **untested** | _(none)_                             | Merged, never QA'd. The capability's queue is "oldest bullet with no marker". |
 | **running**  | ` · 🔄 QA (#<tracking>)`             | A `qa-engineer` pass is in flight; `<tracking>` is its issue.                 |
 | **verified** | ` · ✅ QA <YYYY-MM-DD>`              | Pass came back PASS. Done — never re-tested.                                  |
 | **issues**   | ` · ⚠️ QA <YYYY-MM-DD> (#<finding>)` | Pass came back CONCERNS/FAIL; the tracking issue stays open for the fix goal. |
@@ -161,7 +161,7 @@ with a Refresh button and a "View on GitHub" link.
 | [`../src/dashboard/lib/hooks/useChangelog.ts`](../src/dashboard/lib/hooks/useChangelog.ts)                   | React Query hook (30s stale)                                     |
 | [`../app/changelog/page.tsx`](../app/changelog/page.tsx)                                                     | `/changelog` page entry point                                    |
 | [`../.husky/pre-commit`](../.husky/pre-commit), [`../scripts/bump-version.mjs`](../scripts/bump-version.mjs) | `main`-only `package.json` patch bump                            |
-| [`../.kody/capabilities/qa/capability.md`](../.kody/capabilities/qa/capability.md)                                                   | The capability that writes QA markers (see [./qa.md](./qa.md))         |
+| [`../.kody/capabilities/qa/capability.md`](../.kody/capabilities/qa/capability.md)                           | The capability that writes QA markers (see [./qa.md](./qa.md))   |
 
 ## FAQ
 

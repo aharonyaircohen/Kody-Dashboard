@@ -13,14 +13,14 @@ through the dashboard once you're logged in.
 
 ## Stores at a glance
 
-| Store         | Page         | In the repo            | Secret?               | Doc                                          |
-| ------------- | ------------ | ---------------------- | --------------------- | -------------------------------------------- |
-| **Agents** | `/agent` | `.kody/agents/*.md` | No (plaintext) | [Agents & Capabilities](./concepts/staff-capabilities.md) |
-| **Capabilities** | `/capabilities` | `.kody/capabilities/<slug>/` | No (plaintext) | [Agents & Capabilities](./concepts/staff-capabilities.md) |
-| **Commands**  | `/commands`  | `.kody/commands/*.md`  | No (plaintext)        | [Commands](./commands.md)                    |
-| **Secrets**   | `/secrets`   | `.kody/secrets.enc`    | **Yes** (AES-256-GCM) | [Secrets vault](./secrets-vault.md)          |
-| **Variables** | `/variables` | `.kody/variables.json` | No (plaintext)        | [Variables](./variables.md)                  |
-| **Context**   | `/context`   | `.kody/context/*.md`   | No (plaintext)        | [Context](./context.md)                      |
+| Store            | Page            | In the repo                  | Secret?               | Doc                                                       |
+| ---------------- | --------------- | ---------------------------- | --------------------- | --------------------------------------------------------- |
+| **Agents**       | `/agent`        | `.kody/agents/*.md`          | No (plaintext)        | [Agents & Capabilities](./concepts/staff-capabilities.md) |
+| **Capabilities** | `/capabilities` | `.kody/capabilities/<slug>/` | No (plaintext)        | [Agents & Capabilities](./concepts/staff-capabilities.md) |
+| **Commands**     | `/commands`     | `.kody/commands/*.md`        | No (plaintext)        | [Commands](./commands.md)                                 |
+| **Secrets**      | `/secrets`      | `.kody/secrets.enc`          | **Yes** (AES-256-GCM) | [Secrets vault](./secrets-vault.md)                       |
+| **Variables**    | `/variables`    | `.kody/variables.json`       | No (plaintext)        | [Variables](./variables.md)                               |
+| **Context**      | `/context`      | `.kody/context/*.md`         | No (plaintext)        | [Context](./context.md)                                   |
 
 Each store is per-repo: switch the connected repo and you're editing a
 different set of files. All writes commit to the repo through the GitHub

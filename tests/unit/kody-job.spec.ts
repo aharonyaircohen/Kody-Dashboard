@@ -27,15 +27,15 @@ describe("KodyJob capability dispatch boundary", () => {
     expect(() => validateKodyJob({ flavor: "instant", cliArgs: {} })).toThrow(
       InvalidKodyJobError,
     );
-    expect(validateKodyJob({ capability: "health", flavor: "scheduled" }).capability).toBe(
-      "health",
-    );
+    expect(
+      validateKodyJob({ capability: "health", flavor: "scheduled" }).capability,
+    ).toBe("health");
   });
 
   it('rejects an unknown flavor (engine accepts only "instant" | "scheduled")', () => {
-    expect(() => validateKodyJob({ capability: "run", flavor: "whenever" })).toThrow(
-      /flavor/,
-    );
+    expect(() =>
+      validateKodyJob({ capability: "run", flavor: "whenever" }),
+    ).toThrow(/flavor/);
   });
 
   it("rejects invalid capability slugs", () => {
@@ -45,9 +45,9 @@ describe("KodyJob capability dispatch boundary", () => {
   });
 
   it("defaults cliArgs to an object and rejects a non-object cliArgs", () => {
-    expect(validateKodyJob({ capability: "run", flavor: "instant" }).cliArgs).toEqual(
-      {},
-    );
+    expect(
+      validateKodyJob({ capability: "run", flavor: "instant" }).cliArgs,
+    ).toEqual({});
     expect(() =>
       validateKodyJob({ capability: "run", flavor: "instant", cliArgs: 5 }),
     ).toThrow(/cliArgs/);

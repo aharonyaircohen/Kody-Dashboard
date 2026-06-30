@@ -135,9 +135,8 @@ function CompanyManagerInner() {
     >
       <div className="space-y-4">
         <p className="text-sm text-white/60 max-w-2xl">
-          A <span className="text-white/80">AI Agency</span> is your
-          portable operating system — its{" "}
-          <span className="text-white/80">agents</span>,{" "}
+          A <span className="text-white/80">AI Agency</span> is your portable
+          operating system — its <span className="text-white/80">agents</span>,{" "}
           <span className="text-white/80">capabilities</span>,{" "}
           <span className="text-white/80">goals/loops</span>,{" "}
           <span className="text-white/80">context</span>,{" "}
@@ -159,8 +158,9 @@ function CompanyManagerInner() {
                 Export AI Agency
               </p>
               <p className="text-xs text-white/50 mt-1">
-                Download a JSON bundle of this agency&apos;s agents, capabilities,
-                goals/loops, context, repo-defined commands, and instructions.
+                Download a JSON bundle of this agency&apos;s agents,
+                capabilities, goals/loops, context, repo-defined commands, and
+                instructions.
               </p>
             </div>
             <Button size="sm" onClick={handleExport} disabled={exporting}>

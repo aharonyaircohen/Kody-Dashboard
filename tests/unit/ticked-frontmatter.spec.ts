@@ -71,7 +71,6 @@ describe("splitFrontmatter", () => {
       splitFrontmatter("---\nagent: 'my-bot'\n---\nx").frontmatter.agent,
     ).toBe("my-bot");
   });
-
 });
 
 describe("joinFrontmatter", () => {
@@ -106,7 +105,6 @@ describe("joinFrontmatter", () => {
     const { frontmatter } = splitFrontmatter(joinFrontmatter(fm, "the body"));
     expect(frontmatter).toEqual(fm);
   });
-
 });
 
 describe("cadence helpers", () => {

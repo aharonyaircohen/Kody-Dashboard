@@ -99,7 +99,10 @@ describe("kody dispatch tools use capabilities", () => {
       triggered: true,
       url: "/123",
     });
-    expect(readResolvedCapabilityFile).toHaveBeenCalledWith("feature", ctx.octokit);
+    expect(readResolvedCapabilityFile).toHaveBeenCalledWith(
+      "feature",
+      ctx.octokit,
+    );
     expect(createComment).toHaveBeenCalledWith({
       owner: "test-owner",
       repo: "test-repo",

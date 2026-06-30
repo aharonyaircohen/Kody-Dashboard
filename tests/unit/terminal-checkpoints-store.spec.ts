@@ -99,7 +99,7 @@ describe("terminal checkpoint store", () => {
   });
 
   it("upserts one checkpoint per terminal key and caps output", async () => {
-    const localTransport = { type: "local" as const, sandboxId: "local-1" };
+    const localTransport = { type: "local" as const };
     const localKey = terminalCheckpointKey({
       transport: localTransport,
       chatSessionId: "chat-1",
@@ -155,7 +155,6 @@ describe("terminal checkpoint store", () => {
     );
     expect(result.doc.checkpoints.map((checkpoint) => checkpoint.key)).toEqual([
       localKey,
-      "github-actions:sandbox-1",
     ]);
     const write = stateRepo.writeStateText.mock.calls[0][0];
     expect(write).toMatchObject({
@@ -213,11 +212,8 @@ describe("terminal checkpoint store", () => {
   });
 
   it("reads and deletes the checkpoint for the current terminal key", async () => {
-    const keepTransport = { type: "local" as const, sandboxId: "local-1" };
-    const dropTransport = {
-      type: "github-actions" as const,
-      sandboxId: "sandbox-1",
-    };
+    const keepTransport = { type: "local" as const };
+    const dropTransport = { type: "fly" as const, app: "runner", machineId: "m2" };
     const keepKey = terminalCheckpointKey({
       transport: keepTransport,
       chatSessionId: "chat-1",
@@ -275,5 +271,52 @@ describe("terminal checkpoint store", () => {
     expect(deleted.doc.checkpoints.map((checkpoint) => checkpoint.key)).toEqual(
       [keepKey],
     );
+  });
+
+  it("ignores legacy sandbox checkpoint records without losing valid entries", async () => {
+    const localTransport = { type: "local" as const };
+    const localKey = terminalCheckpointKey({
+      transport: localTransport,
+      chatSessionId: "chat-1",
+    });
+    stateRepo.readStateText.mockResolvedValue({
+      sha: "sha-1",
+      content: JSON.stringify({
+        version: 1,
+        checkpoints: [
+          {
+            id: terminalCheckpointId(localKey),
+            key: localKey,
+            transport: localTransport,
+            chatSessionId: "chat-1",
+            output: "keep",
+            createdAt: "2026-06-24T00:00:00.000Z",
+            updatedAt: "2026-06-24T00:00:00.000Z",
+            savedBy: "alice",
+          },
+          {
+            id: "legacy",
+            key: "github-actions:sandbox-1",
+            transport: { type: "github-actions", sandboxId: "sandbox-1" },
+            chatSessionId: "chat-2",
+            output: "drop",
+            createdAt: "2026-06-24T00:00:00.000Z",
+            updatedAt: "2026-06-24T00:00:00.000Z",
+            savedBy: "alice",
+          },
+        ],
+      }),
+    });
+
+    const result = await readTerminalCheckpoints(
+      fakeOctokit(),
+      "acme",
+      "widgets",
+      "alice",
+    );
+
+    expect(result.doc.checkpoints.map((checkpoint) => checkpoint.key)).toEqual([
+      localKey,
+    ]);
   });
 });

@@ -48,10 +48,8 @@ beforeEach(() => {
 });
 
 describe("GET /api/kody/chat/terminal/status", () => {
-  it("passes sandboxId through to the local terminal status lookup", async () => {
-    const res = await GET(
-      statusReq("chatSessionId=chat-1&sandboxId=sandbox-1"),
-    );
+  it("looks up local terminal status by chat session only", async () => {
+    const res = await GET(statusReq("chatSessionId=chat-1"));
 
     expect(res.status).toBe(200);
     await expect(res.json()).resolves.toEqual({
@@ -60,10 +58,10 @@ describe("GET /api/kody/chat/terminal/status", () => {
     });
     expect(
       terminalSessions.getLocalTerminalSessionInfoByChatSession,
-    ).toHaveBeenCalledWith(
-      "chat-1",
-      { owner: "acme", repo: "widgets", token: "ghp_test" },
-      "sandbox-1",
-    );
+    ).toHaveBeenCalledWith("chat-1", {
+      owner: "acme",
+      repo: "widgets",
+      token: "ghp_test",
+    });
   });
 });

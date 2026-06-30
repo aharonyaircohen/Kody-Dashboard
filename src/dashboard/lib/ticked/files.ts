@@ -162,11 +162,7 @@ async function fetchStateLastCommitDate(
   }
 }
 
-
-function buildFileContent(
-  title: string,
-  body: string,
-): string {
+function buildFileContent(title: string, body: string): string {
   // Strip any leading H1 the caller's body already carries so we never
   // double the title — `# ${title}` is the single canonical heading.
   const trimmedBody = stripLeadingH1(body.replace(/^\s+/, ""));
@@ -202,9 +198,7 @@ export function createTickedFiles(config: TickedFilesConfig): TickedFilesApi {
     const slugs = entries
       .filter((e) => e.type === "file")
       .map((e) => ({ slug: slugFromName(e.name), name: e.name }))
-      .filter(
-        (e): e is { slug: string; name: string } => e.slug !== null,
-      );
+      .filter((e): e is { slug: string; name: string } => e.slug !== null);
 
     const files = await Promise.all(
       slugs.map(async ({ slug, name }): Promise<TickFile | null> => {

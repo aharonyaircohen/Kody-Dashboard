@@ -99,9 +99,15 @@ async function listManagedTodoFiles(
   repo: string,
 ): Promise<ContentFile[]> {
   try {
-    const { entries } = await listStateDirectory(octokit, owner, repo, TODOS_ROOT, {
-      headers: { "If-None-Match": "" },
-    });
+    const { entries } = await listStateDirectory(
+      octokit,
+      owner,
+      repo,
+      TODOS_ROOT,
+      {
+        headers: { "If-None-Match": "" },
+      },
+    );
     return entries.filter((item) => item.type === "file");
   } catch (error: unknown) {
     if ((error as { status?: number })?.status === 404) return [];
@@ -218,13 +224,17 @@ export async function writeManagedGoalFile({
   sha?: string;
   message?: string;
 }): Promise<void> {
-  const currentTodo = await readManagedGoalTodoContent(id, octokit, owner, repo);
+  const currentTodo = await readManagedGoalTodoContent(
+    id,
+    octokit,
+    owner,
+    repo,
+  );
   if (currentTodo && !isManagedGoalTodo(currentTodo)) {
     throw new Error(`Cannot overwrite regular todo list ${id} as managed goal`);
   }
   const existing = await readManagedGoalFile(id, octokit, owner, repo);
-  const previousTodo =
-    existing?.source === "todo" ? currentTodo : null;
+  const previousTodo = existing?.source === "todo" ? currentTodo : null;
   const content = serializeTodoFileContent(
     managedGoalStateToTodoContent(id, state, previousTodo),
   );
@@ -278,7 +288,10 @@ export async function deleteManagedGoalFile({
     octokit,
     owner,
     repo,
-    path: existing.source === "todo" ? managedGoalPath(id) : legacyManagedGoalPath(id),
+    path:
+      existing.source === "todo"
+        ? managedGoalPath(id)
+        : legacyManagedGoalPath(id),
     message: message ?? `chore(goals): delete managed goal ${id}`,
     sha: sha ?? existing.sha,
   });

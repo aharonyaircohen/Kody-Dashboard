@@ -7,7 +7,11 @@
  * chat capability, workflows, and skills so consumers can import one bundle.
  */
 
-export type { ChatCapabilityEntry, ChatWorkflowEntry, SkillEntry } from "./types";
+export type {
+  ChatCapabilityEntry,
+  ChatWorkflowEntry,
+  SkillEntry,
+} from "./types";
 export { DEFAULT_CHAT_CAPABILITY } from "./chat-capability";
 export {
   DEFAULT_WORKFLOWS,

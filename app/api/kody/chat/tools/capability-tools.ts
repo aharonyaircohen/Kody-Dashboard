@@ -41,7 +41,10 @@ const shellSchema = z.object({
 
 async function readCapabilityGuide(): Promise<string> {
   try {
-    return await readFile(path.join(process.cwd(), "docs/capabilities.md"), "utf8");
+    return await readFile(
+      path.join(process.cwd(), "docs/capabilities.md"),
+      "utf8",
+    );
   } catch {
     return [
       "# How to create a proper capability",
@@ -59,7 +62,10 @@ async function readCapabilityGuide(): Promise<string> {
 
 function actionFromCapability(slug: string, profileJson: string): string {
   try {
-    const profile = JSON.parse(profileJson) as { action?: unknown; name?: unknown };
+    const profile = JSON.parse(profileJson) as {
+      action?: unknown;
+      name?: unknown;
+    };
     const action = typeof profile.action === "string" ? profile.action : null;
     const name = typeof profile.name === "string" ? profile.name : null;
     return action || name || slug;

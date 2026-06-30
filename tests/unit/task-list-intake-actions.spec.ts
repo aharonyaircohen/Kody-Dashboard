@@ -31,11 +31,67 @@ describe("TaskList intake actions", () => {
     expect(SOURCE).toMatch(/Close backlog item/);
   });
 
+  it("uses one icon-only toggle for Kody backlog assignment", () => {
+    expect(SOURCE).toMatch(/onUnassignFromKody\?: \(task: KodyTask\) => void;/);
+    expect(SOURCE).toMatch(
+      /const isBacklogIntakeTask =\s*intakeMode && !isClosed && task\.column === "open";/,
+    );
+    expect(SOURCE).toMatch(
+      /const canToggleKodyBacklog =\s*isBacklogIntakeTask/,
+    );
+    expect(SOURCE).toMatch(
+      /isAssignedBacklogTask \? !!onUnassignFromKody : !!onAssignToKody/,
+    );
+    expect(SOURCE).toMatch(/aria-pressed=\{isAssignedBacklogTask\}/);
+    expect(SOURCE).toMatch(/onUnassignFromKody\?\.\(task\);/);
+    expect(SOURCE).toMatch(/<Bot className="w-4 h-4" \/>/);
+    expect(SOURCE).not.toMatch(
+      /\{isAssignedBacklogTask \? "Assigned" : "Unassigned"\}/,
+    );
+  });
+
+  it("tints assigned backlog rows", () => {
+    expect(SOURCE).toMatch(/bg-blue-500\/\[0\.05\] border-s-blue-400\/70/);
+  });
+
+  it("does not print the redundant backlog status label inside intake cards", () => {
+    expect(SOURCE).toContain(
+      'const showGateLabel = task.column !== "done" && !isBacklogIntakeTask;',
+    );
+    expect(SOURCE).toContain("{showGateLabel && (");
+    expect(SOURCE).not.toContain('{task.column !== "done" && (');
+  });
+
+  it("renders only the task title with automatic text direction", () => {
+    expect(SOURCE).toContain(
+      'import { textDirectionProps } from "../text-direction";',
+    );
+    expect(SOURCE).toContain(
+      "const taskTitleDirectionProps = textDirectionProps(task.title);",
+    );
+    expect(SOURCE).toMatch(/<h3\s+\{\.\.\.taskTitleDirectionProps\}/);
+    expect(SOURCE).not.toMatch(/<div\s+\{\.\.\.taskTitleDirectionProps\}/);
+    expect(SOURCE).toContain("text-start");
+  });
+
+  it("keeps row stripes and status-bar indents on the logical start side", () => {
+    expect(SOURCE).toContain("border-s-2 border-s-transparent");
+    expect(SOURCE).toContain("ps-[52px]");
+    expect(SOURCE).not.toMatch(/border-l-/);
+    expect(SOURCE).not.toMatch(/pl-\[52px\]/);
+  });
+
   it("swallows close-item pointer and click events before opening the confirm dialog", () => {
     expect(SOURCE).toMatch(/const \[actionsMenuOpen, setActionsMenuOpen\]/);
     expect(SOURCE).toMatch(/const openCloseIssueConfirm = useCallback/);
-    expect(SOURCE).toMatch(/onPointerDown=\{\(e\) => \{\s*e\.preventDefault\(\);\s*e\.stopPropagation\(\);\s*openCloseIssueConfirm\(\);/);
-    expect(SOURCE).toMatch(/onClick=\{\(e\) => \{\s*e\.preventDefault\(\);\s*e\.stopPropagation\(\);/);
-    expect(SOURCE).toMatch(/onSelect=\{\(e\) => \{\s*e\.preventDefault\(\);\s*e\.stopPropagation\(\);\s*openCloseIssueConfirm\(\);/);
+    expect(SOURCE).toMatch(
+      /onPointerDown=\{\(e\) => \{\s*e\.preventDefault\(\);\s*e\.stopPropagation\(\);\s*openCloseIssueConfirm\(\);/,
+    );
+    expect(SOURCE).toMatch(
+      /onClick=\{\(e\) => \{\s*e\.preventDefault\(\);\s*e\.stopPropagation\(\);/,
+    );
+    expect(SOURCE).toMatch(
+      /onSelect=\{\(e\) => \{\s*e\.preventDefault\(\);\s*e\.stopPropagation\(\);\s*openCloseIssueConfirm\(\);/,
+    );
   });
 });

@@ -90,8 +90,7 @@ const PreviewEnvironmentSchema = z
     path: ["url"],
   })
   .refine(
-    (value) =>
-      Boolean(value.url) || (!value.staticId && !value.repoViewPath),
+    (value) => Boolean(value.url) || (!value.staticId && !value.repoViewPath),
     {
       message: "Uploaded and repo-backed views need a URL",
       path: ["url"],

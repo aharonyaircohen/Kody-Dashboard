@@ -76,8 +76,8 @@ function buildVibePrimerFollowUp(ctx: VibeTaskContext): string {
   // discover it via `gh pr list`. Never let the runner create a fresh branch
   // for a follow-up turn — that splits work across two PRs.
   const branchDiscovery = ctx.branch
-      ? `Use the existing branch \`${ctx.branch}\` for all commits.`
-      : `Find the existing vibe branch first — do NOT create a new one. Run \`gh pr list --search "Closes #${ctx.issueNumber}" --state open --json number,headRefName,isDraft,url\`, pick the open draft PR for this issue, and use its \`headRefName\` for all commits. If no matching PR exists, stop and tell the user "no vibe branch was found — start execution from the Vibe page again".`;
+    ? `Use the existing branch \`${ctx.branch}\` for all commits.`
+    : `Find the existing vibe branch first — do NOT create a new one. Run \`gh pr list --search "Closes #${ctx.issueNumber}" --state open --json number,headRefName,isDraft,url\`, pick the open draft PR for this issue, and use its \`headRefName\` for all commits. If no matching PR exists, stop and tell the user "no vibe branch was found — start execution from the Vibe page again".`;
   const prHint = ctx.prNumber ? ` and PR #${ctx.prNumber}` : "";
   return [
     "[Vibe mode — follow-up on an existing issue, do not echo this block]",

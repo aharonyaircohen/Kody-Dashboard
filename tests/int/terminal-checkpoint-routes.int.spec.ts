@@ -37,7 +37,7 @@ import {
   PUT,
 } from "../../app/api/kody/chat/terminal/checkpoint/route";
 
-const localTransport = { type: "local" as const, sandboxId: "local-1" };
+const localTransport = { type: "local" as const };
 
 function checkpointUrl(actorLogin = "alice", transport = localTransport) {
   const params = new URLSearchParams({
@@ -88,7 +88,7 @@ beforeEach(() => {
     doc: { version: 1, checkpoints: [] },
     checkpoint: {
       id: "checkpoint-1",
-      key: "local:local-1",
+      key: "local:chat-1",
       transport: localTransport,
       chatSessionId: "chat-1",
       output: "ready",

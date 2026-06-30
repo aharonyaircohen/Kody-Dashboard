@@ -39,6 +39,7 @@ vi.mock("@dashboard/lib/state-repo", () => ({
 }));
 
 import { GET } from "../app/api/kody/views/[...path]/route";
+import { STATE_BRANCH } from "@dashboard/lib/state-branch";
 import { mintRepoViewToken } from "@dashboard/lib/view-token";
 
 const ORIGINAL_MASTER_KEY = process.env.KODY_MASTER_KEY;
@@ -110,7 +111,7 @@ describe("repo-backed view serving", () => {
     expect(fetchMock.mock.calls[0]?.[0]).toContain(
       "/repos/octo-state/kody-state/contents/repo/views/pdf-f7fef487/-_-.pdf",
     );
-    expect(fetchMock.mock.calls[0]?.[0]).toContain("ref=kody-state");
+    expect(fetchMock.mock.calls[0]?.[0]).toContain(`ref=${STATE_BRANCH}`);
     expect(fetchMock.mock.calls[0]?.[1]).toMatchObject({
       headers: expect.objectContaining({
         Authorization: "Bearer ghs_app_token",

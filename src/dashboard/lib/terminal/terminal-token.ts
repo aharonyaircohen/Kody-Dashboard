@@ -17,12 +17,13 @@ export interface TerminalBridgeClaims {
   owner: string;
   repo: string;
   app: string;
-  machineId: string;
+  machineId?: string;
   chatSessionId?: string;
   resetSession?: boolean;
   activityLimitMs?: number | null;
   localExec?: boolean;
   flyToken: string;
+  ghcrToken?: string;
   cols: number;
   rows: number;
   iat: number;
@@ -33,12 +34,13 @@ export interface MintTerminalBridgeTokenInput {
   owner: string;
   repo: string;
   app: string;
-  machineId: string;
+  machineId?: string;
   chatSessionId?: string;
   resetSession?: boolean;
   activityLimitMs?: number | null;
   localExec?: boolean;
   flyToken: string;
+  ghcrToken?: string;
   cols?: number;
   rows?: number;
   now?: number;
@@ -109,6 +111,7 @@ export function mintTerminalBridgeToken(
     activityLimitMs: input.activityLimitMs,
     localExec: input.localExec,
     flyToken: input.flyToken,
+    ghcrToken: input.ghcrToken,
     cols: input.cols ?? 120,
     rows: input.rows ?? 36,
     iat: now,

@@ -195,15 +195,7 @@ export function useTriageStrip(limit = 4): UseTriageStripResult {
         return now - Date.parse(at) >= DISMISS_TTL_MS;
       })
       .slice(0, limit);
-  }, [
-    ci,
-    tasks,
-    health,
-    dismissed,
-    rerunCI,
-    retryTask,
-    limit,
-  ]);
+  }, [ci, tasks, health, dismissed, rerunCI, retryTask, limit]);
 
   return { items, dismiss };
 }

@@ -95,20 +95,20 @@ Migrate the SearchBar component from React to Vue.
 These live in Store under `.kody/commands/`. Dashboard keeps matching fallback
 built-ins for cold-start and unavailable-Store cases.
 
-| Slug                   | What it does                                                 |
-| ---------------------- | ------------------------------------------------------------ |
-| `/capability` | Draft a scheduled capability folder.                |
-| `/analyze`             | Analyze whatever you're viewing: issue, PR, run, or check.   |
-| `/briefing`            | Summarize current work that needs attention.                 |
-| `/explain`             | Explain topic in codebase.                                   |
-| `/factory`             | Create an agent-factory state-repo PR for model definitions. |
-| `/goal`                | Draft new goal.                                              |
-| `/init`                | Install Kody engine in connected repo.                       |
-| `/issue`               | Research, draft, create issue, then offer to run Kody.       |
-| `/mission`             | Draft a mission task group.                                  |
-| `/plan`                | Plan change without writing code yet.                        |
-| `/research`            | Investigate topic; summary only, no edits.                   |
-| `/review`              | Review your uncommitted changes.                             |
+| Slug          | What it does                                                 |
+| ------------- | ------------------------------------------------------------ |
+| `/capability` | Draft a scheduled capability folder.                         |
+| `/analyze`    | Analyze whatever you're viewing: issue, PR, run, or check.   |
+| `/briefing`   | Summarize current work that needs attention.                 |
+| `/explain`    | Explain topic in codebase.                                   |
+| `/factory`    | Create an agent-factory state-repo PR for model definitions. |
+| `/goal`       | Draft new goal.                                              |
+| `/init`       | Install Kody engine in connected repo.                       |
+| `/issue`      | Research, draft, create issue, then offer to run Kody.       |
+| `/mission`    | Draft a mission task group.                                  |
+| `/plan`       | Plan change without writing code yet.                        |
+| `/research`   | Investigate topic; summary only, no edits.                   |
+| `/review`     | Review your uncommitted changes.                             |
 
 Fork any of them to customize the wording for your repo.
 

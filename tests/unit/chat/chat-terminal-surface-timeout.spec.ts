@@ -25,25 +25,25 @@ describe("ChatTerminalSurface timeout guard", () => {
     expect(SOURCE).toContain("TERMINAL_STOP_TIMEOUT_MS");
     expect(SOURCE).toContain("TERMINAL_START_TIMEOUT_MS");
     expect(SOURCE).toContain("LOCAL_POLL_TIMEOUT_MS");
-    expect(SOURCE).toContain("GITHUB_ACTIONS_POLL_TIMEOUT_MS");
     expect(SOURCE).toContain("FLY_CONNECT_TIMEOUT_MS");
     expect(SOURCE).toContain(
       'fetchWithTimeout(\n      "/api/kody/chat/terminal/resize"',
     );
     expect(SOURCE).toContain(
-      'fetchWithTimeout(\n              "/api/kody/chat/terminal/github/input"',
-    );
-    expect(SOURCE).toContain(
       'fetchWithTimeout(\n      "/api/kody/chat/terminal/input"',
     );
-    expect(SOURCE).toContain("fetchWithTimeout(\n        startEndpoint");
+    expect(SOURCE).toContain(
+      'fetchWithTimeout(\n        "/api/kody/chat/terminal/start"',
+    );
     expect(SOURCE).toContain(
       'fetchWithTimeout(\n          "/api/kody/terminal/session"',
     );
     expect(SOURCE).toContain(
-      "fetchWithTimeout(\n        `${outputEndpoint}?${params}`",
+      "fetchWithTimeout(\n        `/api/kody/chat/terminal/output?${params}`",
     );
-    expect(SOURCE).toContain("fetchWithTimeout(\n        stopEndpoint");
+    expect(SOURCE).toContain(
+      'fetchWithTimeout(\n        "/api/kody/chat/terminal/stop"',
+    );
     expect(SOURCE).toContain("pollBusyRef.current = false");
   });
 });

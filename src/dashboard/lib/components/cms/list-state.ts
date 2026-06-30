@@ -98,10 +98,7 @@ export function buildCmsPageNumbers(
   totalPages: number,
 ): CmsPageNumberItem[] {
   const safeTotal = Math.max(1, Math.floor(totalPages));
-  const safeCurrent = Math.min(
-    safeTotal,
-    Math.max(1, Math.floor(currentPage)),
-  );
+  const safeCurrent = Math.min(safeTotal, Math.max(1, Math.floor(currentPage)));
   if (safeTotal <= 5) {
     return Array.from({ length: safeTotal }, (_, index) => index + 1);
   }

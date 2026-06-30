@@ -201,8 +201,9 @@ test.describe("Vibe — page must flip to task scope after creating an issue", (
     await expect
       .poll(
         async () =>
-          (await chatInput(page).getAttribute("placeholder").catch(() => "")) ??
-          "",
+          (await chatInput(page)
+            .getAttribute("placeholder")
+            .catch(() => "")) ?? "",
         { timeout: 15_000, intervals: [500] },
       )
       .toMatch(new RegExp(`task #${NEW_ISSUE}`, "i"));

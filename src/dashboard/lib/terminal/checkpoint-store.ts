@@ -28,12 +28,6 @@ import {
 const TransportSchema = z.discriminatedUnion("type", [
   z.object({
     type: z.literal("local"),
-    sandboxId: z.string().min(1).max(80).optional(),
-    label: z.string().min(1).max(120).optional(),
-  }),
-  z.object({
-    type: z.literal("github-actions"),
-    sandboxId: z.string().min(1).max(80),
     label: z.string().min(1).max(120).optional(),
   }),
   z.object({
@@ -60,7 +54,7 @@ const TerminalCheckpointSchema = z.object({
 
 const TerminalCheckpointsDocumentSchema = z.object({
   version: z.literal(1),
-  checkpoints: z.array(TerminalCheckpointSchema).max(TERMINAL_CHECKPOINT_LIMIT),
+  checkpoints: z.array(z.unknown()).max(TERMINAL_CHECKPOINT_LIMIT),
 });
 
 function emptyDoc(): TerminalCheckpointsDocument {
@@ -94,9 +88,13 @@ function parseDoc(
 ): TerminalCheckpointsDocument {
   try {
     const parsed = TerminalCheckpointsDocumentSchema.parse(JSON.parse(raw));
+    const checkpoints = parsed.checkpoints.flatMap((checkpoint) => {
+      const result = TerminalCheckpointSchema.safeParse(checkpoint);
+      return result.success ? [result.data] : [];
+    });
     return {
       version: 1,
-      checkpoints: normalizeCheckpoints(parsed.checkpoints),
+      checkpoints: normalizeCheckpoints(checkpoints),
     };
   } catch (err) {
     logger.warn(

@@ -79,7 +79,10 @@ function withStats(
   capability: string,
   stats: TrustCapabilityStats,
 ): TrustManifest {
-  return { ...manifest, capabilities: { ...manifest.capabilities, [capability]: stats } };
+  return {
+    ...manifest,
+    capabilities: { ...manifest.capabilities, [capability]: stats },
+  };
 }
 
 export function statsFor(
@@ -219,7 +222,10 @@ export function applyTrustOp(
 }
 
 /** True when the engine may let this capability self-dispatch. */
-export function isGraduated(manifest: TrustManifest, capability: string): boolean {
+export function isGraduated(
+  manifest: TrustManifest,
+  capability: string,
+): boolean {
   return manifest.capabilities[capability]?.mode === "auto";
 }
 
@@ -234,9 +240,7 @@ export function parseTrustManifest(
   try {
     const parsed = JSON.parse(raw) as {
       capabilities?: TrustManifest["capabilities"];
-      log?: Array<
-        Partial<TrustDecisionLogEntry> & { capability?: string }
-      >;
+      log?: Array<Partial<TrustDecisionLogEntry> & { capability?: string }>;
     };
     const capabilities =
       parsed.capabilities && typeof parsed.capabilities === "object"

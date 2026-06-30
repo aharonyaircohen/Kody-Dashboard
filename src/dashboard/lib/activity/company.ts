@@ -45,7 +45,8 @@ function coerce(raw: unknown): CompanyActivityRecord | null {
   if (typeof r.ts !== "string" || capability === null) return null;
   return {
     ts: r.ts,
-    action: typeof r.action === "string" ? r.action : `Ran capability: ${capability}`,
+    action:
+      typeof r.action === "string" ? r.action : `Ran capability: ${capability}`,
     capability,
     capabilityTitle:
       typeof r.capabilityTitle === "string"

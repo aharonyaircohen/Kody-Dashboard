@@ -150,9 +150,7 @@ export function managedGoalStateToTodoContent(
             completedAt:
               status?.state === "disabled"
                 ? (prior?.completedAt ??
-                  (typeof state.updatedAt === "string"
-                    ? state.updatedAt
-                    : now))
+                  (typeof state.updatedAt === "string" ? state.updatedAt : now))
                 : null,
             meta: {
               ...(prior?.meta ?? {}),

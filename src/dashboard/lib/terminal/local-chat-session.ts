@@ -11,10 +11,6 @@ import { createHash } from "node:crypto";
 import { chmodSync, existsSync, statSync } from "node:fs";
 import { createRequire } from "node:module";
 import { dirname, join } from "node:path";
-import {
-  assertSandboxReady,
-  getLocalSandbox,
-} from "@dashboard/lib/sandboxes/local-sandboxes";
 
 export type LocalTerminalEvent =
   | {
@@ -45,8 +41,6 @@ type LocalTerminalEventInput =
 export interface LocalTerminalSessionInfo {
   sessionId: string;
   chatSessionId?: string;
-  sandboxId?: string;
-  sandboxName?: string;
   backend: LocalTerminalBackend;
   tmuxSessionName?: string;
   owner: string;
@@ -212,11 +206,8 @@ function chatSessionKey(input: {
   owner: string;
   repo: string;
   chatSessionId: string;
-  sandboxId?: string;
 }): string {
-  const terminalScope = input.sandboxId
-    ? `sandbox:${input.sandboxId}`
-    : "local";
+  const terminalScope = "local";
   return `${input.owner.toLowerCase()}/${input.repo.toLowerCase()}::${terminalScope}::${input.chatSessionId}`;
 }
 
@@ -232,7 +223,6 @@ function tmuxSessionNameForChat(input: {
   owner: string;
   repo: string;
   chatSessionId: string;
-  sandboxId?: string;
 }): string {
   const digest = createHash("sha1").update(chatSessionKey(input)).digest("hex");
   return `kody_${digest.slice(0, 32)}`;
@@ -256,18 +246,15 @@ function killTmuxSession(sessionName: string): void {
 function detachedTmuxSessionInfo(
   chatSessionId: string,
   auth: { owner: string; repo: string },
-  sandboxId?: string,
 ): LocalTerminalSessionInfo | null {
   const tmuxSessionName = tmuxSessionNameForChat({
     ...auth,
     chatSessionId,
-    sandboxId,
   });
   if (!hasTmuxSession(tmuxSessionName)) return null;
   return {
     sessionId: `tmux-${tmuxSessionName}`,
     chatSessionId,
-    ...(sandboxId ? { sandboxId } : {}),
     backend: "tmux",
     tmuxSessionName,
     owner: auth.owner,
@@ -353,7 +340,6 @@ function deleteSession(store: LocalTerminalStore, id: string): void {
           owner: session.owner,
           repo: session.repo,
           chatSessionId: session.chatSessionId,
-          sandboxId: session.sandboxId,
         }),
       );
     }
@@ -376,7 +362,6 @@ export async function startLocalTerminalSession(input: {
   owner: string;
   repo: string;
   chatSessionId?: string;
-  sandboxId?: string;
   cols?: number;
   rows?: number;
 }): Promise<LocalTerminalSessionInfo> {
@@ -388,7 +373,6 @@ export async function startLocalTerminalSession(input: {
       owner: input.owner,
       repo: input.repo,
       chatSessionId: input.chatSessionId,
-      sandboxId: input.sandboxId,
     });
     const existingId = store.sessionsByChatKey.get(key);
     const existing = existingId ? store.sessions.get(existingId) : null;
@@ -411,17 +395,7 @@ export async function startLocalTerminalSession(input: {
 
   const pty = await loadNodePty();
   ensureNodePtyHelperExecutable();
-  const sandbox = input.sandboxId
-    ? await getLocalSandbox(
-        { owner: input.owner, repo: input.repo },
-        input.sandboxId,
-      )
-    : null;
-  if (input.sandboxId && !sandbox) {
-    throw new Error("Sandbox not found");
-  }
-  if (sandbox) await assertSandboxReady(sandbox);
-  const cwd = sandbox?.workspaceDir ?? process.cwd();
+  const cwd = process.cwd();
   const defaultShell =
     process.env.SHELL ||
     (process.platform === "win32" ? "powershell.exe" : "/bin/zsh");
@@ -431,7 +405,6 @@ export async function startLocalTerminalSession(input: {
           owner: input.owner,
           repo: input.repo,
           chatSessionId: input.chatSessionId,
-          sandboxId: input.sandboxId,
         })
       : undefined;
   const backend: LocalTerminalBackend = tmuxSessionName ? "tmux" : "pty";
@@ -458,15 +431,7 @@ export async function startLocalTerminalSession(input: {
         cols: input.cols ?? 100,
         rows: input.rows ?? 30,
         cwd,
-        env: envForPty(
-          sandbox
-            ? {
-                HOME: sandbox.homeDir,
-                KODY_SANDBOX_ID: sandbox.id,
-                KODY_SANDBOX_NAME: sandbox.name,
-              }
-            : {},
-        ),
+        env: envForPty(),
       },
     );
     if (!isLocalPtyProcess(proc)) {
@@ -479,7 +444,6 @@ export async function startLocalTerminalSession(input: {
   const session: LocalTerminalSession = {
     sessionId,
     chatSessionId: input.chatSessionId,
-    ...(sandbox ? { sandboxId: sandbox.id, sandboxName: sandbox.name } : {}),
     backend,
     tmuxSessionName,
     owner: input.owner,
@@ -510,7 +474,6 @@ export async function startLocalTerminalSession(input: {
         owner: input.owner,
         repo: input.repo,
         chatSessionId: input.chatSessionId,
-        sandboxId: input.sandboxId,
       }),
       sessionId,
     );
@@ -524,8 +487,6 @@ export function getLocalTerminalSessionInfo(
   return {
     sessionId: session.sessionId,
     chatSessionId: session.chatSessionId,
-    sandboxId: session.sandboxId,
-    sandboxName: session.sandboxName,
     backend: session.backend,
     tmuxSessionName: session.tmuxSessionName,
     owner: session.owner,
@@ -541,23 +502,22 @@ export function getLocalTerminalSessionInfo(
 export function getLocalTerminalSessionInfoByChatSession(
   chatSessionId: string,
   auth: { owner: string; repo: string },
-  sandboxId?: string,
 ): LocalTerminalSessionInfo | null {
   cleanupLocalTerminalSessions();
   const store = getStore();
   const sessionId = store.sessionsByChatKey.get(
-    chatSessionKey({ ...auth, chatSessionId, sandboxId }),
+    chatSessionKey({ ...auth, chatSessionId }),
   );
   if (!sessionId) {
-    return detachedTmuxSessionInfo(chatSessionId, auth, sandboxId);
+    return detachedTmuxSessionInfo(chatSessionId, auth);
   }
   const session = store.sessions.get(sessionId);
   if (!session || session.owner !== auth.owner || session.repo !== auth.repo) {
-    return detachedTmuxSessionInfo(chatSessionId, auth, sandboxId);
+    return detachedTmuxSessionInfo(chatSessionId, auth);
   }
   session.touchedAt = Date.now();
   if (!session.alive && session.backend === "tmux") {
-    return detachedTmuxSessionInfo(chatSessionId, auth, sandboxId);
+    return detachedTmuxSessionInfo(chatSessionId, auth);
   }
   return getLocalTerminalSessionInfo(session);
 }

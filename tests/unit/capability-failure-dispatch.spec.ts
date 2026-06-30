@@ -90,7 +90,9 @@ describe("touchesActivityLog", () => {
   it("matches a state-repo push that adds an activity day-file", () => {
     expect(
       touchesActivityLog(
-        pushEvent("refs/heads/kody-state", ["widgets/activity/2026-05-23.jsonl"]),
+        pushEvent("refs/heads/kody-state", [
+          "widgets/activity/2026-05-23.jsonl",
+        ]),
       ),
     ).toBe(true);
   });
@@ -99,7 +101,9 @@ describe("touchesActivityLog", () => {
     expect(
       touchesActivityLog({
         ref: "refs/heads/kody-state",
-        commits: [{ added: [], modified: ["widgets/activity/2026-05-23.jsonl"] }],
+        commits: [
+          { added: [], modified: ["widgets/activity/2026-05-23.jsonl"] },
+        ],
       }),
     ).toBe(true);
   });

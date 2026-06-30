@@ -58,7 +58,12 @@ export async function readInstructionsFile(
 ): Promise<InstructionsFile | null> {
   const octokit = octokitOverride ?? getOctokit();
   try {
-    const file = await readStateText(octokit, getOwner(), getRepo(), INSTRUCTIONS_PATH);
+    const file = await readStateText(
+      octokit,
+      getOwner(),
+      getRepo(),
+      INSTRUCTIONS_PATH,
+    );
     if (!file) return null;
     const updatedAt = await fetchLastCommitDate(octokit);
     return {

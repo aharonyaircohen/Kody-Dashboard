@@ -581,6 +581,87 @@ describe("provisionBrain image-ref healing", () => {
     );
   });
 
+  it("lets restore hooks replace a saved image with a Fly runtime image", async () => {
+    const savedImageRef = "ghcr.io/alice/kody-brain-snapshot:20260625";
+    const runtimeImageRef = "registry.fly.io/kody-brain-alice:20260625";
+    const resolveRuntimeImageRef = vi.fn(async () => runtimeImageRef);
+    const prepareRuntimeImage = vi.fn(async () => undefined);
+    const calls = installFetchStub((call) => {
+      if (call.method === "GET" && call.url.endsWith("/apps/kody-brain-alice"))
+        return { json: { name: "kody-brain-alice" } };
+      if (call.method === "GET" && call.url.endsWith("/machines"))
+        return { json: [] };
+      if (call.method === "POST" && call.url.endsWith("/machines"))
+        return { json: { id: "m", state: "starting", region: "fra" } };
+      throw new Error(`unexpected: ${call.method} ${call.url}`);
+    });
+
+    await provisionBrain({
+      flyToken: TOKEN,
+      account: "alice",
+      githubToken: "gh",
+      apiKeyOverride: "k",
+      imageRef: savedImageRef,
+      resolveRuntimeImageRef,
+      prepareRuntimeImage,
+    });
+
+    expect(resolveRuntimeImageRef).toHaveBeenCalledWith({
+      app: "kody-brain-alice",
+      imageRef: savedImageRef,
+    });
+    expect(prepareRuntimeImage).toHaveBeenCalledWith({
+      app: "kody-brain-alice",
+      sourceImageRef: savedImageRef,
+      runtimeImageRef,
+    });
+    const create = calls.find(
+      (c) => c.method === "POST" && c.url.endsWith("/machines"),
+    )!;
+    expect((create.body as { config: { image: string } }).config.image).toBe(
+      runtimeImageRef,
+    );
+  });
+
+  it("does not mirror the saved image again when the runtime image already matches", async () => {
+    const savedImageRef = "ghcr.io/alice/kody-brain-snapshot:20260625";
+    const runtimeImageRef = "registry.fly.io/kody-brain-alice:20260625";
+    const prepareRuntimeImage = vi.fn(async () => undefined);
+    installFetchStub((call) => {
+      if (call.method === "GET" && call.url.endsWith("/apps/kody-brain-alice"))
+        return { json: { name: "kody-brain-alice" } };
+      if (call.method === "GET" && call.url.endsWith("/machines"))
+        return {
+          json: [
+            {
+              id: "m-good",
+              state: "started",
+              region: "fra",
+              config: {
+                image: `${runtimeImageRef}@sha256:fresh`,
+                env: { BRAIN_API_KEY: "live-key" },
+              },
+            },
+          ],
+        };
+      if (call.method === "DELETE" || call.method === "POST")
+        throw new Error(`must not mutate on a matching image: ${call.url}`);
+      throw new Error(`unexpected: ${call.method} ${call.url}`);
+    });
+
+    const out = await provisionBrain({
+      flyToken: TOKEN,
+      account: "alice",
+      githubToken: "gh",
+      imageRef: savedImageRef,
+      resolveRuntimeImageRef: async () => runtimeImageRef,
+      prepareRuntimeImage,
+    });
+
+    expect(out.machineId).toBe("m-good");
+    expect(prepareRuntimeImage).not.toHaveBeenCalled();
+  });
+
   it("recreates a machine pinned to the stale registry.fly.io image", async () => {
     const calls = installFetchStub((call) => {
       if (call.method === "GET" && call.url.endsWith("/apps/kody-brain-alice"))
@@ -766,9 +847,7 @@ describe("provisionBrain image-ref healing", () => {
     const env = (update.body as { config: { env: Record<string, string> } })
       .config.env;
     expect(env.BRAIN_API_KEY).toBe("live-key");
-    expect(env.KODY_CMS_DASHBOARD_URL).toBe(
-      "https://dashboard.example.test",
-    );
+    expect(env.KODY_CMS_DASHBOARD_URL).toBe("https://dashboard.example.test");
   });
 
   it("wakes a reused sleeping machine when Brain suspension is set to never", async () => {

@@ -266,9 +266,7 @@ function normalizePortfolio(value: unknown): CompanyIntent["portfolio"] {
   return {
     goals: stringArray(input?.goals).filter(isCompanyIntentId),
     loops: stringArray(input?.loops).filter(isCompanyIntentId),
-    capabilities: stringArray(input?.capabilities).filter(
-      isCompanyIntentId,
-    ),
+    capabilities: stringArray(input?.capabilities).filter(isCompanyIntentId),
   };
 }
 
@@ -281,11 +279,7 @@ function normalizeReleasePolicy(
   return {
     cadence: enumField(input.cadence, ["manual", "1d", "1w"]),
     qaDepth: enumField(input.qaDepth, ["light", "standard", "strict"]),
-    blockerLevel: enumField(input.blockerLevel, [
-      "low",
-      "standard",
-      "strict",
-    ]),
+    blockerLevel: enumField(input.blockerLevel, ["low", "standard", "strict"]),
     approval: enumField(input.approval, [
       "none",
       "before-production",

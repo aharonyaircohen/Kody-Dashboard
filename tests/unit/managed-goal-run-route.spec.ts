@@ -41,10 +41,9 @@ vi.mock("@dashboard/lib/runners/kody-runner", () => ({
 import { POST } from "../../app/api/kody/goals/managed/[id]/run/route";
 
 function makeRequest(id: string) {
-  return new NextRequest(
-    `https://dash.test/api/kody/goals/managed/${id}/run`,
-    { method: "POST" },
-  );
+  return new NextRequest(`https://dash.test/api/kody/goals/managed/${id}/run`, {
+    method: "POST",
+  });
 }
 
 function makeParams(id: string) {
@@ -88,7 +87,10 @@ describe("managed goal run route", () => {
       },
     });
 
-    const res = await POST(makeRequest("web-release"), makeParams("web-release"));
+    const res = await POST(
+      makeRequest("web-release"),
+      makeParams("web-release"),
+    );
 
     expect(res.status).toBe(200);
     const json = await res.json();
@@ -131,7 +133,10 @@ describe("managed goal run route", () => {
       },
     });
 
-    const res = await POST(makeRequest("web-release"), makeParams("web-release"));
+    const res = await POST(
+      makeRequest("web-release"),
+      makeParams("web-release"),
+    );
 
     expect(res.status).toBe(400);
     expect(await res.json()).toMatchObject({

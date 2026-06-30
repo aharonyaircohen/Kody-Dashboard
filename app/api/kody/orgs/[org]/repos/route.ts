@@ -112,7 +112,8 @@ function githubError(response: Response, fallback: string) {
     return NextResponse.json(
       {
         error: "not_found",
-        message: "GitHub owner or repository not found, or token has no access.",
+        message:
+          "GitHub owner or repository not found, or token has no access.",
       },
       { status: 404 },
     );
@@ -139,7 +140,10 @@ export async function GET(
 
   const headerAuth = getRequestAuth(req);
   if (!headerAuth) {
-    return NextResponse.json({ error: "request_auth_required" }, { status: 401 });
+    return NextResponse.json(
+      { error: "request_auth_required" },
+      { status: 401 },
+    );
   }
 
   const org = await resolveOrg(params);
@@ -186,7 +190,10 @@ export async function POST(
 
   const headerAuth = getRequestAuth(req);
   if (!headerAuth) {
-    return NextResponse.json({ error: "request_auth_required" }, { status: 401 });
+    return NextResponse.json(
+      { error: "request_auth_required" },
+      { status: 401 },
+    );
   }
 
   const org = await resolveOrg(params);

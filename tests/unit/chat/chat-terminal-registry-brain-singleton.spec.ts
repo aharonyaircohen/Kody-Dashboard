@@ -13,6 +13,7 @@ import {
   findMountedBrainTerminal,
   isBrainTerminalTransport,
   normalizeMountedChatTerminals,
+  normalizeTerminalTransport,
   upsertMountedChatTerminal,
   type MountedChatTerminal,
 } from "@dashboard/lib/hooks/useChatTerminalRegistry";
@@ -123,6 +124,93 @@ describe("chat terminal registry Brain singleton", () => {
     ).toEqual([local, selectedBrain]);
   });
 
+  it("maps stale Brain terminal selections to the current live Brain machine", () => {
+    const staleTransport = {
+      type: "fly",
+      app: "brain-app",
+      machineId: "old-machine",
+      feature: "brain",
+      label: "Brain server",
+    } as const;
+    const currentBrain = {
+      app: "brain-app",
+      machineId: "new-machine",
+      state: "started",
+      region: "fra",
+      label: "Brain server",
+      sizeLabel: "shared 2x · 4 GB",
+      feature: "brain",
+    } satisfies FlyMachineRow;
+
+    expect(
+      normalizeTerminalTransport(staleTransport, [currentBrain], {
+        inventoryLoaded: true,
+      }),
+    ).toEqual({
+      type: "fly",
+      app: "brain-app",
+      machineId: "new-machine",
+      label: "Brain server",
+      feature: "brain",
+    });
+  });
+
+  it("preserves restored Brain selections until Fly inventory loads", () => {
+    const staleTransport = {
+      type: "fly",
+      app: "brain-app",
+      machineId: "old-machine",
+      feature: "brain",
+      label: "Brain server",
+    } as const;
+
+    expect(
+      normalizeTerminalTransport(staleTransport, [], {
+        inventoryLoaded: false,
+      }),
+    ).toBe(staleTransport);
+    expect(
+      normalizeTerminalTransport(staleTransport, [], {
+        inventoryLoaded: true,
+      }),
+    ).toEqual({ type: "local" });
+  });
+
+  it("does not remount Brain when the selected target is unchanged", () => {
+    const mounted = [
+      {
+        id: "chat-1::local",
+        sessionId: "chat-1",
+        transport: { type: "local" },
+      },
+      {
+        id: "chat-1::fly:brain-app:brain-new",
+        sessionId: "chat-1",
+        transport: {
+          type: "fly",
+          app: "brain-app",
+          machineId: "brain-new",
+          feature: "brain",
+          label: "Brain",
+        },
+      },
+    ] satisfies MountedChatTerminal[];
+
+    expect(
+      upsertMountedChatTerminal(mounted, {
+        id: "chat-1::fly:brain-app:brain-new",
+        sessionId: "chat-1",
+        transport: {
+          type: "fly",
+          app: "brain-app",
+          machineId: "brain-new",
+          feature: "brain",
+          label: "Brain",
+        },
+      }),
+    ).toBe(mounted);
+  });
+
   it("focuses the existing Brain session instead of creating another one", () => {
     expect(REGISTRY_SOURCE).toContain("switchSession?:");
     expect(REGISTRY_SOURCE).toContain("focusMountedBrainTerminal");
@@ -133,5 +221,10 @@ describe("chat terminal registry Brain singleton", () => {
       "if (focusMountedBrainTerminal(nextTransport)) return;",
     );
     expect(CHAT_SOURCE).toContain("switchSession: sessionHook.switchSession");
+  });
+
+  it("saves Brain images through the Brain service, not stale terminal ids", () => {
+    expect(CHAT_SOURCE).toContain("body: JSON.stringify({})");
+    expect(CHAT_SOURCE).not.toContain("body: JSON.stringify(requestBody)");
   });
 });

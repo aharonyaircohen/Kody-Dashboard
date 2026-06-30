@@ -18,7 +18,6 @@ export const dynamic = "force-dynamic";
 
 const Query = z.object({
   chatSessionId: z.string().min(1).max(120),
-  sandboxId: z.string().min(1).max(80).optional(),
 });
 
 export async function GET(req: NextRequest) {
@@ -32,7 +31,6 @@ export async function GET(req: NextRequest) {
 
   const parsed = Query.safeParse({
     chatSessionId: req.nextUrl.searchParams.get("chatSessionId"),
-    sandboxId: req.nextUrl.searchParams.get("sandboxId") ?? undefined,
   });
   if (!parsed.success) {
     return NextResponse.json(
@@ -44,7 +42,6 @@ export async function GET(req: NextRequest) {
   const session = getLocalTerminalSessionInfoByChatSession(
     parsed.data.chatSessionId,
     auth,
-    parsed.data.sandboxId,
   );
 
   return NextResponse.json({ ok: true, session });

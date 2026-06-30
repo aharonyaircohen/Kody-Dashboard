@@ -200,7 +200,9 @@ describe("invalidateIssueCache", () => {
 describe("invalidateCapabilitiesCache", () => {
   it("clears only the per-item cache when a slug is given", () => {
     // Seed both the per-item cache and the listing cache.
-    setCache("capability:acme:widgets:my-slug", 60_000, { title: "capability" });
+    setCache("capability:acme:widgets:my-slug", 60_000, {
+      title: "capability",
+    });
     setCache("capabilities:acme:widgets:{}", 60_000, [{ slug: "my-slug" }]);
 
     invalidateCapabilitiesCache("my-slug");
@@ -212,7 +214,9 @@ describe("invalidateCapabilitiesCache", () => {
   });
 
   it("clears only the listing cache when no slug is given", () => {
-    setCache("capability:acme:widgets:my-slug", 60_000, { title: "capability" });
+    setCache("capability:acme:widgets:my-slug", 60_000, {
+      title: "capability",
+    });
     setCache("capabilities:acme:widgets:{}", 60_000, [{ slug: "my-slug" }]);
 
     invalidateCapabilitiesCache();

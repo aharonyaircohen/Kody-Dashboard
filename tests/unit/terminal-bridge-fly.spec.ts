@@ -104,6 +104,12 @@ describe("ensureTerminalBridge", () => {
     expect(TERMINAL_BRIDGE_SCRIPT).toContain('"console"');
     expect(TERMINAL_BRIDGE_SCRIPT).toContain("--pty");
     expect(TERMINAL_BRIDGE_SCRIPT).toContain('url.pathname === "/exec"');
+    expect(TERMINAL_BRIDGE_SCRIPT).toContain('url.pathname === "/jobs"');
+    expect(TERMINAL_BRIDGE_SCRIPT).toContain(
+      'url.pathname.startsWith("/jobs/")',
+    );
+    expect(TERMINAL_BRIDGE_SCRIPT).toContain("execJobs");
+    expect(TERMINAL_BRIDGE_SCRIPT).toContain("startExecJob");
     expect(TERMINAL_BRIDGE_SCRIPT).toContain("--command");
     expect(TERMINAL_BRIDGE_SCRIPT).toContain("python3");
     expect(TERMINAL_BRIDGE_SCRIPT).toContain("pty-relay.py");

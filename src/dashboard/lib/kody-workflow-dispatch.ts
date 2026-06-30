@@ -175,7 +175,12 @@ function buildInputsForNames(
   addOptionalInput(inputs, inputNames, "sessionId", request.sessionId);
   addOptionalInput(inputs, inputNames, "message", request.message);
   addOptionalInput(inputs, inputNames, "model", request.model);
-  addOptionalInput(inputs, inputNames, "reasoningEffort", request.reasoningEffort);
+  addOptionalInput(
+    inputs,
+    inputNames,
+    "reasoningEffort",
+    request.reasoningEffort,
+  );
   addOptionalInput(inputs, inputNames, "dashboardUrl", request.dashboardUrl);
 
   return inputs;

@@ -73,7 +73,9 @@ vi.mock("@dashboard/lib/cto/recommendation", () => ({
   parseCtoCapability: () => null,
 }));
 vi.mock("@dashboard/lib/cto/trust-store", () => ({
-  readTrust: vi.fn().mockResolvedValue({ version: 1, capabilities: {}, log: [] }),
+  readTrust: vi
+    .fn()
+    .mockResolvedValue({ version: 1, capabilities: {}, log: [] }),
 }));
 vi.mock("@dashboard/lib/cto/trust-state", () => ({
   latestTrustDecisions: () => ({}),

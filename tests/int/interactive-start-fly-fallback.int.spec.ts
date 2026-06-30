@@ -28,6 +28,7 @@ import {
 } from "vitest";
 import nock from "nock";
 import { NextRequest } from "next/server";
+import { STATE_BRANCH } from "@dashboard/lib/state-branch";
 
 // ── Mock collaborators ───────────────────────────────────────────────────────
 const checkGitHubActionsHealth = vi.fn();
@@ -62,7 +63,7 @@ function sessionPath(sessionId: string): string {
 
 function mockStateBranch(): void {
   nock(GITHUB_API)
-    .get("/repos/acme/kody-state/git/ref/heads%2Fkody-state")
+    .get(`/repos/acme/kody-state/git/ref/heads%2F${STATE_BRANCH}`)
     .reply(200, { object: { sha: "state-sha" } });
 }
 
@@ -83,7 +84,7 @@ function makeRequest(body: unknown): NextRequest {
 function nockSessionWrite(sessionId: string): void {
   nock(GITHUB_API)
     .get(sessionPath(sessionId))
-    .query({ ref: "kody-state" })
+    .query({ ref: STATE_BRANCH })
     .reply(404);
   mockStateBranch();
   nock(GITHUB_API)

@@ -25,9 +25,7 @@ describe("dashboard link helpers", () => {
 
   it("builds internal links for state-backed resources", () => {
     expect(dashboardMemoryUrl("reply-style")).toBe("/memory/reply-style");
-    expect(dashboardContextUrl("release-rules")).toBe(
-      "/context/release-rules",
-    );
+    expect(dashboardContextUrl("release-rules")).toBe("/context/release-rules");
     expect(dashboardCapabilityUrl("fix-ci")).toBe("/capabilities/fix-ci");
     expect(dashboardTodoUrl("launch")).toBe("/todos/launch");
     expect(dashboardAgentUrl("qa")).toBe("/agents/qa");

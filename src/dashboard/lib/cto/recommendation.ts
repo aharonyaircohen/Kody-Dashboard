@@ -123,7 +123,9 @@ export function parseCtoAgent(rawBody: string): string | null {
  * legacy recs that predate the line; callers fall back to the agentIdentity slug.
  */
 export function parseCtoCapability(rawBody: string): string | null {
-  const m = rawBody.match(/<!--\s*kody-(?:capability|capability):\s*([a-z0-9][a-z0-9-]*)\s*-->/i);
+  const m = rawBody.match(
+    /<!--\s*kody-(?:capability|capability):\s*([a-z0-9][a-z0-9-]*)\s*-->/i,
+  );
   return m ? m[1].toLowerCase() : null;
 }
 

@@ -14,7 +14,10 @@ import {
   getUserOctokit,
   getRequestAuth,
 } from "@dashboard/lib/auth";
-import { isValidSlug, readResolvedCapabilityFile } from "@dashboard/lib/capabilities";
+import {
+  isValidSlug,
+  readResolvedCapabilityFile,
+} from "@dashboard/lib/capabilities";
 import {
   setGitHubContext,
   clearGitHubContext,

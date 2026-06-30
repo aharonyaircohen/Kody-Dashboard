@@ -25,7 +25,7 @@ import {
 import { MiniPipelineProgress } from "./MiniPipelineProgress";
 import { AnimatedStatusBar } from "./v2/AnimatedStatusBar";
 import { SimpleTooltip } from "./SimpleTooltip";
-import { autoDirProps } from "../text-direction";
+import { textDirectionProps } from "../text-direction";
 import {
   StatusTooltipContent,
   SubStatusTooltipContent,
@@ -88,6 +88,7 @@ interface TaskListProps {
   onTaskHover?: (task: KodyTask) => void;
   onAssign?: (issueNumber: number, assignees: string[]) => void;
   onAssignToKody?: (task: KodyTask) => void;
+  onUnassignFromKody?: (task: KodyTask) => void;
   onUnassign?: (issueNumber: number, assignees: string[]) => void;
   collaborators?: { login: string; avatar_url: string }[];
   onOpenPreview?: (task: KodyTask) => void;
@@ -125,37 +126,37 @@ const statusColors: Record<
     dot: "bg-blue-500",
     text: "text-blue-400",
     bg: "bg-blue-500/[0.04]",
-    border: "border-l-blue-500/50",
+    border: "border-s-blue-500/50",
   },
   review: {
     dot: "bg-purple-500",
     text: "text-purple-400",
     bg: "bg-purple-500/[0.04]",
-    border: "border-l-purple-500/50",
+    border: "border-s-purple-500/50",
   },
   failed: {
     dot: "bg-red-500",
     text: "text-red-400",
     bg: "bg-red-500/[0.05]",
-    border: "border-l-red-500/50",
+    border: "border-s-red-500/50",
   },
   "gate-waiting": {
     dot: "bg-amber-500",
     text: "text-amber-400",
     bg: "bg-amber-500/[0.04]",
-    border: "border-l-amber-500/50",
+    border: "border-s-amber-500/50",
   },
   retrying: {
     dot: "bg-orange-500",
     text: "text-orange-400",
     bg: "bg-orange-500/[0.04]",
-    border: "border-l-orange-500/50",
+    border: "border-s-orange-500/50",
   },
   done: {
     dot: "bg-emerald-500",
     text: "text-emerald-400",
     bg: "bg-emerald-500/[0.03]",
-    border: "border-l-emerald-500/50",
+    border: "border-s-emerald-500/50",
   },
 };
 
@@ -212,6 +213,7 @@ export function TaskList({
   onTaskHover,
   onAssign,
   onAssignToKody,
+  onUnassignFromKody,
   onUnassign: _onUnassign,
   focusedIndex,
   onOpenPreview,
@@ -371,6 +373,7 @@ export function TaskList({
           onStopTask={onStopTask}
           onAssign={onAssign}
           onAssignToKody={onAssignToKody}
+          onUnassignFromKody={onUnassignFromKody}
           onOpenPreview={onOpenPreview}
           onEditTask={onEditTask}
           onDuplicate={onDuplicate}
@@ -407,6 +410,7 @@ interface TaskRowProps {
   onStopTask?: (task: KodyTask) => void;
   onAssign?: (issueNumber: number, assignees: string[]) => void;
   onAssignToKody?: (task: KodyTask) => void;
+  onUnassignFromKody?: (task: KodyTask) => void;
   onOpenPreview?: (task: KodyTask) => void;
   onEditTask?: (task: KodyTask) => void;
   onDuplicate?: (task: KodyTask) => void;
@@ -436,6 +440,7 @@ const TaskRow = memo(function TaskRow({
   onStopTask,
   onAssign,
   onAssignToKody,
+  onUnassignFromKody,
   onOpenPreview,
   onEditTask,
   onDuplicate,
@@ -457,6 +462,11 @@ const TaskRow = memo(function TaskRow({
   const [actionsMenuOpen, setActionsMenuOpen] = useState(false);
   const isClosed = task.state === "closed";
   const isAssignedBacklogTask = task.labels.includes(KODY_BACKLOG_LABEL);
+  const isBacklogIntakeTask = intakeMode && !isClosed && task.column === "open";
+  const canToggleKodyBacklog =
+    isBacklogIntakeTask &&
+    (isAssignedBacklogTask ? !!onUnassignFromKody : !!onAssignToKody);
+  const taskTitleDirectionProps = textDirectionProps(task.title);
   // Closed tasks come from the "Show closed" toggle (loaded on-demand). They
   // shouldn't offer execute/run actions, and they get a distinct slate
   // palette + "Closed" word so users can tell them apart from in-flight
@@ -484,7 +494,7 @@ const TaskRow = memo(function TaskRow({
         dot: "bg-slate-500",
         text: "text-slate-400",
         bg: "bg-slate-500/[0.03]",
-        border: "border-l-slate-500/40",
+        border: "border-s-slate-500/40",
       }
     : statusColors[task.column];
   const gateLabel = isClosed
@@ -494,6 +504,7 @@ const TaskRow = memo(function TaskRow({
       : task.column === "gate-waiting" && task.gateType === "risk-gated"
         ? "Risk Gated"
         : statusLabel[task.column];
+  const showGateLabel = task.column !== "done" && !isBacklogIntakeTask;
   const openCloseIssueConfirm = useCallback(() => {
     setActionsMenuOpen(false);
     window.setTimeout(() => setConfirmCloseIssue(true), 0);
@@ -529,13 +540,16 @@ const TaskRow = memo(function TaskRow({
         }
       }}
       className={cn(
-        "group relative cursor-pointer transition-colors duration-100 border-l-2 border-l-transparent",
+        "group relative cursor-pointer transition-colors duration-100 border-s-2 border-s-transparent",
         // Hover: palette-tinted if provided, otherwise the default neutral hover
         accent?.rowHover ?? "hover:bg-white/[0.04]",
         // Status-driven bg wins when set; otherwise fall back to the
         // palette-tinted neutral row bg (so 'open' rows pick up the goal color)
         colors.bg || accent?.rowBg || "",
-        isSelected && cn("bg-white/[0.06] border-l-2", colors.border),
+        isBacklogIntakeTask &&
+          isAssignedBacklogTask &&
+          "bg-blue-500/[0.05] border-s-blue-400/70",
+        isSelected && cn("bg-white/[0.06] border-s-2", colors.border),
         isFocused && "ring-1 ring-blue-500/40 bg-blue-500/5",
         isHardStop && "ring-1 ring-red-500/30 ring-inset",
         draggable && "cursor-grab active:cursor-grabbing",
@@ -566,7 +580,7 @@ const TaskRow = memo(function TaskRow({
           {/* Title row */}
           <div className="flex items-center gap-2.5">
             <h3
-              {...autoDirProps}
+              {...taskTitleDirectionProps}
               className={cn(
                 "text-[15px] font-medium truncate flex-1 text-start",
                 isClosed ? "text-slate-300 line-through" : "text-zinc-100",
@@ -711,7 +725,7 @@ const TaskRow = memo(function TaskRow({
                     </SimpleTooltip>
                   )}
 
-                  {task.column !== "done" && (
+                  {showGateLabel && (
                     <SimpleTooltip
                       content={
                         <StatusTooltipContent
@@ -728,29 +742,6 @@ const TaskRow = memo(function TaskRow({
                         )}
                       >
                         {gateLabel}
-                      </span>
-                    </SimpleTooltip>
-                  )}
-
-                  {intakeMode && task.column === "open" && !isClosed && (
-                    <SimpleTooltip
-                      content={
-                        isAssignedBacklogTask
-                          ? "Assigned to Kody backlog"
-                          : "Not assigned to Kody backlog"
-                      }
-                      side="bottom"
-                    >
-                      <span
-                        className={cn(
-                          "inline-flex items-center gap-1 rounded border px-2 py-1 text-label font-bold cursor-default",
-                          isAssignedBacklogTask
-                            ? "border-blue-500/30 bg-blue-500/10 text-blue-300"
-                            : "border-zinc-600/40 bg-white/[0.03] text-zinc-400",
-                        )}
-                      >
-                        <Bot className="w-3 h-3" />
-                        {isAssignedBacklogTask ? "Assigned" : "Unassigned"}
                       </span>
                     </SimpleTooltip>
                   )}
@@ -923,26 +914,43 @@ const TaskRow = memo(function TaskRow({
               </SimpleTooltip>
             )}
 
-          {intakeMode &&
-            onAssignToKody &&
-            !isClosed &&
-            !isAssignedBacklogTask && (
-              <SimpleTooltip content="Assign to Kody backlog" side="bottom">
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    onAssignToKody(task);
-                  }}
-                  aria-label="Assign to Kody"
-                  className="h-9 gap-1.5 px-3 text-body-xs text-blue-300 hover:bg-blue-500/20"
-                >
-                  <Bot className="w-4 h-4" />
-                  Assign
-                </Button>
-              </SimpleTooltip>
-            )}
+          {canToggleKodyBacklog && (
+            <SimpleTooltip
+              content={
+                isAssignedBacklogTask
+                  ? "Unassign from Kody backlog"
+                  : "Assign to Kody backlog"
+              }
+              side="bottom"
+            >
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  if (isAssignedBacklogTask) {
+                    onUnassignFromKody?.(task);
+                  } else {
+                    onAssignToKody?.(task);
+                  }
+                }}
+                aria-label={
+                  isAssignedBacklogTask
+                    ? "Unassign from Kody backlog"
+                    : "Assign to Kody backlog"
+                }
+                aria-pressed={isAssignedBacklogTask}
+                className={cn(
+                  "h-9 w-9 p-0",
+                  isAssignedBacklogTask
+                    ? "bg-blue-500/10 text-blue-300 hover:bg-blue-500/20"
+                    : "text-zinc-400 hover:bg-blue-500/20 hover:text-blue-300",
+                )}
+              >
+                <Bot className="w-4 h-4" />
+              </Button>
+            </SimpleTooltip>
+          )}
 
           {(task.column === "building" &&
             task.workflowRun?.status === "in_progress" &&
@@ -1067,7 +1075,7 @@ const TaskRow = memo(function TaskRow({
                     onEditTask(task);
                   }}
                 >
-                  <Pencil className="w-4 h-4 mr-2" />
+                  <Pencil className="w-4 h-4 me-2" />
                   Edit task
                 </DropdownMenuItem>
               )}
@@ -1079,7 +1087,7 @@ const TaskRow = memo(function TaskRow({
                     onDuplicate(task);
                   }}
                 >
-                  <Copy className="w-4 h-4 mr-2" />
+                  <Copy className="w-4 h-4 me-2" />
                   Duplicate task
                 </DropdownMenuItem>
               )}
@@ -1092,7 +1100,7 @@ const TaskRow = memo(function TaskRow({
                         onShowTask(task);
                       }}
                     >
-                      <Eye className="w-4 h-4 mr-2" />
+                      <Eye className="w-4 h-4 me-2" />
                       Show in dashboard
                     </DropdownMenuItem>
                   )
@@ -1102,7 +1110,7 @@ const TaskRow = memo(function TaskRow({
                         onHideTask(task);
                       }}
                     >
-                      <EyeOff className="w-4 h-4 mr-2" />
+                      <EyeOff className="w-4 h-4 me-2" />
                       Hide from dashboard
                     </DropdownMenuItem>
                   )}
@@ -1132,9 +1140,9 @@ const TaskRow = memo(function TaskRow({
                     className="text-red-400 focus:bg-red-500/10 focus:text-red-300"
                   >
                     {isClosingIssue ? (
-                      <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                      <Loader2 className="w-4 h-4 me-2 animate-spin" />
                     ) : (
-                      <XCircle className="w-4 h-4 mr-2" />
+                      <XCircle className="w-4 h-4 me-2" />
                     )}
                     {isClosingIssue ? "Closing..." : "Close backlog item"}
                   </DropdownMenuItem>
@@ -1148,7 +1156,7 @@ const TaskRow = memo(function TaskRow({
                     onRerun(task);
                   }}
                 >
-                  <RotateCcw className="w-4 h-4 mr-2" />
+                  <RotateCcw className="w-4 h-4 me-2" />
                   Rerun
                 </DropdownMenuItem>
               )}
@@ -1159,14 +1167,14 @@ const TaskRow = memo(function TaskRow({
 
       {/* Animated status bar — shows pipeline progress with smooth animations */}
       {isActive && (
-        <div className="pb-3 px-4 pl-[52px] sm:block hidden">
+        <div className="pb-3 px-4 ps-[52px] sm:block hidden">
           <AnimatedStatusBar task={task} />
         </div>
       )}
 
       {/* Non-active states: show compact animated bar for visual status at a glance */}
       {!isActive && task.column !== "open" && (
-        <div className="pb-2 px-4 pl-[52px]">
+        <div className="pb-2 px-4 ps-[52px]">
           <AnimatedStatusBar task={task} />
         </div>
       )}

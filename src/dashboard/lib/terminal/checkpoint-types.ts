@@ -11,8 +11,7 @@ export const TERMINAL_CHECKPOINT_OUTPUT_LIMIT = 16_000;
 export const TERMINAL_CHECKPOINT_LIMIT = 40;
 
 export type TerminalCheckpointTransport =
-  | { type: "local"; sandboxId?: string; label?: string }
-  | { type: "github-actions"; sandboxId: string; label?: string }
+  | { type: "local"; label?: string }
   | {
       type: "fly";
       app: string;
@@ -91,10 +90,7 @@ export function terminalCheckpointKey({
     if (transport.feature === "brain") return "brain:user";
     return `fly:${transport.app}:${transport.machineId}`;
   }
-  if (transport.type === "github-actions") {
-    return `github-actions:${transport.sandboxId}`;
-  }
-  return `local:${transport.sandboxId ?? chatSessionId}`;
+  return `local:${chatSessionId}`;
 }
 
 export function terminalCheckpointId(key: string): string {
@@ -107,9 +103,6 @@ export function terminalCheckpointLabel(
   if (transport.type === "fly") {
     if (transport.feature === "brain") return "Brain terminal";
     return transport.label ?? `${transport.app} ${transport.machineId}`;
-  }
-  if (transport.type === "github-actions") {
-    return transport.label ?? "GitHub Actions terminal";
   }
   return transport.label ?? "Local terminal";
 }

@@ -315,8 +315,12 @@ export async function streamBrainChat(
               ...(attachments.length > 0 ? { attachments } : {}),
               ...(input.repo ? { repo: input.repo } : {}),
               ...(input.repoToken ? { repoToken: input.repoToken } : {}),
-              ...(input.dashboardUrl ? { dashboardUrl: input.dashboardUrl } : {}),
-              ...(input.storeRepoUrl ? { storeRepoUrl: input.storeRepoUrl } : {}),
+              ...(input.dashboardUrl
+                ? { dashboardUrl: input.dashboardUrl }
+                : {}),
+              ...(input.storeRepoUrl
+                ? { storeRepoUrl: input.storeRepoUrl }
+                : {}),
               ...(input.storeRef ? { storeRef: input.storeRef } : {}),
               ...(input.voiceMode === true ? { voiceMode: true } : {}),
               ...(input.reasoningEffort

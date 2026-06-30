@@ -116,10 +116,9 @@ describe("GET /api/kody/capabilities", () => {
     const json = await res.json();
 
     expect(res.status).toBe(200);
-    expect(json.capabilities.map((entry: { slug: string }) => entry.slug)).toEqual([
-      "local-one",
-      "store-on",
-    ]);
+    expect(
+      json.capabilities.map((entry: { slug: string }) => entry.slug),
+    ).toEqual(["local-one", "store-on"]);
     expect(json.executables).toBeUndefined();
     expect(h.listCapabilityFiles).toHaveBeenCalledTimes(1);
   });

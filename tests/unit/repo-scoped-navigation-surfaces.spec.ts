@@ -38,13 +38,9 @@ describe("repo-scoped navigation surfaces", () => {
     expect(chatRailShell).toContain(
       'const isChatRoute = currentRepoPath === "/chat"',
     );
-    expect(chatRailShell).toContain(
-      'routeOwnsAppHeader(currentRepoPath)',
-    );
+    expect(chatRailShell).toContain("routeOwnsAppHeader(currentRepoPath)");
     expect(chatRailShell).not.toContain('pathname === "/chat"');
-    expect(chatRailShell).not.toContain(
-      'routeOwnsAppHeader(pathname)',
-    );
+    expect(chatRailShell).not.toContain("routeOwnsAppHeader(pathname)");
     expect(chatRailShell).toContain('router.push(scopedHref("/chat"))');
     expect(chatRailShell).toContain('scopedHref("/tasks")');
   });

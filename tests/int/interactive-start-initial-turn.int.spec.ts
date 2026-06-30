@@ -34,6 +34,7 @@ import {
 import nock from "nock";
 import { NextRequest } from "next/server";
 import { POST as startPOST } from "../../app/api/kody/chat/interactive/start/route";
+import { STATE_BRANCH } from "@dashboard/lib/state-branch";
 
 const GITHUB_API = "https://api.github.com";
 const REAL_FETCH = globalThis.fetch;
@@ -50,7 +51,7 @@ function sessionPath(sessionId: string): string {
 
 function mockStateBranch(): void {
   nock(GITHUB_API)
-    .get("/repos/acme/kody-state/git/ref/heads%2Fkody-state")
+    .get(`/repos/acme/kody-state/git/ref/heads%2F${STATE_BRANCH}`)
     .reply(200, { object: { sha: "state-sha" } });
 }
 
@@ -72,7 +73,7 @@ function captureSessionWrite(sessionId: string): Promise<string> {
   return new Promise((resolve) => {
     nock(GITHUB_API)
       .get(sessionPath(sessionId))
-      .query({ ref: "kody-state" })
+      .query({ ref: STATE_BRANCH })
       .reply(404);
     mockStateBranch();
     nock(GITHUB_API)

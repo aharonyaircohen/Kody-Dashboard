@@ -126,7 +126,10 @@ function isCompanyIntentRecord(
 
 function mapGithubError(error: any, fallback: string, status = 500) {
   if (error?.status === 401) {
-    return NextResponse.json({ error: "github_token_expired" }, { status: 401 });
+    return NextResponse.json(
+      { error: "github_token_expired" },
+      { status: 401 },
+    );
   }
   if (error?.status === 403 || error?.message?.includes("rate limit")) {
     return NextResponse.json(
@@ -171,7 +174,9 @@ async function managerHealth(
 ): Promise<CompanyIntentManagerHealth | undefined> {
   if (!octokit) return undefined;
   const [loop, capability] = await Promise.all([
-    readManagedGoalFile(intent.manager.loop, octokit, owner, repo).catch(() => null),
+    readManagedGoalFile(intent.manager.loop, octokit, owner, repo).catch(
+      () => null,
+    ),
     readResolvedCapabilityFile(intent.manager.capability, octokit).catch(
       () => null,
     ),
@@ -187,7 +192,9 @@ async function managerHealth(
       exists: Boolean(loop || storeLoop),
       state: loop?.state.state ?? storeLoop?.state.state,
       updatedAt:
-        typeof loop?.state.updatedAt === "string" ? loop.state.updatedAt : undefined,
+        typeof loop?.state.updatedAt === "string"
+          ? loop.state.updatedAt
+          : undefined,
     },
     capability: {
       id: intent.manager.capability,
@@ -207,7 +214,12 @@ async function readIntentRecord({
   repo: string;
   id: string;
 }): Promise<CompanyIntentRecord | null> {
-  const intentFile = await readStateText(octokit, owner, repo, companyIntentPath(id));
+  const intentFile = await readStateText(
+    octokit,
+    owner,
+    repo,
+    companyIntentPath(id),
+  );
   if (!intentFile) return null;
 
   const decisionsFile = await readStateText(
@@ -282,7 +294,11 @@ export async function GET(req: NextRequest) {
     );
 
     return NextResponse.json(
-      { intents: sortCompanyIntentRecords(records.filter(isCompanyIntentRecord)) },
+      {
+        intents: sortCompanyIntentRecords(
+          records.filter(isCompanyIntentRecord),
+        ),
+      },
       { headers: { "Cache-Control": "no-store" } },
     );
   } catch (err) {
@@ -330,7 +346,10 @@ export async function POST(req: NextRequest) {
     );
     if (existing) {
       return NextResponse.json(
-        { error: "intent_exists", message: `Intent "${intent.id}" already exists.` },
+        {
+          error: "intent_exists",
+          message: `Intent "${intent.id}" already exists.`,
+        },
         { status: 409 },
       );
     }

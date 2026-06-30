@@ -30,7 +30,8 @@ describe("terminal checkpoint UI", () => {
     expect(CHAT_SOURCE).not.toContain("handleDeleteTerminalSnapshot");
     expect(CHAT_SOURCE).not.toContain("/api/kody/chat/terminal/saved");
     expect(CHAT_SOURCE).toContain("/api/kody/chat/terminal/checkpoint");
-    expect(CHAT_SOURCE).toContain("handleResetTerminalCheckpoint");
+    expect(CHAT_SOURCE).not.toContain("handleResetTerminalCheckpoint");
+    expect(CHAT_SOURCE).not.toContain("Reset terminal checkpoint");
   });
 
   it("can capture and replay a terminal checkpoint from the terminal surface", () => {
@@ -77,24 +78,21 @@ describe("terminal checkpoint UI", () => {
     expect(CHAT_SOURCE).toContain("text-[#f4f4f5]");
   });
 
-  it("restores Fly checkpoints without reconnecting automatically", () => {
-    expect(CHAT_SOURCE).toContain("restoredSnapshotOnlyTerminalIds");
-    expect(CHAT_SOURCE).toContain("readRestoredSnapshotOnlyTerminalIds");
-    expect(CHAT_SOURCE).toContain("writeRestoredSnapshotOnlyTerminalIds");
-    expect(CHAT_SOURCE).toContain("RESTORED_SNAPSHOT_ONLY_TERMINAL_IDS_KEY");
-    expect(CHAT_SOURCE).toContain("suppressFlyAutoConnect");
-    expect(SURFACE_SOURCE).toContain("suppressFlyAutoConnect");
-    expect(SURFACE_SOURCE).toContain('updateFlyConnectionState("closed")');
+  it("lets Fly target selection own terminal connection", () => {
+    expect(CHAT_SOURCE).not.toContain("Connect Fly terminal");
+    expect(CHAT_SOURCE).not.toContain("Disconnect Fly terminal");
+    expect(CHAT_SOURCE).not.toContain("handleTerminalFlyConnectToggle");
+    expect(CHAT_SOURCE).not.toContain("restoredSnapshotOnlyTerminalIds");
+    expect(CHAT_SOURCE).not.toContain("RESTORED_SNAPSHOT_ONLY_TERMINAL_IDS_KEY");
+    expect(CHAT_SOURCE).not.toContain("suppressFlyAutoConnect");
+    expect(SURFACE_SOURCE).not.toContain("suppressFlyAutoConnect");
+    expect(SURFACE_SOURCE).toContain("void connectFly();");
   });
 
   it("does not loop forever when a Fly terminal connect fails", () => {
     expect(SURFACE_SOURCE).toContain("flyConnectFailureKeyRef");
-    expect(SURFACE_SOURCE).toContain("handledFlyConnectNonceKeyRef");
     expect(SURFACE_SOURCE).toContain(
       "flyConnectFailureKeyRef.current === attemptKey",
-    );
-    expect(SURFACE_SOURCE).toContain(
-      "handledFlyConnectNonceKeyRef.current === nonceKey",
     );
   });
 

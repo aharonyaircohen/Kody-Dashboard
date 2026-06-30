@@ -18,9 +18,7 @@ describe("todo item cards", () => {
     expect(TODO_CONTROL_SOURCE).toContain(
       "isTodoItemCardClickIgnored(event.target, event.currentTarget)",
     );
-    expect(TODO_CONTROL_SOURCE).toContain(
-      "function stopTodoItemActionClick(",
-    );
+    expect(TODO_CONTROL_SOURCE).toContain("function stopTodoItemActionClick(");
     expect(TODO_CONTROL_SOURCE).toContain("event.stopPropagation();");
     expect(TODO_CONTROL_SOURCE).toContain("data-todo-item-control");
     expect(TODO_CONTROL_SOURCE).toContain("onSelect();");

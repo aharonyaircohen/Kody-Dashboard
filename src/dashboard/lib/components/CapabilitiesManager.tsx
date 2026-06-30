@@ -236,9 +236,7 @@ async function saveApi(
 ): Promise<void> {
   const { slug, isUpdate, prompt, ...rest } = payload;
   const body = { ...rest, instructions: prompt, actorLogin };
-  const url = isUpdate
-    ? `${apiBase}/${encodeURIComponent(slug)}`
-    : apiBase;
+  const url = isUpdate ? `${apiBase}/${encodeURIComponent(slug)}` : apiBase;
   const res = await fetch(url, {
     method: isUpdate ? "PATCH" : "POST",
     headers,

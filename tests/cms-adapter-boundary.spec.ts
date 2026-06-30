@@ -1,4 +1,10 @@
-import { existsSync, mkdirSync, readdirSync, readFileSync, writeFileSync } from "node:fs";
+import {
+  existsSync,
+  mkdirSync,
+  readdirSync,
+  readFileSync,
+  writeFileSync,
+} from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
 
@@ -262,7 +268,8 @@ function testContext(
     collection: config.collections.lessons,
     settings: config.adapters[adapterName],
     store: options.store,
-    getSecret: async (name) => (name === "EXAMPLE_SECRET" ? "secret-value" : null),
+    getSecret: async (name) =>
+      name === "EXAMPLE_SECRET" ? "secret-value" : null,
     getStateRepository: async () => ({
       octokit: {} as never,
       owner: "A-Guy-educ",
@@ -296,7 +303,8 @@ class FakeStoreOctokit {
       const key = `${owner}/${repo}/${ref}/${path}`;
       this.reads.push(key);
       const content = this.files.get(path);
-      if (!content) throw Object.assign(new Error("not found"), { status: 404 });
+      if (!content)
+        throw Object.assign(new Error("not found"), { status: 404 });
       return {
         data: {
           type: "file",

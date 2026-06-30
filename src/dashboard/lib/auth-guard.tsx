@@ -16,7 +16,7 @@ import { RepoManager } from "@dashboard/lib/components/RepoManager";
 import { Loader2 } from "lucide-react";
 
 export function AuthGuard({ children }: { children: React.ReactNode }) {
- const { auth, loading } = useAuth();
+  const { auth, loading } = useAuth();
 
   if (loading) {
     return (
@@ -26,7 +26,7 @@ export function AuthGuard({ children }: { children: React.ReactNode }) {
     );
   }
 
- if (!auth) return <RepoManager />;
+  if (!auth) return <RepoManager />;
 
- return <>{children}</>;
+  return <>{children}</>;
 }

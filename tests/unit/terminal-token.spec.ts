@@ -62,6 +62,32 @@ describe("terminal bridge token", () => {
     expect(claims.activityLimitMs).toBeNull();
   });
 
+  it("round-trips local exec GHCR claims without a machine target", () => {
+    const token = mintTerminalBridgeToken({
+      owner: "acme",
+      repo: "widgets",
+      app: "kody-brain-alice",
+      localExec: true,
+      flyToken: "FlyV1 secret-token",
+      ghcrToken: "ghcr-secret-token",
+      now: 100,
+      secret: SECRET,
+    });
+
+    expect(token).not.toContain("ghcr-secret-token");
+    const claims = verifyTerminalBridgeToken(token, {
+      now: 110,
+      secret: SECRET,
+    });
+    expect(claims).toMatchObject({
+      app: "kody-brain-alice",
+      localExec: true,
+      flyToken: "FlyV1 secret-token",
+      ghcrToken: "ghcr-secret-token",
+    });
+    expect(claims.machineId).toBeUndefined();
+  });
+
   it("rejects tampered tokens", () => {
     const token = mintTerminalBridgeToken({
       owner: "acme",

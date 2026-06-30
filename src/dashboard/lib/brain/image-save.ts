@@ -3,13 +3,23 @@
  * @domain brain
  * @pattern brain-image-save
  *
- * Small helpers shared by the Brain image save API route and tests.
+ * Helpers for saving a Brain machine as a durable container image.
  */
-
-export const BRAIN_STATE_LAYER_MAX_BYTES = 64 * 1024 * 1024;
 
 function shellQuote(value: string): string {
   return `'${value.replaceAll("'", "'\\''")}'`;
+}
+
+function dockerNamePart(value: string, field: string): string {
+  const normalized = value
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9._-]+/g, "-")
+    .replace(/^[._-]+|[._-]+$/g, "");
+  if (!/^[a-z0-9][a-z0-9._-]{0,127}$/.test(normalized)) {
+    throw new Error(`Invalid Brain image ${field}`);
+  }
+  return normalized;
 }
 
 export function brainImageTag(now = new Date()): string {
@@ -21,120 +31,126 @@ export function brainImageTag(now = new Date()): string {
     .toLowerCase();
 }
 
-export function brainFlyImageRef(app: string, tag: string): string {
-  if (!/^[a-z0-9][a-z0-9-]{0,62}$/.test(app)) {
-    throw new Error("Invalid Brain app name");
-  }
-  if (!/^[A-Za-z0-9_][A-Za-z0-9_.-]{0,127}$/.test(tag)) {
+export function brainGhcrImageRef(input: {
+  owner: string;
+  account: string;
+  tag: string;
+}): string {
+  const owner = dockerNamePart(input.owner, "owner");
+  const account = dockerNamePart(input.account, "account");
+  if (!/^[A-Za-z0-9_][A-Za-z0-9_.-]{0,127}$/.test(input.tag)) {
     throw new Error("Invalid Brain image tag");
   }
-  return `registry.fly.io/${app}:${tag}`;
-}
-
-export function brainStateExportCommand(): string {
-  return String.raw`/bin/bash -lc '
-set -u
-tmpdir="$(mktemp -d)"
-archive="$tmpdir/root-state.tar"
-err="$tmpdir/tar.err"
-status=0
-tar -C / \
-  --exclude=root/.cache \
-  --exclude=root/.npm \
-  --exclude=root/.pnpm-store \
-  --exclude=root/.local/share/pnpm \
-  --exclude=root/.local/share/Trash \
-  --exclude=root/.local/share/containers \
-  --exclude=root/.cargo/registry \
-  --exclude=root/.cargo/git \
-  --exclude=root/.rustup \
-  --exclude=root/go \
-  --exclude=root/.local/share/uv \
-  --exclude="root/**/node_modules" \
-  --exclude="root/**/.git" \
-  --ignore-failed-read \
-  --warning=no-file-changed \
-  -cf "$archive" root 2>"$err" || status=$?
-if [ "$status" -gt 1 ]; then
-  cat "$err" >&2
-  rm -rf "$tmpdir"
-  exit "$status"
-fi
-gzip -n -c "$archive" | {
-  if base64 --help 2>&1 | grep -q -- "-w"; then
-    base64 -w 0
-  else
-    base64 | tr -d "\n"
-  fi
-}
-rm -rf "$tmpdir"
-'`;
-}
-
-export function decodeBrainStateLayer(value: string): Buffer {
-  const compact = value.replace(/\s+/g, "");
-  if (!compact) throw new Error("Brain state export was empty");
-  const buffer = Buffer.from(compact, "base64");
-  if (buffer.length === 0) throw new Error("Brain state export was empty");
-  if (buffer.length > BRAIN_STATE_LAYER_MAX_BYTES) {
-    throw new Error(
-      `Brain state export is too large (${Math.round(
-        buffer.length / 1024 / 1024,
-      )}MB compressed; limit is ${Math.round(
-        BRAIN_STATE_LAYER_MAX_BYTES / 1024 / 1024,
-      )}MB)`,
-    );
-  }
-  return buffer;
+  return `ghcr.io/${owner}/kody-brain-${account}:${input.tag}`;
 }
 
 export function brainImageBuildCommand(input: {
   app: string;
   machineId: string;
+  orgSlug: string;
   tag: string;
   baseImageRef: string;
+  imageRef: string;
+  ghcrUser: string;
 }): string {
-  const imageRef = brainFlyImageRef(input.app, input.tag);
-  const exportCommand = brainStateExportCommand();
+  if (!/^[A-Za-z0-9_][A-Za-z0-9_.-]{0,127}$/.test(input.tag)) {
+    throw new Error("Invalid Brain image tag");
+  }
+  if (
+    !/^ghcr\.io\/[a-z0-9][a-z0-9._-]*(?:\/[a-z0-9][a-z0-9._-]*)+:[A-Za-z0-9_][A-Za-z0-9_.-]{0,127}(?:@sha256:[a-f0-9]{64})?$/.test(
+      input.imageRef,
+    )
+  ) {
+    throw new Error("Invalid Brain GHCR image ref");
+  }
+  const ghcrUser = dockerNamePart(input.ghcrUser, "GHCR user");
   return String.raw`/bin/bash -lc ${shellQuote(`
 set -euo pipefail
 app=${shellQuote(input.app)}
 machine=${shellQuote(input.machineId)}
+org=${shellQuote(input.orgSlug)}
 tag=${shellQuote(input.tag)}
 base=${shellQuote(input.baseImageRef)}
-image=${shellQuote(imageRef)}
+image=${shellQuote(input.imageRef)}
+ghcr_user=${shellQuote(ghcrUser)}
 tmpdir="$(mktemp -d)"
-trap 'rm -rf "$tmpdir"' EXIT
+remote_archive="/tmp/kody-brain-rootfs-$tag.tgz"
+remote_script="/tmp/kody-brain-export-$tag.sh"
+trap 'flyctl ssh console --app "$app" --org "$org" --machine "$machine" --command "rm -f $remote_archive $remote_script" >/dev/null 2>&1 || true; rm -rf "$tmpdir"' EXIT
 
-if ! flyctl ssh console --app "$app" --machine "$machine" --command ${shellQuote(
-    exportCommand,
-  )} > "$tmpdir/root-state.tgz.b64" 2>"$tmpdir/export.log"; then
+if ! command -v curl >/dev/null 2>&1 || ! command -v tar >/dev/null 2>&1; then
+  apt-get update >/dev/null
+  apt-get install -y --no-install-recommends ca-certificates curl tar gzip >/dev/null
+  rm -rf /var/lib/apt/lists/*
+fi
+
+if [ -z "\${GHCR_TOKEN:-}" ]; then
+  echo "GHCR_TOKEN missing; GitHub token needs write:packages permission" >&2
+  exit 1
+fi
+
+install_crane() {
+  if command -v crane >/dev/null 2>&1; then return; fi
+  arch="$(uname -m)"
+  case "$arch" in
+    x86_64|amd64) crane_arch="x86_64" ;;
+    aarch64|arm64) crane_arch="arm64" ;;
+    *) echo "unsupported crane architecture: $arch" >&2; exit 1 ;;
+  esac
+  crane_url="https://github.com/google/go-containerregistry/releases/download/v0.20.7/go-containerregistry_Linux_$crane_arch.tar.gz"
+  curl -fsSL "$crane_url" -o "$tmpdir/crane.tgz"
+  tar -xzf "$tmpdir/crane.tgz" -C "$tmpdir" crane
+  install -m 0755 "$tmpdir/crane" /usr/local/bin/crane
+}
+
+cat > "$tmpdir/export-rootfs.sh" <<'EXPORT_SCRIPT'
+#!/bin/bash
+set -euo pipefail
+
+archive="\${1:?archive}"
+tmp="$archive.tmp"
+rm -f "$tmp" "$archive"
+status=0
+tar -C / \\
+  --one-file-system \\
+  --numeric-owner \\
+  --ignore-failed-read \\
+  --warning=no-file-changed \\
+  --exclude=proc \\
+  --exclude=sys \\
+  --exclude=dev \\
+  --exclude=run \\
+  --exclude=tmp \\
+  --exclude=mnt \\
+  --exclude=media \\
+  --exclude=lost+found \\
+  --exclude=var/tmp \\
+  -czf "$tmp" . || status=$?
+if [ "$status" -gt 1 ]; then exit "$status"; fi
+mv "$tmp" "$archive"
+ls -lh "$archive"
+EXPORT_SCRIPT
+
+if ! flyctl ssh sftp put "$tmpdir/export-rootfs.sh" "$remote_script" --mode 0755 --app "$app" --org "$org" --machine "$machine" --quiet > "$tmpdir/upload.log" 2>&1; then
+  tail -n 200 "$tmpdir/upload.log" >&2
+  exit 1
+fi
+
+if ! flyctl ssh console --app "$app" --org "$org" --machine "$machine" --command "/bin/bash $remote_script $remote_archive" > "$tmpdir/export.log" 2>&1; then
   tail -n 200 "$tmpdir/export.log" >&2
   exit 1
 fi
-base64 -d "$tmpdir/root-state.tgz.b64" > "$tmpdir/root-state.tgz"
 
-cat > "$tmpdir/Dockerfile" <<EOF
-FROM $base
-COPY root-state.tgz /tmp/kody-root-state.tgz
-RUN tar -xzf /tmp/kody-root-state.tgz -C / && rm /tmp/kody-root-state.tgz
-EOF
+if ! flyctl sftp get "$remote_archive" "$tmpdir/rootfs.tgz" --app "$app" --org "$org" --machine "$machine" --quiet > "$tmpdir/sftp.log" 2>&1; then
+  tail -n 200 "$tmpdir/sftp.log" >&2
+  exit 1
+fi
 
-cat > "$tmpdir/fly.toml" <<EOF
-app = "$app"
+install_crane
+printf '%s' "$GHCR_TOKEN" | crane auth login ghcr.io --username "$ghcr_user" --password-stdin >/dev/null
 
-[build]
-  dockerfile = "Dockerfile"
-EOF
-
-if ! NO_COLOR=1 flyctl deploy "$tmpdir" \
-  --app "$app" \
-  --config "$tmpdir/fly.toml" \
-  --build-only \
-  --push \
-  --depot=false \
-  --image-label "$tag" > "$tmpdir/build.log" 2>&1; then
-  tail -n 200 "$tmpdir/build.log" >&2
+if ! crane append --base "$base" --new_layer "$tmpdir/rootfs.tgz" --new_tag "$image" > "$tmpdir/push.log" 2>&1; then
+  tail -n 200 "$tmpdir/push.log" >&2
   exit 1
 fi
 

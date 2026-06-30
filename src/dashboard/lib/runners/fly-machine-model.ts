@@ -53,8 +53,20 @@ export function flyFeatureLabel(feature: FlyFeature): string {
   return FLY_FEATURE_TITLE[feature];
 }
 
+export function flyTerminalTargetLabel(target: {
+  feature?: FlyFeature;
+  app: string;
+  label?: string;
+}): string {
+  if (target.feature === "brain") return flyFeatureLabel("brain");
+  const label = target.label?.trim() || target.app;
+  return target.feature
+    ? `${flyFeatureLabel(target.feature)}: ${label}`
+    : label;
+}
+
 export function flyMachineTerminalLabel(machine: FlyMachineRow): string {
-  return `${flyFeatureLabel(machine.feature)}: ${machine.label}`;
+  return flyTerminalTargetLabel(machine);
 }
 
 export function isFlyMachineRunning(state: string): boolean {

@@ -291,7 +291,12 @@ export function createGoalTools(ctx: Ctx) {
           if (!goalId) return { error: "Could not derive a valid goal id." };
 
           const path = managedGoalPath(goalId);
-          const existing = await readManagedGoalFile(goalId, octokit, owner, repo);
+          const existing = await readManagedGoalFile(
+            goalId,
+            octokit,
+            owner,
+            repo,
+          );
           if (existing) {
             return { error: `Managed goal "${goalId}" already exists.` };
           }
@@ -358,7 +363,7 @@ export function createGoalTools(ctx: Ctx) {
           const goal = resolveGoal(manifest.goals, goalNumber, goalId);
           if (!goal) {
             return {
-            error: "Mission not found. Call list_goals to see missions.",
+              error: "Mission not found. Call list_goals to see missions.",
             };
           }
           const label = `${GOAL_LABEL_PREFIX}${goal.id}`;
@@ -371,7 +376,7 @@ export function createGoalTools(ctx: Ctx) {
           invalidateIssueCache(taskNumber);
           return {
             ok: true,
-          message: `Attached #${taskNumber} to mission "${goal.name}".`,
+            message: `Attached #${taskNumber} to mission "${goal.name}".`,
             taskLabel: label,
           };
         } catch (err) {
@@ -413,7 +418,7 @@ export function createGoalTools(ctx: Ctx) {
           const goal = resolveGoal(manifest.goals, goalNumber, goalId);
           if (!goal) {
             return {
-            error: "Mission not found. Call list_goals to see missions.",
+              error: "Mission not found. Call list_goals to see missions.",
             };
           }
           const label = `${GOAL_LABEL_PREFIX}${goal.id}`;
@@ -432,7 +437,7 @@ export function createGoalTools(ctx: Ctx) {
           invalidateIssueCache(taskNumber);
           return {
             ok: true,
-          message: `Detached #${taskNumber} from mission "${goal.name}".`,
+            message: `Detached #${taskNumber} from mission "${goal.name}".`,
           };
         } catch (err) {
           logger.warn(

@@ -71,7 +71,8 @@ function isPending(
 ): boolean {
   const key = ctoFeedKey(entry);
   if (!key) return false;
-  const v = decided[trustDecisionKey(key.capability, key.taskNumber, key.action)];
+  const v =
+    decided[trustDecisionKey(key.capability, key.taskNumber, key.action)];
   if (!v) return true;
   const sent = Date.parse(entry.sentAt);
   const at = Date.parse(v.at);

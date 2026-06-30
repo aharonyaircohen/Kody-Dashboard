@@ -13,11 +13,11 @@ import type { FlyPreviewConfig } from "@dashboard/lib/previews/fly-previews";
 import { allocateIpsIfMissing } from "@dashboard/lib/runners/brain-fly";
 
 const FLY_API_BASE = "https://api.machines.dev/v1";
-const REQUEST_TIMEOUT_MS = 30_000;
+const REQUEST_TIMEOUT_MS = 90_000;
 const BRIDGE_HEALTH_TIMEOUT_MS = 90_000;
 const BRIDGE_HEALTH_INTERVAL_MS = 2_000;
 
-export const TERMINAL_BRIDGE_VERSION = "2026-06-29.1";
+export const TERMINAL_BRIDGE_VERSION = "2026-06-30.2";
 export const TERMINAL_BRIDGE_BASE_IMAGE =
   process.env.KODY_TERMINAL_BRIDGE_BASE_IMAGE ?? "node:22-bookworm";
 
@@ -148,9 +148,12 @@ const READY_TIMEOUT_MS = 20000;
 const PERSISTENT_SESSION_IDLE_MS = 30 * 60 * 1000;
 const MAX_REPLAY_CHARS = 120000;
 const MAX_EXEC_OUTPUT_BYTES = 96 * 1024 * 1024;
-const MAX_EXEC_TIMEOUT_MS = 5 * 60 * 1000;
+const MAX_EXEC_TIMEOUT_MS = 15 * 60 * 1000;
+const EXEC_KEEPALIVE_INTERVAL_MS = 15000;
+const EXEC_JOB_TTL_MS = 24 * 60 * 60 * 1000;
 const secret = process.env.BRIDGE_AUTH_SECRET || "";
 const persistentSessions = new Map();
+const execJobs = new Map();
 if (!secret) {
   console.error("BRIDGE_AUTH_SECRET missing");
   process.exit(1);
@@ -217,8 +220,14 @@ function verifyTerminalToken(token) {
   if (!/^[a-z0-9][a-z0-9-]{0,62}$/.test(claims.app)) {
     throw new Error("terminal token app invalid");
   }
-  if (!/^[A-Za-z0-9_-]{1,120}$/.test(claims.machineId)) {
+  if (
+    claims.machineId !== undefined &&
+    !/^[A-Za-z0-9_-]{1,120}$/.test(claims.machineId)
+  ) {
     throw new Error("terminal token machine invalid");
+  }
+  if (claims.localExec !== true && !claims.machineId) {
+    throw new Error("terminal token machine required");
   }
   if (
     claims.chatSessionId !== undefined &&
@@ -335,6 +344,95 @@ function jsonResponse(res, status, body) {
   res.end(JSON.stringify(body));
 }
 
+function execJsonResponse(res, runnerPromise) {
+  res.writeHead(200, { "content-type": "application/json" });
+  const keepalive = setInterval(() => {
+    res.write(" ");
+  }, EXEC_KEEPALIVE_INTERVAL_MS);
+  runnerPromise
+    .then((result) => {
+      clearInterval(keepalive);
+      res.end(JSON.stringify({ ok: true, ...result }));
+    })
+    .catch((err) => {
+      clearInterval(keepalive);
+      res.end(
+        JSON.stringify({
+          ok: false,
+          error: err instanceof Error ? err.message : String(err),
+        }),
+      );
+    });
+}
+
+function execJobScope(claims, local) {
+  return {
+    owner: claims.owner,
+    repo: claims.repo,
+    app: claims.app,
+    machineId: local ? null : claims.machineId,
+    local,
+  };
+}
+
+function canReadExecJob(claims, job) {
+  if (!job) return false;
+  if (job.scope.owner !== claims.owner) return false;
+  if (job.scope.repo !== claims.repo) return false;
+  if (job.scope.app !== claims.app) return false;
+  if (job.scope.local) return claims.localExec === true;
+  return job.scope.machineId === claims.machineId;
+}
+
+function publicExecJob(job) {
+  return {
+    id: job.id,
+    status: job.status,
+    startedAt: job.startedAt,
+    finishedAt: job.finishedAt,
+    code: job.code,
+    stdout: job.stdout,
+    stderr: job.stderr,
+    error: job.error,
+  };
+}
+
+function startExecJob(claims, runner, local, command, timeoutMs, maxOutputBytes) {
+  const id = crypto.randomBytes(16).toString("hex");
+  const job = {
+    id,
+    status: "running",
+    scope: execJobScope(claims, local),
+    startedAt: new Date().toISOString(),
+    finishedAt: null,
+    code: null,
+    stdout: "",
+    stderr: "",
+    error: null,
+  };
+  execJobs.set(id, job);
+  runner(claims, command, timeoutMs, maxOutputBytes)
+    .then((result) => {
+      job.code = result.code ?? 0;
+      job.stdout = result.stdout ?? "";
+      job.stderr = result.stderr ?? "";
+      job.status = job.code === 0 ? "completed" : "failed";
+      job.error =
+        job.code === 0
+          ? null
+          : job.stderr.trim().slice(0, 1000) ||
+            "Command failed with exit " + job.code;
+    })
+    .catch((err) => {
+      job.status = "failed";
+      job.error = err instanceof Error ? err.message : String(err);
+    })
+    .finally(() => {
+      job.finishedAt = new Date().toISOString();
+    });
+  return job;
+}
+
 function readRequestJson(req, maxBytes = 65536) {
   return new Promise((resolve, reject) => {
     const chunks = [];
@@ -443,6 +541,7 @@ function runOneShotLocalCommand(claims, command, timeoutMs, maxOutputBytes) {
       ...process.env,
       FLY_API_TOKEN: claims.flyToken,
       FLY_ACCESS_TOKEN: claims.flyToken,
+      GHCR_TOKEN: claims.ghcrToken || "",
       NO_COLOR: "1",
       TERM: "dumb",
     };
@@ -555,6 +654,12 @@ setInterval(() => {
       now - session.lastTouched > session.activityLimitMs
     ) {
       disposePersistentSession(key, session);
+    }
+  }
+  for (const [key, job] of execJobs) {
+    const finished = job.finishedAt ? Date.parse(job.finishedAt) : NaN;
+    if (Number.isFinite(finished) && now - finished > EXEC_JOB_TTL_MS) {
+      execJobs.delete(key);
     }
   }
 }, 60000).unref?.();
@@ -832,12 +937,11 @@ const server = http.createServer((req, res) => {
             body.local === true
               ? runOneShotLocalCommand
               : runOneShotFlyCommand;
-          return runner(
-            claims,
-            command,
-            timeoutMs,
-            maxOutputBytes,
-          ).then((result) => jsonResponse(res, 200, { ok: true, ...result }));
+          execJsonResponse(
+            res,
+            runner(claims, command, timeoutMs, maxOutputBytes),
+          );
+          return;
         })
         .catch((err) => {
           jsonResponse(res, 500, {
@@ -845,6 +949,80 @@ const server = http.createServer((req, res) => {
             error: err instanceof Error ? err.message : String(err),
           });
         });
+      return;
+    }
+    if (url.pathname === "/jobs" && req.method === "POST") {
+      const auth = req.headers.authorization || "";
+      const bearer = auth.toLowerCase().startsWith("bearer ")
+        ? auth.slice("bearer ".length)
+        : "";
+      const claims = verifyTerminalToken(
+        bearer || url.searchParams.get("token"),
+      );
+      readRequestJson(req)
+        .then((body) => {
+          const command = typeof body.command === "string" ? body.command : "";
+          if (!command.trim()) {
+            jsonResponse(res, 400, { ok: false, error: "command required" });
+            return;
+          }
+          if (command.length > 20000) {
+            jsonResponse(res, 400, { ok: false, error: "command too long" });
+            return;
+          }
+          const timeoutMs = Math.min(
+            Math.max(Number(body.timeoutMs) || 60000, 1000),
+            MAX_EXEC_TIMEOUT_MS,
+          );
+          const maxOutputBytes = Math.min(
+            Math.max(
+              Number(body.maxOutputBytes) || MAX_EXEC_OUTPUT_BYTES,
+              1024,
+            ),
+            MAX_EXEC_OUTPUT_BYTES,
+          );
+          const local = body.local === true;
+          if (local && claims.localExec !== true) {
+            jsonResponse(res, 403, {
+              ok: false,
+              error: "local exec not allowed",
+            });
+            return;
+          }
+          const runner = local ? runOneShotLocalCommand : runOneShotFlyCommand;
+          const job = startExecJob(
+            claims,
+            runner,
+            local,
+            command,
+            timeoutMs,
+            maxOutputBytes,
+          );
+          jsonResponse(res, 202, { ok: true, job: publicExecJob(job) });
+        })
+        .catch((err) => {
+          jsonResponse(res, 500, {
+            ok: false,
+            error: err instanceof Error ? err.message : String(err),
+          });
+        });
+      return;
+    }
+    if (url.pathname.startsWith("/jobs/") && req.method === "GET") {
+      const auth = req.headers.authorization || "";
+      const bearer = auth.toLowerCase().startsWith("bearer ")
+        ? auth.slice("bearer ".length)
+        : "";
+      const claims = verifyTerminalToken(
+        bearer || url.searchParams.get("token"),
+      );
+      const jobId = url.pathname.slice("/jobs/".length);
+      const job = /^[a-f0-9]{32}$/.test(jobId) ? execJobs.get(jobId) : null;
+      if (!job || !canReadExecJob(claims, job)) {
+        jsonResponse(res, 404, { ok: false, error: "job not found" });
+        return;
+      }
+      jsonResponse(res, 200, { ok: true, job: publicExecJob(job) });
       return;
     }
   } catch (err) {
@@ -1105,7 +1283,7 @@ async function createBridgeMachine(
       init: { exec: ["sh", "/app/start.sh"] },
       auto_destroy: false,
       restart: { policy: "on-failure", max_retries: 3 },
-      guest: { cpu_kind: "shared", cpus: 1, memory_mb: 512 },
+      guest: { cpu_kind: "shared", cpus: 2, memory_mb: 2048 },
       services: [
         {
           ports: [

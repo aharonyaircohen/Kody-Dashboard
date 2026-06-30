@@ -43,8 +43,8 @@ export function OperatorsCard() {
             Operators
           </p>
           <p className="text-xs text-white/50 mt-1">
-            Who gets recommendations in their inbox. Capabilities @-mention these
-            people; an empty list means recommendations reach no one.
+            Who gets recommendations in their inbox. Capabilities @-mention
+            these people; an empty list means recommendations reach no one.
           </p>
         </div>
 

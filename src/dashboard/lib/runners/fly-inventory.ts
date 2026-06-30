@@ -26,7 +26,11 @@ import {
   type FlyMachineRow,
 } from "./fly-machine-model";
 
-export type { FlyFeature, FlyInventory, FlyMachineRow } from "./fly-machine-model";
+export type {
+  FlyFeature,
+  FlyInventory,
+  FlyMachineRow,
+} from "./fly-machine-model";
 
 const MS_PER_DAY = 24 * 60 * 60 * 1000;
 

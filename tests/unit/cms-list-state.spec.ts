@@ -90,13 +90,6 @@ describe("CMS list state query persistence", () => {
       "ellipsis",
       12,
     ]);
-    expect(buildCmsPageNumbers(12, 12)).toEqual([
-      1,
-      "ellipsis",
-      9,
-      10,
-      11,
-      12,
-    ]);
+    expect(buildCmsPageNumbers(12, 12)).toEqual([1, "ellipsis", 9, 10, 11, 12]);
   });
 });

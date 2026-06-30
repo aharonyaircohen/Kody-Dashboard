@@ -117,7 +117,9 @@ function CapabilityRow({
           <Button
             variant="ghost"
             size="sm"
-            disabled={busy || (!capability.hasHistory && capability.mode === "ask")}
+            disabled={
+              busy || (!capability.hasHistory && capability.mode === "ask")
+            }
             title={`Reset trust for ${capability.capability}`}
             onClick={() => {
               if (

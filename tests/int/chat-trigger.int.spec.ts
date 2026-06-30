@@ -28,6 +28,7 @@ import {
 import nock from "nock";
 import { NextRequest } from "next/server";
 import { POST as triggerPOST } from "../../app/api/kody/chat/trigger/route";
+import { STATE_BRANCH } from "@dashboard/lib/state-branch";
 
 const GITHUB_API = "https://api.github.com";
 const REAL_FETCH = globalThis.fetch;
@@ -44,7 +45,7 @@ function sessionPath(owner: string, repo: string, sessionId: string): string {
 
 function mockStateBranch(owner: string): void {
   nock(GITHUB_API)
-    .get(`/repos/${owner}/kody-state/git/ref/heads%2Fkody-state`)
+    .get(`/repos/${owner}/kody-state/git/ref/heads%2F${STATE_BRANCH}`)
     .reply(200, { object: { sha: "state-sha" } });
 }
 
@@ -114,7 +115,7 @@ describe("POST /api/kody/chat/trigger", () => {
     // Session file write: getContent (404 = new) + createOrUpdateFileContents.
     nock(GITHUB_API)
       .get(sessionPath("test-owner", "test-repo", "sess-42"))
-      .query({ ref: "kody-state" })
+      .query({ ref: STATE_BRANCH })
       .reply(404);
     mockStateBranch("test-owner");
     nock(GITHUB_API)
@@ -159,7 +160,7 @@ describe("POST /api/kody/chat/trigger", () => {
 
     nock(GITHUB_API)
       .get(sessionPath("test-owner", "test-repo", "sess-42"))
-      .query({ ref: "kody-state" })
+      .query({ ref: STATE_BRANCH })
       .reply(404);
     mockStateBranch("test-owner");
     nock(GITHUB_API)
@@ -182,7 +183,7 @@ describe("POST /api/kody/chat/trigger", () => {
 
     nock(GITHUB_API)
       .get(sessionPath("override-owner", "override-repo", "sess-42"))
-      .query({ ref: "kody-state" })
+      .query({ ref: STATE_BRANCH })
       .reply(404);
     mockStateBranch("override-owner");
     nock(GITHUB_API)
@@ -203,7 +204,7 @@ describe("POST /api/kody/chat/trigger", () => {
   it("returns 500 when GitHub rejects dispatch (surfaces real errors)", async () => {
     nock(GITHUB_API)
       .get(sessionPath("test-owner", "test-repo", "sess-42"))
-      .query({ ref: "kody-state" })
+      .query({ ref: STATE_BRANCH })
       .reply(404);
     mockStateBranch("test-owner");
     nock(GITHUB_API)

@@ -34,7 +34,10 @@ import {
   invalidateIssueCache,
   invalidatePRCache,
 } from "@dashboard/lib/github-client";
-import { isValidSlug, readResolvedCapabilityFile } from "@dashboard/lib/capabilities";
+import {
+  isValidSlug,
+  readResolvedCapabilityFile,
+} from "@dashboard/lib/capabilities";
 import { dashboardTaskUrl } from "@dashboard/lib/thread-link";
 
 interface Ctx {
@@ -198,7 +201,13 @@ async function dispatchOnIssue(
     };
   } catch (err) {
     logger.warn(
-      { err, owner, repo, number: issueNumber, capability: capabilityAction.slug },
+      {
+        err,
+        owner,
+        repo,
+        number: issueNumber,
+        capability: capabilityAction.slug,
+      },
       "kody-dispatch (issue) failed",
     );
     return {
@@ -356,12 +365,7 @@ export function createKodyTools(ctx: Ctx) {
         notes: NOTES_SCHEMA,
       }),
       execute: ({ issueNumber, capability, notes }) =>
-        dispatchOnIssue(
-          ctx,
-          issueNumber,
-          capability ?? "classify",
-          notes,
-        ),
+        dispatchOnIssue(ctx, issueNumber, capability ?? "classify", notes),
     }),
   };
 }

@@ -302,7 +302,8 @@ function InstructionsManagerInner() {
           Free-form markdown appended to every chat turn for the in-process Kody
           agent. Use it to set tone, length, formatting, or behavioral
           preferences for this repo. Stored at{" "}
-          <code className="text-white/80">instructions.md</code> in the state repo.
+          <code className="text-white/80">instructions.md</code> in the state
+          repo.
         </p>
 
         {isLoading && (
@@ -417,8 +418,8 @@ function InstructionsManagerInner() {
               Read-only. <strong>Base</strong> is the static agent prompt your
               instructions are layered on top of. <strong>Full</strong> is what
               actually gets sent to the model on a neutral turn — base + repo
-              block + memory index + your instructions (no task / capability / vibe /
-              voice overlay; those only exist mid-chat).
+              block + memory index + your instructions (no task / capability /
+              vibe / voice overlay; those only exist mid-chat).
             </DialogDescription>
           </DialogHeader>
           <Tabs

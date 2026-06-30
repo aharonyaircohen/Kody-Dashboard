@@ -6,35 +6,137 @@
 import { describe, expect, it } from "vitest";
 
 import {
-  brainFlyImageRef,
+  brainGhcrImageRef,
   brainImageBuildCommand,
   brainImageTag,
 } from "@dashboard/lib/brain/image-save";
 
 describe("Brain image save helpers", () => {
-  it("builds Fly registry image refs for the Brain app", () => {
+  it("builds GHCR image refs for the saved Brain image", () => {
     const tag = brainImageTag(new Date("2026-06-25T10:20:30.000Z"));
 
     expect(tag).toBe("20260625t102030z");
-    expect(brainFlyImageRef("kody-brain-alice", tag)).toBe(
-      "registry.fly.io/kody-brain-alice:20260625t102030z",
-    );
+    expect(
+      brainGhcrImageRef({
+        owner: "A-Guy-educ",
+        account: "Alice",
+        tag,
+      }),
+    ).toBe("ghcr.io/a-guy-educ/kody-brain-alice:20260625t102030z");
   });
 
-  it("builds a bridge command that exports state and pushes without deploying", () => {
+  it("builds a command that archives the Brain filesystem and pushes GHCR", () => {
     const command = brainImageBuildCommand({
       app: "kody-brain-alice",
       machineId: "machine-1",
+      orgSlug: "guy-koren",
       tag: "20260625t102030z",
       baseImageRef: "ghcr.io/aharonyaircohen/kody-brain:latest",
+      imageRef: "ghcr.io/a-guy-educ/kody-brain-alice:20260625t102030z",
+      ghcrUser: "Alice",
     });
 
     expect(command).toContain("flyctl ssh console");
-    expect(command).toContain("--build-only");
-    expect(command).toContain("--push");
-    expect(command).toContain("registry.fly.io/kody-brain-alice");
+    expect(command).toContain("flyctl ssh sftp put");
+    expect(command).toContain('archive="${1:?archive}"');
+    expect(command).toContain(
+      '--command "/bin/bash $remote_script $remote_archive"',
+    );
+    expect(command).toContain("tar -C /");
+    expect(command).toContain("--one-file-system");
+    expect(command).toContain("flyctl sftp get");
+    expect(command).toContain("install_crane");
+    expect(command).toContain("crane auth login ghcr.io");
+    expect(command).toContain("crane append --base");
+    expect(command).toContain('--new_layer "$tmpdir/rootfs.tgz"');
+    expect(command).toContain('--new_tag "$image"');
+    expect(command).toContain("ghcr.io/a-guy-educ/kody-brain-alice");
     expect(command).toContain("__KODY_BRAIN_IMAGE_REF=");
-    expect(command).toContain('> "$tmpdir/build.log" 2>&1');
-    expect(command).toContain('tail -n 200 "$tmpdir/build.log"');
+    expect(command).not.toContain("root-state");
+    expect(command).not.toContain("apt-manual.txt");
+    expect(command).not.toContain("--depot=false");
+    expect(command).not.toContain("KODY_BRAIN_ARCHIVE=");
+    expect(command).not.toContain("flyctl deploy");
+  });
+
+  it("does not depend on a transient Fly registry tag", () => {
+    const command = brainImageBuildCommand({
+      app: "kody-brain-alice",
+      machineId: "machine-1",
+      orgSlug: "guy-koren",
+      tag: "20260625t102030z",
+      baseImageRef: "ghcr.io/aharonyaircohen/kody-brain:latest",
+      imageRef: "ghcr.io/a-guy-educ/kody-brain-alice:20260625t102030z",
+      ghcrUser: "Alice",
+    });
+
+    expect(command).not.toContain('fly_image="registry.fly.io/$app:$tag"');
+    expect(command).not.toContain('"docker://$fly_image" "docker://$image"');
+    expect(command).not.toContain("--image-label");
+    expect(command).toContain("__KODY_BRAIN_IMAGE_REF=%s");
+  });
+
+  it("requires a GHCR token in the bridge environment", () => {
+    const command = brainImageBuildCommand({
+      app: "kody-brain-alice",
+      machineId: "machine-1",
+      orgSlug: "guy-koren",
+      tag: "20260625t102030z",
+      baseImageRef: "ghcr.io/aharonyaircohen/kody-brain:latest",
+      imageRef: "ghcr.io/a-guy-educ/kody-brain-alice:20260625t102030z",
+      ghcrUser: "Alice",
+    });
+
+    expect(command).toContain("GHCR_TOKEN missing");
+    expect(command).toContain("crane auth login ghcr.io");
+    expect(command).toContain("--password-stdin");
+  });
+
+  it("scopes every Fly SSH/SFTP operation to the resolved Brain org", () => {
+    const command = brainImageBuildCommand({
+      app: "brain-1",
+      machineId: "machine-1",
+      orgSlug: "guy-koren",
+      tag: "20260625t102030z",
+      baseImageRef: "ghcr.io/aharonyaircohen/kody-brain:latest",
+      imageRef: "ghcr.io/a-guy-educ/kody-brain-alice:20260625t102030z",
+      ghcrUser: "Alice",
+    } as Parameters<typeof brainImageBuildCommand>[0] & {
+      orgSlug: string;
+    });
+
+    expect(command).toContain("org=");
+    expect(command).toContain("guy-koren");
+    expect(command).toContain('--org "$org"');
+    expect(command.match(/flyctl /g)?.length).toBe(4);
+    expect(command.match(/--org "\$org"/g)?.length).toBeGreaterThanOrEqual(4);
+  });
+
+  it("rejects non-GHCR saved image refs", () => {
+    expect(() =>
+      brainImageBuildCommand({
+        app: "kody-brain-alice",
+        machineId: "machine-1",
+        orgSlug: "guy-koren",
+        tag: "20260625t102030z",
+        baseImageRef: "ghcr.io/aharonyaircohen/kody-brain:latest",
+        imageRef: "registry.fly.io/kody-brain-alice:20260625t102030z",
+        ghcrUser: "Alice",
+      }),
+    ).toThrow("Invalid Brain GHCR image ref");
+  });
+
+  it("rejects unsafe tags used in archive paths", () => {
+    expect(() =>
+      brainImageBuildCommand({
+        app: "kody-brain-alice",
+        machineId: "machine-1",
+        orgSlug: "guy-koren",
+        tag: "../../bad",
+        baseImageRef: "ghcr.io/aharonyaircohen/kody-brain:latest",
+        imageRef: "ghcr.io/a-guy-educ/kody-brain-alice:20260625t102030z",
+        ghcrUser: "Alice",
+      }),
+    ).toThrow("Invalid Brain image tag");
   });
 });

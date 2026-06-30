@@ -185,7 +185,9 @@ export async function DELETE(
   }
 }
 
-async function readJsonBody(req: NextRequest): Promise<Record<string, unknown>> {
+async function readJsonBody(
+  req: NextRequest,
+): Promise<Record<string, unknown>> {
   const body = (await req.json().catch(() => null)) as unknown;
   if (!body || typeof body !== "object" || Array.isArray(body)) {
     throw new CmsConfigError(["request body must be a JSON object"]);

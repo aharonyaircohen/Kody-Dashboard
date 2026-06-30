@@ -108,7 +108,9 @@ function isFeedEntry(v: unknown): v is InboxFeedEntry {
   );
 }
 
-function normalizeFeedEntry(entry: InboxFeedEntry & { ctoCapability?: string }): InboxFeedEntry {
+function normalizeFeedEntry(
+  entry: InboxFeedEntry & { ctoCapability?: string },
+): InboxFeedEntry {
   const { ctoCapability, ...rest } = entry;
   return {
     ...rest,

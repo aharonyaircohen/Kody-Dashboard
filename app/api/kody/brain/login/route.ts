@@ -18,13 +18,18 @@ import {
   readBrainImage,
   writeBrainApp,
 } from "@dashboard/lib/brain/store";
+import { resolveBrainTarget } from "@dashboard/lib/brain/target";
+import {
+  brainFlyRuntimeImageRef,
+  brainGhcrAuth,
+  prepareBrainRuntimeImage,
+} from "@dashboard/lib/brain/image-runtime";
 import {
   clearGitHubContext,
   setGitHubContext,
 } from "@dashboard/lib/github-client";
 import { logger } from "@dashboard/lib/logger";
 import {
-  brainAppName,
   provisionBrain,
   type PerfTier,
 } from "@dashboard/lib/runners/brain-fly";
@@ -32,6 +37,7 @@ import { resolveFlyContext } from "@dashboard/lib/runners/fly-context";
 import { requestOrigin } from "@dashboard/lib/request-origin";
 
 export const runtime = "nodejs";
+export const maxDuration = 900;
 
 const NO_STORE_HEADERS = {
   "Cache-Control": "no-store, max-age=0",
@@ -95,20 +101,26 @@ export async function POST(req: NextRequest) {
   try {
     const body = (await req.json().catch(() => ({}))) as unknown;
     const override = parseAppNameOverride(body);
-    let appName = override;
-
-    if (!appName) {
-      const stored = await readBrainApp(
-        ctx.context.account,
-        ctx.context.githubToken,
-      ).catch(() => null);
-      appName = stored?.appName ?? brainAppName(ctx.context.account);
-    }
+    const stored = await readBrainApp(
+      ctx.context.account,
+      ctx.context.githubToken,
+    ).catch(() => null);
+    const target = resolveBrainTarget({
+      account: ctx.context.account,
+      contextOrgSlug: ctx.context.flyOrgSlug,
+      stored,
+      appNameOverride: override,
+    });
 
     const image = await readBrainImage(
       ctx.context.account,
       ctx.context.githubToken,
     ).catch(() => null);
+    const ghcr = brainGhcrAuth({
+      allSecrets: ctx.context.allSecrets,
+      githubToken: ctx.context.githubToken,
+      account: ctx.context.account,
+    });
 
     const result = await provisionBrain({
       flyToken: ctx.context.flyToken,
@@ -117,12 +129,36 @@ export async function POST(req: NextRequest) {
       githubToken: ctx.context.githubToken,
       allSecrets: ctx.context.allSecrets,
       perfTier: brainPerfFrom(req, ctx.context.perfTier),
-      orgSlug: ctx.context.flyOrgSlug,
+      orgSlug: target.orgSlug,
       defaultRegion: ctx.context.flyDefaultRegion,
       suspendOnIdle: brainSuspendOnIdleFrom(req),
       dashboardUrl: requestOrigin(req),
-      appNameOverride: appName,
-      ...(image?.imageRef ? { imageRef: image.imageRef } : {}),
+      appNameOverride: target.app,
+      ...(image?.imageRef
+        ? {
+            imageRef: image.imageRef,
+            resolveRuntimeImageRef: ({ app, imageRef }) =>
+              Promise.resolve(brainFlyRuntimeImageRef({ app, imageRef })),
+            prepareRuntimeImage: async ({
+              app,
+              sourceImageRef,
+              runtimeImageRef,
+            }) => {
+              await prepareBrainRuntimeImage({
+                owner: ctx.context.owner,
+                repo: ctx.context.repo,
+                app,
+                imageRef: sourceImageRef,
+                runtimeImageRef,
+                flyToken: ctx.context.flyToken!,
+                ghcrToken: ghcr.token,
+                ghcrUser: ghcr.user,
+                orgSlug: target.orgSlug,
+                defaultRegion: ctx.context.flyDefaultRegion,
+              });
+            },
+          }
+        : {}),
     });
 
     try {

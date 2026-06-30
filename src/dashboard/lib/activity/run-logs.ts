@@ -125,7 +125,9 @@ function categoryFor(event: KodyRunLogEvent): KodyRunTimelineCategory | null {
 }
 
 function labelFor(event: KodyRunLogEvent): string {
-  return event.name || event.capability || event.executable || event.kind || "event";
+  return (
+    event.name || event.capability || event.executable || event.kind || "event"
+  );
 }
 
 function summaryFor(
@@ -236,7 +238,10 @@ export function parseKodyRunLogZip(
   zip: Buffer,
   runId: number | string,
 ): ParsedKodyRunLog | null {
-  const jsonl = extractZipEntryText(zip, `.kody/agent-runs/${runId}/events.jsonl`);
+  const jsonl = extractZipEntryText(
+    zip,
+    `.kody/agent-runs/${runId}/events.jsonl`,
+  );
   if (jsonl == null) return null;
   const events = parseKodyRunEventsJsonl(jsonl);
   return {

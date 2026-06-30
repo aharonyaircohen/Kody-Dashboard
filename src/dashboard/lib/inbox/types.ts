@@ -145,7 +145,9 @@ function isValidEntry(x: unknown): x is InboxEntry {
   );
 }
 
-function normalizeInboxEntry(entry: InboxEntry & { ctoCapability?: string }): InboxEntry {
+function normalizeInboxEntry(
+  entry: InboxEntry & { ctoCapability?: string },
+): InboxEntry {
   const { ctoCapability, ...rest } = entry;
   return {
     ...rest,

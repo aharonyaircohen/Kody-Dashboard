@@ -540,9 +540,7 @@ test.describe("Operations actions", () => {
       ),
       createDialog.getByRole("button", { name: "Create member" }).click(),
     ]);
-    await page
-      .getByRole("button", { name: /Build Agent build-agent/ })
-      .click();
+    await page.getByRole("button", { name: /Build Agent build-agent/ }).click();
     await expect(
       page.getByRole("heading", { name: "Build Agent" }),
     ).toBeVisible();

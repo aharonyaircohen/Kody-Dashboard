@@ -320,9 +320,7 @@ test.describe("Vibe — unified chat thread on issue create", () => {
     });
     await expect(runButton).toBeVisible({ timeout: 15_000 });
     await runButton.click();
-    await expect
-      .poll(() => executeCalled, { timeout: 5_000 })
-      .toBe(true);
+    await expect.poll(() => executeCalled, { timeout: 5_000 }).toBe(true);
 
     // The thread must NOT have been migrated to a per-task localStorage
     // entry — that was the old behavior (#66 unified thread). A

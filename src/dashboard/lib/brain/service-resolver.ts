@@ -8,13 +8,10 @@
  */
 import "server-only";
 
-import {
-  readBrainApp,
-  type BrainAppFile,
-} from "@dashboard/lib/brain/store";
+import { readBrainApp, type BrainAppFile } from "@dashboard/lib/brain/store";
+import { resolveBrainTarget } from "@dashboard/lib/brain/target";
 import { listMachines } from "@dashboard/lib/previews/fly-previews";
 import {
-  brainAppName,
   brainStatus,
   type BrainStatusResult,
 } from "@dashboard/lib/runners/brain-fly";
@@ -53,9 +50,14 @@ export async function resolveBrainService(input: {
   const stored = await readBrainApp(input.account, input.githubToken).catch(
     () => null,
   );
-  const app =
-    input.appNameOverride ?? stored?.appName ?? brainAppName(input.account);
-  const orgSlug = stored?.orgSlug ?? input.orgSlug;
+  const target = resolveBrainTarget({
+    account: input.account,
+    contextOrgSlug: input.orgSlug,
+    stored,
+    appNameOverride: input.appNameOverride,
+  });
+  const app = target.app;
+  const orgSlug = target.orgSlug;
 
   const status = await brainStatus({
     flyToken: input.flyToken,

@@ -97,7 +97,10 @@ const patchSchema = z.object({
 
 function mapGithubError(error: any, fallback: string, status = 500) {
   if (error?.status === 401) {
-    return NextResponse.json({ error: "github_token_expired" }, { status: 401 });
+    return NextResponse.json(
+      { error: "github_token_expired" },
+      { status: 401 },
+    );
   }
   if (error?.status === 403 || error?.message?.includes("rate limit")) {
     return NextResponse.json(
@@ -136,8 +139,7 @@ function mergeIntent(
       ? {
           goals: patch.portfolio.goals.filter(isCompanyIntentId),
           loops: patch.portfolio.loops.filter(isCompanyIntentId),
-          capabilities:
-            patch.portfolio.capabilities.filter(isCompanyIntentId),
+          capabilities: patch.portfolio.capabilities.filter(isCompanyIntentId),
         }
       : current.portfolio,
     manager: {
@@ -169,7 +171,9 @@ async function readRecord(
       id,
       path: file.path,
       intent,
-      decisions: decisions ? parseCompanyIntentDecisionLog(decisions.content) : [],
+      decisions: decisions
+        ? parseCompanyIntentDecisionLog(decisions.content)
+        : [],
       managerHealth: await managerHealth(octokit, intent, owner, repo),
     },
   };
@@ -182,7 +186,9 @@ async function managerHealth(
   repo: string,
 ): Promise<CompanyIntentManagerHealth> {
   const [loop, capability] = await Promise.all([
-    readManagedGoalFile(intent.manager.loop, octokit, owner, repo).catch(() => null),
+    readManagedGoalFile(intent.manager.loop, octokit, owner, repo).catch(
+      () => null,
+    ),
     readResolvedCapabilityFile(intent.manager.capability, octokit).catch(
       () => null,
     ),
@@ -198,7 +204,9 @@ async function managerHealth(
       exists: Boolean(loop || storeLoop),
       state: loop?.state.state ?? storeLoop?.state.state,
       updatedAt:
-        typeof loop?.state.updatedAt === "string" ? loop.state.updatedAt : undefined,
+        typeof loop?.state.updatedAt === "string"
+          ? loop.state.updatedAt
+          : undefined,
     },
     capability: {
       id: intent.manager.capability,

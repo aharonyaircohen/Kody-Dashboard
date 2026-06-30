@@ -33,6 +33,7 @@ vi.mock("@dashboard/lib/github-client", () => ({
 }));
 
 vi.mock("@dashboard/lib/runners/brain-fly", () => ({
+  brainAppName: (account: string) => `kody-brain-${account}`,
   provisionBrain: (...args: unknown[]) => provisionBrain(...args),
   waitForBrainHealth: (...args: unknown[]) => waitForBrainHealth(...args),
 }));
@@ -62,14 +63,17 @@ const ctx = {
 };
 
 function request(body: unknown): NextRequest {
-  return new NextRequest("https://dashboard.example.test/api/kody/chat/brain-fly", {
-    method: "POST",
-    headers: {
-      "content-type": "application/json",
-      origin: "https://dashboard.example.test",
+  return new NextRequest(
+    "https://dashboard.example.test/api/kody/chat/brain-fly",
+    {
+      method: "POST",
+      headers: {
+        "content-type": "application/json",
+        origin: "https://dashboard.example.test",
+      },
+      body: JSON.stringify(body),
     },
-    body: JSON.stringify(body),
-  });
+  );
 }
 
 beforeEach(() => {

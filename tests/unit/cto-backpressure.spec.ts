@@ -210,7 +210,10 @@ describe("applyCtoBackpressure", () => {
       incoming,
       NO_DECISIONS,
     );
-    expect(admitted.map((e) => ctoFeedKey(e)?.capability)).toEqual(["qa", "qa"]);
+    expect(admitted.map((e) => ctoFeedKey(e)?.capability)).toEqual([
+      "qa",
+      "qa",
+    ]);
     expect(withheld.map((e) => ctoFeedKey(e)?.capability)).toEqual(["cto"]);
   });
 

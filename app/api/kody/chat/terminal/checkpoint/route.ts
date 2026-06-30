@@ -31,12 +31,6 @@ export const dynamic = "force-dynamic";
 const TransportSchema = z.discriminatedUnion("type", [
   z.object({
     type: z.literal("local"),
-    sandboxId: z.string().min(1).max(80).optional(),
-    label: z.string().min(1).max(120).optional(),
-  }),
-  z.object({
-    type: z.literal("github-actions"),
-    sandboxId: z.string().min(1).max(80),
     label: z.string().min(1).max(120).optional(),
   }),
   z.object({

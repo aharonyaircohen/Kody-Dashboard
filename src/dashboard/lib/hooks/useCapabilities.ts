@@ -34,11 +34,7 @@ export function capabilityQueryScopeFromAuth(
 export const capabilityQueryKeys = {
   all: ["kody-capabilities"] as const,
   list: (scope: CapabilityQueryScope = {}) =>
-    [
-      "kody-capabilities",
-      scope.owner ?? null,
-      scope.repo ?? null,
-    ] as const,
+    ["kody-capabilities", scope.owner ?? null, scope.repo ?? null] as const,
 };
 
 function useCapabilityQueryScope() {
@@ -80,9 +76,12 @@ export function useRunCapability() {
     mutationFn: ({ slug, force }) =>
       kodyApi.capabilities.run({ slug }, { force }),
     onSuccess: (data) => {
-      toast.success(data.force ? "Capability triggered (force)" : "Capability triggered", {
-        description: `Workflow dispatched for ${data.action}.`,
-      });
+      toast.success(
+        data.force ? "Capability triggered (force)" : "Capability triggered",
+        {
+          description: `Workflow dispatched for ${data.action}.`,
+        },
+      );
     },
     onError: (error) => {
       toast.error("Failed to dispatch capability", {

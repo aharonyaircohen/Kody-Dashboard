@@ -94,6 +94,17 @@ export interface ProvisionBrainInput {
   defaultRegion?: string;
   /** Optional saved Brain image ref. Defaults to the public base Brain image. */
   imageRef?: string;
+  /** Optional hook that maps a durable saved image to a Fly-pullable runtime ref. */
+  resolveRuntimeImageRef?: (input: {
+    app: string;
+    imageRef: string;
+  }) => Promise<string>;
+  /** Optional hook that prepares the runtime image before machine creation. */
+  prepareRuntimeImage?: (input: {
+    app: string;
+    sourceImageRef: string;
+    runtimeImageRef: string;
+  }) => Promise<void>;
   /** Default true. False disables Fly's idle auto-suspend for the Brain app. */
   suspendOnIdle?: boolean;
   /** Default branch to clone. */
@@ -754,7 +765,18 @@ export async function provisionBrain(
   const app = flyApp.name;
   const url = brainAppUrl(app);
   const originalName = app !== requested ? requested : undefined;
-  const image = brainImageRef(input);
+  const requestedImage = brainImageRef(input);
+  const image = input.resolveRuntimeImageRef
+    ? await input.resolveRuntimeImageRef({ app, imageRef: requestedImage })
+    : requestedImage;
+  const machineInput =
+    image === requestedImage ? input : { ...input, imageRef: image };
+  const prepareRuntimeImage = () =>
+    input.prepareRuntimeImage?.({
+      app,
+      sourceImageRef: requestedImage,
+      runtimeImageRef: image,
+    });
 
   const existing = await findExistingMachine(input.flyToken, app);
   if (existing) {
@@ -782,7 +804,13 @@ export async function provisionBrain(
         existing.config?.env?.BRAIN_API_KEY ||
         input.apiKeyOverride ||
         generateApiKey();
-      const machine = await createMachine(input.flyToken, app, input, apiKey);
+      await prepareRuntimeImage();
+      const machine = await createMachine(
+        input.flyToken,
+        app,
+        machineInput,
+        apiKey,
+      );
       return {
         app,
         url,
@@ -800,7 +828,10 @@ export async function provisionBrain(
         `brain-fly: app ${app} has a machine without BRAIN_API_KEY env — destroy first, then re-provision`,
       );
     }
-    const alignedConfig = alignBrainMachineConfig(existing.config, input);
+    const alignedConfig = alignBrainMachineConfig(
+      existing.config,
+      machineInput,
+    );
     if (alignedConfig.changed && alignedConfig.config) {
       await updateMachineConfig(
         input.flyToken,
@@ -817,7 +848,10 @@ export async function provisionBrain(
         "brain-fly: updated machine config",
       );
     }
-    if (input.suspendOnIdle === false && !isBrainMachineRunning(existing)) {
+    if (
+      machineInput.suspendOnIdle === false &&
+      !isBrainMachineRunning(existing)
+    ) {
       await waitForBrainHealth(url, 60_000);
       logger.info(
         {
@@ -843,7 +877,13 @@ export async function provisionBrain(
   }
 
   const apiKey = input.apiKeyOverride ?? generateApiKey();
-  const machine = await createMachine(input.flyToken, app, input, apiKey);
+  await prepareRuntimeImage();
+  const machine = await createMachine(
+    input.flyToken,
+    app,
+    machineInput,
+    apiKey,
+  );
 
   logger.info(
     { app, machineId: machine.id, region: machine.region ?? defaultRegion },

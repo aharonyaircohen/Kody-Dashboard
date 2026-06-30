@@ -35,9 +35,9 @@ describe("chat terminal registry refresh persistence", () => {
     expect(CHAT_SOURCE).toContain("sessionsHydrated: sessionHook.hydrated");
   });
 
-  it("refreshes status for local sandbox terminals with their sandboxId", () => {
+  it("refreshes status for local terminals by chat session only", () => {
     expect(REGISTRY_SOURCE).toContain('terminal.transport.type === "local"');
-    expect(REGISTRY_SOURCE).toContain('params.set("sandboxId"');
+    expect(REGISTRY_SOURCE).not.toContain('params.set("sandboxId"');
     expect(REGISTRY_SOURCE).toContain("/api/kody/chat/terminal/status?");
     expect(REGISTRY_SOURCE).toContain("${params}");
   });

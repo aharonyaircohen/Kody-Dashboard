@@ -466,6 +466,53 @@ export function KodyDashboard({
     },
   });
 
+  const unassignFromKodyMutation = useMutation({
+    mutationFn: (task: KodyTask) =>
+      kodyApi.tasks.removeLabel(
+        task.issueNumber,
+        KODY_BACKLOG_LABEL,
+        githubUser?.login,
+      ),
+    onMutate: async (task) => {
+      await queryClient.cancelQueries({ queryKey: ["kody-tasks"] });
+      const previous = queryClient.getQueriesData<KodyTask[]>({
+        queryKey: ["kody-tasks"],
+      });
+      queryClient.setQueriesData<KodyTask[]>(
+        { queryKey: ["kody-tasks"] },
+        (old) =>
+          old?.map((t) =>
+            t.issueNumber === task.issueNumber
+              ? {
+                  ...t,
+                  labels: t.labels.filter(
+                    (label) => label !== KODY_BACKLOG_LABEL,
+                  ),
+                }
+              : t,
+          ),
+      );
+      return { previous };
+    },
+    onSuccess: () => {
+      toast.success("Removed from Kody backlog");
+      queryClient.invalidateQueries({
+        queryKey: queryKeys.tasks(days, false, "all"),
+      });
+      queryClient.invalidateQueries({
+        queryKey: queryKeys.tasks(days, false, "intake"),
+      });
+    },
+    onError: (error, _task, context) => {
+      for (const [key, value] of context?.previous ?? []) {
+        queryClient.setQueryData(key, value);
+      }
+      if (!handleAuthError(error)) {
+        toast.error("Failed to remove from Kody backlog");
+      }
+    },
+  });
+
   // #2: Replace manual try/catch handlers with mutations + optimistic updates
   const executeMutation = useMutation({
     mutationFn: async (task: KodyTask) => {
@@ -1703,6 +1750,9 @@ export function KodyDashboard({
                       intakeMode={showingBacklog}
                       onAssignToKody={(task) =>
                         assignToKodyMutation.mutate(task)
+                      }
+                      onUnassignFromKody={(task) =>
+                        unassignFromKodyMutation.mutate(task)
                       }
                       onAssign={(issueNumber, assignees) =>
                         assignMutation.mutate({ issueNumber, assignees })

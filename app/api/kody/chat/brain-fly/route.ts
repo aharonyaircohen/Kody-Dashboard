@@ -31,6 +31,12 @@ import {
   readBrainImage,
   writeBrainApp,
 } from "@dashboard/lib/brain/store";
+import { resolveBrainTarget } from "@dashboard/lib/brain/target";
+import {
+  brainFlyRuntimeImageRef,
+  brainGhcrAuth,
+  prepareBrainRuntimeImage,
+} from "@dashboard/lib/brain/image-runtime";
 import {
   clearGitHubContext,
   setGitHubContext,
@@ -55,9 +61,8 @@ import {
 import { loadContextForPrompt } from "@dashboard/lib/context/files";
 
 export const runtime = "nodejs";
-// Hold the proxy open up to Vercel's ceiling; the proxy itself closes ~30s
-// early with a `chat.reconnect` sentinel so the browser resumes cleanly.
-export const maxDuration = 300;
+// Restore can mirror a full Brain image before the chat stream starts.
+export const maxDuration = 900;
 
 function brainSuspendOnIdleFrom(req: NextRequest): boolean | undefined {
   const raw = req.headers.get("x-kody-brain-suspension");
@@ -138,11 +143,20 @@ export async function POST(req: NextRequest) {
       ctx.context.account,
       ctx.context.githubToken,
     ).catch(() => null);
-    const appNameOverride = stored?.appName;
+    const target = resolveBrainTarget({
+      account: ctx.context.account,
+      contextOrgSlug: ctx.context.flyOrgSlug,
+      stored,
+    });
     const image = await readBrainImage(
       ctx.context.account,
       ctx.context.githubToken,
     ).catch(() => null);
+    const ghcr = brainGhcrAuth({
+      allSecrets: ctx.context.allSecrets,
+      githubToken: ctx.context.githubToken,
+      account: ctx.context.account,
+    });
 
     let provisioned: { url: string; apiKey: string; app?: string };
     try {
@@ -155,12 +169,36 @@ export async function POST(req: NextRequest) {
         githubToken: ctx.context.githubToken,
         allSecrets: ctx.context.allSecrets,
         perfTier: ctx.context.perfTier,
-        orgSlug: ctx.context.flyOrgSlug,
+        orgSlug: target.orgSlug,
         defaultRegion: ctx.context.flyDefaultRegion,
         suspendOnIdle: brainSuspendOnIdleFrom(req),
         dashboardUrl,
-        ...(appNameOverride ? { appNameOverride } : {}),
-        ...(image?.imageRef ? { imageRef: image.imageRef } : {}),
+        appNameOverride: target.app,
+        ...(image?.imageRef
+          ? {
+              imageRef: image.imageRef,
+              resolveRuntimeImageRef: ({ app, imageRef }) =>
+                Promise.resolve(brainFlyRuntimeImageRef({ app, imageRef })),
+              prepareRuntimeImage: async ({
+                app,
+                sourceImageRef,
+                runtimeImageRef,
+              }) => {
+                await prepareBrainRuntimeImage({
+                  owner: ctx.context.owner,
+                  repo: ctx.context.repo,
+                  app,
+                  imageRef: sourceImageRef,
+                  runtimeImageRef,
+                  flyToken: ctx.context.flyToken!,
+                  ghcrToken: ghcr.token,
+                  ghcrUser: ghcr.user,
+                  orgSlug: target.orgSlug,
+                  defaultRegion: ctx.context.flyDefaultRegion,
+                });
+              },
+            }
+          : {}),
       });
       provisioned = { url: result.url, apiKey: result.apiKey, app: result.app };
       try {

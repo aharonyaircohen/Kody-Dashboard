@@ -60,8 +60,7 @@ async function selectKodyAgent(page: Page): Promise<void> {
   try {
     await selected.waitFor({ state: "visible", timeout: 10_000 });
     return;
-  } catch {
-  }
+  } catch {}
 
   const chat = page.locator('[aria-label="Kody chat"]');
   const trigger = chat.locator('button[aria-haspopup="listbox"]').first();

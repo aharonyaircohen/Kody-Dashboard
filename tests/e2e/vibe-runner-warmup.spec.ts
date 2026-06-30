@@ -36,23 +36,25 @@ const { owner, repo } = parseRepo(REPO_URL);
 
 /** Read state-repo events through the dashboard; [] until first write. */
 async function readEvents(taskId: string): Promise<Array<{ event?: string }>> {
-  const res = await fetch(`${BASE_URL}/api/kody/events/poll?taskId=${encodeURIComponent(taskId)}&since=0`, {
-    headers: {
-      "x-kody-token": TOKEN,
-      "x-kody-owner": owner,
-      "x-kody-repo": repo,
+  const res = await fetch(
+    `${BASE_URL}/api/kody/events/poll?taskId=${encodeURIComponent(taskId)}&since=0`,
+    {
+      headers: {
+        "x-kody-token": TOKEN,
+        "x-kody-owner": owner,
+        "x-kody-repo": repo,
+      },
     },
-  });
+  );
   if (!res.ok) return [];
   const body = (await res.json()) as { lines?: string[] };
-  return (body.lines ?? [])
-    .map((l) => {
-      try {
-        return JSON.parse(l);
-      } catch {
-        return {};
-      }
-    });
+  return (body.lines ?? []).map((l) => {
+    try {
+      return JSON.parse(l);
+    } catch {
+      return {};
+    }
+  });
 }
 
 test.describe("REPRO — Vibe runner warmup", () => {
