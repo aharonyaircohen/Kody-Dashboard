@@ -37,9 +37,6 @@
       "agent-ask"
     ]
   },
-  "executables": {
-    "default": "run"
-  },
   "access": {
     "allowedAssociations": [
       "OWNER",
