@@ -24,6 +24,32 @@ describe("TaskList intake actions", () => {
     expect(SOURCE).toMatch(/Assign and run/);
   });
 
+  it("shows row Stop from derived active task signals, not only workflowRun", () => {
+    expect(SOURCE).toMatch(/function isTaskAbortable\(task: KodyTask\)/);
+    expect(SOURCE).toMatch(/task\.pipeline\?\.state === "running"/);
+    expect(SOURCE).toMatch(/task\.workflowRun\?\.status === "in_progress"/);
+    expect(SOURCE).toMatch(/task\.column === "building"/);
+    expect(SOURCE).toMatch(/const canStop = isTaskAbortable\(task\) && !!onStopTask;/);
+    expect(SOURCE).toMatch(/canStop\s*\?\s*"Stop running task"/);
+    expect(SOURCE).toMatch(/if \(canStop\) onStopTask\?\.\(task\);/);
+    expect(SOURCE).not.toMatch(
+      /task\.column === "building" &&\s*task\.workflowRun\?\.status === "in_progress" &&\s*onStopTask/,
+    );
+  });
+
+  it("shows row Rerun when a non-active task has run history", () => {
+    expect(SOURCE).toMatch(/function hasTaskRunHistory\(task: KodyTask\)/);
+    expect(SOURCE).toMatch(/task\.pipeline \|\| task\.workflowRun \|\| task\.kodyState/);
+    expect(SOURCE).toMatch(/task\.column === "failed"/);
+    expect(SOURCE).toMatch(
+      /const canRerun =\s*!isTaskAbortable\(task\) && hasTaskRunHistory\(task\) && !!onRerun;/,
+    );
+    expect(SOURCE).toMatch(/canRerun\s*\?\s*"Rerun task"/);
+    expect(SOURCE).toMatch(/else if \(canRerun\) onRerun\?\.\(task\);/);
+    expect(SOURCE).toMatch(/<RotateCcw className="w-4 h-4" \/>/);
+    expect(SOURCE).toMatch(/\{onRerun && !canRerun && \(/);
+  });
+
   it("keeps backlog closing scoped to intake mode and open issues", () => {
     expect(SOURCE).toMatch(/const canCloseBacklogItem =\s*intakeMode/);
     expect(SOURCE).toMatch(/task\.state === "open"/);

@@ -160,6 +160,32 @@ const statusColors: Record<
   },
 };
 
+function isTaskAbortable(task: KodyTask): boolean {
+  if (task.state === "closed") return false;
+  if (task.pipeline?.state === "running" || task.pipeline?.state === "paused")
+    return true;
+  if (
+    task.workflowRun?.status === "in_progress" ||
+    task.workflowRun?.status === "queued"
+  )
+    return true;
+  return (
+    task.column === "building" ||
+    task.column === "retrying" ||
+    task.column === "gate-waiting"
+  );
+}
+
+function hasTaskRunHistory(task: KodyTask): boolean {
+  if (task.pipeline || task.workflowRun || task.kodyState) return true;
+  return (
+    task.column === "failed" ||
+    task.column === "review" ||
+    task.column === "done" ||
+    !!task.associatedPR
+  );
+}
+
 // ── Client-only relative time (prevents hydration mismatch) ──
 function RelativeTime({ date }: { date: string }) {
   const [text, setText] = useState<string>("");
@@ -472,6 +498,9 @@ const TaskRow = memo(function TaskRow({
   // palette + "Closed" word so users can tell them apart from in-flight
   // `done`-column tasks at a glance.
   const canExecute = !isClosed && task.column === "open" && onExecuteTask;
+  const canStop = isTaskAbortable(task) && !!onStopTask;
+  const canRerun =
+    !isTaskAbortable(task) && hasTaskRunHistory(task) && !!onRerun;
   const hasPR = !!task.associatedPR;
   const isHardStop =
     !isClosed &&
@@ -952,15 +981,14 @@ const TaskRow = memo(function TaskRow({
             </SimpleTooltip>
           )}
 
-          {(task.column === "building" &&
-            task.workflowRun?.status === "in_progress" &&
-            onStopTask) ||
-          (canExecute && onExecuteTask) ? (
+          {canStop || canRerun || (canExecute && onExecuteTask) ? (
             <SimpleTooltip
               content={
-                task.column === "building"
+                canStop
                   ? "Stop running task"
-                  : intakeMode && !isAssignedBacklogTask
+                  : canRerun
+                    ? "Rerun task"
+                    : intakeMode && !isAssignedBacklogTask
                     ? "Assign and run"
                     : "Run task"
               }
@@ -972,27 +1000,34 @@ const TaskRow = memo(function TaskRow({
                 disabled={isExecuting}
                 onClick={(e) => {
                   e.stopPropagation();
-                  if (task.column === "building") onStopTask?.(task);
+                  if (canStop) onStopTask?.(task);
+                  else if (canRerun) onRerun?.(task);
                   else if (canExecute) onExecuteTask?.(task);
                 }}
                 aria-label={
-                  task.column === "building"
+                  canStop
                     ? "Stop task"
-                    : intakeMode && !isAssignedBacklogTask
+                    : canRerun
+                      ? "Rerun task"
+                      : intakeMode && !isAssignedBacklogTask
                       ? "Assign and run task"
                       : "Run task"
                 }
                 className={cn(
                   "h-9 w-9 p-0 cursor-pointer disabled:opacity-50",
-                  task.column === "building"
+                  canStop
                     ? "text-red-400 hover:bg-red-500/20"
+                    : canRerun
+                      ? "text-orange-400 hover:bg-orange-500/20"
                     : "text-zinc-400 hover:bg-white/[0.08]",
                 )}
               >
                 {isExecuting ? (
                   <Loader2 className="w-4 h-4 animate-spin" />
-                ) : task.column === "building" ? (
+                ) : canStop ? (
                   <Square className="w-4 h-4" />
+                ) : canRerun ? (
+                  <RotateCcw className="w-4 h-4" />
                 ) : (
                   <Play className="w-4 h-4" />
                 )}
@@ -1150,7 +1185,7 @@ const TaskRow = memo(function TaskRow({
               )}
 
               {/* Rerun */}
-              {onRerun && (
+              {onRerun && !canRerun && (
                 <DropdownMenuItem
                   onClick={() => {
                     onRerun(task);
