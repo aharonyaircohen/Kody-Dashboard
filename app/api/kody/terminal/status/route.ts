@@ -28,6 +28,7 @@ export const dynamic = "force-dynamic";
 const Body = z.object({
   app: z.string().min(1).max(120),
   machineId: z.string().min(1).max(120),
+  feature: z.enum(["runner", "brain"]).optional(),
   chatSessionId: z.string().min(1).max(160),
 });
 

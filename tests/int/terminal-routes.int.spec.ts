@@ -294,6 +294,64 @@ describe("POST /api/kody/terminal/session", () => {
     );
   });
 
+  it("maps stale Brain terminal requests to the resolved Brain machine", async () => {
+    inventory.listFlyInventory.mockResolvedValueOnce({
+      running: 1,
+      total: 1,
+      machines: [
+        {
+          feature: "brain",
+          app: "kody-brain-octocat",
+          machineId: "brain-old",
+          state: "started",
+          region: "fra",
+          label: "kody-brain-octocat",
+          sizeLabel: "perf 1x",
+          orgSlug: "personal",
+        },
+      ],
+    });
+    inventoryServer.appendSavedBrainMachineToInventory.mockImplementationOnce(
+      async (
+        _req: unknown,
+        inv: { machines: Array<Record<string, unknown>> },
+      ) => {
+        inv.machines = [
+          {
+            feature: "brain",
+            app: "brain-1",
+            machineId: "brain-current",
+            state: "started",
+            region: "fra",
+            label: "brain-1",
+            sizeLabel: "perf 1x",
+            orgSlug: "guy-koren",
+          },
+        ];
+        return true;
+      },
+    );
+
+    const res = await sessionPOST(
+      makeSessionReq({
+        app: "kody-brain-octocat",
+        machineId: "brain-old",
+        feature: "brain",
+        chatSessionId: "chat-1",
+      }),
+    );
+
+    expect(res.status).toBe(200);
+    expect(await res.json()).toMatchObject({
+      ok: true,
+      app: "brain-1",
+      machineId: "brain-current",
+    });
+    expect(bridge.ensureTerminalBridge).toHaveBeenCalledWith(
+      expect.objectContaining({ orgSlug: "guy-koren" }),
+    );
+  });
+
   it("wakes saved Brain machines through their stored org", async () => {
     let started = false;
     flyPreview.startMachine.mockImplementationOnce(async () => {

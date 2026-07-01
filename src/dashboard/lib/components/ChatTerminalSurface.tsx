@@ -591,6 +591,7 @@ export const ChatTerminalSurface = forwardRef<
             body: JSON.stringify({
               app: current.app,
               machineId: current.machineId,
+              feature: current.feature,
               chatSessionId,
               resetSession: opts.resetSession,
               ...(shouldSendBrainActivityLimit && activityLimit !== null

@@ -45,7 +45,7 @@ export function isTerminalMachineStartable(state: string): boolean {
 
 export function findTerminalTargetMachine(
   inventory: FlyInventory,
-  input: { app: string; machineId: string },
+  input: { app: string; machineId: string; feature?: FlyFeature },
 ): FlyMachineRow | null {
   return (
     inventory.machines.find(
@@ -56,10 +56,17 @@ export function findTerminalTargetMachine(
 
 export function resolveTerminalTargetMachine(
   inventory: FlyInventory,
-  input: { app: string; machineId: string },
+  input: { app: string; machineId: string; feature?: FlyFeature },
 ): FlyMachineRow | null {
   const exact = findTerminalTargetMachine(inventory, input);
   if (exact) return exact;
+
+  if (input.feature === "brain") {
+    const brainMachines = inventory.machines.filter(
+      (m) => m.feature === "brain",
+    );
+    return brainMachines.length === 1 ? brainMachines[0] : null;
+  }
 
   const brainMachinesForApp = inventory.machines.filter(
     (m) => m.app === input.app && m.feature === "brain",
@@ -69,7 +76,7 @@ export function resolveTerminalTargetMachine(
 
 export function selectTerminalTarget(
   inventory: FlyInventory,
-  input: { app: string; machineId: string },
+  input: { app: string; machineId: string; feature?: FlyFeature },
 ): TerminalTargetResult | TerminalTargetFailure {
   const machine = resolveTerminalTargetMachine(inventory, input);
   if (!machine) return { ok: false, error: "machine_not_found" };

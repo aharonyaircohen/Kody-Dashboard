@@ -72,8 +72,8 @@ describe("appendSavedBrainMachineToInventory", () => {
 
   it("reclassifies a generic listed app as the resolved Brain service", async () => {
     const inventory: FlyInventory = {
-      running: 1,
-      total: 1,
+      running: 2,
+      total: 2,
       machines: [
         {
           feature: "other",
@@ -82,6 +82,15 @@ describe("appendSavedBrainMachineToInventory", () => {
           state: "started",
           region: "fra",
           label: "custom-brain",
+          sizeLabel: "shared 2x",
+        },
+        {
+          feature: "brain",
+          app: "kody-brain-octocat",
+          machineId: "old-brain",
+          state: "started",
+          region: "fra",
+          label: "kody-brain-octocat",
           sizeLabel: "shared 2x",
         },
       ],
@@ -99,5 +108,41 @@ describe("appendSavedBrainMachineToInventory", () => {
         orgSlug: "personal",
       }),
     ]);
+  });
+
+  it("removes stale Brain rows when the stored Brain has no machine", async () => {
+    brainResolver.resolveBrainService.mockResolvedValueOnce({
+      app: "custom-brain",
+      orgSlug: "personal",
+      defaultRegion: "fra",
+      stored: {
+        version: 1,
+        appName: "custom-brain",
+        orgSlug: "personal",
+        createdAt: "2026-06-29T00:00:00.000Z",
+      },
+      state: "off",
+    } as never);
+    const inventory: FlyInventory = {
+      running: 1,
+      total: 1,
+      machines: [
+        {
+          feature: "brain",
+          app: "kody-brain-octocat",
+          machineId: "old-brain",
+          state: "started",
+          region: "fra",
+          label: "kody-brain-octocat",
+          sizeLabel: "shared 2x",
+        },
+      ],
+    };
+
+    await expect(
+      appendSavedBrainMachineToInventory({} as never, inventory),
+    ).resolves.toBe(false);
+
+    expect(inventory.machines).toEqual([]);
   });
 });

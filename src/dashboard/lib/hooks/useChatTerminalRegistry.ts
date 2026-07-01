@@ -724,6 +724,7 @@ export function useChatTerminalRegistry({
               body: JSON.stringify({
                 app: terminal.transport.app,
                 machineId: terminal.transport.machineId,
+                feature: terminal.transport.feature,
                 chatSessionId: activeSessionId,
               }),
             });

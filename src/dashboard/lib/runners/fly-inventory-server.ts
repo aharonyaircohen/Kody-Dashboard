@@ -57,8 +57,17 @@ export async function appendSavedBrainMachineToInventory(
       defaultRegion: ctx.context.flyDefaultRegion,
     });
     const app = brain.app;
-    if (!brain.machine) return false;
-    inventory.machines = inventory.machines.filter((m) => m.app !== app);
+    if (!brain.machine) {
+      if (brain.stored) {
+        inventory.machines = inventory.machines.filter(
+          (m) => m.feature !== "brain" && m.app !== app,
+        );
+      }
+      return false;
+    }
+    inventory.machines = inventory.machines.filter(
+      (m) => m.feature !== "brain" && m.app !== app,
+    );
     inventory.machines.push({ ...brain.machine, orgSlug: brain.orgSlug });
     return true;
   } catch (err) {
