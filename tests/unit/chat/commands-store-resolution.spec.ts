@@ -33,12 +33,16 @@ vi.mock("@dashboard/lib/company-store/assets", async (importOriginal) => {
         `https://github.com/aharonyaircohen/kody-company-store/blob/stable/${path}`,
     ),
     companyStoreUpdatedAt: vi.fn(async () => "2026-06-24T00:00:00.000Z"),
+    companyStoreAssetPath: vi.fn(
+      async (_octokit: unknown, kind: string, ...segments: string[]) =>
+        [kind, ...segments].join("/"),
+    ),
     listCompanyStoreMarkdownAssetSlugs: vi.fn(async () => [
       "factory",
       "review",
     ]),
     readCompanyStoreText: vi.fn(async (_octokit: unknown, path: string) => {
-      if (path === ".kody/commands/factory.md") {
+      if (path === "commands/factory.md") {
         return [
           "---",
           "description: Create a Kody model bundle",
@@ -48,7 +52,7 @@ vi.mock("@dashboard/lib/company-store/assets", async (importOriginal) => {
           "",
         ].join("\n");
       }
-      if (path === ".kody/commands/review.md") {
+      if (path === "commands/review.md") {
         return [
           "---",
           "description: Store review",

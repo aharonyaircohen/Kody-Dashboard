@@ -13,6 +13,7 @@ import type { Octokit } from "@octokit/rest";
 import { getOctokit, invalidateStaffCache } from "./github-client";
 import {
   buildCompanyStoreBlobUrl,
+  companyStoreAssetPath,
   companyStoreUpdatedAt,
   listCompanyStoreMarkdownAssetSlugs,
   mergeAssetsBySlug,
@@ -79,7 +80,7 @@ async function readStoreAgentFile(
   octokit: Octokit,
 ): Promise<AgentFile | null> {
   if (!isValidSlug(slug)) return null;
-  const path = `.kody/agents/${slug}.md`;
+  const path = await companyStoreAssetPath(octokit, "agents", `${slug}.md`);
   const [raw, updatedAt] = await Promise.all([
     readCompanyStoreText(octokit, path),
     companyStoreUpdatedAt(octokit, "agents", slug),

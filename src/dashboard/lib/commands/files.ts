@@ -34,6 +34,7 @@ import {
 } from "./frontmatter";
 import {
   buildCompanyStoreBlobUrl,
+  companyStoreAssetPath,
   companyStoreUpdatedAt,
   listCompanyStoreMarkdownAssetSlugs,
   readCompanyStoreText,
@@ -59,7 +60,6 @@ export interface CommandFile {
 }
 
 const COMMANDS_DIR = "commands";
-const STORE_COMMANDS_DIR = ".kody/commands";
 const DISABLE_BUILTINS_FILE = ".disable-builtins";
 
 function slugFromName(name: string): string | null {
@@ -223,10 +223,8 @@ export async function readStoreCommandFile(
 ): Promise<CommandFile | null> {
   if (!isValidSlug(slug)) return null;
   const octokit = octokitOverride ?? getOctokit();
-  const raw = await readCompanyStoreText(
-    octokit,
-    `${STORE_COMMANDS_DIR}/${slug}.md`,
-  );
+  const path = await companyStoreAssetPath(octokit, "commands", `${slug}.md`);
+  const raw = await readCompanyStoreText(octokit, path);
   if (raw === null) return null;
   const { frontmatter, body } = parseCommandMarkdown(raw);
   const updatedAt = await companyStoreUpdatedAt(octokit, "commands", slug);
@@ -238,7 +236,7 @@ export async function readStoreCommandFile(
     source: "store",
     sha: "",
     updatedAt: updatedAt === "1970-01-01T00:00:00.000Z" ? "" : updatedAt,
-    htmlUrl: buildCompanyStoreBlobUrl(`${STORE_COMMANDS_DIR}/${slug}.md`),
+    htmlUrl: buildCompanyStoreBlobUrl(path),
   };
 }
 

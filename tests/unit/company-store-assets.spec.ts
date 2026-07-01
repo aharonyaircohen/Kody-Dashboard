@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  companyStoreAssetPath,
   companyStoreUpdatedAt,
   listCompanyStoreMarkdownAssetSlugs,
   mergeAssetsBySlug,
@@ -25,12 +26,24 @@ describe("company store asset merge", () => {
     ]);
   });
 
-  it("lists markdown-backed store agents from plural folder", async () => {
+  it("lists markdown-backed store agents from the configured root-layout folder", async () => {
     const paths: string[] = [];
     const octokit = {
       repos: {
         getContent: async ({ path }: { path: string }) => {
           paths.push(path);
+          if (path === "kody-store.json") {
+            return {
+              data: {
+                content: Buffer.from(
+                  JSON.stringify({
+                    assetRoots: { agent: "agents", commands: "commands" },
+                  }),
+                  "utf8",
+                ).toString("base64"),
+              },
+            };
+          }
           return {
             data: [
               { name: "cto.md", type: "file" },
@@ -49,7 +62,28 @@ describe("company store asset merge", () => {
         /^[a-z0-9][a-z0-9_-]*$/.test(slug),
       ),
     ).resolves.toEqual(["cto", "release-manager"]);
-    expect(paths).toEqual([".kody/agents"]);
+    expect(paths).toEqual(["kody-store.json", "agents"]);
+  });
+
+  it("builds Store asset paths from the configured Store ref layout", async () => {
+    const octokit = {
+      repos: {
+        getContent: async ({ path }: { path: string }) => {
+          return {
+            data: {
+              content: Buffer.from(
+                JSON.stringify({ assetRoots: { commands: "commands" } }),
+                "utf8",
+              ).toString("base64"),
+            },
+          };
+        },
+      },
+    };
+
+    await expect(
+      companyStoreAssetPath(octokit as never, "commands", "review.md"),
+    ).resolves.toBe("commands/review.md");
   });
 
   it("reads plural agent mtimes from legacy singular manifest key", async () => {

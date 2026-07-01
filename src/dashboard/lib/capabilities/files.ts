@@ -30,6 +30,7 @@ import {
 } from "./profile";
 import {
   buildCompanyStoreHtmlUrl,
+  companyStoreAssetPath,
   listCompanyStoreAssetSlugs,
   listCompanyStoreDirectorySafe,
   mergeAssetsBySlug,
@@ -332,9 +333,10 @@ async function readStoreCapabilitySummary(
   octokit: Octokit,
   storage: CapabilityStorage = CAPABILITY_STORAGE,
 ): Promise<CapabilitySummary | null> {
+  const base = await companyStoreAssetPath(octokit, storage.storeKind, slug);
   const profileRaw = await readCompanyStoreText(
     octokit,
-    `.kody/${storage.storeKind}/${slug}/profile.json`,
+    `${base}/profile.json`,
   );
   if (!profileRaw) return null;
   const profile = parseProfileJson(profileRaw);
@@ -436,7 +438,7 @@ async function readStoreCapabilityFile(
   storage: CapabilityStorage = CAPABILITY_STORAGE,
 ): Promise<CapabilityDetail | null> {
   if (!isValidSlug(slug)) return null;
-  const base = `.kody/${storage.storeKind}/${slug}`;
+  const base = await companyStoreAssetPath(octokit, storage.storeKind, slug);
   const profileRaw = await readCompanyStoreText(
     octokit,
     `${base}/profile.json`,

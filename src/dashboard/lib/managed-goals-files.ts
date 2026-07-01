@@ -15,6 +15,7 @@ import {
   writeStateText,
 } from "./state-repo";
 import {
+  companyStoreAssetPath,
   listCompanyStoreDirectorySafe,
   readCompanyStoreText,
 } from "./company-store/assets";
@@ -35,7 +36,6 @@ import {
   type ManagedGoalState,
 } from "./managed-goals";
 
-const GOAL_TEMPLATE_ROOT = ".kody/goals/templates";
 const TODOS_ROOT = "todos";
 
 interface ContentFile {
@@ -124,14 +124,15 @@ export async function listManagedGoalFiles(
 export async function listCompanyStoreGoalTemplateFiles(
   octokit: Octokit = getOctokit(),
 ): Promise<ManagedGoalRecord[]> {
-  const dirs = await listCompanyStoreDirectorySafe(octokit, GOAL_TEMPLATE_ROOT);
+  const goalTemplateRoot = await companyStoreAssetPath(octokit, "goals");
+  const dirs = await listCompanyStoreDirectorySafe(octokit, goalTemplateRoot);
   const goals: ManagedGoalRecord[] = [];
 
   for (const dir of dirs) {
     if (dir.type !== "dir" || !dir.name) continue;
     if (!/^[a-z0-9][a-z0-9_-]{0,63}$/.test(dir.name)) continue;
 
-    const path = `${GOAL_TEMPLATE_ROOT}/${dir.name}/state.json`;
+    const path = `${goalTemplateRoot}/${dir.name}/state.json`;
     const raw = await readCompanyStoreText(octokit, path);
     if (!raw) continue;
 

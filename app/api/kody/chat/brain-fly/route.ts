@@ -62,7 +62,7 @@ import {
 } from "@dashboard/lib/chat/page-context";
 import { loadContextForPrompt } from "@dashboard/lib/context/files";
 import { createRepoBrainScope } from "@dashboard/lib/brain/repo-scope";
-import { readAgentFile } from "@dashboard/lib/agent-files";
+import { readResolvedAgentFile } from "@dashboard/lib/agent-files";
 
 export const runtime = "nodejs";
 // Restore can mirror a full Brain image before the chat stream starts.
@@ -295,7 +295,7 @@ export async function POST(req: NextRequest) {
     let agentIdentity: BrainAgentIdentity | undefined;
     if (!isResume) {
       try {
-        const repoBrain = await readAgentFile(REPO_BRAIN_AGENT_SLUG);
+        const repoBrain = await readResolvedAgentFile(REPO_BRAIN_AGENT_SLUG);
         if (repoBrain?.body.trim()) {
           agentIdentity = {
             slug: repoBrain.slug,

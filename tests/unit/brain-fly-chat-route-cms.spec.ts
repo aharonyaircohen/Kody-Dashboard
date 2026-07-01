@@ -11,7 +11,7 @@ const provisionBrain = vi.fn();
 const waitForBrainHealth = vi.fn();
 const streamBrainChat = vi.fn();
 const loadContextForPrompt = vi.fn();
-const readAgentFile = vi.fn();
+const readResolvedAgentFile = vi.fn();
 
 vi.mock("@dashboard/lib/auth", () => ({
   requireKodyAuth: (...args: unknown[]) => requireKodyAuth(...args),
@@ -48,7 +48,7 @@ vi.mock("@dashboard/lib/context/files", () => ({
 }));
 
 vi.mock("@dashboard/lib/agent-files", () => ({
-  readAgentFile: (...args: unknown[]) => readAgentFile(...args),
+  readResolvedAgentFile: (...args: unknown[]) => readResolvedAgentFile(...args),
 }));
 
 import { POST } from "../../app/api/kody/chat/brain-fly/route";
@@ -98,7 +98,7 @@ beforeEach(() => {
   waitForBrainHealth.mockResolvedValue(undefined);
   streamBrainChat.mockResolvedValue(new Response("ok", { status: 200 }));
   loadContextForPrompt.mockResolvedValue(null);
-  readAgentFile.mockResolvedValue(null);
+  readResolvedAgentFile.mockResolvedValue(null);
 });
 
 describe("POST /api/kody/chat/brain-fly CMS context", () => {
@@ -128,7 +128,7 @@ describe("POST /api/kody/chat/brain-fly CMS context", () => {
   });
 
   it("passes the repo-brain agent identity when the selected repo defines it", async () => {
-    readAgentFile.mockResolvedValue({
+    readResolvedAgentFile.mockResolvedValue({
       slug: "repo-brain",
       title: "Repo Brain",
       body: "You are scoped to this repository.",
@@ -137,7 +137,7 @@ describe("POST /api/kody/chat/brain-fly CMS context", () => {
     const res = await POST(request({ chatId: "c1", message: "who are you?" }));
 
     expect(res.status).toBe(200);
-    expect(readAgentFile).toHaveBeenCalledWith("repo-brain");
+    expect(readResolvedAgentFile).toHaveBeenCalledWith("repo-brain");
     expect(streamBrainChat.mock.calls[0]![0]).toMatchObject({
       agentIdentity: {
         slug: "repo-brain",

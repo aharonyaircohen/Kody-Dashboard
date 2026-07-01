@@ -15,6 +15,7 @@ export type StoreAssetKind =
   | "executables"
   | "workflows"
   | "commands"
+  | "goals"
   | "agent"
   | "agents";
 type StoreManifestKind =
@@ -22,6 +23,7 @@ type StoreManifestKind =
   | "executables"
   | "workflows"
   | "commands"
+  | "goals"
   | "agent";
 export type AssetSource = "local" | "store";
 
@@ -51,10 +53,16 @@ interface StoreManifest {
   >;
 }
 
+interface StoreConfig {
+  assetRoots?: Record<string, unknown>;
+}
+
 const DEFAULT_COMPANY_STORE = "aharonyaircohen/kody-company-store";
 const DEFAULT_COMPANY_STORE_REF = "stable";
 
 let manifestMemo: { key: string; value: Promise<StoreManifest | null> } | null =
+  null;
+let configMemo: { key: string; value: Promise<StoreConfig | null> } | null =
   null;
 
 function getCompanyStoreRef(): string {
@@ -118,7 +126,7 @@ export function buildCompanyStoreHtmlUrl(
   slug: string,
 ): string {
   const store = getCompanyStoreTarget();
-  return `https://github.com/${store.owner}/${store.repo}/tree/${store.ref}/.kody/${kind}/${slug}`;
+  return `https://github.com/${store.owner}/${store.repo}/tree/${store.ref}/${defaultStoreAssetRoot(kind)}/${slug}`;
 }
 
 export function buildCompanyStoreBlobUrl(path: string): string {
@@ -168,7 +176,8 @@ export async function listCompanyStoreAssetSlugs(
   isValidSlug: (slug: string) => boolean,
 ): Promise<string[]> {
   try {
-    const entries = await readCompanyStoreDirectory(octokit, `.kody/${kind}`);
+    const root = await companyStoreAssetPath(octokit, kind);
+    const entries = await readCompanyStoreDirectory(octokit, root);
     return entries
       .filter((entry) => entry.type === "dir" && isValidSlug(entry.name))
       .map((entry) => entry.name)
@@ -186,7 +195,8 @@ export async function listCompanyStoreMarkdownAssetSlugs(
   isValidSlug: (slug: string) => boolean,
 ): Promise<string[]> {
   try {
-    const entries = await readCompanyStoreDirectory(octokit, `.kody/${kind}`);
+    const root = await companyStoreAssetPath(octokit, kind);
+    const entries = await readCompanyStoreDirectory(octokit, root);
     return entries
       .filter((entry) => entry.type === "file" && entry.name.endsWith(".md"))
       .map((entry) => entry.name.slice(0, -".md".length))
@@ -197,6 +207,64 @@ export async function listCompanyStoreMarkdownAssetSlugs(
     console.warn("[company-store] failed to list store markdown assets", error);
     return [];
   }
+}
+
+export async function companyStoreAssetPath(
+  octokit: Octokit,
+  kind: StoreAssetKind,
+  ...segments: string[]
+): Promise<string> {
+  return joinStorePath(await companyStoreAssetRoot(octokit, kind), ...segments);
+}
+
+async function companyStoreAssetRoot(
+  octokit: Octokit,
+  kind: StoreAssetKind,
+): Promise<string> {
+  const config = await readCompanyStoreConfig(octokit);
+  const manifestKind = storeManifestKind(kind);
+  const configured =
+    config?.assetRoots?.[manifestKind] ?? config?.assetRoots?.[kind];
+  if (typeof configured === "string" && configured.trim()) {
+    return cleanStorePath(configured);
+  }
+  return legacyStoreAssetRoot(kind);
+}
+
+function storeManifestKind(kind: StoreAssetKind): StoreManifestKind {
+  return kind === "agents" ? "agent" : kind;
+}
+
+function defaultStoreAssetRoot(kind: StoreAssetKind): string {
+  switch (kind) {
+    case "agents":
+    case "agent":
+      return "agents";
+    case "goals":
+      return "goals/templates";
+    default:
+      return kind;
+  }
+}
+
+function legacyStoreAssetRoot(kind: StoreAssetKind): string {
+  switch (kind) {
+    case "agents":
+    case "agent":
+      return ".kody/agents";
+    case "goals":
+      return ".kody/goals/templates";
+    default:
+      return `.kody/${kind}`;
+  }
+}
+
+function joinStorePath(...parts: string[]): string {
+  return parts.map(cleanStorePath).filter(Boolean).join("/");
+}
+
+function cleanStorePath(path: string): string {
+  return path.trim().replace(/^\/+|\/+$/g, "");
 }
 
 export async function listCompanyStoreDirectorySafe(
@@ -217,11 +285,32 @@ export async function companyStoreUpdatedAt(
   slug: string,
 ): Promise<string> {
   const manifest = await readCompanyStoreManifest(octokit);
-  const manifestKind: StoreManifestKind = kind === "agents" ? "agent" : kind;
+  const manifestKind = storeManifestKind(kind);
   const mtime = manifest?.kinds?.[manifestKind]?.selected?.[slug]?.mtime;
   return typeof mtime === "string" && mtime
     ? mtime
     : "1970-01-01T00:00:00.000Z";
+}
+
+async function readCompanyStoreConfig(
+  octokit: Octokit,
+): Promise<StoreConfig | null> {
+  const store = getCompanyStoreTarget();
+  const key = `${store.owner}/${store.repo}@${store.ref}`;
+  if (configMemo?.key === key) return configMemo.value;
+  const value = (async () => {
+    const raw =
+      (await readCompanyStoreText(octokit, "kody-store.json")) ??
+      (await readCompanyStoreText(octokit, ".kody/kody-store.json"));
+    if (!raw) return null;
+    try {
+      return JSON.parse(raw) as StoreConfig;
+    } catch {
+      return null;
+    }
+  })();
+  configMemo = { key, value };
+  return value;
 }
 
 async function readCompanyStoreManifest(
@@ -231,10 +320,9 @@ async function readCompanyStoreManifest(
   const key = `${store.owner}/${store.repo}@${store.ref}`;
   if (manifestMemo?.key === key) return manifestMemo.value;
   const value = (async () => {
-    const raw = await readCompanyStoreText(
-      octokit,
-      ".kody/store-manifest.json",
-    );
+    const raw =
+      (await readCompanyStoreText(octokit, "store-manifest.json")) ??
+      (await readCompanyStoreText(octokit, ".kody/store-manifest.json"));
     if (!raw) return null;
     try {
       return JSON.parse(raw) as StoreManifest;
