@@ -59,6 +59,7 @@ describe("buildAgentList", () => {
     );
     expect(brainKeys).toHaveLength(1);
     expect(brainKeys[0].key).toBe("brain-fly");
+    expect(brainKeys[0].name).toBe("Repo Brain");
     expect(brainKeys[0].name).toBe(AGENTS["brain-fly"].name);
     expect(list.map((e) => e.key)).toContain("kody-live-fly");
   });

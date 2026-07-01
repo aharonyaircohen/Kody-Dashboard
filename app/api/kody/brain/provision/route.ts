@@ -6,7 +6,7 @@
  * POST /api/kody/brain/provision
  *
  * Idempotent provision of the per-user Brain Fly app. Drives the
- * Settings "Brain on Fly" toggle — the user flips it ON and we create
+ * Settings "Repo Brain on Fly" toggle - the user flips it ON and we create
  * (or reuse) the app + machine. Returns the same shape as the chat
  * route's internal provisionBrain call.
  *
@@ -105,7 +105,7 @@ export async function POST(req: NextRequest) {
     return NextResponse.json(
       {
         error:
-          "Brain on Fly needs a Fly Machines token. Set FLY_API_TOKEN or FLY_IO_TOKEN in the server env, or add FLY_API_TOKEN to the repo Secrets vault.",
+          "Repo Brain on Fly needs a Fly Machines token. Set FLY_API_TOKEN or FLY_IO_TOKEN in the server env, or add FLY_API_TOKEN to the repo Secrets vault.",
       },
       { status: 400 },
     );

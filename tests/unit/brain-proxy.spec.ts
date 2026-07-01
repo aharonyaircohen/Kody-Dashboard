@@ -20,6 +20,7 @@ import {
   formatTaskContext,
   streamBrainChat,
 } from "@dashboard/lib/brain-proxy";
+import { createRepoBrainScope } from "@dashboard/lib/brain/repo-scope";
 
 // ────────────────────────────────────────────────────────────────────────────
 // Preamble builders
@@ -122,6 +123,19 @@ describe("buildDecoratedMessage", () => {
     const userIdx = out.indexOf("[User]\nuser text");
     expect(styleIdx).toBeGreaterThan(taskIdx);
     expect(userIdx).toBeGreaterThan(styleIdx);
+  });
+
+  it("uses Repo Brain scope for the repository preamble", () => {
+    const out = buildDecoratedMessage("user text", {
+      repoScope: createRepoBrainScope({
+        owner: "Acme",
+        repo: "Widgets",
+      }),
+    });
+
+    expect(out).toContain("[Repository]");
+    expect(out).toContain("Acme/Widgets selected");
+    expect(out).toContain("[User]\nuser text");
   });
 });
 
@@ -254,6 +268,32 @@ describe("streamBrainChat — SSE translation", () => {
       repo?: string;
     };
     expect(body.repo).toBe("alice/widgets");
+  });
+
+  it("forwards Repo Brain scope as the upstream repo and store target", async () => {
+    const { calls } = installFetchStub({ events: [{ type: "done" }] });
+    await streamBrainChat({
+      brainUrl: "https://b.example.com",
+      brainKey: "k",
+      chatId: "c1",
+      message: "hi",
+      repoScope: createRepoBrainScope({
+        owner: "Acme",
+        repo: "Widgets",
+        storeRepoUrl: "https://github.com/acme/kody-store",
+        storeRef: "stable",
+      }),
+    });
+    const body = JSON.parse(calls[0]!.init!.body as string) as {
+      message: string;
+      repo?: string;
+      storeRepoUrl?: string;
+      storeRef?: string;
+    };
+    expect(body.repo).toBe("Acme/Widgets");
+    expect(body.storeRepoUrl).toBe("https://github.com/acme/kody-store");
+    expect(body.storeRef).toBe("stable");
+    expect(body.message).toContain("Acme/Widgets selected");
   });
 
   it("forwards dashboardUrl when provided", async () => {

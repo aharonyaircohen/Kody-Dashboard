@@ -5,7 +5,7 @@
  * @ai-summary Per-USER settings UI — only knobs scoped to this browser/user
  *   live here. Edits optional browser-scoped integration fields in
  *   localStorage.kody_auth via useAuth().updateIntegrations. ALL Fly config
- *   (including Brain on Fly) lives on /runner so Brain has one visible home.
+ *   (including Repo Brain on Fly) lives on /runner so Brain has one visible home.
  *   Other per-REPO config is surfaced as links: secrets vault on /secrets,
  *   chat models/prompts on /models and /prompts. (Repo connections + PATs moved
  *   to the header repo switcher — no standalone page.)

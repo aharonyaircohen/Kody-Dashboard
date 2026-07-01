@@ -75,12 +75,12 @@ export function shouldWaitForModelBackedEntryResolution({
  * (or types and sends, which auto-starts a one-shot session per the existing
  * /interactive/start flow).
  *
- * Brain row: offer Brain on Fly only when the repo has FLY_API_TOKEN *and* the
- * per-repo `brainFlyChatEnabled` toggle is on (Settings → Brain on Fly, default
- * off). Fly task *execution* is independent and still keys off FLY_API_TOKEN
- * alone — this flag is chat-only. Otherwise fall back to the manual Brain
- * (URL+key via Settings). Same single-slot rule as Live — one or the other,
- * never both.
+ * Brain row: offer Repo Brain only when the repo has FLY_API_TOKEN *and* the
+ * per-repo `brainFlyChatEnabled` toggle is on (Settings -> Repo Brain on Fly,
+ * default off). Fly task *execution* is independent and still keys off
+ * FLY_API_TOKEN alone - this flag is chat-only. Otherwise fall back to the
+ * manual Brain (URL+key via Settings). Same single-slot rule as Live - one or
+ * the other, never both.
  */
 export function buildAgentList(
   brainConfigured: boolean,

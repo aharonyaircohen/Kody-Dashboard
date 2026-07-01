@@ -101,11 +101,22 @@ describe("POST /api/kody/chat/brain-fly CMS context", () => {
     expect(res.status).toBe(200);
     expect(streamBrainChat).toHaveBeenCalledOnce();
     expect(streamBrainChat.mock.calls[0]![0]).toMatchObject({
-      repo: "acme/widgets",
+      repoScope: {
+        type: "repo",
+        owner: "acme",
+        repo: "widgets",
+        repoSlug: "acme/widgets",
+        key: "acme/widgets",
+        storeRepoUrl: "https://github.com/acme/kody-store",
+        storeRef: "stable",
+      },
       repoToken: "ghp_ctx_token",
       dashboardUrl: "https://dashboard.example.test",
-      storeRepoUrl: "https://github.com/acme/kody-store",
-      storeRef: "stable",
     });
+    expect(streamBrainChat.mock.calls[0]![0]).not.toHaveProperty("repo");
+    expect(streamBrainChat.mock.calls[0]![0]).not.toHaveProperty(
+      "storeRepoUrl",
+    );
+    expect(streamBrainChat.mock.calls[0]![0]).not.toHaveProperty("storeRef");
   });
 });

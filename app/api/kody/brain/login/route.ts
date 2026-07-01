@@ -5,7 +5,7 @@
  *
  * POST /api/kody/brain/login
  *
- * Returns the URL + API key needed to use this user's Brain on Fly from an
+ * Returns the URL + API key needed to use this user's Repo Brain on Fly from an
  * external Brain client. This is intentionally POST-only and no-store because
  * the API key is the login secret.
  */
@@ -84,7 +84,7 @@ export async function POST(req: NextRequest) {
     return NextResponse.json(
       {
         error:
-          "Brain on Fly needs a Fly Machines token. Set FLY_API_TOKEN or FLY_IO_TOKEN in the server env, or add FLY_API_TOKEN to the repo Secrets vault.",
+          "Repo Brain on Fly needs a Fly Machines token. Set FLY_API_TOKEN or FLY_IO_TOKEN in the server env, or add FLY_API_TOKEN to the repo Secrets vault.",
       },
       { status: 400, headers: NO_STORE_HEADERS },
     );

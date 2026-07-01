@@ -3,10 +3,10 @@
  * @domain settings
  * @pattern brain-fly-card
  *
- * Settings → Brain on Fly card. Single source of truth for whether the
- * per-user Brain Fly app exists. Replaces the in-chat status bar:
+ * Settings -> Repo Brain on Fly card. Single source of truth for whether the
+ * user-owned Fly runtime for Repo Brain exists. Replaces the in-chat status bar:
  *
- *   - "Brain on Fly" header + status pill (Off / Running / Suspended).
+ *   - "Repo Brain on Fly" header + status pill (Off / Running / Suspended).
  *   - Turn on  → POST /api/kody/brain/provision (idempotent).
  *   - Suspend  → POST /api/kody/brain/suspend (when running).
  *   - Resume   → POST /api/kody/brain/resume  (when suspended/stopped).
@@ -237,7 +237,7 @@ export function BrainFlyCard({
       // ignore — best-effort persistence
     }
   }, [customAppName]);
-  // Per-repo state repo dashboard.json flag — whether the "Kody Brain (Fly)"
+  // Per-repo state repo dashboard.json flag - whether the "Repo Brain"
   // row is offered in the chat picker. Default off. Independent of the
   // provision lifecycle above and of Fly task execution.
   const [chatEnabled, setChatEnabled] = useState(false);
@@ -316,8 +316,8 @@ export function BrainFlyCard({
       }
       toast.success(
         next
-          ? "Kody Brain (Fly) is now offered in chat"
-          : "Kody Brain (Fly) hidden from chat",
+          ? "Repo Brain is now offered in chat"
+          : "Repo Brain hidden from chat",
       );
     } catch (err) {
       toast.error(`Save failed: ${(err as Error).message}`);
@@ -353,12 +353,12 @@ export function BrainFlyCard({
         // The new app is the actual brain — note the name so the user
         // understands why the stored address differs from the requested slug.
         toast.success(
-          `Brain on Fly is on (used ${body.app} because ${body.originalName} was unreachable).`,
+          `Repo Brain on Fly is on (used ${body.app} because ${body.originalName} was unreachable).`,
           { duration: 6000 },
         );
       } else {
         toast.success(
-          "Brain on Fly is on — first chat may take ~30s to warm up",
+          "Repo Brain on Fly is on - first chat may take ~30s to warm up",
         );
       }
       // Refresh shows running/starting; subsequent polls will pick up
@@ -465,7 +465,7 @@ export function BrainFlyCard({
         toast.error(body.error ?? `Destroy failed (HTTP ${res.status})`);
         return;
       }
-      toast.success("Brain on Fly is off");
+      toast.success("Repo Brain on Fly is off");
       setState("off");
       setApp(null);
       setMachineId(null);
@@ -586,9 +586,9 @@ export function BrainFlyCard({
         <CardContent className="p-4 space-y-4">
           <div className="flex items-center gap-2">
             <Brain className="w-4 h-4 text-violet-400" />
-            <h2 className="text-sm font-semibold">Brain on Fly</h2>
+            <h2 className="text-sm font-semibold">Repo Brain on Fly</h2>
             <SimpleTooltip
-              content="Your personal Brain server on Fly. Sleeps when idle, wakes in ~1s on the next chat — no manual wake-up needed."
+              content="Your Fly runtime for repo-scoped Brain chats. Sleeps when idle, wakes in ~1s on the next chat - no manual wake-up needed."
               side="right"
             >
               <Info className="w-3.5 h-3.5 text-white/50 hover:text-white/80 cursor-help" />
@@ -729,7 +729,7 @@ export function BrainFlyCard({
                 className="mt-0.5"
               />
               <span className="text-xs text-white/60 leading-relaxed flex items-center gap-1.5">
-                Offer &ldquo;Kody Brain (Fly)&rdquo; in the chat picker.
+                Offer &ldquo;Repo Brain&rdquo; in the chat picker.
                 <SimpleTooltip
                   content="Off by default. Chat-only — Fly task execution is unaffected."
                   side="right"
@@ -899,7 +899,7 @@ export function BrainFlyCard({
       </Card>
       <ConfirmDialog
         open={confirmOpen}
-        title="Turn off Brain on Fly?"
+        title="Turn off Repo Brain on Fly?"
         description="Tears down the Fly app and any sessions stored on its filesystem. The agent disappears from the chat picker until you turn it back on. Re-enabling takes ~30s."
         confirmLabel={busy === "destroying" ? "Turning off…" : "Turn off"}
         variant="destructive"

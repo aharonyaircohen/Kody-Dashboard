@@ -117,15 +117,14 @@ export const AGENT_BRAIN: AgentConfig = {
 };
 
 // ===========================================
-// KODY BRAIN ON FLY
+// REPO BRAIN ON FLY
 // ===========================================
 
 /**
  * Same Brain shape as AGENT_BRAIN (chat-with-tools, session memory, live
- * worktree), but the server runs on a per-user Fly Machine instead of the
- * external Brain VPS. No Settings UI required — the dashboard provisions
- * the machine lazily on first message using the user's FLY_API_TOKEN from
- * the repo vault.
+ * worktree), but the visible contract is repo-scoped: each selected repo gets
+ * its own chat/worktree/state context. The server itself runs on a user-owned
+ * Fly Machine instead of the external Brain VPS.
  *
  * Routed to /api/kody/chat/brain-fly (server-side provisioning + same SSE
  * proxy as /api/kody/chat/brain). Only surfaced in the chat picker when
@@ -134,15 +133,16 @@ export const AGENT_BRAIN: AgentConfig = {
  */
 export const AGENT_BRAIN_FLY: AgentConfig = {
   id: "brain-fly",
-  name: "Kody Brain (Fly)",
+  name: "Repo Brain",
   description:
-    "Per-user Brain on Fly — auto-provisioned from your Fly token, no Settings step",
+    "Repo-scoped Brain on your Fly runtime - uses the selected repo's workspace and state",
   icon: Brain,
   backend: "brain",
   supportsVoice: true,
   capabilities: [
     "Same tools and session model as Kody Brain (Grep, Glob, Read, gh CLI)",
-    "Server lives on YOUR Fly account — provisioned per-user, idles suspended",
+    "Each repo gets its own Brain chat/worktree/state scope",
+    "Server lives on YOUR Fly account - provisioned per-user, idles suspended",
     "No external Brain URL/key needed — the dashboard provisions and uses it server-side",
     "First message provisions the machine (~30s); subsequent messages are warm",
   ],

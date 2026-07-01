@@ -5,10 +5,10 @@
  *
  * POST /api/kody/chat/brain-fly
  *
- * Per-user Brain server proxy. Same wire shape as /api/kody/chat/brain
- * (request body + SSE response) but credentials are resolved server-side
- * by lazily provisioning a Fly Machine for the user — the dashboard never
- * stores or shows the brain URL/key.
+ * Repo Brain server proxy. Same wire shape as /api/kody/chat/brain
+ * (request body + SSE response), with credentials resolved server-side
+ * by lazily provisioning the user's Fly runtime. The dashboard never stores
+ * or shows the Brain URL/key.
  *
  * Lifecycle:
  *   1. requireKodyAuth + resolveFlyContext (reads FLY_API_TOKEN from the
@@ -60,6 +60,7 @@ import {
   withDashboardContext,
 } from "@dashboard/lib/chat/page-context";
 import { loadContextForPrompt } from "@dashboard/lib/context/files";
+import { createRepoBrainScope } from "@dashboard/lib/brain/repo-scope";
 
 export const runtime = "nodejs";
 // Restore can mirror a full Brain image before the chat stream starts.
@@ -84,7 +85,7 @@ export async function POST(req: NextRequest) {
     return NextResponse.json(
       {
         error:
-          "Brain on Fly needs a Fly Machines token — add FLY_API_TOKEN to the repo Secrets vault.",
+          "Repo Brain on Fly needs a Fly Machines token - add FLY_API_TOKEN to the repo Secrets vault.",
       },
       { status: 400 },
     );
@@ -260,7 +261,12 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    const repo = `${ctx.context.owner}/${ctx.context.repo}`;
+    const repoScope = createRepoBrainScope({
+      owner: ctx.context.owner,
+      repo: ctx.context.repo,
+      storeRepoUrl: ctx.context.storeRepoUrl,
+      storeRef: ctx.context.storeRef,
+    });
     const repoToken = ctx.context.githubToken;
 
     // First turn only: pull the dashboard's curated Context for the chat
@@ -298,16 +304,14 @@ export async function POST(req: NextRequest) {
       taskContext: body.taskContext,
       attachments: body.attachments,
       capabilityContext: body.capabilityContext,
-      repo,
+      repoScope,
       repoToken,
       dashboardUrl,
-      storeRepoUrl: ctx.context.storeRepoUrl,
-      storeRef: ctx.context.storeRef,
       voiceMode: body.voiceMode === true,
       ...(body.reasoningEffort
         ? { reasoningEffort: body.reasoningEffort }
         : {}),
-      // Per-user Brain on Fly answers in plain, simple terms (external /brain
+      // Repo Brain on Fly answers in plain, simple terms (external /brain
       // keeps its own style). See PLAIN_LANGUAGE_PREAMBLE in brain-proxy.
       plainLanguage: true,
       ...(isResume

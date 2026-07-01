@@ -31,7 +31,7 @@ export interface DashboardConfig {
    */
   namedPreviews?: PreviewEnvironment[];
   /**
-   * Whether "Kody Brain (Fly)" row is offered in chat picker.
+   * Whether the "Repo Brain" row is offered in chat picker.
    * Per-repo, default `false`; Fly task execution stays driven solely by the
    * repo's `FLY_API_TOKEN`.
    */

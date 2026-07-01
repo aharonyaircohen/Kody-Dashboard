@@ -5,8 +5,8 @@
  *
  * Shared "Brain SSE proxy" used by both Brain chat endpoints:
  *   - /api/kody/chat/brain      — external Brain server (URL/key from Settings).
- *   - /api/kody/chat/brain-fly  — per-user Brain on Fly (URL/key from server-side
- *     provisionBrain()).
+ *   - /api/kody/chat/brain-fly  — Repo Brain on a user-owned Fly runtime
+ *     (URL/key from server-side provisionBrain()).
  *
  * Both endpoints share the same wire protocol with the upstream Brain server
  * — `POST {brainUrl}/chats/{chatId}/messages` with `X-Api-Key`, SSE response —
@@ -23,6 +23,7 @@
 import { logger } from "@dashboard/lib/logger";
 import { fetchIssueAttachments } from "@dashboard/lib/issue-attachments";
 import { dashboardTaskUrl } from "@dashboard/lib/thread-link";
+import type { RepoBrainScope } from "@dashboard/lib/brain/repo-scope";
 
 export interface BrainTaskContext {
   issueNumber?: number;
@@ -58,6 +59,12 @@ export interface BrainChatRequest {
   taskContext?: BrainTaskContext;
   attachments?: BrainAttachment[];
   capabilityContext?: BrainCapabilityContext;
+  /**
+   * Explicit Repo Brain scope. Prefer this for Brain-on-Fly so the dashboard
+   * keeps "which repo owns this chat/workspace/state" separate from the
+   * user-owned Fly runtime that serves the request.
+   */
+  repoScope?: RepoBrainScope;
   /** owner/name of the user's repo (forwarded so Brain can clone a worktree). */
   repo?: string;
   /**
@@ -209,16 +216,18 @@ export function buildDecoratedMessage(
   opts: {
     taskContext?: BrainTaskContext;
     capabilityContext?: BrainCapabilityContext;
+    repoScope?: Pick<RepoBrainScope, "repoSlug">;
     repo?: string;
     plainLanguage?: boolean;
   },
 ): string {
+  const repo = opts.repoScope?.repoSlug ?? opts.repo;
   // The `repo` JSON field is at most a one-time clone hint Brain consumes to
   // set up a worktree — it never reaches the model's context. State it in the
   // message every turn so the model knows which repo to reason about (and so a
   // dev Brain with no worktree still answers grounded in the right repo).
-  const repoPreamble = opts.repo
-    ? `[Repository]\nThe user has ${opts.repo} selected in the dashboard. All questions are about this repository unless they say otherwise — inspect its code/issues/PRs for context and refer to it by name.\n\nBefore making any code change or fix, first explain what you intend to change and why, then STOP and wait for the user to explicitly approve. Do NOT edit, commit, or push in the same turn as the explanation — the approval ask must be the last thing you do that turn. Only after the user says go: make the change, commit with a clear conventional-commit message, and push to the working branch as the final step — don't leave approved changes uncommitted.`
+  const repoPreamble = repo
+    ? `[Repository]\nThe user has ${repo} selected in the dashboard. All questions are about this repository unless they say otherwise — inspect its code/issues/PRs for context and refer to it by name.\n\nBefore making any code change or fix, first explain what you intend to change and why, then STOP and wait for the user to explicitly approve. Do NOT edit, commit, or push in the same turn as the explanation — the approval ask must be the last thing you do that turn. Only after the user says go: make the change, commit with a clear conventional-commit message, and push to the working branch as the final step — don't leave approved changes uncommitted.`
     : null;
   const taskPreamble = formatTaskContext(opts.taskContext);
   const capabilityPreamble = formatCapabilityContext(opts.capabilityContext);
@@ -247,10 +256,14 @@ export function buildDecoratedMessage(
 export async function streamBrainChat(
   input: BrainChatRequest,
 ): Promise<Response> {
+  const repo = input.repoScope?.repoSlug ?? input.repo;
+  const storeRepoUrl = input.repoScope?.storeRepoUrl ?? input.storeRepoUrl;
+  const storeRef = input.repoScope?.storeRef ?? input.storeRef;
   const decoratedMessage = buildDecoratedMessage(input.message, {
     taskContext: input.taskContext,
     capabilityContext: input.capabilityContext,
-    repo: input.repo,
+    repoScope: input.repoScope,
+    repo,
     plainLanguage: input.plainLanguage,
   });
 
@@ -313,15 +326,13 @@ export async function streamBrainChat(
             body: JSON.stringify({
               message: decoratedMessage,
               ...(attachments.length > 0 ? { attachments } : {}),
-              ...(input.repo ? { repo: input.repo } : {}),
+              ...(repo ? { repo } : {}),
               ...(input.repoToken ? { repoToken: input.repoToken } : {}),
               ...(input.dashboardUrl
                 ? { dashboardUrl: input.dashboardUrl }
                 : {}),
-              ...(input.storeRepoUrl
-                ? { storeRepoUrl: input.storeRepoUrl }
-                : {}),
-              ...(input.storeRef ? { storeRef: input.storeRef } : {}),
+              ...(storeRepoUrl ? { storeRepoUrl } : {}),
+              ...(storeRef ? { storeRef } : {}),
               ...(input.voiceMode === true ? { voiceMode: true } : {}),
               ...(input.reasoningEffort
                 ? { reasoningEffort: input.reasoningEffort }

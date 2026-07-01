@@ -44,6 +44,10 @@ import {
   type ChatDropdownEntry,
   type ChatModelEntry,
 } from "../chat/agent-entries";
+import {
+  repoBrainConversationKey,
+  repoBrainScopeKey,
+} from "../brain/repo-scope";
 import { readDefaultChatEntry } from "../chat/default-entry";
 import {
   readReasoningEffort,
@@ -395,7 +399,7 @@ export function KodyChat({
   // non-empty FLY_API_TOKEN. The Fly dropdown row is hidden until then so
   // users can't pick a runner that will fail at start-fly time.
   const [flyConfigured, setFlyConfigured] = useState(false);
-  // Per-repo opt-in for the "Kody Brain (Fly)" chat row (state repo dashboard.json,
+  // Per-repo opt-in for the "Repo Brain" chat row (state repo dashboard.json,
   // default false). Chat-only — does NOT gate Fly task execution.
   const [brainFlyChatEnabled, setBrainFlyChatEnabled] = useState(false);
   // User-managed chat models from /api/kody/models (LLM_MODELS variable).
@@ -599,7 +603,7 @@ export function KodyChat({
     };
   }, []);
 
-  // Load the repo-wide Brain (Fly) chat toggle once on mount. The default
+  // Load the repo-wide Repo Brain chat toggle once on mount. The default
   // chat entry is no longer fetched here — it's a per-user localStorage
   // preference, read synchronously into state above. Silent on failure.
   useEffect(() => {
@@ -2380,10 +2384,10 @@ export function KodyChat({
       //   - 'brain'     → user-managed external server, URL/key from Settings
       //                   (sent as x-brain-url/x-brain-key headers).
       //                   Routes to /api/kody/chat/brain.
-      //   - 'brain-fly' → per-user Brain auto-provisioned on Fly. Credentials
-      //                   are resolved server-side from FLY_API_TOKEN in the
-      //                   repo vault. Routes to /api/kody/chat/brain-fly,
-      //                   no client-side credentials.
+      //   - 'brain-fly' -> Repo Brain on a user-owned Fly runtime. Credentials
+      //                    are resolved server-side from FLY_API_TOKEN in the
+      //                    repo vault. Routes to /api/kody/chat/brain-fly,
+      //                    no client-side credentials.
       // Voice mode rides through Brain when the selected agent's
       // `supportsVoice` flag is true (the brain server applies the voice
       // overlay server-side, per the shared contract in
@@ -2418,17 +2422,21 @@ export function KodyChat({
         // bare issue numbers (`task-5`) would collide across repos. Prefixing
         // with owner/repo makes a repo switch start a fresh Brain chat that
         // clones the correct repo, keeping dashboard selection and Brain in sync.
-        const repoScope = (() => {
-          const a = getStoredAuth();
-          return a?.owner && a?.repo
-            ? `${a.owner.toLowerCase()}/${a.repo.toLowerCase()}`
-            : "norepo";
-        })();
+        const repoScope = repoBrainScopeKey(getStoredAuth());
         const brainLogicalKey = selectedTask
-          ? `${repoScope}::task-${selectedTask.id}`
+          ? repoBrainConversationKey(repoScope, {
+              type: "task",
+              id: selectedTask.id,
+            })
           : selectedCapability
-            ? `${repoScope}::capability-${selectedCapability.slug}`
-            : `${repoScope}::global-${brainSessionId}`;
+            ? repoBrainConversationKey(repoScope, {
+                type: "capability",
+                slug: selectedCapability.slug,
+              })
+            : repoBrainConversationKey(repoScope, {
+                type: "global",
+                sessionId: brainSessionId,
+              });
         // First turn = no chatId pinned yet for this conversation. Must be
         // read *before* stickyBrainChatId (which pins). Used to send the
         // dashboard Context block once — Brain is stateful and keeps it.

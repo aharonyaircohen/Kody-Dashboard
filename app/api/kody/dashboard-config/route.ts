@@ -200,7 +200,7 @@ export async function PUT(req: NextRequest) {
       next.brainFlyChatEnabled = parsed.data.brainFlyChatEnabled === true;
       commitMessage = `chore(dashboard): ${
         next.brainFlyChatEnabled ? "enable" : "disable"
-      } Brain (Fly) in chat`;
+      } Repo Brain in chat`;
     }
     await writeDashboardConfig(
       octokit,
