@@ -37,7 +37,7 @@ import { resolveFlyContext } from "@dashboard/lib/runners/fly-context";
 import { requestOrigin } from "@dashboard/lib/request-origin";
 
 export const runtime = "nodejs";
-export const maxDuration = 900;
+export const maxDuration = 300;
 
 const NO_STORE_HEADERS = {
   "Cache-Control": "no-store, max-age=0",

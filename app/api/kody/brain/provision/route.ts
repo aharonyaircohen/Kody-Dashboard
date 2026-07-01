@@ -60,7 +60,7 @@ import { resolveFlyContext } from "@dashboard/lib/runners/fly-context";
 import { requestOrigin } from "@dashboard/lib/request-origin";
 
 export const runtime = "nodejs";
-export const maxDuration = 900;
+export const maxDuration = 300;
 
 /** Brain has its OWN size, set independently of the per-user task-run speed
  * (`x-kody-fly-perf`). The `x-kody-brain-perf` header carries it; absent →

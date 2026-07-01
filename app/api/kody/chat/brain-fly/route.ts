@@ -63,7 +63,7 @@ import { loadContextForPrompt } from "@dashboard/lib/context/files";
 
 export const runtime = "nodejs";
 // Restore can mirror a full Brain image before the chat stream starts.
-export const maxDuration = 900;
+export const maxDuration = 300;
 
 function brainSuspendOnIdleFrom(req: NextRequest): boolean | undefined {
   const raw = req.headers.get("x-kody-brain-suspension");
