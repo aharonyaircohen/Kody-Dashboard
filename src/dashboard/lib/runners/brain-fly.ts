@@ -521,7 +521,10 @@ export async function allocateIpsIfMissing(
     }
   }`;
 
-  const allocate = async (type: "shared_v4" | "v6"): Promise<boolean> => {
+  const allocate = async (
+    type: "shared_v4" | "v6",
+    opts: { continueOnTransientWithUsableIp?: boolean } = {},
+  ): Promise<boolean> => {
     // POST /apps returns immediately but the new app takes a moment to
     // show up in the GraphQL index. Fly expresses the not-yet-visible
     // state as one of two error shapes:
@@ -587,10 +590,18 @@ export async function allocateIpsIfMissing(
         `Fly GraphQL status ${res.status}: ${raw.slice(0, 200)}`;
       lastErr = new Error(detail);
       const afterPartial = await readIps();
-      if (hasAnyIp(afterPartial)) {
+      if (hasAnyIp(afterPartial) || opts.continueOnTransientWithUsableIp) {
         logger.warn(
-          { app: appName, type, attempt: attempt + 1, err: detail },
-          "brain-fly: continuing after transient IP allocation error because app already has a public IP",
+          {
+            app: appName,
+            type,
+            attempt: attempt + 1,
+            err: detail,
+            observedIp: hasAnyIp(afterPartial),
+            priorAllocationSucceeded:
+              opts.continueOnTransientWithUsableIp === true,
+          },
+          "brain-fly: continuing after transient IP allocation error because a usable IP was already reconciled",
         );
         return false;
       }
@@ -605,7 +616,9 @@ export async function allocateIpsIfMissing(
   };
 
   const sharedV4 = await allocate("shared_v4");
-  const v6 = await allocate("v6");
+  const v6 = await allocate("v6", {
+    continueOnTransientWithUsableIp: sharedV4,
+  });
   logger.info(
     { app: appName, sharedV4, v6 },
     "brain-fly: IP allocation reconciled",

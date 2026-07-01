@@ -773,6 +773,58 @@ describe("allocateIpsIfMissing", () => {
     ).toEqual(["shared_v4", "v6"]);
   });
 
+  it("keeps provisioning usable when v6 fails after shared v4 succeeds even if REST ips stay unavailable", async () => {
+    const calls: RecordedCall[] = [];
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+        const url = String(input);
+        const method = (init?.method ?? "GET").toUpperCase();
+        const body =
+          typeof init?.body === "string" && init.body.length > 0
+            ? JSON.parse(init.body)
+            : undefined;
+        calls.push({ url, method, body, headers: {} });
+
+        if (method === "GET" && url.endsWith("/apps/kody-brain-alice/ips")) {
+          return new Response(null, { status: 404 });
+        }
+
+        if (url === "https://api.fly.io/graphql") {
+          if (body?.variables?.type === "shared_v4") {
+            return new Response(JSON.stringify({ data: {} }), {
+              status: 200,
+              headers: { "content-type": "application/json" },
+            });
+          }
+          return new Response(
+            JSON.stringify({
+              errors: [
+                {
+                  message: "You hit a Fly API error",
+                  extensions: { code: "SERVER_ERROR" },
+                },
+              ],
+              data: {},
+            }),
+            { status: 500, headers: { "content-type": "application/json" } },
+          );
+        }
+
+        throw new Error(`unexpected call: ${method} ${url}`);
+      }),
+    );
+
+    await expect(allocateIpsIfMissing(TOKEN, "kody-brain-alice")).resolves.toBe(
+      undefined,
+    );
+    expect(
+      calls.filter((c) => c.url === "https://api.fly.io/graphql").map(
+        (c) => graphType(c),
+      ),
+    ).toEqual(["shared_v4", "v6"]);
+  });
+
   it("retries transient Fly GraphQL failures before failing IP allocation", async () => {
     let v4Attempts = 0;
     vi.stubGlobal(
