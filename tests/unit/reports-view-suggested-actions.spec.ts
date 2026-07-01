@@ -46,9 +46,7 @@ describe("ReportsView suggested actions", () => {
   });
 
   it("create-task actions open the existing task dialog with report lineage", () => {
-    expect(SOURCE).toMatch(
-      /setTaskFromAction\(\{ report: selected, action \}\)/,
-    );
+    expect(SOURCE).toMatch(/report: displayedReport \?\? selected/);
     expect(SOURCE).toMatch(/buildTaskPrefillFromAction/);
     expect(SOURCE).toMatch(/labels: \[`from-report:\$\{report\.slug\}`/);
     expect(SOURCE).toMatch(/Source report:/);
@@ -58,5 +56,14 @@ describe("ReportsView suggested actions", () => {
     expect(SOURCE).toMatch(/kody\.report-actions\.dismissed/);
     expect(SOURCE).toMatch(/window\.localStorage\.setItem/);
     expect(SOURCE).toMatch(/useDismissedReportActions/);
+  });
+
+  it("lets report runs render inside the dashboard detail pane", () => {
+    expect(SOURCE).toMatch(/selectedRunId\?: string \| null/);
+    expect(SOURCE).toMatch(/selectedRunId/);
+    expect(SOURCE).toMatch(/useReport\(selected\?\.slug/);
+    expect(SOURCE).toMatch(/onSelectRun/);
+    expect(SOURCE).toMatch(/aria-label="View report run"/);
+    expect(SOURCE).not.toMatch(/<RunHistory report=\{report\} \/>/);
   });
 });

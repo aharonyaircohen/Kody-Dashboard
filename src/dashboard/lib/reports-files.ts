@@ -113,6 +113,10 @@ export function isValidSlug(slug: string): boolean {
   return /^[a-z0-9][a-z0-9_-]{0,63}$/.test(slug);
 }
 
+export function isValidRunId(runId: string): boolean {
+  return runIdFromName(`${runId}.md`) === runId;
+}
+
 function runIdToIso(id: string): string | null {
   const normalized = id.replace(/T(\d{2})-(\d{2})-(\d{2})Z$/, "T$1:$2:$3Z");
   return Number.isNaN(Date.parse(normalized)) ? null : normalized;
@@ -200,7 +204,7 @@ async function readReportAtPath({
   };
 }
 
-async function readLatestRunReport(slug: string): Promise<ReportFile | null> {
+async function listReportRuns(slug: string): Promise<ReportRun[]> {
   const octokit = getOctokit();
   const owner = getOwner();
   const repo = getRepo();
@@ -225,7 +229,16 @@ async function readLatestRunReport(slug: string): Promise<ReportFile | null> {
     })
     .filter((run): run is ReportRun => run !== null)
     .sort(sortRunsNewestFirst);
-  const latest = runs[0];
+
+  return runs;
+}
+
+async function readRunReport(
+  slug: string,
+  runId?: string | null,
+): Promise<ReportFile | null> {
+  const runs = await listReportRuns(slug);
+  const latest = runId ? runs.find((run) => run.id === runId) : runs[0];
   if (!latest) return null;
   return readReportAtPath({
     slug,
@@ -285,7 +298,7 @@ export async function listReportFiles(): Promise<ReportFile[]> {
   const runFiles = await Promise.all(
     folderSlugs.map(async (slug) => {
       try {
-        return await readLatestRunReport(slug);
+        return await readRunReport(slug);
       } catch {
         return null;
       }
@@ -309,11 +322,16 @@ export async function listReportFiles(): Promise<ReportFile[]> {
 /**
  * Read a single report by slug. Returns `null` if the file does not exist.
  */
-export async function readReportFile(slug: string): Promise<ReportFile | null> {
+export async function readReportFile(
+  slug: string,
+  runId?: string | null,
+): Promise<ReportFile | null> {
   if (!isValidSlug(slug)) return null;
+  if (runId && !isValidRunId(runId)) return null;
 
-  const runReport = await readLatestRunReport(slug);
+  const runReport = await readRunReport(slug, runId);
   if (runReport) return runReport;
+  if (runId) return null;
 
   try {
     return await readReportAtPath({

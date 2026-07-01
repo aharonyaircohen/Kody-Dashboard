@@ -1528,10 +1528,16 @@ export const reportsApi = {
     return data.reports;
   },
 
-  get: async (slug: string): Promise<Report> => {
-    const res = await fetch(`${API_BASE}/reports/${encodeURIComponent(slug)}`, {
-      headers: buildHeaders(),
-    });
+  get: async (slug: string, runId?: string | null): Promise<Report> => {
+    const suffix = runId
+      ? `?${new URLSearchParams({ run: runId }).toString()}`
+      : "";
+    const res = await fetch(
+      `${API_BASE}/reports/${encodeURIComponent(slug)}${suffix}`,
+      {
+        headers: buildHeaders(),
+      },
+    );
     const data = await handleResponse<{ report: Report }>(res);
     return data.report;
   },
@@ -1972,9 +1978,7 @@ export interface ChangelogPayload {
 }
 
 export const changelogApi = {
-  get: async (
-    auth?: ApiAuthContext | null,
-  ): Promise<ChangelogPayload> => {
+  get: async (auth?: ApiAuthContext | null): Promise<ChangelogPayload> => {
     const res = await fetch(`${API_BASE}/changelog`, {
       headers: buildHeaders({}, auth),
     });

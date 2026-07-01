@@ -35,8 +35,18 @@ export const reportQueryKeys = {
   all: ["kody-reports"] as const,
   list: (scope: ReportQueryScope = {}) =>
     ["kody-reports", scope.owner ?? null, scope.repo ?? null] as const,
-  detail: (slug: string, scope: ReportQueryScope = {}) =>
-    ["kody-report", scope.owner ?? null, scope.repo ?? null, slug] as const,
+  detail: (
+    slug: string,
+    runId: string | null = null,
+    scope: ReportQueryScope = {},
+  ) =>
+    [
+      "kody-report",
+      scope.owner ?? null,
+      scope.repo ?? null,
+      slug,
+      runId,
+    ] as const,
 };
 
 function useReportQueryScope() {
@@ -67,12 +77,20 @@ export function useReports(options: UseReportsOptions = {}) {
   });
 }
 
-export function useReport(slug: string | null) {
+export interface UseReportOptions {
+  enabled?: boolean;
+}
+
+export function useReport(
+  slug: string | null,
+  runId: string | null = null,
+  options: UseReportOptions = {},
+) {
   const { currentAuth, scope } = useReportQueryScope();
   return useQuery<Report>({
-    queryKey: reportQueryKeys.detail(slug ?? "", scope),
-    queryFn: () => kodyApi.reports.get(slug!),
-    enabled: !!currentAuth && !!slug,
+    queryKey: reportQueryKeys.detail(slug ?? "", runId, scope),
+    queryFn: () => kodyApi.reports.get(slug!, runId),
+    enabled: (options.enabled ?? true) && !!currentAuth && !!slug,
     staleTime: 30_000,
   });
 }

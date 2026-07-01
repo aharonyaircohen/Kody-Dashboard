@@ -20,12 +20,16 @@ describe("todo RTL text", () => {
     expect(TODO_CONTROL_SOURCE).toContain("<h2");
     expect(TODO_CONTROL_SOURCE).toContain("{...autoDirProps}");
     expect(TODO_CONTROL_SOURCE).toContain(
-      "const listTitleDirectionProps = textDirectionProps(list.title);",
+      "const headerTitleDirectionProps = textDirectionProps(headerTitle);",
+    );
+    expect(TODO_CONTROL_SOURCE).toContain(
+      "const sidebarTitleDirectionProps = textDirectionProps(",
     );
     expect(TODO_CONTROL_SOURCE).toContain(
       "const itemTitleDirectionProps = textDirectionProps(item.title);",
     );
-    expect(TODO_CONTROL_SOURCE).toContain("{...listTitleDirectionProps}");
+    expect(TODO_CONTROL_SOURCE).toContain("{...headerTitleDirectionProps}");
+    expect(TODO_CONTROL_SOURCE).toContain("{...sidebarTitleDirectionProps}");
     expect(TODO_CONTROL_SOURCE).toContain("{...itemTitleDirectionProps}");
     expect(TODO_CONTROL_SOURCE).toContain('className="min-w-0 flex-1"');
     expect(TODO_CONTROL_SOURCE).toContain("rtlAwareMarkdownClassName");

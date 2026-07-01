@@ -348,4 +348,60 @@ describe("report files", () => {
       }),
     );
   });
+
+  it("reads a selected report folder run instead of always returning the latest", async () => {
+    const octokit = wireOctokit();
+    octokit.repos.getContent
+      .mockResolvedValueOnce({
+        data: [
+          {
+            name: "2026-06-28T09-44-32Z.md",
+            type: "file",
+            path: "widgets/reports/ai-agency-doctor/runs/2026-06-28T09-44-32Z.md",
+            size: 120,
+            html_url:
+              "https://github.com/acme/kody-state/blob/main/widgets/reports/ai-agency-doctor/runs/2026-06-28T09-44-32Z.md",
+          },
+          {
+            name: "2026-06-27T11-48-36Z.md",
+            type: "file",
+            path: "widgets/reports/ai-agency-doctor/runs/2026-06-27T11-48-36Z.md",
+            size: 100,
+            html_url:
+              "https://github.com/acme/kody-state/blob/main/widgets/reports/ai-agency-doctor/runs/2026-06-27T11-48-36Z.md",
+          },
+        ],
+      })
+      .mockResolvedValueOnce({
+        data: file(
+          "# AI Agency Doctor\n\nEarlier run.",
+          100,
+          "https://github.com/acme/kody-state/blob/main/widgets/reports/ai-agency-doctor/runs/2026-06-27T11-48-36Z.md",
+        ),
+      });
+
+    const report = await readReportFile(
+      "ai-agency-doctor",
+      "2026-06-27T11-48-36Z",
+    );
+
+    expect(octokit.repos.getContent).toHaveBeenNthCalledWith(
+      2,
+      expect.objectContaining({
+        path: "widgets/reports/ai-agency-doctor/runs/2026-06-27T11-48-36Z.md",
+      }),
+    );
+    expect(report).toEqual(
+      expect.objectContaining({
+        slug: "ai-agency-doctor",
+        path: "reports/ai-agency-doctor/runs/2026-06-27T11-48-36Z.md",
+        runId: "2026-06-27T11-48-36Z",
+        body: "Earlier run.",
+      }),
+    );
+    expect(report?.runs.map((run) => run.id)).toEqual([
+      "2026-06-28T09-44-32Z",
+      "2026-06-27T11-48-36Z",
+    ]);
+  });
 });

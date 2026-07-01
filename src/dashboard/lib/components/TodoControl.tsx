@@ -8,7 +8,14 @@
  */
 "use client";
 
-import { useEffect, useMemo, useState, type MouseEvent } from "react";
+import {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type MouseEvent,
+} from "react";
 import { useRouter } from "next/navigation";
 import {
   DndContext,
@@ -76,7 +83,9 @@ import {
   useUpdateTodo,
 } from "../hooks/useTodoEntries";
 import { useGitHubIdentity } from "../hooks/useGitHubIdentity";
+import { usePersistedState } from "../hooks/usePersistedState";
 import { useRepoScopedHref } from "../hooks/useRepoScopedHref";
+import { useScrollRestoration } from "../hooks/useScrollRestoration";
 import { selectionPath } from "../selection-routing";
 import {
   buildCreateTodoListPayload,
@@ -99,6 +108,7 @@ import { ListSearch } from "./ListSearch";
 import { MarkdownEditor } from "./MarkdownEditor";
 import { MarkdownPreview } from "./MarkdownPreview";
 import { PageHeader } from "./PageShell";
+import { SimpleTooltip } from "./SimpleTooltip";
 
 type ItemEditorState =
   | { mode: "create" }
@@ -131,6 +141,8 @@ const TODO_LIST_FILTER_LABELS: Record<TodoListFilter, string> = {
   goal: "Goals",
   loop: "Loops",
 };
+const TODO_LIST_FILTER_STORAGE_KEY = "todos:list-filter";
+const TODO_ITEM_FILTER_STORAGE_KEY = "todos:item-filter";
 
 interface TodoControlProps {
   /** Render without built-in PageHeader (e.g. when hosted in tabs). */
@@ -287,7 +299,10 @@ export function TodoControlInner({
   const [editingList, setEditingList] = useState<TodoEntry | null>(null);
   const [pendingDelete, setPendingDelete] = useState<TodoEntry | null>(null);
   const [search, setSearch] = useState("");
-  const [listFilter, setListFilter] = useState<TodoListFilter>("list");
+  const [listFilter, setListFilter] = usePersistedState<TodoListFilter>(
+    TODO_LIST_FILTER_STORAGE_KEY,
+    "list",
+  );
   const { githubUser } = useGitHubIdentity();
   const deleteMutation = useDeleteTodo(githubUser?.login);
 
@@ -314,6 +329,9 @@ export function TodoControlInner({
   const selectedList = useMemo(
     () => todoLists.find((list) => list.slug === selectedSlug) ?? null,
     [todoLists, selectedSlug],
+  );
+  const detailScrollRef = useScrollRestoration(
+    `todos-detail:${selectedSlug ?? "none"}`,
   );
 
   const aggregate = useMemo(() => {
@@ -383,8 +401,8 @@ export function TodoControlInner({
     const path = item
       ? selectionPath("/todos", list.slug, item.id)
       : selectionPath("/todos", list.slug);
-    if (replace) router.replace(scopedHref(path));
-    else router.push(scopedHref(path));
+    if (replace) router.replace(scopedHref(path), { scroll: false });
+    else router.push(scopedHref(path), { scroll: false });
   };
 
   const headerActions = (
@@ -594,6 +612,7 @@ export function TodoControlInner({
         </aside>
 
         <section
+          ref={detailScrollRef}
           className={cn(
             "flex-1 min-w-0 overflow-y-auto",
             !selectedList && "hidden md:block",
@@ -677,14 +696,19 @@ function TodoListDetail({
   const { data: collaborators = [], isLoading: isLoadingCollaborators } =
     useCollaborators();
   const updateMutation = useUpdateTodo(list.slug, githubUser?.login);
+  const shouldScrollToInitialSelectedItemRef = useRef(Boolean(selectedItemId));
+  const selectedItemNodeRef = useRef<HTMLLIElement | null>(null);
   const [itemEditor, setItemEditor] = useState<ItemEditorState>(null);
   const [pendingItemDelete, setPendingItemDelete] = useState<TodoItem | null>(
     null,
   );
-  const [itemFilter, setItemFilter] = useState<TodoItemFilter>("all");
+  const [itemFilter, setItemFilter] = usePersistedState<TodoItemFilter>(
+    TODO_ITEM_FILTER_STORAGE_KEY,
+    "all",
+  );
   const [isDescriptionExpanded, setDescriptionExpanded] = useState(false);
   const [expandedItemIds, setExpandedItemIds] = useState<Set<string>>(
-    () => new Set(list.items.map((item) => item.id)),
+    () => new Set(),
   );
   const stats = listStats(list);
   const currentUserLogin = normalizeAssignee(githubUser?.login);
@@ -730,6 +754,9 @@ function TodoListDetail({
       coordinateGetter: sortableKeyboardCoordinates,
     }),
   );
+  const setSelectedItemNode = useCallback((node: HTMLLIElement | null) => {
+    selectedItemNodeRef.current = node;
+  }, []);
 
   useEffect(() => {
     setExpandedItemIds((current) => {
@@ -743,16 +770,33 @@ function TodoListDetail({
 
   useEffect(() => {
     if (!selectedItemId) return;
-    const selectedItem = list.items.find((item) => item.id === selectedItemId);
-    if (!selectedItem) return;
+    if (!list.items.some((item) => item.id === selectedItemId)) return;
     setExpandedItemIds((current) => {
       if (current.has(selectedItemId)) return current;
       return new Set(current).add(selectedItemId);
     });
-    if (!matchesTodoFilter(selectedItem, itemFilter, currentUserLogin)) {
-      setItemFilter("all");
+  }, [list.items, selectedItemId]);
+
+  useEffect(() => {
+    if (!selectedItemId || !shouldScrollToInitialSelectedItemRef.current) {
+      return;
     }
-  }, [currentUserLogin, itemFilter, list.items, selectedItemId]);
+
+    let frame2 = 0;
+    const frame1 = requestAnimationFrame(() => {
+      frame2 = requestAnimationFrame(() => {
+        const node = selectedItemNodeRef.current;
+        if (!node) return;
+        node.scrollIntoView({ block: "center", inline: "nearest" });
+        shouldScrollToInitialSelectedItemRef.current = false;
+      });
+    });
+
+    return () => {
+      cancelAnimationFrame(frame1);
+      if (frame2) cancelAnimationFrame(frame2);
+    };
+  }, [filteredItems, selectedItemId]);
 
   const allItemsExpanded =
     list.items.length > 0 &&
@@ -1084,6 +1128,11 @@ function TodoListDetail({
                       onAssign={(assignee) => assignItem(item, assignee)}
                       onAskKody={() => askKody(item)}
                       onDelete={() => setPendingItemDelete(item)}
+                      onInitialSelectedItemNode={
+                        selectedItemId === item.id
+                          ? setSelectedItemNode
+                          : undefined
+                      }
                       collaborators={collaborators}
                       isLoadingCollaborators={isLoadingCollaborators}
                       disabled={updateMutation.isPending}
@@ -1173,6 +1222,7 @@ function TodoItemCard({
   onAssign,
   onAskKody,
   onDelete,
+  onInitialSelectedItemNode,
   collaborators,
   isLoadingCollaborators,
   disabled,
@@ -1187,6 +1237,7 @@ function TodoItemCard({
   onAssign: (assignee: string | null) => void;
   onAskKody: () => void;
   onDelete: () => void;
+  onInitialSelectedItemNode?: (node: HTMLLIElement | null) => void;
   collaborators: GitHubCollaborator[];
   isLoadingCollaborators: boolean;
   disabled: boolean;
@@ -1201,6 +1252,13 @@ function TodoItemCard({
     transform: sortableTransform,
     transition: sortableTransition,
   } = useSortable({ id: item.id, disabled });
+  const setItemNodeRef = useCallback(
+    (node: HTMLLIElement | null) => {
+      setSortableNodeRef(node);
+      onInitialSelectedItemNode?.(node);
+    },
+    [onInitialSelectedItemNode, setSortableNodeRef],
+  );
 
   const controlButtons = (
     <>
@@ -1260,15 +1318,17 @@ function TodoItemCard({
         disabled={disabled}
         onAssign={onAssign}
       />
-      <Button
-        variant="outline"
-        size="sm"
-        onClick={onAskKody}
-        className="h-8 gap-1.5 border-emerald-500/40 bg-emerald-500/10 px-2.5 text-emerald-700 hover:bg-emerald-500/15 dark:text-emerald-200"
-      >
-        <Sparkles className="w-3.5 h-3.5" />
-        <span>Ask Kody</span>
-      </Button>
+      <SimpleTooltip content="Ask Kody" side="bottom">
+        <Button
+          variant="outline"
+          size="sm"
+          onClick={onAskKody}
+          className="h-8 w-8 border-emerald-500/40 bg-emerald-500/10 px-0 text-emerald-700 hover:bg-emerald-500/15 dark:text-emerald-200"
+          aria-label={`Ask Kody about ${item.title}`}
+        >
+          <Sparkles className="w-3.5 h-3.5" />
+        </Button>
+      </SimpleTooltip>
       <DropdownMenu>
         <DropdownMenuTrigger asChild>
           <Button
@@ -1340,7 +1400,7 @@ function TodoItemCard({
 
   return (
     <li
-      ref={setSortableNodeRef}
+      ref={setItemNodeRef}
       style={{
         transform: CSS.Transform.toString(sortableTransform),
         transition: sortableTransition,

@@ -12,7 +12,11 @@ import {
   setGitHubContext,
   clearGitHubContext,
 } from "@dashboard/lib/github-client";
-import { readReportFile, isValidSlug } from "@dashboard/lib/reports-files";
+import {
+  readReportFile,
+  isValidRunId,
+  isValidSlug,
+} from "@dashboard/lib/reports-files";
 
 export async function GET(
   req: NextRequest,
@@ -30,7 +34,11 @@ export async function GET(
     if (!isValidSlug(slug)) {
       return NextResponse.json({ error: "invalid_slug" }, { status: 400 });
     }
-    const report = await readReportFile(slug);
+    const runId = req.nextUrl.searchParams.get("run");
+    if (runId && !isValidRunId(runId)) {
+      return NextResponse.json({ error: "invalid_run" }, { status: 400 });
+    }
+    const report = await readReportFile(slug, runId);
     if (!report) {
       return NextResponse.json({ error: "not_found" }, { status: 404 });
     }

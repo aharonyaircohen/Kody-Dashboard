@@ -42,6 +42,7 @@ export function useScrollRestoration(key: string) {
     // late layout (fonts/images) doesn't clobber the restored offset. The
     // browser clamps to scrollHeight if the list is now shorter.
     const saved = scrollStore.get(keyRef.current) ?? 0;
+    node.scrollTop = saved;
     let raf2 = 0;
     const raf1 = requestAnimationFrame(() => {
       node.scrollTop = saved;

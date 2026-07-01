@@ -18,9 +18,13 @@ export const metadata = buildKodyMetadata({
 
 export default async function SelectedReportPage({
   params,
+  searchParams,
 }: {
   params: Promise<{ slug: string }>;
+  searchParams: Promise<{ run?: string | string[] }>;
 }) {
   const { slug } = await params;
-  return <ReportsView selectedSlug={slug} />;
+  const query = await searchParams;
+  const selectedRunId = Array.isArray(query.run) ? query.run[0] : query.run;
+  return <ReportsView selectedSlug={slug} selectedRunId={selectedRunId} />;
 }

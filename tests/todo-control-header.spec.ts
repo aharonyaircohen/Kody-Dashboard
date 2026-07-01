@@ -107,7 +107,8 @@ describe("todo list header", () => {
     expect(listFilterBlock).toBeTruthy();
     expect(listFilterBlock).toContain('["list", "goal", "loop"]');
     expect(listFilterBlock).not.toContain('"all"');
-    expect(TODO_CONTROL_SOURCE).toContain('useState<TodoListFilter>("list")');
+    expect(TODO_CONTROL_SOURCE).toContain("TODO_LIST_FILTER_STORAGE_KEY");
+    expect(TODO_CONTROL_SOURCE).toContain("usePersistedState<TodoListFilter>");
     expect(TODO_CONTROL_SOURCE).toContain(
       "grid grid-cols-3 gap-1 rounded-md border border-white/[0.08] bg-black/30 p-1",
     );

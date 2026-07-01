@@ -28,7 +28,7 @@ import { Button } from "@dashboard/ui/button";
 import { AuthGuard } from "../auth-guard";
 import { useAuth } from "../auth-context";
 import { cn } from "../utils";
-import { useReports } from "../hooks/useReports";
+import { useReport, useReports } from "../hooks/useReports";
 import { useReportsUnread } from "../hooks/useReportsUnread";
 import { selectionPath } from "../selection-routing";
 import { kodyApi, type Report } from "../api";
@@ -45,15 +45,21 @@ interface ReportsViewProps {
   /** Render without the built-in PageHeader (e.g. when hosted in CapabilitiesPageTabs). */
   embedded?: boolean;
   selectedSlug?: string | null;
+  selectedRunId?: string | null;
 }
 
 export function ReportsView({
   embedded = false,
   selectedSlug = null,
+  selectedRunId = null,
 }: ReportsViewProps = {}) {
   return (
     <AuthGuard>
-      <ReportsViewInner embedded={embedded} selectedSlug={selectedSlug} />
+      <ReportsViewInner
+        embedded={embedded}
+        selectedSlug={selectedSlug}
+        selectedRunId={selectedRunId}
+      />
     </AuthGuard>
   );
 }
@@ -61,6 +67,7 @@ export function ReportsView({
 export function ReportsViewInner({
   embedded = false,
   selectedSlug = null,
+  selectedRunId = null,
 }: ReportsViewProps = {}) {
   const router = useRouter();
   const { auth } = useAuth();
@@ -104,6 +111,18 @@ export function ReportsViewInner({
     () => reports.find((r) => r.slug === selectedSlug) ?? null,
     [reports, selectedSlug],
   );
+  const requestedRunId =
+    selected && selectedRunId && selectedRunId !== selected.runId
+      ? selectedRunId
+      : null;
+  const {
+    data: selectedRunReport,
+    isFetching: isFetchingSelectedRun,
+    error: selectedRunError,
+  } = useReport(selected?.slug ?? null, requestedRunId, {
+    enabled: !!selected && !!requestedRunId,
+  });
+  const displayedReport = requestedRunId ? selectedRunReport : selected;
 
   // Auto-select first report on desktop only (preserve mobile list view).
   useEffect(() => {
@@ -116,8 +135,27 @@ export function ReportsViewInner({
     }
   }, [filtered, router, selectedSlug]);
 
+  const reportSelectionPath = (
+    slug: string | null,
+    runId: string | null = null,
+  ) => {
+    if (!slug) return "/reports";
+    const path = selectionPath("/reports", slug);
+    return runId ? `${path}?run=${encodeURIComponent(runId)}` : path;
+  };
+
   const selectReport = (slug: string | null) => {
-    router.push(slug ? selectionPath("/reports", slug) : "/reports");
+    router.push(reportSelectionPath(slug));
+  };
+
+  const selectRun = (runId: string) => {
+    if (!selected) return;
+    router.push(
+      reportSelectionPath(
+        selected.slug,
+        runId === selected.runId ? null : runId,
+      ),
+    );
   };
 
   // Mark a report as read the moment it's opened in the detail pane —
@@ -132,21 +170,21 @@ export function ReportsViewInner({
   // (create issue, attach to a goal, or no action).
   const { setScope } = useChatScope();
   useEffect(() => {
-    if (selected) {
+    if (displayedReport) {
       setScope({
         kind: "report",
         report: {
-          slug: selected.slug,
-          title: selected.title,
-          body: selected.body,
-          path: selected.path,
+          slug: displayedReport.slug,
+          title: displayedReport.title,
+          body: displayedReport.body,
+          path: displayedReport.path,
         },
       });
     } else {
       setScope(null);
     }
     return () => setScope(null);
-  }, [selected, setScope]);
+  }, [displayedReport, setScope]);
 
   const runSuggestedAction = async (
     report: Report,
@@ -297,16 +335,27 @@ export function ReportsViewInner({
         >
           {selected ? (
             <ReportDetail
-              report={selected}
+              report={displayedReport ?? selected}
+              selectedRunId={selectedRunId}
+              isLoadingRun={
+                !!requestedRunId && isFetchingSelectedRun && !selectedRunReport
+              }
+              runError={requestedRunId ? selectedRunError : null}
               onBack={() => selectReport(null)}
-              onCreateIssue={() => setIssueFromReport(selected)}
-              onPlanGoal={() => setGoalFromReport(selected)}
+              onCreateIssue={() =>
+                setIssueFromReport(displayedReport ?? selected)
+              }
+              onPlanGoal={() => setGoalFromReport(displayedReport ?? selected)}
               onCreateTaskFromAction={(action) =>
-                setTaskFromAction({ report: selected, action })
+                setTaskFromAction({
+                  report: displayedReport ?? selected,
+                  action,
+                })
               }
               onRunAction={(action) =>
-                void runSuggestedAction(selected, action)
+                void runSuggestedAction(displayedReport ?? selected, action)
               }
+              onSelectRun={selectRun}
               runningActionKey={runningActionKey}
             />
           ) : (
@@ -460,26 +509,44 @@ function ReportRow({
 
 function ReportDetail({
   report,
+  selectedRunId,
+  isLoadingRun,
+  runError,
   onBack,
   onCreateIssue,
   onPlanGoal,
   onCreateTaskFromAction,
   onRunAction,
+  onSelectRun,
   runningActionKey,
 }: {
   report: Report;
+  selectedRunId: string | null;
+  isLoadingRun: boolean;
+  runError: unknown;
   onBack: () => void;
   onCreateIssue: () => void;
   onPlanGoal: () => void;
   onCreateTaskFromAction: (action: ReportSuggestedAction) => void;
   onRunAction: (action: ReportSuggestedAction) => void;
+  onSelectRun: (runId: string) => void;
   runningActionKey: string | null;
 }) {
-  const hasBody = report.body.trim().length > 0;
+  const runErrorMessage =
+    runError instanceof Error
+      ? runError.message
+      : runError
+        ? String(runError)
+        : null;
+  const hasBody =
+    !isLoadingRun && !runErrorMessage && report.body.trim().length > 0;
   const dismissed = useDismissedReportActions(report.path);
-  const visibleActions = (report.suggestedActions ?? []).filter(
-    (action) => !dismissed.ids.has(action.id),
-  );
+  const visibleActions =
+    isLoadingRun || runErrorMessage
+      ? []
+      : (report.suggestedActions ?? []).filter(
+          (action) => !dismissed.ids.has(action.id),
+        );
   return (
     <article className="h-full flex flex-col">
       <div className="shrink-0 px-3 py-3.5 md:px-6 md:py-5 border-b border-border bg-black/10 flex items-start gap-3">
@@ -540,6 +607,7 @@ function ReportDetail({
             variant="outline"
             size="sm"
             onClick={onPlanGoal}
+            disabled={isLoadingRun || !!runErrorMessage}
             className="gap-1.5"
             title="Create a new goal pre-filled from this report"
           >
@@ -549,6 +617,7 @@ function ReportDetail({
           <Button
             size="sm"
             onClick={onCreateIssue}
+            disabled={isLoadingRun || !!runErrorMessage}
             className="gap-1.5 bg-sky-600 hover:bg-sky-700 text-white"
             title="Create a GitHub issue pre-filled from this report"
           >
@@ -571,9 +640,31 @@ function ReportDetail({
             />
           ) : null}
 
-          {report.runs.length > 0 ? <RunHistory report={report} /> : null}
+          {report.runs.length > 0 ? (
+            <RunHistory
+              report={report}
+              selectedRunId={selectedRunId}
+              onSelectRun={onSelectRun}
+            />
+          ) : null}
 
-          {hasBody ? (
+          {isLoadingRun ? (
+            <div className="rounded-lg border border-white/[0.08] bg-white/[0.02] py-12 text-center space-y-2">
+              <Loader2 className="mx-auto h-5 w-5 animate-spin text-sky-300" />
+              <p className="text-body-sm font-medium text-foreground">
+                Loading report run
+              </p>
+            </div>
+          ) : runErrorMessage ? (
+            <div className="rounded-lg border border-red-500/20 bg-red-500/10 py-10 text-center space-y-2">
+              <p className="text-body-sm font-medium text-red-300">
+                Could not load report run
+              </p>
+              <p className="text-body-xs text-red-200/80 max-w-sm mx-auto">
+                {runErrorMessage}
+              </p>
+            </div>
+          ) : hasBody ? (
             <MarkdownPreview
               content={report.body}
               className="md:prose-base break-words"
@@ -703,8 +794,16 @@ function SuggestedActions({
   );
 }
 
-function RunHistory({ report }: { report: Report }) {
-  const visibleRuns = report.runs.slice(0, 12);
+function RunHistory({
+  report,
+  selectedRunId,
+  onSelectRun,
+}: {
+  report: Report;
+  selectedRunId: string | null;
+  onSelectRun: (runId: string) => void;
+}) {
+  const activeRunId = selectedRunId ?? report.runId;
   return (
     <section className="rounded-lg border border-white/[0.08] bg-white/[0.02] p-5">
       <div className="mb-3 flex items-center gap-2">
@@ -715,24 +814,29 @@ function RunHistory({ report }: { report: Report }) {
         </span>
       </div>
       <ul className="divide-y divide-white/[0.06]">
-        {visibleRuns.map((run) => {
-          const active = run.id === report.runId;
+        {report.runs.map((run) => {
+          const active = run.id === activeRunId;
           return (
             <li
               key={run.id}
               className="flex items-center gap-3 py-2.5 text-body-xs"
             >
-              <span
+              <button
+                type="button"
+                onClick={() => onSelectRun(run.id)}
+                aria-label="View report run"
                 className={cn(
-                  "min-w-0 flex-1 truncate font-mono",
-                  active ? "text-sky-200" : "text-muted-foreground",
+                  "min-w-0 flex-1 truncate text-left font-mono transition-colors",
+                  active
+                    ? "text-sky-200"
+                    : "text-muted-foreground hover:text-foreground",
                 )}
               >
                 {run.id}
-              </span>
+              </button>
               {active ? (
                 <span className="rounded border border-sky-400/30 bg-sky-400/10 px-2 py-1 text-label uppercase tracking-wide text-sky-200">
-                  current
+                  shown
                 </span>
               ) : null}
               {run.htmlUrl ? (
@@ -751,11 +855,6 @@ function RunHistory({ report }: { report: Report }) {
           );
         })}
       </ul>
-      {report.runs.length > visibleRuns.length ? (
-        <p className="mt-3 text-body-xs text-muted-foreground">
-          Showing latest {visibleRuns.length} runs.
-        </p>
-      ) : null}
     </section>
   );
 }
