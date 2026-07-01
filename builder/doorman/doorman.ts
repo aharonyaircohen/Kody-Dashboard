@@ -152,7 +152,7 @@ function verifyAndGetSession(ticket: string, key: Buffer): boolean {
 }
 
 function sessionCookieHeader(): string {
-  return `${COOKIE_NAME}=1; HttpOnly; SameSite=None; Secure; Partitioned; Max-Age=${COOKIE_MAX_AGE}`;
+  return `${COOKIE_NAME}=1; Path=/; HttpOnly; SameSite=None; Secure; Partitioned; Max-Age=${COOKIE_MAX_AGE}`;
 }
 
 function send401(res: http.ServerResponse, body = "401 Unauthorized"): void {

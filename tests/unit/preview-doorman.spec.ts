@@ -163,6 +163,7 @@ describe("preview doorman", () => {
 
     expect(res.status).toBe(200);
     expect(res.headers.get("set-cookie")).toContain("kody_preview_session=1");
+    expect(res.headers.get("set-cookie")).toContain("Path=/");
     expect(res.headers.get("set-cookie")).toContain("Partitioned");
     expect(res.headers.get("referrer-policy")).toBe("no-referrer");
     expect(res.headers.get("cache-control")).toBe("no-store");
@@ -195,8 +196,46 @@ describe("preview doorman", () => {
     });
 
     expect(res.status).toBe(200);
+    expect(res.headers.get("set-cookie")).toContain("Path=/");
     expect(res.headers.get("set-cookie")).toContain("Partitioned");
     await expect(res.text()).resolves.toBe("proxied /");
+  });
+
+  it("uses a root-scoped preview session for Next.js static chunks", async () => {
+    const { port } = await startDoorman({
+      KODY_REPO_CONTEXT: "owner/repo",
+      KODY_PR: "42",
+    });
+    const ticket = mintTicket({ r: "owner/repo", p: 42 });
+
+    const unauthChunkRes = await fetch(
+      `http://127.0.0.1:${port}/_next/static/chunks/app/(frontend)/courses/%5BcourseSlug%5D/page.js`,
+      { redirect: "manual" },
+    );
+    const authRes = await fetch(
+      `http://127.0.0.1:${port}/courses/demo/chapters/one/lessons/two?kp=${ticket}`,
+      { redirect: "manual" },
+    );
+    const sessionCookie = authRes.headers.get("set-cookie")?.split(";")[0];
+    const authChunkRes = await fetch(
+      `http://127.0.0.1:${port}/_next/static/chunks/app/(frontend)/courses/%5BcourseSlug%5D/page.js`,
+      {
+        headers: sessionCookie ? { cookie: sessionCookie } : {},
+        redirect: "manual",
+      },
+    );
+    const routeRes = await fetch(`http://127.0.0.1:${port}/lesson`, {
+      redirect: "manual",
+    });
+
+    expect(unauthChunkRes.status).toBe(401);
+    expect(authRes.status).toBe(200);
+    expect(authRes.headers.get("set-cookie")).toContain("Path=/");
+    expect(authChunkRes.status).toBe(200);
+    await expect(authChunkRes.text()).resolves.toBe(
+      "proxied /_next/static/chunks/app/(frontend)/courses/%5BcourseSlug%5D/page.js",
+    );
+    expect(routeRes.status).toBe(401);
   });
 });
 
