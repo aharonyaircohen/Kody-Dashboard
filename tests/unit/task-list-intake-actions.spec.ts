@@ -37,17 +37,18 @@ describe("TaskList intake actions", () => {
     );
   });
 
-  it("shows row Rerun when a non-active task has run history", () => {
+  it("shows row Rerun only for non-open tasks with run history", () => {
     expect(SOURCE).toMatch(/function hasTaskRunHistory\(task: KodyTask\)/);
     expect(SOURCE).toMatch(/task\.pipeline \|\| task\.workflowRun \|\| task\.kodyState/);
     expect(SOURCE).toMatch(/task\.column === "failed"/);
     expect(SOURCE).toMatch(
-      /const canRerun =\s*!isTaskAbortable\(task\) && hasTaskRunHistory\(task\) && !!onRerun;/,
+      /const canRerun =\s*!isTaskAbortable\(task\) &&\s*task\.column !== "open" &&\s*hasTaskRunHistory\(task\) &&\s*!!onRerun;/,
     );
+    expect(SOURCE).toMatch(/const canOverflowRerun =/);
     expect(SOURCE).toMatch(/canRerun\s*\?\s*"Rerun task"/);
     expect(SOURCE).toMatch(/else if \(canRerun\) onRerun\?\.\(task\);/);
     expect(SOURCE).toMatch(/<RotateCcw className="w-4 h-4" \/>/);
-    expect(SOURCE).toMatch(/\{onRerun && !canRerun && \(/);
+    expect(SOURCE).toMatch(/\{canOverflowRerun && \(/);
   });
 
   it("keeps backlog closing scoped to intake mode and open issues", () => {

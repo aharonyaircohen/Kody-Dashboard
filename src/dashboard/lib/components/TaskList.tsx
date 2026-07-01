@@ -500,7 +500,16 @@ const TaskRow = memo(function TaskRow({
   const canExecute = !isClosed && task.column === "open" && onExecuteTask;
   const canStop = isTaskAbortable(task) && !!onStopTask;
   const canRerun =
-    !isTaskAbortable(task) && hasTaskRunHistory(task) && !!onRerun;
+    !isTaskAbortable(task) &&
+    task.column !== "open" &&
+    hasTaskRunHistory(task) &&
+    !!onRerun;
+  const canOverflowRerun =
+    !isClosed &&
+    !isTaskAbortable(task) &&
+    task.column !== "open" &&
+    !!onRerun &&
+    !canRerun;
   const hasPR = !!task.associatedPR;
   const isHardStop =
     !isClosed &&
@@ -1185,10 +1194,10 @@ const TaskRow = memo(function TaskRow({
               )}
 
               {/* Rerun */}
-              {onRerun && !canRerun && (
+              {canOverflowRerun && (
                 <DropdownMenuItem
                   onClick={() => {
-                    onRerun(task);
+                    onRerun?.(task);
                   }}
                 >
                   <RotateCcw className="w-4 h-4 me-2" />

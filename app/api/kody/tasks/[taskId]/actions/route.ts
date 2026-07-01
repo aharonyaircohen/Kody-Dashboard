@@ -17,7 +17,6 @@ import {
 
 import {
   postComment,
-  triggerWorkflow,
   cancelWorkflowRun,
   fetchComments,
   fetchIssue,
@@ -152,7 +151,6 @@ export async function POST(
     const {
       action,
       feedback,
-      fromStage,
       mode: _mode,
       actorLogin,
       approveDrafts,
@@ -185,18 +183,13 @@ export async function POST(
 
     switch (action) {
       case "rerun": {
-        await triggerWorkflow(
-          {
-            taskId,
-            mode: "rerun",
-            fromStage,
-            feedback,
-          },
-          userOctokit ?? undefined,
-        );
+        const command = feedback?.trim()
+          ? `@kody\n\n${feedback.trim()}`
+          : "@kody";
+        await postWithFallback(issueNumber, command, actor, userOctokit);
         return NextResponse.json({
           success: true,
-          message: "Workflow triggered",
+          message: "Kody rerun triggered",
         });
       }
 
@@ -314,16 +307,6 @@ export async function POST(
           } catch {
             // 404 = label wasn't applied; ignore
           }
-        }
-
-        const stopped = cancelledCount > 0 || removedLabel;
-        if (stopped) {
-          await postWithFallback(
-            issueNumber,
-            "## 🛑 Operation stopped - Run aborted by user.",
-            actor,
-            userOctokit,
-          );
         }
 
         invalidateTaskCache();
