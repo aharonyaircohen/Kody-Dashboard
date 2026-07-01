@@ -2484,15 +2484,15 @@ export function KodyChat({
         // Cold-start gate. The first turn against a suspended/new Brain machine
         // must wait for Fly to boot it (~100s) plus the per-chat repo clone.
         // The proxy waits server-side (waitForBrainHealth), but a cold boot can
-        // still hand back a 504 (health not ready in one request) or a 500
-        // (function timeout) before the machine answers. Rather than surface
+        // still hand back a 504 (health not ready in one request), a 503
+        // (transient Fly provisioning), or a 500 (function timeout) before the
+        // machine answers. Rather than surface
         // that as a chat error, hold the message and retry on these transient
         // statuses — both before the turn starts (resend the message) and
         // after (resume from lastSeq, which is idempotent), so a hiccup on a
         // mid-turn reconnect doesn't fail an otherwise-running reply. 502 is
-        // deliberately excluded: this route only 502s when provisionBrain
-        // fails (e.g. a 403 from a wrong Fly token), a misconfig that must
-        // surface now, not after retries.
+        // deliberately excluded for hard misconfigurations that must surface
+        // now, not after retries.
         const MAX_COLD_START_RETRIES = 10;
         const COLD_START_RETRY_MS = 3000;
         const COLD_START_STATUSES = new Set([500, 503, 504]);

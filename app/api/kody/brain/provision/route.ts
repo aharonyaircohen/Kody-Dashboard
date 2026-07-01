@@ -52,6 +52,7 @@ import {
 } from "@dashboard/lib/github-client";
 import { logger } from "@dashboard/lib/logger";
 import {
+  isBrainFlyProvisionTransientError,
   provisionBrain,
   type PerfTier,
 } from "@dashboard/lib/runners/brain-fly";
@@ -200,6 +201,15 @@ export async function POST(req: NextRequest) {
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
     logger.error({ err, owner: ctx.context.owner }, "brain provision failed");
+    if (isBrainFlyProvisionTransientError(err)) {
+      return NextResponse.json(
+        { error: message, retryable: true },
+        {
+          status: 503,
+          headers: { "Retry-After": String(err.retryAfterSeconds) },
+        },
+      );
+    }
     return NextResponse.json({ error: message }, { status: 502 });
   } finally {
     clearGitHubContext();

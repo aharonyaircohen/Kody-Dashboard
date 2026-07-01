@@ -49,6 +49,7 @@ import {
   type BrainTaskContext,
 } from "@dashboard/lib/brain-proxy";
 import {
+  isBrainFlyProvisionTransientError,
   provisionBrain,
   waitForBrainHealth,
 } from "@dashboard/lib/runners/brain-fly";
@@ -221,6 +222,15 @@ export async function POST(req: NextRequest) {
         { err, owner: ctx.context.owner },
         "chat/brain-fly: provisionBrain failed",
       );
+      if (isBrainFlyProvisionTransientError(err)) {
+        return NextResponse.json(
+          { error: `Brain is preparing: ${message}` },
+          {
+            status: 503,
+            headers: { "Retry-After": String(err.retryAfterSeconds) },
+          },
+        );
+      }
       return NextResponse.json(
         { error: `Brain provision failed: ${message}` },
         { status: 502 },

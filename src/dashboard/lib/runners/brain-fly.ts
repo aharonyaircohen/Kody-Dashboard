@@ -71,6 +71,25 @@ const RESTART_SENSITIVE_ENV_KEYS = [
   "KODY_CMS_DASHBOARD_URL",
   "ALL_SECRETS",
 ] as const;
+const IP_ALLOC_RETRY_DELAYS_MS =
+  process.env.NODE_ENV === "test"
+    ? [0, 0, 0, 0, 0]
+    : [500, 1000, 1500, 2000, 2500];
+
+export class BrainFlyProvisionTransientError extends Error {
+  retryAfterSeconds = 3;
+
+  constructor(message: string) {
+    super(message);
+    this.name = "BrainFlyProvisionTransientError";
+  }
+}
+
+export function isBrainFlyProvisionTransientError(
+  err: unknown,
+): err is BrainFlyProvisionTransientError {
+  return err instanceof BrainFlyProvisionTransientError;
+}
 
 export interface ProvisionBrainInput {
   flyToken: string;
@@ -485,11 +504,16 @@ export async function allocateIpsIfMissing(
 ): Promise<void> {
   // Cheap probe — Machines API exposes /ips on the app. If it returns
   // anything, leave it alone.
-  const existing = await flyFetch<unknown[]>(
-    `/apps/${encodeURIComponent(appName)}/ips`,
-    { token: flyToken, allow404: true },
-  );
-  if (Array.isArray(existing) && existing.length > 0) return;
+  const readIps = () =>
+    flyFetch<unknown[]>(`/apps/${encodeURIComponent(appName)}/ips`, {
+      token: flyToken,
+      allow404: true,
+    });
+  const hasAnyIp = (ips: unknown[] | null): ips is unknown[] =>
+    Array.isArray(ips) && ips.length > 0;
+
+  const existing = await readIps();
+  if (hasAnyIp(existing)) return;
 
   const query = `mutation($appId: ID!, $type: IPAddressType!) {
     allocateIpAddress(input: { appId: $appId, type: $type }) {
@@ -497,15 +521,17 @@ export async function allocateIpsIfMissing(
     }
   }`;
 
-  const allocate = async (type: "shared_v4" | "v6") => {
+  const allocate = async (type: "shared_v4" | "v6"): Promise<boolean> => {
     // POST /apps returns immediately but the new app takes a moment to
     // show up in the GraphQL index. Fly expresses the not-yet-visible
     // state as one of two error shapes:
     //   - `Could not find App` with code NOT_FOUND
     //   - `Variable $appId of type ID! was provided invalid value` (the
     //     ID type-validator rejects the value before the lookup runs)
-    // Both clear once propagation finishes. Anything else (auth failure,
-    // billing, etc.) is fatal — surface it immediately.
+    // Fly also sometimes returns transient GraphQL 5xx / SERVER_ERROR for
+    // IP allocation. Those are control-plane failures, not a user
+    // misconfiguration. Retry them, and if an earlier allocation already
+    // produced a usable public IP, let provisioning continue.
     let lastErr: Error | null = null;
     for (let attempt = 0; attempt < 5; attempt++) {
       const res = await fetch("https://api.fly.io/graphql", {
@@ -519,48 +545,70 @@ export async function allocateIpsIfMissing(
           variables: { appId: appName, type },
         }),
       });
-      if (!res.ok) {
-        const text = await res.text().catch(() => "");
-        throw new Error(
-          `brain-fly: allocate IP (${type}) failed ${res.status}: ${text.slice(0, 200)}`,
-        );
-      }
-      const body = (await res.json()) as {
+      const raw = await res.text().catch(() => "");
+      let body: {
         errors?: Array<{ message: string; extensions?: { code?: string } }>;
-      };
-      if (!body.errors || body.errors.length === 0) {
-        return; // success (or no-op — `ipAddress: null` is a valid response)
+      } = {};
+      try {
+        body = raw.trim() ? JSON.parse(raw) : {};
+      } catch {
+        body = {};
       }
+      const errors = body.errors ?? [];
+      if (errors.length === 0) {
+        if (res.ok) return true; // success (or no-op — `ipAddress: null` is valid)
+      }
+      const statusTransient =
+        res.status === 500 ||
+        res.status === 502 ||
+        res.status === 503 ||
+        res.status === 504;
       const transient =
-        body.errors.some(
+        statusTransient ||
+        errors.some(
           (e) =>
             e.extensions?.code === "NOT_FOUND" ||
+            e.extensions?.code === "SERVER_ERROR" ||
             /could not find app/i.test(e.message),
         ) ||
-        body.errors.some((e) =>
+        errors.some((e) =>
           /variable \$appId of type id! was provided invalid/i.test(e.message),
         );
       if (!transient) {
         throw new Error(
-          `brain-fly: allocate IP (${type}) graphql error: ${body.errors[0]!.message}`,
+          errors[0]?.message
+            ? `brain-fly: allocate IP (${type}) graphql error: ${errors[0].message}`
+            : `brain-fly: allocate IP (${type}) failed ${res.status}: ${raw.slice(0, 200)}`,
         );
       }
-      lastErr = new Error(body.errors[0]!.message);
-      // 500ms, 1s, 1.5s, 2s, 2.5s — bounded, total < 8s
-      await new Promise((r) => setTimeout(r, 500 * (attempt + 1)));
+
+      const detail =
+        errors[0]?.message ??
+        `Fly GraphQL status ${res.status}: ${raw.slice(0, 200)}`;
+      lastErr = new Error(detail);
+      const afterPartial = await readIps();
+      if (hasAnyIp(afterPartial)) {
+        logger.warn(
+          { app: appName, type, attempt: attempt + 1, err: detail },
+          "brain-fly: continuing after transient IP allocation error because app already has a public IP",
+        );
+        return false;
+      }
+      const delay = IP_ALLOC_RETRY_DELAYS_MS[attempt] ?? 0;
+      if (delay > 0) await new Promise((r) => setTimeout(r, delay));
     }
-    throw new Error(
+    throw new BrainFlyProvisionTransientError(
       `brain-fly: allocate IP (${type}) — app ${appName} not visible to GraphQL after 5 attempts: ${
         lastErr?.message ?? "unknown"
       }`,
     );
   };
 
-  await allocate("shared_v4");
-  await allocate("v6");
+  const sharedV4 = await allocate("shared_v4");
+  const v6 = await allocate("v6");
   logger.info(
-    { app: appName },
-    "brain-fly: IPs allocated (shared v4 + dedicated v6)",
+    { app: appName, sharedV4, v6 },
+    "brain-fly: IP allocation reconciled",
   );
 }
 

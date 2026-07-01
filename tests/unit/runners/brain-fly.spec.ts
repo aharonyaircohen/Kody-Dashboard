@@ -12,6 +12,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 
 import {
   allocateIpsIfMissing,
+  BrainFlyProvisionTransientError,
   brainAppName,
   brainStatus,
   DEFAULT_IMAGE,
@@ -28,6 +29,12 @@ interface RecordedCall {
   method: string;
   body: unknown;
   headers: Record<string, string>;
+}
+
+function graphType(call: RecordedCall): string | undefined {
+  return (
+    call.body as { variables?: { type?: string } } | undefined
+  )?.variables?.type;
 }
 
 function installFetchStub(
@@ -695,6 +702,167 @@ describe("provisionBrain", () => {
       }
     ).config.services[0]!;
     expect(svc.autostop).toBe(false);
+  });
+});
+
+// ────────────────────────────────────────────────────────────────────────────
+// allocateIpsIfMissing: Fly control-plane resilience
+// ────────────────────────────────────────────────────────────────────────────
+
+describe("allocateIpsIfMissing", () => {
+  it("keeps provisioning usable when v6 allocation hits a transient Fly server error after shared v4 exists", async () => {
+    const calls: RecordedCall[] = [];
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+        const url = String(input);
+        const method = (init?.method ?? "GET").toUpperCase();
+        const body =
+          typeof init?.body === "string" && init.body.length > 0
+            ? JSON.parse(init.body)
+            : undefined;
+        calls.push({ url, method, body, headers: {} });
+
+        if (method === "GET" && url.endsWith("/apps/kody-brain-alice/ips")) {
+          const graphCalls = calls.filter(
+            (c) => c.url === "https://api.fly.io/graphql",
+          );
+          return new Response(
+            JSON.stringify(
+              graphCalls.some((c) => graphType(c) === "shared_v4")
+                ? [{ id: "ip-v4", type: "shared_v4" }]
+                : [],
+            ),
+            { status: 200, headers: { "content-type": "application/json" } },
+          );
+        }
+
+        if (url === "https://api.fly.io/graphql") {
+          const type = body?.variables?.type;
+          if (type === "shared_v4") {
+            return new Response(JSON.stringify({ data: {} }), {
+              status: 200,
+              headers: { "content-type": "application/json" },
+            });
+          }
+          return new Response(
+            JSON.stringify({
+              errors: [
+                {
+                  message: "You hit a Fly API error",
+                  extensions: { code: "SERVER_ERROR" },
+                },
+              ],
+              data: {},
+            }),
+            { status: 500, headers: { "content-type": "application/json" } },
+          );
+        }
+
+        throw new Error(`unexpected call: ${method} ${url}`);
+      }),
+    );
+
+    await expect(allocateIpsIfMissing(TOKEN, "kody-brain-alice")).resolves.toBe(
+      undefined,
+    );
+    expect(
+      calls.filter((c) => c.url === "https://api.fly.io/graphql").map(
+        (c) => graphType(c),
+      ),
+    ).toEqual(["shared_v4", "v6"]);
+  });
+
+  it("retries transient Fly GraphQL failures before failing IP allocation", async () => {
+    let v4Attempts = 0;
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+        const url = String(input);
+        const method = (init?.method ?? "GET").toUpperCase();
+        const body =
+          typeof init?.body === "string" && init.body.length > 0
+            ? JSON.parse(init.body)
+            : undefined;
+
+        if (method === "GET" && url.endsWith("/apps/kody-brain-alice/ips")) {
+          return new Response(JSON.stringify([]), {
+            status: 200,
+            headers: { "content-type": "application/json" },
+          });
+        }
+
+        if (url === "https://api.fly.io/graphql") {
+          if (body?.variables?.type === "shared_v4") {
+            v4Attempts++;
+            if (v4Attempts === 1) {
+              return new Response(
+                JSON.stringify({
+                  errors: [
+                    {
+                      message: "You hit a Fly API error",
+                      extensions: { code: "SERVER_ERROR" },
+                    },
+                  ],
+                  data: {},
+                }),
+                {
+                  status: 500,
+                  headers: { "content-type": "application/json" },
+                },
+              );
+            }
+          }
+          return new Response(JSON.stringify({ data: {} }), {
+            status: 200,
+            headers: { "content-type": "application/json" },
+          });
+        }
+
+        throw new Error(`unexpected call: ${method} ${url}`);
+      }),
+    );
+
+    await allocateIpsIfMissing(TOKEN, "kody-brain-alice");
+    expect(v4Attempts).toBe(2);
+  });
+
+  it("classifies repeated Fly server errors with no public IP as retryable provisioning", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+        const url = String(input);
+        const method = (init?.method ?? "GET").toUpperCase();
+
+        if (method === "GET" && url.endsWith("/apps/kody-brain-alice/ips")) {
+          return new Response(JSON.stringify([]), {
+            status: 200,
+            headers: { "content-type": "application/json" },
+          });
+        }
+
+        if (url === "https://api.fly.io/graphql") {
+          return new Response(
+            JSON.stringify({
+              errors: [
+                {
+                  message: "You hit a Fly API error",
+                  extensions: { code: "SERVER_ERROR" },
+                },
+              ],
+              data: {},
+            }),
+            { status: 500, headers: { "content-type": "application/json" } },
+          );
+        }
+
+        throw new Error(`unexpected call: ${method} ${url}`);
+      }),
+    );
+
+    await expect(
+      allocateIpsIfMissing(TOKEN, "kody-brain-alice"),
+    ).rejects.toBeInstanceOf(BrainFlyProvisionTransientError);
   });
 });
 
