@@ -16,15 +16,16 @@ import { NextRequest, NextResponse } from "next/server";
 import { createUserOctokit } from "@dashboard/lib/github-client";
 import { logger } from "@dashboard/lib/logger";
 import type { Octokit } from "@octokit/rest";
+import { KODY_AUTH_HEADERS } from "./auth-headers";
 
 // ─── Header constants (must match auth-context.ts buildAuthHeaders) ─────────────
 
-const HDR_TOKEN = "x-kody-token";
-const HDR_OWNER = "x-kody-owner";
-const HDR_REPO = "x-kody-repo";
-const HDR_USER_LOGIN = "x-kody-user-login";
-const HDR_STORE_REPO_URL = "x-kody-store-repo-url";
-const HDR_STORE_REF = "x-kody-store-ref";
+const HDR_TOKEN = KODY_AUTH_HEADERS.token;
+const HDR_OWNER = KODY_AUTH_HEADERS.owner;
+const HDR_REPO = KODY_AUTH_HEADERS.repo;
+const HDR_USER_LOGIN = KODY_AUTH_HEADERS.userLogin;
+const HDR_STORE_REPO_URL = KODY_AUTH_HEADERS.storeRepoUrl;
+const HDR_STORE_REF = KODY_AUTH_HEADERS.storeRef;
 
 // ─── Per-request auth from headers ────────────────────────────────────────────
 

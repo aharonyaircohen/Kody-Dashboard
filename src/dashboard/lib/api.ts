@@ -29,6 +29,7 @@ import type {
   WorkflowDefinitionRecord,
 } from "./workflow-definitions";
 import type { ScheduleEvery } from "./ticked/frontmatter";
+import { buildKodyAuthHeaders } from "./auth-headers";
 
 const API_BASE = "/api/kody";
 
@@ -156,6 +157,8 @@ interface ApiAuthContext {
   owner: string;
   repo: string;
   userLogin?: string;
+  storeRepoUrl?: string;
+  storeRef?: string;
 }
 
 function buildHeaders(
@@ -165,14 +168,7 @@ function buildHeaders(
   const auth = authOverride ?? getStoredAuth();
   return {
     "Content-Type": "application/json",
-    ...(auth
-      ? {
-          "x-kody-token": auth.token,
-          "x-kody-owner": auth.owner,
-          "x-kody-repo": auth.repo,
-          ...(auth.userLogin ? { "x-kody-user-login": auth.userLogin } : {}),
-        }
-      : {}),
+    ...buildKodyAuthHeaders(auth),
     ...extra,
   };
 }

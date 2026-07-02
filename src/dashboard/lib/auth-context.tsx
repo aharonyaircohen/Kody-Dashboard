@@ -25,10 +25,13 @@ import {
   useEffect,
   useCallback,
 } from "react";
+import {
+  DEFAULT_KODY_STORE_REF,
+  DEFAULT_KODY_STORE_REPO_URL,
+  buildKodyAuthHeaders,
+} from "./auth-headers";
 
-export const DEFAULT_KODY_STORE_REPO_URL =
-  "https://github.com/aharonyaircohen/kody-company-store";
-export const DEFAULT_KODY_STORE_REF = "main";
+export { DEFAULT_KODY_STORE_REF, DEFAULT_KODY_STORE_REPO_URL };
 
 export interface KodyRepoEntry {
   /** Original `https://github.com/owner/repo` URL the user pasted (optional). */
@@ -501,12 +504,5 @@ export function useAuth(): AuthContextValue {
 export function buildAuthHeaders(
   auth: KodyAuth | null,
 ): Record<string, string> {
-  if (!auth) return {};
-  return {
-    "x-kody-token": auth.token,
-    "x-kody-owner": auth.owner,
-    "x-kody-repo": auth.repo,
-    "x-kody-store-repo-url": auth.storeRepoUrl ?? DEFAULT_KODY_STORE_REPO_URL,
-    "x-kody-store-ref": auth.storeRef ?? DEFAULT_KODY_STORE_REF,
-  };
+  return buildKodyAuthHeaders(auth);
 }

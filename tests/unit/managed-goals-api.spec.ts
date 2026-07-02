@@ -3,6 +3,17 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { kodyApi } from "@dashboard/lib/api";
 
 describe("managed goals API client", () => {
+  function stubStoredAuth(value: unknown) {
+    const storage = {
+      getItem: vi.fn((key: string) =>
+        key === "kody_auth" ? JSON.stringify(value) : null,
+      ),
+    };
+    vi.stubGlobal("window", { localStorage: storage });
+    vi.stubGlobal("localStorage", storage);
+    return storage;
+  }
+
   it("surfaces managed goal create failure messages", async () => {
     const fetchMock = vi.fn().mockResolvedValue(
       new Response(
@@ -34,6 +45,62 @@ describe("managed goals API client", () => {
 
   afterEach(() => {
     vi.restoreAllMocks();
+    vi.unstubAllGlobals();
+  });
+
+  it("sends Store identity when listing managed goals", async () => {
+    stubStoredAuth({
+      token: "ghp_test-token",
+      owner: "A-Guy-educ",
+      repo: "A-Guy-Web",
+      user: { login: "aguyaharonyair" },
+      storeRepoUrl: "https://github.com/aharonyaircohen/kody-company-store",
+      storeRef: "main",
+    });
+    const fetchMock = vi.fn().mockResolvedValue(
+      new Response(JSON.stringify({ goals: [] }), {
+        status: 200,
+        headers: { "content-type": "application/json" },
+      }),
+    );
+    vi.stubGlobal("fetch", fetchMock);
+
+    await kodyApi.goals.listManaged();
+
+    const [, init] = fetchMock.mock.calls[0]!;
+    expect(init?.headers).toMatchObject({
+      "x-kody-token": "ghp_test-token",
+      "x-kody-owner": "A-Guy-educ",
+      "x-kody-repo": "A-Guy-Web",
+      "x-kody-user-login": "aguyaharonyair",
+      "x-kody-store-repo-url":
+        "https://github.com/aharonyaircohen/kody-company-store",
+      "x-kody-store-ref": "main",
+    });
+  });
+
+  it("defaults Store identity when the browser auth predates Store settings", async () => {
+    stubStoredAuth({
+      token: "ghp_test-token",
+      owner: "A-Guy-educ",
+      repo: "A-Guy-Web",
+    });
+    const fetchMock = vi.fn().mockResolvedValue(
+      new Response(JSON.stringify({ goals: [] }), {
+        status: 200,
+        headers: { "content-type": "application/json" },
+      }),
+    );
+    vi.stubGlobal("fetch", fetchMock);
+
+    await kodyApi.goals.listManaged();
+
+    const [, init] = fetchMock.mock.calls[0]!;
+    expect(init?.headers).toMatchObject({
+      "x-kody-store-repo-url":
+        "https://github.com/aharonyaircohen/kody-company-store",
+      "x-kody-store-ref": "main",
+    });
   });
 
   it("does not send browser actor login when creating a managed goal", async () => {
