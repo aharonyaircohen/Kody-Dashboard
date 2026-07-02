@@ -19,12 +19,12 @@ auth headers):
 3. **Writes `KODY_TOKEN`** as a repo Actions secret, set to the caller's
    PAT. Without this the engine has no GitHub auth at runtime — labels,
    comments, and PR updates would fail.
-4. **Mirrors the repo vault to Actions secrets.** Reads
+4. **Makes repo vault secrets available to workflows.** Reads
    `.kody/secrets.enc`, decrypts it with the dashboard's
    `KODY_MASTER_KEY`, and writes each entry as a repo Actions secret.
-   This is how provider keys (e.g. `ANTHROPIC_API_KEY`,
-   `OPENAI_API_KEY`) reach the runner — the engine reads any
-   `*_API_KEY` from `toJSON(secrets)` automatically.
+   This keeps older env-based engine paths working. Newer engine scripts that
+   need repo-owned secrets, such as QA auth, read the encrypted vault directly
+   at runtime when `KODY_MASTER_KEY` and `KODY_TOKEN` are available.
    - Names matching `GITHUB_*` or `ACTIONS_*` are skipped (GitHub
      reserves them).
    - Invalid names (anything not matching `^[A-Z_][A-Z0-9_]*$`) are
@@ -74,21 +74,19 @@ Re-run `/init` (or POST with `force: true`) whenever:
 
 - The `kody.yml` template changes upstream (new engine version with
   workflow tweaks).
-- You add or update a secret in the dashboard vault — re-running
-  re-mirrors the latest vault values to the consumer repo's Actions
-  secrets. **The runner does not read the vault directly**; it only
-  sees what `/init` mirrored.
+- You add or update a secret used by an older env-based engine path —
+  re-running re-syncs the latest vault values to the consumer repo's Actions
+  secrets. Vault-first paths such as QA auth read the current vault at runtime.
 - The PAT is rotated and the previous `KODY_TOKEN` is no longer valid.
 
-## Why mirror instead of decrypt at runtime?
+## Vault runtime access
 
 The engine runs inside the consumer repo's GitHub Actions runner. It
-sees only what `toJSON(secrets)` exposes — repo-level Actions secrets.
-The vault file (`.kody/secrets.enc`) lives in the repo but is encrypted
-with `KODY_MASTER_KEY`, which is a dashboard-server env var. Mirroring
-at install time keeps that master key out of every consumer repo.
-Trade-off: the runner has whatever the vault had at the most recent
-`/init`, not always-fresh values.
+can read the configured state repo with `KODY_TOKEN` and decrypt
+`secrets.enc` with `KODY_MASTER_KEY`. QA auth uses that vault-first path, so
+`LOGIN_PASSWORD` does not need a separate repo Actions secret. Mirrored
+Actions secrets remain a compatibility path for engine code that still reads
+from `toJSON(secrets)`.
 
 ## Files
 

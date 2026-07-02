@@ -2,7 +2,7 @@
  * @fileType api-endpoint
  * @domain kody
  * @pattern company-intents-api
- * @ai-summary Lists and creates CTO company-manager intents in configured Kody state repo.
+ * @ai-summary Lists and creates CTO agency-architect intents in configured Kody state repo.
  */
 /* eslint-disable @typescript-eslint/no-explicit-any */
 
@@ -67,6 +67,7 @@ const releasePolicySchema = z
 const intentPayloadSchema = z.object({
   id: z.string().trim().min(1).max(80).optional(),
   for: z.string().trim().min(1).max(1000),
+  description: z.string().trim().max(4000).optional(),
   priority: z.number().int().min(1).max(1000).default(100),
   posture: intentPostureSchema.default("balanced"),
   status: intentStatusSchema.default("active"),
@@ -150,6 +151,7 @@ function normalizeIntentInput(
   return {
     id,
     for: data.for,
+    ...(data.description ? { description: data.description } : {}),
     priority: data.priority,
     posture: data.posture,
     status: data.status,

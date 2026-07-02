@@ -2,7 +2,7 @@
  * @fileType utility
  * @domain kody
  * @pattern company-intents
- * @ai-summary Types and normalizers for CTO company-manager intents stored in state repo.
+ * @ai-summary Types and normalizers for CTO agency-architect intents stored in state repo.
  */
 
 export type CompanyIntentStatus = "active" | "paused" | "archived";
@@ -18,6 +18,7 @@ export interface CompanyIntent {
   id: string;
   status: CompanyIntentStatus;
   for: string;
+  description?: string;
   priority: number;
   posture: CompanyIntentPosture;
   scope: {
@@ -47,8 +48,8 @@ export interface CompanyIntent {
   };
   manager: {
     agent: "cto";
-    loop: "company-manager-loop";
-    capability: "company-manager";
+    loop: "agency-architect-loop";
+    capability: "agency-architect";
     reviewEvery: "1d" | "1w";
     lastReviewedAt?: string;
   };
@@ -91,6 +92,7 @@ export interface CompanyIntentRecord {
 export interface CompanyIntentInput {
   id?: string;
   for: string;
+  description?: string;
   priority: number;
   posture: CompanyIntentPosture;
   scope: {
@@ -145,6 +147,9 @@ export function buildCompanyIntent(
     id,
     status: input.status ?? "active",
     for: input.for,
+    ...(input.description?.trim()
+      ? { description: input.description.trim() }
+      : {}),
     priority: input.priority,
     posture: input.posture,
     scope: input.scope,
@@ -154,8 +159,8 @@ export function buildCompanyIntent(
     portfolio: input.portfolio,
     manager: {
       agent: "cto",
-      loop: "company-manager-loop",
-      capability: "company-manager",
+      loop: "agency-architect-loop",
+      capability: "agency-architect",
       reviewEvery: input.manager.reviewEvery,
     },
     createdAt: now,
@@ -180,6 +185,7 @@ export function normalizeCompanyIntent(
   const now = new Date(0).toISOString();
   const createdAt = stringField(input.createdAt) || now;
   const updatedAt = stringField(input.updatedAt) || createdAt;
+  const description = stringField(input.description);
   const policy = recordField(input.policy);
 
   return {
@@ -187,6 +193,7 @@ export function normalizeCompanyIntent(
     id,
     status: companyIntentStatus(input.status),
     for: stringField(input.for),
+    ...(description ? { description } : {}),
     priority: numberField(input.priority, 100),
     posture: companyIntentPosture(input.posture),
     scope: normalizeScope(input.scope),
@@ -305,8 +312,8 @@ function normalizeManager(value: unknown): CompanyIntent["manager"] {
   const lastReviewedAt = stringField(input?.lastReviewedAt);
   return {
     agent: "cto",
-    loop: "company-manager-loop",
-    capability: "company-manager",
+    loop: "agency-architect-loop",
+    capability: "agency-architect",
     reviewEvery: enumField(input?.reviewEvery, ["1d", "1w"]) ?? "1d",
     ...(lastReviewedAt ? { lastReviewedAt } : {}),
   };

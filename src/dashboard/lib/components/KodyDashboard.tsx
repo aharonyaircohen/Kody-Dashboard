@@ -556,25 +556,12 @@ export function KodyDashboard({
   const stopMutation = useMutation({
     mutationFn: (task: KodyTask) =>
       tasksApi.abort(task.issueNumber, githubUser?.login),
-    onMutate: async (task) => {
-      await queryClient.cancelQueries({ queryKey: taskQueryKey });
-      const previous = queryClient.getQueryData<KodyTask[]>(taskQueryKey);
-      queryClient.setQueryData<KodyTask[]>(taskQueryKey, (old) =>
-        old?.map((t) =>
-          t.id === task.id ? { ...t, column: "open" as const } : t,
-        ),
-      );
-      return { previous };
-    },
-    onError: (error, _task, context) => {
+    onError: (error) => {
       if (handleAuthError(error)) return;
-      if (context?.previous) {
-        queryClient.setQueryData(taskQueryKey, context.previous);
-      }
       toast.error("Failed to stop task");
     },
     onSuccess: () => {
-      toast.success("Task stopped");
+      toast.success("Stop requested");
     },
   });
 

@@ -7,7 +7,7 @@
  *   a JSON bundle and imports one into another repo.
  */
 import { AuthGuard } from "@dashboard/lib/auth-guard";
-import { CompanyManager } from "@dashboard/lib/components/CompanyManager";
+import { AgencyArchitect } from "@dashboard/lib/components/AgencyArchitect";
 import { buildKodyMetadata } from "../../metadata";
 
 export const dynamic = "force-static";
@@ -24,7 +24,7 @@ export const metadata = buildKodyMetadata({
 export default function CompanyPage() {
   return (
     <AuthGuard>
-      <CompanyManager />
+      <AgencyArchitect />
     </AuthGuard>
   );
 }

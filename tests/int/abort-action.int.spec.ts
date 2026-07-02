@@ -19,7 +19,8 @@ const mocks = vi.hoisted(() => ({
       created_at: "2026-07-01T16:00:00Z",
       updated_at: "2026-07-01T16:00:00Z",
       html_url: "https://github.test/run/123",
-      display_title: "Show Google login popup after onboarding wizard completes",
+      display_title:
+        "Show Google login popup after onboarding wizard completes",
     },
   ]),
   fetchComments: vi.fn(async () => []),
@@ -53,8 +54,9 @@ vi.mock("@dashboard/lib/branches", () => ({
 }));
 
 vi.mock("@dashboard/lib/workflow-matching", () => ({
-  matchWorkflowRunsForTask: (...args: Parameters<typeof mocks.matchWorkflowRunsForTask>) =>
-    mocks.matchWorkflowRunsForTask(...args),
+  matchWorkflowRunsForTask: (
+    ...args: Parameters<typeof mocks.matchWorkflowRunsForTask>
+  ) => mocks.matchWorkflowRunsForTask(...args),
 }));
 
 vi.mock("@dashboard/lib/kody-command", () => ({
@@ -85,11 +87,13 @@ vi.mock("@dashboard/lib/github-client", () => ({
   findAssociatedPRByIssueNumber: vi.fn(async () => null),
   findTaskBranch: vi.fn(async () => null),
   deleteBranch: vi.fn(async () => undefined),
-  invalidateTaskCache: (...args: Parameters<typeof mocks.invalidateTaskCache>) =>
-    mocks.invalidateTaskCache(...args),
+  invalidateTaskCache: (
+    ...args: Parameters<typeof mocks.invalidateTaskCache>
+  ) => mocks.invalidateTaskCache(...args),
   invalidatePRCache: vi.fn(),
-  invalidateBoardCache: (...args: Parameters<typeof mocks.invalidateBoardCache>) =>
-    mocks.invalidateBoardCache(...args),
+  invalidateBoardCache: (
+    ...args: Parameters<typeof mocks.invalidateBoardCache>
+  ) => mocks.invalidateBoardCache(...args),
   invalidateBranchCache: vi.fn(),
   getOctokit: vi.fn(() => ({
     actions: {
@@ -117,10 +121,9 @@ describe("task actions", () => {
   });
 
   it("reruns by posting the normal Kody issue command instead of invalid workflow inputs", async () => {
-    const res = await POST(
-      makeReq({ action: "rerun", actorLogin: "tester" }),
-      { params },
-    );
+    const res = await POST(makeReq({ action: "rerun", actorLogin: "tester" }), {
+      params,
+    });
     const json = await res.json();
 
     expect(res.status).toBe(200);
@@ -135,23 +138,39 @@ describe("task actions", () => {
   });
 
   it("cancels matching workflow runs without posting a comment that retriggers Kody", async () => {
-    const res = await POST(
-      makeReq({ action: "abort", actorLogin: "tester" }),
-      { params },
-    );
+    const res = await POST(makeReq({ action: "abort", actorLogin: "tester" }), {
+      params,
+    });
     const json = await res.json();
 
     expect(res.status).toBe(200);
     expect(json.success).toBe(true);
-    expect(json.message).toBe("Cancelled 1 workflow run");
+    expect(json.message).toBe("Stop requested for 1 workflow run");
     expect(mocks.cancelWorkflowRun).toHaveBeenCalledWith(123, undefined);
-    expect(mocks.removeLabel).toHaveBeenCalledWith(
-      674,
-      "kody:classifying",
-      undefined,
-    );
+    expect(mocks.removeLabel).not.toHaveBeenCalled();
     expect(mocks.postWithFallback).not.toHaveBeenCalled();
     expect(mocks.invalidateTaskCache).toHaveBeenCalled();
     expect(mocks.invalidateBoardCache).toHaveBeenCalled();
+  });
+
+  it("clears stale lifecycle labels when no live workflow run is found", async () => {
+    mocks.fetchWorkflowRuns.mockResolvedValueOnce([]);
+    mocks.matchWorkflowRunsForTask.mockReturnValueOnce([]);
+
+    const res = await POST(makeReq({ action: "abort", actorLogin: "tester" }), {
+      params,
+    });
+    const json = await res.json();
+
+    expect(res.status).toBe(200);
+    expect(json.success).toBe(true);
+    expect(json.message).toBe(
+      "Cleared stale running labels (no live workflow run found)",
+    );
+    expect(mocks.removeLabel).toHaveBeenCalledWith(
+      674,
+      "kody:running",
+      undefined,
+    );
   });
 });

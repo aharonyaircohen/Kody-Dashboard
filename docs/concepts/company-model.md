@@ -19,6 +19,42 @@ State = what happened
 If a new agency file mixes two rows, stop and split it before adding more
 behavior.
 
+## Intent-led company growth
+
+The AI agency should grow from intent, not from available automation.
+
+Core rule:
+
+```text
+Every durable agency object should trace back to an intent.
+Not every intent should create durable agency structure.
+```
+
+Use intents as human direction. The manager interprets them and creates the
+smallest useful structure only when the need is stable:
+
+| Step      | Meaning                                                   |
+| --------- | --------------------------------------------------------- |
+| Intent    | Human says what Kody should care about                    |
+| Manager   | Decides whether the current agency structure is enough    |
+| Goal      | Created only for a concrete outcome that should become true |
+| Loop      | Created only for recurring attention                      |
+| Capability | Reused when possible; added only when no existing ability fits |
+| Link back | New goals and loops must be attached to the intent they serve |
+
+The manager should prefer a note over new structure when the intent is vague,
+temporary, already covered, or too small to justify durable machinery.
+
+Intent has two text levels:
+
+```text
+for = short one-line direction shown in lists
+description = optional deeper context, constraints, examples, and what good looks like
+```
+
+The description helps the manager interpret the intent. It must not become a
+second intent, a behavior selector, or an execution route.
+
 ## Canonical terms
 
 Use these terms when explaining the agency model to humans or coding agents:

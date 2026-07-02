@@ -281,10 +281,18 @@ export async function POST(
           }
         }
 
-        // Clear in-progress kody:* lifecycle labels so the task moves out of
-        // "building" immediately even if the workflow couldn't be cancelled
-        // (e.g. it was already winding down). Terminal labels (kody:done,
-        // kody:failed) are intentionally preserved.
+        invalidateTaskCache();
+        invalidateBoardCache();
+
+        if (cancelledCount > 0) {
+          return NextResponse.json({
+            success: true,
+            message: `Stop requested for ${cancelledCount} workflow run${cancelledCount === 1 ? "" : "s"}`,
+          });
+        }
+
+        // No active run was found, so these are stale lifecycle labels rather
+        // than evidence of work that is still winding down.
         const lifecycleLabels = [
           "kody:running",
           "kody:planning",
@@ -309,19 +317,11 @@ export async function POST(
           }
         }
 
-        invalidateTaskCache();
-        invalidateBoardCache();
-
-        if (cancelledCount > 0) {
-          return NextResponse.json({
-            success: true,
-            message: `Cancelled ${cancelledCount} workflow run${cancelledCount === 1 ? "" : "s"}`,
-          });
-        }
         if (removedLabel) {
           return NextResponse.json({
             success: true,
-            message: "Cleared running labels (no live workflow run found)",
+            message:
+              "Cleared stale running labels (no live workflow run found)",
           });
         }
         return NextResponse.json({

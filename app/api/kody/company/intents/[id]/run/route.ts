@@ -2,7 +2,7 @@
  * @fileType api-endpoint
  * @domain kody
  * @pattern company-intent-run
- * @ai-summary Dispatches the CTO company-manager action for an intent review now.
+ * @ai-summary Dispatches the CTO agency-architect action for an intent review now.
  */
 /* eslint-disable @typescript-eslint/no-explicit-any */
 
@@ -90,7 +90,7 @@ export async function POST(
       owner: headerAuth.owner,
       repo: headerAuth.repo,
       ref,
-      action: "company-manager",
+      action: "agency-architect",
       message: `Review company intent ${id}`,
     });
 
@@ -105,14 +105,14 @@ export async function POST(
     recordAudit(req, {
       action: "companyIntent.run",
       resource: id,
-      detail: `manual workflow dispatch for company-manager intent ${id}`,
+      detail: `manual workflow dispatch for agency-architect intent ${id}`,
     });
 
     return NextResponse.json({
       ok: true,
       workflowId: "kody.yml",
       ref,
-      action: "company-manager",
+      action: "agency-architect",
       intentId: id,
     });
   } catch (err: any) {

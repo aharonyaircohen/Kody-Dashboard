@@ -15,12 +15,14 @@ import {
 describe("company intents", () => {
   it("parses the engine intent file shape", () => {
     const intent = parseCompanyIntent(
-      "Kody-Engine-Tester/intents/live-company-manager-20260624054307/intent.json",
+      "Kody-Engine-Tester/intents/live-agency-architect-20260624054307/intent.json",
       {
         version: 1,
-        id: "live-company-manager-20260624054307",
+        id: "live-agency-architect-20260624054307",
         status: "active",
-        for: "Validate CTO company manager live integration.",
+        for: "Validate CTO agency architect live integration.",
+        description:
+          "Use this to prove Agency Architect understands deeper operator context.",
         priority: 10,
         posture: "confidence",
         scope: { repos: ["A-Guy-educ/Kody-Engine-Tester"], areas: ["release"] },
@@ -42,13 +44,13 @@ describe("company intents", () => {
         },
         portfolio: {
           goals: [],
-          loops: ["company-manager-loop"],
-          capabilities: ["company-manager"],
+          loops: ["agency-architect-loop"],
+          capabilities: ["agency-architect"],
         },
         manager: {
           agent: "cto",
-          loop: "company-manager-loop",
-          capability: "company-manager",
+          loop: "agency-architect-loop",
+          capability: "agency-architect",
           reviewEvery: "1d",
         },
         createdAt: "2026-06-24T05:43:07.000Z",
@@ -56,7 +58,10 @@ describe("company intents", () => {
       },
     );
 
-    expect(intent.id).toBe("live-company-manager-20260624054307");
+    expect(intent.id).toBe("live-agency-architect-20260624054307");
+    expect(intent.description).toBe(
+      "Use this to prove Agency Architect understands deeper operator context.",
+    );
     expect(intent.manager.agent).toBe("cto");
     expect(intent.policy.release?.qaDepth).toBe("strict");
     expect(intent.policy.automation.maxConcurrentGoals).toBe(1);
@@ -68,7 +73,7 @@ describe("company intents", () => {
         JSON.stringify({
           at: "2026-06-24T05:44:00.000Z",
           agent: "cto",
-          intentId: "live-company-manager-20260624054307",
+          intentId: "live-agency-architect-20260624054307",
           action: "note",
           reason: "Portfolio remains empty.",
         }),
@@ -112,6 +117,7 @@ describe("company intents", () => {
       {
         id: "release-health",
         for: "Keep releases healthy.",
+        description: "Prefer boring release flow with evidence before action.",
         priority: 3,
         status: "active",
         posture: "balanced",
@@ -134,8 +140,8 @@ describe("company intents", () => {
         },
         portfolio: {
           goals: ["release-health"],
-          loops: ["company-manager-loop"],
-          capabilities: ["company-manager"],
+          loops: ["agency-architect-loop"],
+          capabilities: ["agency-architect"],
         },
         manager: { reviewEvery: "1d" },
       },
@@ -144,10 +150,13 @@ describe("company intents", () => {
 
     expect(intent.manager).toMatchObject({
       agent: "cto",
-      loop: "company-manager-loop",
-      capability: "company-manager",
+      loop: "agency-architect-loop",
+      capability: "agency-architect",
     });
     expect(intent.createdAt).toBe("2026-06-24T00:00:00.000Z");
+    expect(intent.description).toBe(
+      "Prefer boring release flow with evidence before action.",
+    );
   });
 
   it("slugifies and warns on incomplete operating guidance", () => {
@@ -161,8 +170,8 @@ describe("company intents", () => {
 
     expect(
       companyIntentWarnings(intent, {
-        loop: { id: "company-manager-loop", exists: false },
-        capability: { id: "company-manager", exists: false },
+        loop: { id: "agency-architect-loop", exists: false },
+        capability: { id: "agency-architect", exists: false },
       }),
     ).toEqual([
       "No metrics set",
@@ -194,10 +203,20 @@ describe("company intents", () => {
     );
 
     expect(view).toContain("New intent");
-    expect(view).toContain("Review now");
-    expect(view).toContain("Archive");
+    expect(view).toContain('aria-label="Review now"');
+    expect(view).toContain('aria-label="Archive intent"');
+    expect(view).toContain('className="h-8 w-8 px-0"');
+    expect(view).toContain("What should Kody care about?");
+    expect(view).toContain("More context");
+    expect(view).toContain("MarkdownEditor");
+    expect(view).toContain("max-w-5xl");
+    expect(view).toContain('label: "Cautious"');
+    expect(view).toContain('label: "Fast"');
+    expect(view).not.toContain('label: "Maintenance"');
+    expect(view).not.toContain("Applies to");
+    expect(view).not.toContain("Portfolio seeds");
     expect(listRoute).toContain("export async function POST");
     expect(detailRoute).toContain("export async function PATCH");
-    expect(runRoute).toContain('action: "company-manager"');
+    expect(runRoute).toContain('action: "agency-architect"');
   });
 });

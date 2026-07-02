@@ -2,7 +2,7 @@
  * @fileType hook
  * @domain kody
  * @pattern company-intents
- * @ai-summary React Query hooks for CTO company-manager intents.
+ * @ai-summary React Query hooks for CTO agency-architect intents.
  */
 "use client";
 

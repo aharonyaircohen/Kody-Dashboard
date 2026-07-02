@@ -2,7 +2,7 @@
  * @fileType component
  * @domain kody
  * @pattern company-intents
- * @ai-summary Operator view for CTO company-manager intents.
+ * @ai-summary Operator view for CTO agency-architect intents.
  */
 "use client";
 
@@ -42,7 +42,6 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@dashboard/ui/dialog";
-import { Input } from "@dashboard/ui/input";
 import { Label } from "@dashboard/ui/label";
 import {
   Select,
@@ -74,12 +73,15 @@ import {
 } from "../hooks/useCompanyIntents";
 import { useMediaQuery } from "../hooks/useMediaQuery";
 import { EmptyState } from "./EmptyState";
+import { MarkdownEditor } from "./MarkdownEditor";
+import { MarkdownPreview } from "./MarkdownPreview";
 import { MasterDetailShell } from "./MasterDetailShell";
 import { RepoScopedLink } from "./RepoScopedLink";
 
 type IntentFormState = {
   id: string;
   for: string;
+  description: string;
   priority: string;
   status: CompanyIntentStatus;
   posture: CompanyIntentPosture;
@@ -101,23 +103,7 @@ type IntentFormState = {
 };
 
 type IntentFormSetter = Dispatch<SetStateAction<IntentFormState>>;
-type IntentBehavior = "cautious" | "balanced" | "fast" | "maintenance";
-
-const postureOptions: CompanyIntentPosture[] = [
-  "balanced",
-  "confidence",
-  "speed",
-  "stability-recovery",
-  "maintenance",
-];
-
-const postureLabels: Record<CompanyIntentPosture, string> = {
-  balanced: "Balanced",
-  confidence: "Confidence",
-  speed: "Speed",
-  "stability-recovery": "Stability recovery",
-  maintenance: "Maintenance",
-};
+type IntentBehavior = "cautious" | "balanced" | "fast";
 
 const behaviorOptions: Array<{
   id: IntentBehavior;
@@ -165,20 +151,6 @@ const behaviorOptions: Array<{
       principles: "Move quickly when risk is low",
     },
   },
-  {
-    id: "maintenance",
-    label: "Maintenance",
-    defaults: {
-      posture: "maintenance",
-      qaDepth: "standard",
-      blockerLevel: "standard",
-      approval: "before-risky-actions",
-      maxConcurrentGoals: "1",
-      maxDailyActions: "5",
-      principles: "Fix broken wiring before adding new work",
-      metrics: "missing loops\nmissing capabilities\nstale reviews",
-    },
-  },
 ];
 
 export function CompanyIntentsView({
@@ -206,6 +178,7 @@ export function CompanyIntentsView({
       [
         id,
         intent.for,
+        intent.description ?? "",
         intent.status,
         intent.posture,
         intent.manager.agent,
@@ -412,279 +385,26 @@ export function CompanyIntentsView({
         open={formMode !== null}
         onOpenChange={(open) => !open && setFormMode(null)}
       >
-        <DialogContent
-          className={cn(
-            "max-h-[90vh] overflow-y-auto",
-            formMode === "create" ? "sm:max-w-2xl" : "sm:max-w-3xl",
-          )}
-        >
-          <DialogHeader>
+        <DialogContent className="flex max-h-[90vh] w-[calc(100vw-2rem)] max-w-5xl flex-col overflow-hidden">
+          <DialogHeader className="shrink-0">
             <DialogTitle>
               {formMode === "create" ? "New intent" : "Edit intent"}
             </DialogTitle>
             <DialogDescription>
-              Define what the CTO should optimize for when managing this Digital
-              Agency portfolio.
+              Set the intent and behavior Kody should use for this repo.
             </DialogDescription>
           </DialogHeader>
-          <form onSubmit={submitForm} className="space-y-5">
-            {formMode === "create" ? (
-              <CreateIntentFields
+          <form onSubmit={submitForm} className="flex min-h-0 flex-1 flex-col">
+            <div className="min-h-0 flex-1 overflow-y-auto pr-1">
+              <IntentSimpleFields
                 form={form}
                 setForm={setForm}
                 formIdValid={formIdValid}
+                autoSlug={formMode === "create"}
               />
-            ) : (
-              <>
-                <div className="grid gap-4 sm:grid-cols-2">
-                  <Field label="Intent ID">
-                    <Input
-                      value={form.id}
-                      onChange={(event) =>
-                        setForm((prev) => ({ ...prev, id: event.target.value }))
-                      }
-                      onBlur={() =>
-                        setForm((prev) => ({
-                          ...prev,
-                          id: prev.id || slugifyCompanyIntentId(prev.for),
-                        }))
-                      }
-                      disabled={formMode === "edit"}
-                      placeholder="release-health"
-                    />
-                    {!formIdValid ? (
-                      <p className="mt-1 text-body-xs text-destructive">
-                        Use lowercase letters, numbers, and dashes. Start with a
-                        letter.
-                      </p>
-                    ) : null}
-                  </Field>
-                  <Field label="Priority">
-                    <Input
-                      type="number"
-                      min={1}
-                      max={1000}
-                      value={form.priority}
-                      onChange={(event) =>
-                        setForm((prev) => ({
-                          ...prev,
-                          priority: event.target.value,
-                        }))
-                      }
-                    />
-                  </Field>
-                  <Field label="Status">
-                    <Select
-                      value={form.status}
-                      onValueChange={(value: CompanyIntentStatus) =>
-                        setForm((prev) => ({ ...prev, status: value }))
-                      }
-                    >
-                      <SelectTrigger>
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="active">Active</SelectItem>
-                        <SelectItem value="paused">Paused</SelectItem>
-                        <SelectItem value="archived">Archived</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </Field>
-                  <Field label="Posture">
-                    <Select
-                      value={form.posture}
-                      onValueChange={(value: CompanyIntentPosture) =>
-                        setForm((prev) => ({ ...prev, posture: value }))
-                      }
-                    >
-                      <SelectTrigger>
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {postureOptions.map((option) => (
-                          <SelectItem key={option} value={option}>
-                            {postureLabels[option]}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  </Field>
-                </div>
+            </div>
 
-                <Field label="Intent">
-                  <Textarea
-                    value={form.for}
-                    onChange={(event) =>
-                      setForm((prev) => ({ ...prev, for: event.target.value }))
-                    }
-                    placeholder="Keep releases healthy without creating unnecessary portfolio work."
-                    className="min-h-24"
-                  />
-                </Field>
-
-                <div className="grid gap-4 sm:grid-cols-2">
-                  <Field label="Repos">
-                    <Textarea
-                      value={form.repos}
-                      onChange={(event) =>
-                        setForm((prev) => ({
-                          ...prev,
-                          repos: event.target.value,
-                        }))
-                      }
-                      placeholder="owner/repo, one per line"
-                    />
-                  </Field>
-                  <Field label="Areas">
-                    <Textarea
-                      value={form.areas}
-                      onChange={(event) =>
-                        setForm((prev) => ({
-                          ...prev,
-                          areas: event.target.value,
-                        }))
-                      }
-                      placeholder="release, QA, operations"
-                    />
-                  </Field>
-                  <Field label="Principles">
-                    <Textarea
-                      value={form.principles}
-                      onChange={(event) =>
-                        setForm((prev) => ({
-                          ...prev,
-                          principles: event.target.value,
-                        }))
-                      }
-                      placeholder="One per line"
-                    />
-                  </Field>
-                  <Field label="Metrics">
-                    <Textarea
-                      value={form.metrics}
-                      onChange={(event) =>
-                        setForm((prev) => ({
-                          ...prev,
-                          metrics: event.target.value,
-                        }))
-                      }
-                      placeholder="One per line"
-                    />
-                  </Field>
-                </div>
-
-                <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-                  <SelectField
-                    label="Cadence"
-                    value={form.releaseCadence}
-                    values={["manual", "1d", "1w"]}
-                    onChange={(releaseCadence) =>
-                      setForm((prev) => ({ ...prev, releaseCadence }))
-                    }
-                  />
-                  <SelectField
-                    label="QA"
-                    value={form.qaDepth}
-                    values={["light", "standard", "strict"]}
-                    onChange={(qaDepth) =>
-                      setForm((prev) => ({ ...prev, qaDepth }))
-                    }
-                  />
-                  <SelectField
-                    label="Blockers"
-                    value={form.blockerLevel}
-                    values={["low", "standard", "strict"]}
-                    onChange={(blockerLevel) =>
-                      setForm((prev) => ({ ...prev, blockerLevel }))
-                    }
-                  />
-                  <SelectField
-                    label="Approval"
-                    value={form.approval}
-                    values={[
-                      "none",
-                      "before-production",
-                      "before-risky-actions",
-                    ]}
-                    onChange={(approval) =>
-                      setForm((prev) => ({ ...prev, approval }))
-                    }
-                  />
-                </div>
-
-                <div className="grid gap-4 sm:grid-cols-3">
-                  <Field label="Concurrent goals">
-                    <Input
-                      type="number"
-                      min={1}
-                      max={10}
-                      value={form.maxConcurrentGoals}
-                      onChange={(event) =>
-                        setForm((prev) => ({
-                          ...prev,
-                          maxConcurrentGoals: event.target.value,
-                        }))
-                      }
-                    />
-                  </Field>
-                  <Field label="Daily actions">
-                    <Input
-                      type="number"
-                      min={1}
-                      max={50}
-                      value={form.maxDailyActions}
-                      onChange={(event) =>
-                        setForm((prev) => ({
-                          ...prev,
-                          maxDailyActions: event.target.value,
-                        }))
-                      }
-                    />
-                  </Field>
-                  <SelectField
-                    label="Review"
-                    value={form.reviewEvery}
-                    values={["1d", "1w"]}
-                    onChange={(reviewEvery) =>
-                      setForm((prev) => ({ ...prev, reviewEvery }))
-                    }
-                  />
-                </div>
-
-                <div className="grid gap-4 sm:grid-cols-2">
-                  <Field label="Human required for">
-                    <Textarea
-                      value={form.requiresHumanFor}
-                      onChange={(event) =>
-                        setForm((prev) => ({
-                          ...prev,
-                          requiresHumanFor: event.target.value,
-                        }))
-                      }
-                      placeholder="One per line"
-                    />
-                  </Field>
-                  <Field label="Portfolio seeds">
-                    <Textarea
-                      value={[
-                        sectionText("goals", form.goals),
-                        sectionText("loops", form.loops),
-                        sectionText("capabilities", form.capabilities),
-                      ]
-                        .filter(Boolean)
-                        .join("\n\n")}
-                      onChange={(event) => {
-                        const parsed = parsePortfolioText(event.target.value);
-                        setForm((prev) => ({ ...prev, ...parsed }));
-                      }}
-                      placeholder="goals: release-health&#10;loops: company-manager-loop&#10;capabilities: company-manager"
-                    />
-                  </Field>
-                </div>
-              </>
-            )}
-
-            <div className="flex justify-end gap-2 border-t border-border pt-4">
+            <div className="mt-5 flex shrink-0 justify-end gap-2 border-t border-border pt-4">
               <Button
                 type="button"
                 variant="outline"
@@ -709,68 +429,51 @@ export function CompanyIntentsView({
   );
 }
 
-function CreateIntentFields({
+function IntentSimpleFields({
   form,
   setForm,
   formIdValid,
+  autoSlug,
 }: {
   form: IntentFormState;
   setForm: IntentFormSetter;
   formIdValid: boolean;
+  autoSlug: boolean;
 }) {
   return (
-    <>
-      <Field label="What should the CTO optimize for?">
-        <Textarea
-          value={form.for}
-          onChange={(event) =>
-            setForm((prev) => ({
-              ...prev,
-              for: event.target.value,
-              id: slugifyCompanyIntentId(event.target.value),
-            }))
-          }
-          onBlur={() =>
-            setForm((prev) => ({
-              ...prev,
-              id: prev.id || slugifyCompanyIntentId(prev.for),
-            }))
-          }
-          placeholder="Keep releases healthy without unnecessary work."
-          className="min-h-24"
-        />
-        {!formIdValid ? (
-          <p className="mt-1 text-body-xs text-destructive">
-            The generated ID needs lowercase letters, numbers, and dashes.
-          </p>
-        ) : null}
-      </Field>
-
-      <div className="grid gap-4 sm:grid-cols-2">
-        <Field label="Repos">
+    <div className="grid gap-5 lg:grid-cols-[minmax(0,0.9fr)_minmax(0,1.4fr)]">
+      <div className="space-y-5">
+        <Field label="What should Kody care about?">
           <Textarea
-            value={form.repos}
+            value={form.for}
             onChange={(event) =>
-              setForm((prev) => ({ ...prev, repos: event.target.value }))
+              setForm((prev) => ({
+                ...prev,
+                for: event.target.value,
+                ...(autoSlug
+                  ? { id: slugifyCompanyIntentId(event.target.value) }
+                  : {}),
+              }))
             }
-            placeholder="owner/repo"
-            className="min-h-20"
+            onBlur={() =>
+              setForm((prev) => ({
+                ...prev,
+                id:
+                  autoSlug && !prev.id
+                    ? slugifyCompanyIntentId(prev.for)
+                    : prev.id,
+              }))
+            }
+            placeholder="Keep releases healthy without unnecessary work."
+            className="min-h-28"
           />
+          {!formIdValid ? (
+            <p className="mt-1 text-body-xs text-destructive">
+              The generated ID needs lowercase letters, numbers, and dashes.
+            </p>
+          ) : null}
         </Field>
 
-        <Field label="Areas">
-          <Textarea
-            value={form.areas}
-            onChange={(event) =>
-              setForm((prev) => ({ ...prev, areas: event.target.value }))
-            }
-            placeholder="release, QA, operations"
-            className="min-h-20"
-          />
-        </Field>
-      </div>
-
-      <div className="grid gap-4 sm:grid-cols-2">
         <Field label="Behavior">
           <Select
             value={behaviorFromPosture(form.posture)}
@@ -790,32 +493,24 @@ function CreateIntentFields({
             </SelectContent>
           </Select>
         </Field>
-
-        <Field label="Priority">
-          <Input
-            type="number"
-            min={1}
-            max={1000}
-            value={form.priority}
-            onChange={(event) =>
-              setForm((prev) => ({ ...prev, priority: event.target.value }))
-            }
-          />
-        </Field>
       </div>
 
-      <div className="rounded-md border border-white/[0.08] bg-white/[0.02] p-4">
-        <div className="mb-3 text-body-sm font-medium">Generated defaults</div>
-        <div className="flex flex-wrap gap-2">
-          <Badge variant="outline">{form.id || "auto-generated"}</Badge>
-          <Badge variant="outline">QA {form.qaDepth}</Badge>
-          <Badge variant="outline">Blockers {form.blockerLevel}</Badge>
-          <Badge variant="outline">Approval {form.approval}</Badge>
-          <Badge variant="outline">{form.maxConcurrentGoals} concurrent</Badge>
-          <Badge variant="outline">{form.maxDailyActions} daily actions</Badge>
-        </div>
-      </div>
-    </>
+      <Field label="More context">
+        <MarkdownEditor
+          value={form.description}
+          onChange={(value) =>
+            setForm((prev) => ({
+              ...prev,
+              description: value,
+            }))
+          }
+          rows={16}
+          placeholder="Explain why this matters, what good looks like, and any edge cases."
+          textareaClassName="min-h-[360px]"
+          emptyPreview="No context yet."
+        />
+      </Field>
+    </div>
   );
 }
 
@@ -830,6 +525,7 @@ function IntentListItem({
 }) {
   const warnings = companyIntentWarnings(record.intent, record.managerHealth);
   const tone = intentStatusTone(record.intent.status);
+  const behavior = behaviorFromPosture(record.intent.posture);
   return (
     <div
       className={cn(
@@ -852,9 +548,7 @@ function IntentListItem({
         </div>
 
         <div className="mt-1 flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
-          <span>priority {record.intent.priority}</span>
-          <span>·</span>
-          <span>{record.intent.posture}</span>
+          <span>{behaviorLabel(behavior)}</span>
           {warnings.length ? (
             <>
               <span>·</span>
@@ -866,6 +560,11 @@ function IntentListItem({
         <p className="mt-1 line-clamp-2 text-xs text-white/55">
           {record.intent.for || "No intent target"}
         </p>
+        {record.intent.description ? (
+          <p className="mt-1 line-clamp-2 text-xs text-white/40">
+            {record.intent.description}
+          </p>
+        ) : null}
       </button>
     </div>
   );
@@ -890,10 +589,12 @@ function IntentDetail({
 }) {
   const { intent, decisions, managerHealth } = record;
   const warnings = companyIntentWarnings(intent, managerHealth);
+  const behavior = behaviorFromPosture(intent.posture);
+  const advancedCount = warnings.length + decisions.length;
   return (
     <article className="min-h-full">
       <div className="border-b border-border bg-card/20">
-        <div className="mx-auto max-w-4xl space-y-6 p-4 md:p-8">
+        <div className="mx-auto max-w-4xl space-y-5 p-4 md:p-8">
           <Button
             variant="ghost"
             size="sm"
@@ -906,26 +607,19 @@ function IntentDetail({
 
           <header className="flex flex-wrap items-start justify-between gap-4">
             <div className="min-w-0 flex-1 space-y-2">
-              <h1 className="inline-flex flex-wrap items-center gap-3 break-words font-mono text-2xl font-semibold tracking-tight md:text-3xl">
-                <span>{intent.id}</span>
+              <h1 className="inline-flex flex-wrap items-center gap-3 break-words text-2xl font-semibold tracking-tight md:text-3xl">
+                <span>Intent</span>
                 <StatusBadge status={intent.status} />
                 <span className="rounded bg-white/[0.06] px-2 py-0.5 font-sans text-[11px] uppercase tracking-wide text-white/50">
-                  {intent.posture}
-                </span>
-                <span className="rounded bg-white/[0.06] px-2 py-0.5 font-sans text-[11px] uppercase tracking-wide text-white/50">
-                  priority {intent.priority}
+                  {behaviorLabel(behavior)}
                 </span>
               </h1>
-              <p className="flex flex-wrap items-center gap-3 break-words text-xs text-muted-foreground">
-                <span>{intent.manager.agent}</span>
-                <span>·</span>
-                <span>{intent.manager.reviewEvery}</span>
-                <span>·</span>
-                <span>{decisions.length} decisions</span>
+              <p className="break-words text-xs text-muted-foreground">
+                {intent.id}
               </p>
             </div>
 
-            <div className="flex shrink-0 items-center gap-2">
+            <div className="flex shrink-0 flex-wrap items-center gap-2">
               <Button
                 type="button"
                 variant="outline"
@@ -1004,95 +698,171 @@ function IntentDetail({
               ) : null}
             </div>
           </header>
-
-          <div className="rounded-xl border border-white/[0.08] bg-black/20 p-4 md:p-5">
-            <p className="break-words text-sm text-white/80">
-              {intent.for || "No intent target"}
-            </p>
-          </div>
         </div>
       </div>
 
       <div className="mx-auto max-w-4xl space-y-6 p-4 md:p-8">
-        {warnings.length ? (
-          <Block
-            title="Warnings"
-            subtitle="Issues that can block the CTO loop"
-            icon={AlertCircle}
-            count={warnings.length}
-          >
-            <div className="flex flex-wrap gap-2">
-              {warnings.map((warning) => (
-                <Badge
-                  key={warning}
-                  variant="outline"
-                  className="text-amber-600"
-                >
-                  {warning}
-                </Badge>
-              ))}
+        <section className="rounded-xl border border-white/[0.08] bg-black/20 p-4 md:p-5">
+          <div>
+            <div className="text-body-xs font-medium uppercase tracking-wide text-white/45">
+              What Kody should care about
             </div>
-          </Block>
-        ) : null}
+            <p className="break-words text-sm text-white/80">
+              {intent.for || "No intent target"}
+            </p>
+          </div>
 
-        <Block
-          title="Policy"
-          subtitle="Release and automation posture"
-          icon={ShieldCheck}
-        >
-          <PolicyGrid intent={intent} />
-        </Block>
-
-        <div className="grid gap-6 xl:grid-cols-2">
-          <Block
-            title="CTO Loop"
-            subtitle="Manager capability wiring"
-            icon={Compass}
-          >
-            <ManagerHealth intent={intent} record={record} />
-          </Block>
-          <Block
-            title="Scope"
-            subtitle="Where this intent applies"
-            icon={Target}
-          >
-            <div className="space-y-5">
-              <ChipGroup title="Repos" items={intent.scope.repos} />
-              <ChipGroup title="Areas" items={intent.scope.areas} />
-              <Portfolio intent={intent} />
+          {intent.description ? (
+            <div className="mt-5 border-t border-white/[0.08] pt-4">
+              <div className="mb-2 text-body-xs font-medium uppercase tracking-wide text-white/45">
+                More context
+              </div>
+              <MarkdownPreview content={intent.description} variant="compact" />
             </div>
-          </Block>
-        </div>
+          ) : null}
+        </section>
 
-        <Block
-          title="Principles"
-          subtitle="Rules the CTO should preserve"
-          icon={Compass}
-          count={intent.principles.length}
-        >
-          <TextList items={intent.principles} empty="No principles set." />
-        </Block>
+        <section className="grid gap-3 sm:grid-cols-3">
+          <PlainFact label="Behavior" value={behaviorLabel(behavior)} />
+          <PlainFact label="Status" value={intent.status} />
+          <PlainFact
+            label="Last reviewed"
+            value={formatDate(intent.manager.lastReviewedAt)}
+          />
+        </section>
 
-        <Block
-          title="Metrics"
-          subtitle="Signals used to judge progress"
-          icon={ShieldCheck}
-          count={intent.metrics.length}
-        >
-          <TextList items={intent.metrics} empty="No metrics set." />
-        </Block>
+        <section className="rounded-xl border border-white/[0.08] bg-white/[0.02] p-4">
+          <div className="text-body-xs font-medium uppercase tracking-wide text-white/45">
+            What Kody is doing
+          </div>
+          <p className="mt-2 text-body-sm text-muted-foreground">
+            {intentWorkSummary(intent)}
+          </p>
+        </section>
 
-        <Block
-          title="Decision Log"
-          subtitle="Recent manager decisions"
-          icon={CalendarClock}
-          count={decisions.length}
-        >
-          <DecisionLog decisions={decisions} />
-        </Block>
+        <details className="rounded-xl border border-white/[0.08] bg-white/[0.02]">
+          <summary className="cursor-pointer px-4 py-3 text-sm font-medium text-white/85">
+            Advanced
+            {advancedCount ? (
+              <span className="ml-2 text-xs text-white/40">
+                {advancedCount}
+              </span>
+            ) : null}
+          </summary>
+          <div className="space-y-6 border-t border-white/[0.06] p-4">
+            {warnings.length ? (
+              <Block
+                title="Warnings"
+                subtitle="Setup or runtime issues"
+                icon={AlertCircle}
+                count={warnings.length}
+              >
+                <div className="flex flex-wrap gap-2">
+                  {warnings.map((warning) => (
+                    <Badge
+                      key={warning}
+                      variant="outline"
+                      className="text-amber-600"
+                    >
+                      {warning}
+                    </Badge>
+                  ))}
+                </div>
+              </Block>
+            ) : null}
+
+            <Block
+              title="Policy"
+              subtitle="Behavior limits created by the selected mode"
+              icon={ShieldCheck}
+            >
+              <PolicyGrid intent={intent} />
+            </Block>
+
+            <div className="grid gap-6 xl:grid-cols-2">
+              <Block
+                title="Agency Architect"
+                subtitle="Background reviewer wiring"
+                icon={Compass}
+              >
+                <ManagerHealth intent={intent} record={record} />
+              </Block>
+              <Block
+                title="Scope"
+                subtitle="Stored targeting and linked work"
+                icon={Target}
+              >
+                <div className="space-y-5">
+                  <ChipGroup title="Repos" items={intent.scope.repos} />
+                  <ChipGroup title="Areas" items={intent.scope.areas} />
+                  <Portfolio intent={intent} />
+                </div>
+              </Block>
+            </div>
+
+            <Block
+              title="Principles"
+              subtitle="Stored rules used by Agency Architect"
+              icon={Compass}
+              count={intent.principles.length}
+            >
+              <TextList items={intent.principles} empty="No principles set." />
+            </Block>
+
+            <Block
+              title="Metrics"
+              subtitle="Stored signals used to judge progress"
+              icon={ShieldCheck}
+              count={intent.metrics.length}
+            >
+              <TextList items={intent.metrics} empty="No metrics set." />
+            </Block>
+
+            <Block
+              title="Decision Log"
+              subtitle="Recent Agency Architect decisions"
+              icon={CalendarClock}
+              count={decisions.length}
+            >
+              <DecisionLog decisions={decisions} />
+            </Block>
+          </div>
+        </details>
       </div>
     </article>
   );
+}
+
+function PlainFact({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="rounded-lg border border-white/[0.08] bg-white/[0.02] p-3">
+      <div className="text-body-xs font-medium uppercase tracking-wide text-white/40">
+        {label}
+      </div>
+      <div className="mt-1 break-words text-body-sm text-white/85">
+        {value}
+      </div>
+    </div>
+  );
+}
+
+function intentWorkSummary(intent: CompanyIntent): string {
+  const goalCount = intent.portfolio.goals.length;
+  const loopCount = intent.portfolio.loops.length;
+  if (goalCount === 0 && loopCount === 0) {
+    return "No linked work yet. Agency Architect can review this intent and decide whether it needs anything.";
+  }
+
+  const parts: string[] = [];
+  if (goalCount > 0) {
+    parts.push(`${goalCount} ${goalCount === 1 ? "outcome" : "outcomes"}`);
+  }
+  if (loopCount > 0) {
+    parts.push(
+      `${loopCount} background ${loopCount === 1 ? "check" : "checks"}`,
+    );
+  }
+  return `Linked to ${parts.join(" and ")}.`;
 }
 
 function ManagerHealth({
@@ -1271,35 +1041,6 @@ function Field({
   );
 }
 
-function SelectField<T extends string>({
-  label,
-  value,
-  values,
-  onChange,
-}: {
-  label: string;
-  value: T;
-  values: readonly T[];
-  onChange: (value: T) => void;
-}) {
-  return (
-    <Field label={label}>
-      <Select value={value} onValueChange={(next: T) => onChange(next)}>
-        <SelectTrigger>
-          <SelectValue />
-        </SelectTrigger>
-        <SelectContent>
-          {values.map((item) => (
-            <SelectItem key={item} value={item}>
-              {item}
-            </SelectItem>
-          ))}
-        </SelectContent>
-      </Select>
-    </Field>
-  );
-}
-
 function PolicyItem({ label, value }: { label: string; value?: string }) {
   return (
     <div className="rounded-md border border-border p-3">
@@ -1443,6 +1184,7 @@ function emptyForm(): IntentFormState {
   return {
     id: "",
     for: "",
+    description: "",
     priority: "100",
     status: "active",
     posture: "balanced",
@@ -1458,8 +1200,8 @@ function emptyForm(): IntentFormState {
     maxDailyActions: "5",
     requiresHumanFor: "",
     goals: "",
-    loops: "company-manager-loop",
-    capabilities: "company-manager",
+    loops: "agency-architect-loop",
+    capabilities: "agency-architect",
     reviewEvery: "1d",
   };
 }
@@ -1469,8 +1211,14 @@ function behaviorFromPosture(posture: CompanyIntentPosture): IntentBehavior {
     return "cautious";
   }
   if (posture === "speed") return "fast";
-  if (posture === "maintenance") return "maintenance";
   return "balanced";
+}
+
+function behaviorLabel(behavior: IntentBehavior): string {
+  return (
+    behaviorOptions.find((candidate) => candidate.id === behavior)?.label ??
+    "Balanced"
+  );
 }
 
 function applyBehaviorDefaults(
@@ -1491,6 +1239,7 @@ function recordToForm(record: CompanyIntentRecord): IntentFormState {
   return {
     id: intent.id,
     for: intent.for,
+    description: intent.description ?? "",
     priority: String(intent.priority),
     status: intent.status,
     posture: intent.posture,
@@ -1516,6 +1265,7 @@ function formToInput(form: IntentFormState): CompanyIntentInput {
   return {
     id: form.id || slugifyCompanyIntentId(form.for),
     for: form.for.trim(),
+    description: form.description.trim(),
     priority: boundedNumber(form.priority, 1, 1000, 100),
     status: form.status,
     posture: form.posture,
@@ -1566,32 +1316,6 @@ function boundedNumber(
   const parsed = Number(value);
   if (!Number.isFinite(parsed)) return fallback;
   return Math.max(min, Math.min(max, Math.trunc(parsed)));
-}
-
-function sectionText(label: string, value: string): string {
-  const trimmed = value.trim();
-  return trimmed ? `${label}: ${trimmed}` : "";
-}
-
-function parsePortfolioText(
-  value: string,
-): Pick<IntentFormState, "goals" | "loops" | "capabilities"> {
-  const result = { goals: "", loops: "", capabilities: "" };
-  let current: keyof typeof result | null = null;
-  for (const line of value.split(/\r?\n/)) {
-    const match = line.match(/^(goals|loops|capabilities):\s*(.*)$/i);
-    if (match) {
-      current = match[1].toLowerCase() as keyof typeof result;
-      result[current] = match[2]?.trim() ?? "";
-      continue;
-    }
-    if (current && line.trim()) {
-      result[current] = [result[current], line.trim()]
-        .filter(Boolean)
-        .join("\n");
-    }
-  }
-  return result;
 }
 
 function decisionBadge(action: string): string {

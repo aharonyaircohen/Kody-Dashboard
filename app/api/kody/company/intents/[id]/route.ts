@@ -2,7 +2,7 @@
  * @fileType api-endpoint
  * @domain kody
  * @pattern company-intent-detail-api
- * @ai-summary Updates CTO company-manager intent files while preserving decision logs.
+ * @ai-summary Updates CTO agency-architect intent files while preserving decision logs.
  */
 /* eslint-disable @typescript-eslint/no-explicit-any */
 
@@ -48,6 +48,7 @@ const stringListSchema = z.array(z.string().trim().min(1).max(160)).default([]);
 const patchSchema = z.object({
   status: intentStatusSchema.optional(),
   for: z.string().trim().min(1).max(1000).optional(),
+  description: z.string().trim().max(4000).optional(),
   priority: z.number().int().min(1).max(1000).optional(),
   posture: intentPostureSchema.optional(),
   scope: z
@@ -123,6 +124,10 @@ function mergeIntent(
     ...current,
     status: patch.status ?? current.status,
     for: patch.for ?? current.for,
+    description:
+      patch.description !== undefined
+        ? patch.description || undefined
+        : current.description,
     priority: patch.priority ?? current.priority,
     posture: patch.posture ?? current.posture,
     scope: patch.scope ?? current.scope,

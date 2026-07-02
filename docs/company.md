@@ -160,7 +160,7 @@ operators (a per-repo inbox-routing list, not agency doctrine).
 | [`app/api/kody/company/route.ts`](../app/api/kody/company/route.ts)                                     | `GET` (export bundle), `POST` (import bundle)                                                               |
 | [`app/api/kody/company/operators/route.ts`](../app/api/kody/company/operators/route.ts)                 | `GET`/`PUT` the `github.operators` list                                                                     |
 | [`app/api/kody/company/config/route.ts`](../app/api/kody/company/config/route.ts)                       | `GET`/`PATCH` the dashboard-editable `kody.config.json` fields                                              |
-| [`src/dashboard/lib/components/CompanyManager.tsx`](../src/dashboard/lib/components/CompanyManager.tsx) | The `/company` page UI — Export, Import, on-collision toggle, result tally                                  |
+| [`src/dashboard/lib/components/AgencyArchitect.tsx`](../src/dashboard/lib/components/AgencyArchitect.tsx) | The `/company` page UI — Export, Import, on-collision toggle, result tally                                  |
 | [`app/(chat-rail)/company/page.tsx`](<../app/(chat-rail)/company/page.tsx>)                             | `/company` route entry point                                                                                |
 | [`src/dashboard/lib/api.ts`](../src/dashboard/lib/api.ts)                                               | `companyApi` client (`export`, `import`, `operators`, `config`)                                             |
 
