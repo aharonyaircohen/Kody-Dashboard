@@ -31,6 +31,7 @@ import {
 } from "./managed-goals-todo";
 import {
   managedGoalPath,
+  mergeManagedGoalStateWithTemplate,
   normalizeManagedGoalState,
   type ManagedGoalRecord,
   type ManagedGoalState,
@@ -66,9 +67,34 @@ export async function readManagedGoalFile(
     new Date().toISOString(),
   );
   if (!isManagedGoalTodo(todo)) return null;
-  const state = todoToManagedGoalState(goalId, todo);
+  const rawState = todoToManagedGoalState(goalId, todo);
+  const state = rawState
+    ? await resolveStoreBackedManagedGoalState(rawState, octokit)
+    : null;
   if (!state) return null;
   return { state, sha: todoFile.sha, path: todoFile.path, source: "todo" };
+}
+
+async function resolveStoreBackedManagedGoalState(
+  state: ManagedGoalState,
+  octokit: Octokit,
+): Promise<ManagedGoalState> {
+  const templateId =
+    typeof state.sourceTemplate === "string"
+      ? state.sourceTemplate
+      : typeof state.templateId === "string"
+        ? state.templateId
+        : typeof state.template === "string"
+          ? state.template
+          : "";
+  if (!templateId) return state;
+
+  const template = (await listCompanyStoreGoalTemplateFiles(octokit)).find(
+    (goal) => goal.id === templateId,
+  );
+  return template
+    ? mergeManagedGoalStateWithTemplate(state, template.state)
+    : state;
 }
 
 async function listManagedTodoFiles(

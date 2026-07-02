@@ -16,6 +16,7 @@ import {
   canDeleteManagedGoal,
   collapseManagedGoalRecordsForList,
   isStoreBackedManagedGoal,
+  mergeManagedGoalStateWithTemplate,
   isManagedGoalState,
   managedGoalModel,
   managedGoalPath,
@@ -173,6 +174,52 @@ describe("normalizeManagedGoalState", () => {
       "release-merge",
       "vercel-production-deploy",
     ]);
+  });
+});
+
+describe("mergeManagedGoalStateWithTemplate", () => {
+  it("uses Store-owned fields for template-backed runtime state", () => {
+    const runtime = normalizeManagedGoalState({
+      version: 1,
+      state: "active",
+      type: "monitor",
+      sourceTemplate: "ai-agency-health",
+      destination: { outcome: "Old copied state", evidence: [] },
+      capabilities: [],
+      route: [],
+      schedule: "1d",
+      scheduleMode: "agentLoop",
+      facts: { "ai-agency-health-matrix": true },
+      blockers: [],
+    });
+    const template = normalizeManagedGoalState({
+      version: 1,
+      kind: "template",
+      template: true,
+      templateId: "ai-agency-health",
+      state: "inactive",
+      type: "monitor",
+      destination: {
+        outcome: "AI Agency stays healthy.",
+        evidence: ["ai-agency-health-matrix"],
+      },
+      capabilities: ["ai-agency-health-matrix"],
+      route: [],
+      schedule: "15m",
+      scheduleMode: "agentLoop",
+      facts: { "ai-agency-health-matrix": false },
+      blockers: [],
+    });
+
+    expect(runtime).not.toBeNull();
+    expect(template).not.toBeNull();
+
+    const merged = mergeManagedGoalStateWithTemplate(runtime!, template!);
+
+    expect(merged.schedule).toBe("15m");
+    expect(merged.destination.outcome).toBe("AI Agency stays healthy.");
+    expect(merged.capabilities).toEqual(["ai-agency-health-matrix"]);
+    expect(merged.facts["ai-agency-health-matrix"]).toBe(true);
   });
 });
 

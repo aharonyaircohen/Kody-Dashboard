@@ -30,6 +30,7 @@ import {
   isCompanyIntentId,
   normalizeCompanyIntent,
   parseCompanyIntentDecisionLog,
+  RELEASE_CADENCES,
   type CompanyIntent,
   type CompanyIntentManagerHealth,
   type CompanyIntentRecord,
@@ -63,7 +64,7 @@ const patchSchema = z.object({
     .object({
       release: z
         .object({
-          cadence: z.enum(["manual", "1d", "1w"]).optional(),
+          cadence: z.enum(RELEASE_CADENCES).optional(),
           qaDepth: z.enum(["light", "standard", "strict"]).optional(),
           blockerLevel: z.enum(["low", "standard", "strict"]).optional(),
           approval: z

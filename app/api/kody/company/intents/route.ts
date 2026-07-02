@@ -32,6 +32,7 @@ import {
   isCompanyIntentId,
   normalizeCompanyIntent,
   parseCompanyIntentDecisionLog,
+  RELEASE_CADENCES,
   slugifyCompanyIntentId,
   sortCompanyIntentRecords,
   type CompanyIntent,
@@ -56,7 +57,7 @@ const intentPostureSchema = z.enum([
 const stringListSchema = z.array(z.string().trim().min(1).max(160)).default([]);
 const releasePolicySchema = z
   .object({
-    cadence: z.enum(["manual", "1d", "1w"]).optional(),
+    cadence: z.enum(RELEASE_CADENCES).optional(),
     qaDepth: z.enum(["light", "standard", "strict"]).optional(),
     blockerLevel: z.enum(["low", "standard", "strict"]).optional(),
     approval: z

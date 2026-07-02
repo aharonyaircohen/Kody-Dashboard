@@ -64,6 +64,7 @@ import {
   type CompanyIntentPosture,
   type CompanyIntentRecord,
   type CompanyIntentStatus,
+  type ReleaseCadence,
 } from "../company-intents";
 import {
   useCompanyIntents,
@@ -89,7 +90,7 @@ type IntentFormState = {
   areas: string;
   principles: string;
   metrics: string;
-  releaseCadence: "manual" | "1d" | "1w";
+  releaseCadence: ReleaseCadence;
   qaDepth: "light" | "standard" | "strict";
   blockerLevel: "low" | "standard" | "strict";
   approval: "none" | "before-production" | "before-risky-actions";

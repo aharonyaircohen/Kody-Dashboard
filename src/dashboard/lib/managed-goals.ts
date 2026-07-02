@@ -259,6 +259,31 @@ export function isStoreBackedManagedGoal(goal: ManagedGoalRecord): boolean {
   );
 }
 
+export function mergeManagedGoalStateWithTemplate(
+  state: ManagedGoalState,
+  template: ManagedGoalState,
+): ManagedGoalState {
+  const merged = normalizeManagedGoalState({
+    ...state,
+    type: template.type,
+    destination: template.destination,
+    capabilities: template.capabilities,
+    route: template.route,
+    schedule: template.schedule,
+    scheduleMode: template.scheduleMode,
+    preferredRunTime: template.preferredRunTime,
+    loopTarget: template.loopTarget,
+    saveReport: template.saveReport,
+    facts: {
+      ...template.facts,
+      ...state.facts,
+    },
+    state: state.state,
+    blockers: state.blockers,
+  });
+  return merged ?? state;
+}
+
 export function canDeleteManagedGoal(goal: ManagedGoalRecord): boolean {
   return goal.source === "store" || goal.recordType === "instance";
 }

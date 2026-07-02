@@ -12,6 +12,8 @@ export type CompanyIntentPosture =
   | "stability-recovery"
   | "maintenance"
   | "balanced";
+export const RELEASE_CADENCES = ["manual", "15m", "1d", "1w"] as const;
+export type ReleaseCadence = (typeof RELEASE_CADENCES)[number];
 
 export interface CompanyIntent {
   version: 1;
@@ -29,7 +31,7 @@ export interface CompanyIntent {
   metrics: string[];
   policy: {
     release?: {
-      cadence?: "manual" | "1d" | "1w";
+      cadence?: ReleaseCadence;
       qaDepth?: "light" | "standard" | "strict";
       blockerLevel?: "low" | "standard" | "strict";
       approval?: "none" | "before-production" | "before-risky-actions";
@@ -284,7 +286,7 @@ function normalizeReleasePolicy(
   if (!input) return undefined;
 
   return {
-    cadence: enumField(input.cadence, ["manual", "1d", "1w"]),
+    cadence: enumField(input.cadence, RELEASE_CADENCES),
     qaDepth: enumField(input.qaDepth, ["light", "standard", "strict"]),
     blockerLevel: enumField(input.blockerLevel, ["low", "standard", "strict"]),
     approval: enumField(input.approval, [
