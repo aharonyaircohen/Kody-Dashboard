@@ -8,12 +8,42 @@
 
 import { useEffect, useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
-import type { KodyTask } from "../types";
+import type { KodyTask, TasksResponse } from "../types";
 
 interface PRCIStatusResult {
   ciStatus: "pending" | "success" | "failure" | "running";
   mergeable: boolean;
   hasConflicts: boolean;
+}
+
+type TaskCacheData = KodyTask[] | TasksResponse | undefined | null;
+
+function cachedTasks(data: TaskCacheData): KodyTask[] | null {
+  if (Array.isArray(data)) return data;
+  if (data && Array.isArray((data as TasksResponse).tasks)) {
+    return (data as TasksResponse).tasks;
+  }
+  return null;
+}
+
+export function findCachedPRCIStatus(
+  queries: Array<readonly [unknown, TaskCacheData]>,
+  prNumber: number,
+): PRCIStatusResult | undefined {
+  for (const [, cached] of queries) {
+    const tasks = cachedTasks(cached);
+    if (!tasks) continue;
+    const task = tasks.find((t) => t.associatedPR?.number === prNumber);
+    const pr = task?.associatedPR;
+    if (pr) {
+      return {
+        ciStatus: pr.ciStatus ?? "pending",
+        mergeable: pr.mergeable ?? false,
+        hasConflicts: pr.hasConflicts ?? false,
+      };
+    }
+  }
+  return undefined;
 }
 
 /**
@@ -44,22 +74,10 @@ export function usePRCIStatus(prNumber: number | undefined) {
 
   let data: PRCIStatusResult | undefined;
   if (prNumber) {
-    const queries = queryClient.getQueriesData<KodyTask[]>({
+    const queries = queryClient.getQueriesData<TaskCacheData>({
       queryKey: ["kody-tasks"],
     });
-    for (const [, tasks] of queries) {
-      if (!tasks) continue;
-      const task = tasks.find((t) => t.associatedPR?.number === prNumber);
-      const pr = task?.associatedPR;
-      if (pr) {
-        data = {
-          ciStatus: pr.ciStatus ?? "pending",
-          mergeable: pr.mergeable ?? false,
-          hasConflicts: pr.hasConflicts ?? false,
-        };
-        break;
-      }
-    }
+    data = findCachedPRCIStatus(queries, prNumber);
   }
 
   return { data, isLoading: !data && !!prNumber, isError: false };
