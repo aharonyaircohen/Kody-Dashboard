@@ -403,15 +403,12 @@ export const tasksApi = {
 
   execute: async (
     issueNumber: number,
-    actorLogin?: string,
+    _actorLogin?: string,
   ): Promise<ActionResponse> => {
-    const res = await fetch(`${API_BASE}/tasks/issue-${issueNumber}/actions`, {
+    const res = await fetch(`${API_BASE}/tasks/issue-${issueNumber}/start`, {
       method: "POST",
       headers: buildHeaders(),
-      body: JSON.stringify({
-        action: "execute",
-        ...(actorLogin && { actorLogin }),
-      }),
+      body: JSON.stringify({}),
     });
     return handleResponse(res);
   },

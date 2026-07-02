@@ -46,6 +46,7 @@ import { getOwner, getRepo } from "@dashboard/lib/github-client";
 import { isProtectedBranch } from "@dashboard/lib/branches";
 import { matchWorkflowRunsForTask } from "@dashboard/lib/workflow-matching";
 import { withActor, postWithFallback } from "@dashboard/lib/kody-command";
+import { startKodyTask } from "@dashboard/lib/tasks/start-task";
 
 const actionSchema = z.object({
   action: z.enum([
@@ -194,11 +195,8 @@ export async function POST(
       }
 
       case "execute": {
-        await postWithFallback(issueNumber, "@kody", actor, userOctokit);
-        return NextResponse.json({
-          success: true,
-          message: "Kody execution triggered",
-        });
+        const result = await startKodyTask(taskId, actor);
+        return NextResponse.json(result);
       }
 
       case "abort": {

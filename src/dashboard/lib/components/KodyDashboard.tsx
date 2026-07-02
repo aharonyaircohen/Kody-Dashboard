@@ -127,6 +127,12 @@ interface KodyDashboardProps {
 const TASK_PAGE_SIZE = 10;
 const EMPTY_TASKS: KodyTask[] = [];
 
+function mutationErrorMessage(error: unknown, fallback: string): string {
+  return error instanceof Error && error.message.trim()
+    ? error.message
+    : fallback;
+}
+
 function TaskPaginationControls({
   page,
   totalPages,
@@ -632,16 +638,7 @@ export function KodyDashboard({
 
   // #2: Replace manual try/catch handlers with mutations + optimistic updates
   const executeMutation = useMutation({
-    mutationFn: async (task: KodyTask) => {
-      if (!task.labels.includes(KODY_BACKLOG_LABEL)) {
-        await kodyApi.tasks.addLabel(
-          task.issueNumber,
-          KODY_BACKLOG_LABEL,
-          githubUser?.login,
-        );
-      }
-      return tasksApi.execute(task.issueNumber, githubUser?.login);
-    },
+    mutationFn: (task: KodyTask) => tasksApi.execute(task.issueNumber),
     // #3: Optimistic update — move task to "building" immediately
     onMutate: async (task) => {
       await queryClient.cancelQueries({ queryKey: taskQueryKey });
@@ -662,7 +659,7 @@ export function KodyDashboard({
       if (context?.previous) {
         queryClient.setQueryData(taskQueryKey, context.previous);
       }
-      toast.error("Failed to start task");
+      toast.error(mutationErrorMessage(error, "Failed to start task"));
     },
     onSuccess: () => {
       toast.success("Task started");
