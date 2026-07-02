@@ -32,9 +32,8 @@ interface RecordedCall {
 }
 
 function graphType(call: RecordedCall): string | undefined {
-  return (
-    call.body as { variables?: { type?: string } } | undefined
-  )?.variables?.type;
+  return (call.body as { variables?: { type?: string } } | undefined)?.variables
+    ?.type;
 }
 
 function installFetchStub(
@@ -767,9 +766,9 @@ describe("allocateIpsIfMissing", () => {
       undefined,
     );
     expect(
-      calls.filter((c) => c.url === "https://api.fly.io/graphql").map(
-        (c) => graphType(c),
-      ),
+      calls
+        .filter((c) => c.url === "https://api.fly.io/graphql")
+        .map((c) => graphType(c)),
     ).toEqual(["shared_v4", "v6"]);
   });
 
@@ -819,9 +818,9 @@ describe("allocateIpsIfMissing", () => {
       undefined,
     );
     expect(
-      calls.filter((c) => c.url === "https://api.fly.io/graphql").map(
-        (c) => graphType(c),
-      ),
+      calls
+        .filter((c) => c.url === "https://api.fly.io/graphql")
+        .map((c) => graphType(c)),
     ).toEqual(["shared_v4", "v6"]);
   });
 

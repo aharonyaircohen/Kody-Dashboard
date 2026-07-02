@@ -26,7 +26,9 @@ describe("TaskDetail run actions", () => {
     expect(SOURCE).toMatch(/task\.workflowRun\?\.status === "in_progress"/);
     expect(SOURCE).toMatch(/task\.workflowRun\?\.status === "queued"/);
     expect(SOURCE).toMatch(/task\.column === "building"/);
-    expect(SOURCE).toMatch(/if \(isTaskAbortable\(task\)\) \{[\s\S]*?label: "Stop"/);
+    expect(SOURCE).toMatch(
+      /if \(isTaskAbortable\(task\)\) \{[\s\S]*?label: "Stop"/,
+    );
   });
 
   it("shows Rerun for completed or failed run history when the task is not active", () => {

@@ -444,8 +444,8 @@ export function useChatTerminalRegistry({
     activeTransport.type === "brain"
       ? "brain"
       : activeTransport.type === "fly"
-      ? terminalFlyMachineKey(activeTransport)
-      : "local";
+        ? terminalFlyMachineKey(activeTransport)
+        : "local";
   const activeConnectionState = activeSessionId
     ? (connectionStateByInstanceId[activeInstanceId ?? ""] ?? "idle")
     : "idle";

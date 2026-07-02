@@ -3,9 +3,19 @@
  * @domain brain
  * @pattern brain-runtime-manager
  *
- * Owns Brain desired/running state transitions. API routes and terminal
- * session code should depend on this layer instead of reading image catalog
- * internals.
+ * @ai-summary Owns Brain desired↔running state transitions. The view
+ *   merges the new per-user runtime state file (`runtime-store.ts`,
+ *   `BrainRuntimeStateFile`) with legacy fields still living on the saved
+ *   image catalog (`BrainImageFile.runningImageRef` and friends), so
+ *   callers see a single `BrainRuntimeView` regardless of which shape a
+ *   given user is on. Trap: `source: "runtime" | "legacy" | "empty"` on
+ *   the view tells callers which shape they got — don't assume
+ *   `runningImageRef` is always present (legacy) or always nested under
+ *   `running.imageRef` (new). When you add a new field, add it to both
+ *   shapes and pick the truth by `source`. API routes and terminal
+ *   session code should depend on this layer instead of reading image
+ *   catalog internals — it is the only path that survives the
+ *   new↔legacy migration.
  */
 import "server-only";
 

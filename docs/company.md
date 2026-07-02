@@ -152,17 +152,17 @@ operators (a per-repo inbox-routing list, not agency doctrine).
 
 ## File reference
 
-| File                                                                                                    | Purpose                                                                                                     |
-| ------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------- |
-| [`src/dashboard/lib/company/types.ts`](../src/dashboard/lib/company/types.ts)                           | Bundle shape, version, include/exclude doctrine, Zod `companyBundleSchema` (with legacy `prompts` fallback) |
-| [`src/dashboard/lib/company/export.ts`](../src/dashboard/lib/company/export.ts)                         | `buildCompanyBundle()` — fans out the reads, maps each to its repo-agnostic shape                           |
-| [`src/dashboard/lib/company/import.ts`](../src/dashboard/lib/company/import.ts)                         | `applyCompanyBundle()` — ordered writes, per-entry skip/overwrite, structured tally                         |
-| [`app/api/kody/company/route.ts`](../app/api/kody/company/route.ts)                                     | `GET` (export bundle), `POST` (import bundle)                                                               |
-| [`app/api/kody/company/operators/route.ts`](../app/api/kody/company/operators/route.ts)                 | `GET`/`PUT` the `github.operators` list                                                                     |
-| [`app/api/kody/company/config/route.ts`](../app/api/kody/company/config/route.ts)                       | `GET`/`PATCH` the dashboard-editable `kody.config.json` fields                                              |
+| File                                                                                                      | Purpose                                                                                                     |
+| --------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------- |
+| [`src/dashboard/lib/company/types.ts`](../src/dashboard/lib/company/types.ts)                             | Bundle shape, version, include/exclude doctrine, Zod `companyBundleSchema` (with legacy `prompts` fallback) |
+| [`src/dashboard/lib/company/export.ts`](../src/dashboard/lib/company/export.ts)                           | `buildCompanyBundle()` — fans out the reads, maps each to its repo-agnostic shape                           |
+| [`src/dashboard/lib/company/import.ts`](../src/dashboard/lib/company/import.ts)                           | `applyCompanyBundle()` — ordered writes, per-entry skip/overwrite, structured tally                         |
+| [`app/api/kody/company/route.ts`](../app/api/kody/company/route.ts)                                       | `GET` (export bundle), `POST` (import bundle)                                                               |
+| [`app/api/kody/company/operators/route.ts`](../app/api/kody/company/operators/route.ts)                   | `GET`/`PUT` the `github.operators` list                                                                     |
+| [`app/api/kody/company/config/route.ts`](../app/api/kody/company/config/route.ts)                         | `GET`/`PATCH` the dashboard-editable `kody.config.json` fields                                              |
 | [`src/dashboard/lib/components/AgencyArchitect.tsx`](../src/dashboard/lib/components/AgencyArchitect.tsx) | The `/company` page UI — Export, Import, on-collision toggle, result tally                                  |
-| [`app/(chat-rail)/company/page.tsx`](<../app/(chat-rail)/company/page.tsx>)                             | `/company` route entry point                                                                                |
-| [`src/dashboard/lib/api.ts`](../src/dashboard/lib/api.ts)                                               | `companyApi` client (`export`, `import`, `operators`, `config`)                                             |
+| [`app/(chat-rail)/company/page.tsx`](<../app/(chat-rail)/company/page.tsx>)                               | `/company` route entry point                                                                                |
+| [`src/dashboard/lib/api.ts`](../src/dashboard/lib/api.ts)                                                 | `companyApi` client (`export`, `import`, `operators`, `config`)                                             |
 
 ## FAQ
 

@@ -48,9 +48,9 @@ describe("repo-scoped task link surfaces", () => {
     const source = componentSource("TaskDetail.tsx");
     expect(source).toContain("getGitHubIssueUrl(task.issueNumber)");
     expect(source).toContain("getGitHubPrUrl(task.associatedPR.number)");
-    expect(source).not.toContain('href={scopedHref(`/${task.issueNumber}`)}');
+    expect(source).not.toContain("href={scopedHref(`/${task.issueNumber}`)}");
     expect(source).not.toContain(
-      'href={scopedHref(`/${task.associatedPR.number}`)}',
+      "href={scopedHref(`/${task.associatedPR.number}`)}",
     );
   });
 });

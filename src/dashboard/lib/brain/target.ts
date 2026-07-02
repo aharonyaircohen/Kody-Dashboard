@@ -3,8 +3,17 @@
  * @domain brain
  * @pattern brain-target-resolution
  *
- * Resolves the Fly app name and org as one unit. A stored Brain record owns
- * both values; callers should not use the stored app with a different org.
+ * @ai-summary Resolve Fly app name and org as one atomic unit. The
+ *   precedence is `appNameOverride` → stored `BrainAppFile` → derived
+ *   `brainAppName(account)` default. Trap: a stored Brain record owns
+ *   BOTH its app name and its org — they were provisioned together and
+ *   the app lives in that specific org. Callers must not pair a stored
+ *   app name with a different org from context; when the override matches
+ *   a stored app we keep the stored org (so admins moving tokens between
+ *   orgs cannot accidentally split an app from its real home). When the
+ *   override is genuinely new (or no stored record exists), the org
+ *   falls back to `contextOrgSlug`. Always resolve through this function
+ *   — never hand-roll the precedence inline.
  */
 
 import { type BrainAppFile } from "@dashboard/lib/brain/store";

@@ -45,9 +45,8 @@ const stateRepo = vi.hoisted(() => ({
     basePath: "widgets",
     branch: "main",
   })),
-  stateRepoPath: vi.fn(
-    (target: { basePath: string }, path: string) =>
-      [target.basePath, path].filter(Boolean).join("/"),
+  stateRepoPath: vi.fn((target: { basePath: string }, path: string) =>
+    [target.basePath, path].filter(Boolean).join("/"),
   ),
 }));
 

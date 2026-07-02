@@ -3,9 +3,18 @@
  * @domain brain
  * @pattern brain-runtime-store
  *
- * Durable per-user Brain runtime state. This is separate from the saved image
- * catalog: image selection is desired state, while `running` is the actual
- * Fly runtime the terminal may connect to.
+ * @ai-summary Durable per-user Brain runtime state, intentionally
+ *   separate from the saved image catalog. Three pieces on one record:
+ *   `desiredImageRef` (what the user picked), `running` (the Fly machine
+ *   the terminal may connect to), and `operation` (the in-flight
+ *   `apply-image` job — its `id` is what polling clients key on). Trap:
+ *   the `beginBrainRuntimeApply` write is what makes the operation
+ *   observable to the UI — without it the apply job is invisible (the
+ *   machine is being created server-side, but the UI's "apply running"
+ *   spinner never starts). Always call `begin*` before kicking off
+ *   `provisionBrain`, and call `complete*`/`fail*` in the matching
+ *   finally/catch. Writes here are the source of truth for the operation
+ *   record — the in-flight state file is what the Runner page polls.
  */
 import "server-only";
 

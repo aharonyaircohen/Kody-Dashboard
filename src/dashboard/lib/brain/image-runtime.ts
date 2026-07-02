@@ -3,10 +3,16 @@
  * @domain brain
  * @pattern brain-image-runtime-restore
  *
- * Restore-side helpers for saved Brain images.
- *
- * Durable state points at GHCR. Fly gets a per-app registry copy only as a
- * runtime cache so private full Brain images do not need to be public.
+ * @ai-summary Restore-side helpers for saved Brain images. The durable
+ *   source of truth is GHCR (the `ghcr.io/<owner>/kody-brain-<account>:*`
+ *   refs saved by `image-save.ts`); this module copies each saved image
+ *   into a per-app Fly registry (`registry.fly.io/<app>:<tag>`) only as a
+ *   runtime cache. Trap: because Fly only ever sees the per-app copy,
+ *   private full Brain images never have to be made public at GHCR — but
+ *   it also means the GHCR ref is the one to keep, not the Fly ref. Don't
+ *   delete a GHCR ref assuming Fly still has it (Fly's registry is wiped
+ *   with the app). The shell command here runs on the bridge machine, not
+ *   on the Brain itself — keep it portable.
  */
 
 import { isValidBrainImageRef } from "@dashboard/lib/brain/store";

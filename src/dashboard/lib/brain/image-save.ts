@@ -3,7 +3,18 @@
  * @domain brain
  * @pattern brain-image-save
  *
- * Helpers for saving a Brain machine as a durable container image.
+ * @ai-summary Save-side helpers for turning a live Brain machine into a
+ *   durable container image. Stream the rootfs out over `flyctl ssh sftp`,
+ *   then `crane append` a new layer onto the running base image and push
+ *   to `ghcr.io/<owner>/kody-brain-<account>:<tag>`. Long-running — easily
+ *   tens of minutes for a real Brain. Trap: the shell script starts a
+ *   background `keep_brain_awake` loop that pings `/healthz` every 20s
+ *   while the export/push is in flight. Without it, Fly's `auto_stop:
+ *   suspend` policy (set in `runners/brain-fly.ts`) parks the Brain mid-
+ *   transfer and the SFTP/save pipeline silently stalls. Do not strip
+ *   `keep_brain_awake` — it is the only thing keeping the export live
+ *   across the long push. Same trap on the restore side in `image-runtime.ts`
+ *   is avoided because `skopeo copy` is a single bounded call.
  */
 
 function shellQuote(value: string): string {

@@ -10,7 +10,10 @@ import { describe, expect, it } from "vitest";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const SOURCE = readFileSync(
-  resolve(__dirname, "../../src/dashboard/lib/components/BrainImagesManager.tsx"),
+  resolve(
+    __dirname,
+    "../../src/dashboard/lib/components/BrainImagesManager.tsx",
+  ),
   "utf8",
 );
 
@@ -27,14 +30,16 @@ describe("BrainImagesManager", () => {
   });
 
   it("requires confirmation before forgetting an image", () => {
-    expect(SOURCE).toContain('import { ConfirmDialog } from "./ConfirmDialog";');
+    expect(SOURCE).toContain(
+      'import { ConfirmDialog } from "./ConfirmDialog";',
+    );
     expect(SOURCE).toContain("const [pendingForgetRef, setPendingForgetRef]");
     expect(SOURCE).toContain(
       "onClick={() => setPendingForgetRef(image.imageRef)}",
     );
     expect(SOURCE).toContain("<ConfirmDialog");
     expect(SOURCE).toContain('confirmLabel="Forget"');
-    expect(SOURCE).toContain("variant=\"destructive\"");
+    expect(SOURCE).toContain('variant="destructive"');
     expect(SOURCE).toContain(
       "if (pendingForgetRef) void forgetImage(pendingForgetRef);",
     );
@@ -47,8 +52,10 @@ describe("BrainImagesManager", () => {
   });
 
   it("applies the clicked image row without requiring prior selection", () => {
-    expect(SOURCE).toContain('body: JSON.stringify({ imageRef }),');
-    expect(SOURCE).toContain('headers: { "content-type": "application/json", ...headers },');
+    expect(SOURCE).toContain("body: JSON.stringify({ imageRef }),");
+    expect(SOURCE).toContain(
+      'headers: { "content-type": "application/json", ...headers },',
+    );
     expect(SOURCE).toContain("disabled={running || busy}");
     expect(SOURCE).not.toContain("disabled={!selected || running || busy}");
   });

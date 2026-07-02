@@ -204,7 +204,9 @@ describe("chat terminal registry Brain singleton", () => {
 
   it("selects Brain as an intent instead of a machine id", () => {
     expect(REGISTRY_SOURCE).toContain('if (value === "brain")');
-    expect(REGISTRY_SOURCE).toContain("setActiveTransport(BRAIN_TERMINAL_TRANSPORT)");
+    expect(REGISTRY_SOURCE).toContain(
+      "setActiveTransport(BRAIN_TERMINAL_TRANSPORT)",
+    );
     expect(REGISTRY_SOURCE).toContain('return "brain";');
     expect(CHAT_SOURCE).toContain('<option value="brain">');
   });

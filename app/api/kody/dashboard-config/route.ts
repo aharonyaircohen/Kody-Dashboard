@@ -24,10 +24,7 @@ import {
 } from "@dashboard/lib/dashboard-config/store";
 import { createUserOctokit } from "@dashboard/lib/github-client";
 import { logger } from "@dashboard/lib/logger";
-import {
-  resolveStateRepo,
-  stateRepoPath,
-} from "@dashboard/lib/state-repo";
+import { resolveStateRepo, stateRepoPath } from "@dashboard/lib/state-repo";
 import {
   repoViewIdFromPath,
   type PreviewEnvironment,
@@ -145,11 +142,7 @@ function entryPathFromViewUrl(
   try {
     const parsed = new URL(url, "http://kody.local");
     const parts = parsed.pathname.split("/").filter(Boolean);
-    if (
-      parts[0] !== "api" ||
-      parts[1] !== "kody" ||
-      parts[2] !== "views"
-    ) {
+    if (parts[0] !== "api" || parts[1] !== "kody" || parts[2] !== "views") {
       return null;
     }
     if (parts[3] === "_t") {

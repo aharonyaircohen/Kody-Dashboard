@@ -3,7 +3,15 @@
  * @domain brain
  * @pattern brain-image-timeouts
  *
- * Shared timeout policy for full Brain image save/restore jobs.
+ * @ai-summary Shared timeout and output-size policy for the Brain image
+ *   save/restore shell jobs. Default is 2 hours, clamped to
+ *   `[5 min, 2 h]`, and overridable per-deployment via
+ *   `KODY_BRAIN_IMAGE_JOB_TIMEOUT_MS`. Trap: save and restore must import
+ *   from here — they MUST use the same `brainImageJobTimeoutMs()` value,
+ *   because the Runner page uses it as the upper bound on its progress bar
+ *   promise. If one side hard-codes a smaller timeout the UI's "still
+ *   working" indicator will lie when the longer side is actually still
+ *   running. Same constants here for both directions on purpose.
  */
 
 export const DEFAULT_BRAIN_IMAGE_JOB_TIMEOUT_MS = 2 * 60 * 60_000;
