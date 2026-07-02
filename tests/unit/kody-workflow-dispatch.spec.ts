@@ -19,6 +19,12 @@ on:
       executable:
         type: string
         default: ""
+      storeRepoUrl:
+        type: string
+        default: ""
+      storeRef:
+        type: string
+        default: ""
 `;
 
 function octokitWithWorkflow(workflow: string) {
@@ -40,7 +46,13 @@ function octokitWithWorkflow(workflow: string) {
 describe("kody workflow dispatch input mapping", () => {
   it("parses workflow_dispatch input names from kody.yml", () => {
     expect(parseWorkflowDispatchInputNames(executableWorkflow)).toEqual(
-      new Set(["issue_number", "message", "executable"]),
+      new Set([
+        "issue_number",
+        "message",
+        "executable",
+        "storeRepoUrl",
+        "storeRef",
+      ]),
     );
   });
 
@@ -54,10 +66,14 @@ describe("kody workflow dispatch input mapping", () => {
         ref: "main",
         action: "goal-manager",
         message: "web-release",
+        storeRepoUrl: "https://github.com/acme/kody-store",
+        storeRef: "main",
       }),
     ).resolves.toEqual({
       executable: "goal-manager",
       message: "web-release",
+      storeRepoUrl: "https://github.com/acme/kody-store",
+      storeRef: "main",
     });
   });
 

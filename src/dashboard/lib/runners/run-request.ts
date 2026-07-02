@@ -14,6 +14,11 @@ export interface KodyRunRequest {
   input?: Record<string, unknown>;
 }
 
+export interface KodyStoreTarget {
+  storeRepoUrl?: string;
+  storeRef?: string;
+}
+
 export const SCHEDULED_FANOUT_WORKFLOW_ID = "scheduled-fanout";
 
 export function chatRunRequest(sessionId: string): KodyRunRequest {
@@ -53,5 +58,23 @@ export function scheduledFanoutRunRequest(): KodyRunRequest {
     target: { type: "workflow", id: SCHEDULED_FANOUT_WORKFLOW_ID },
     intent: "tick",
     source: "dashboard",
+  };
+}
+
+export function withStoreTarget(
+  request: KodyRunRequest,
+  target: KodyStoreTarget | null | undefined,
+): KodyRunRequest {
+  const storeRepoUrl = target?.storeRepoUrl?.trim();
+  const storeRef = target?.storeRef?.trim();
+  if (!storeRepoUrl && !storeRef) return request;
+
+  return {
+    ...request,
+    input: {
+      ...(request.input ?? {}),
+      ...(storeRepoUrl ? { storeRepoUrl } : {}),
+      ...(storeRef ? { storeRef } : {}),
+    },
   };
 }

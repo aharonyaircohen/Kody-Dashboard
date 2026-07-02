@@ -30,6 +30,8 @@ export interface KodyWorkflowDispatchInputRequest {
   model?: string;
   reasoningEffort?: string;
   dashboardUrl?: string;
+  storeRepoUrl?: string;
+  storeRef?: string;
 }
 
 const KODY_WORKFLOW_PATH = ".github/workflows/kody.yml";
@@ -182,6 +184,8 @@ function buildInputsForNames(
     request.reasoningEffort,
   );
   addOptionalInput(inputs, inputNames, "dashboardUrl", request.dashboardUrl);
+  addOptionalInput(inputs, inputNames, "storeRepoUrl", request.storeRepoUrl);
+  addOptionalInput(inputs, inputNames, "storeRef", request.storeRef);
 
   return inputs;
 }

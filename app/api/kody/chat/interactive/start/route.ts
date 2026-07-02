@@ -37,7 +37,10 @@ import {
 } from "@dashboard/lib/vibe/primer";
 import { resolveFlyContext } from "@dashboard/lib/runners/fly-context";
 import { claimOrSpawnFly } from "@dashboard/lib/runners/fly-run";
-import { chatRunRequest } from "@dashboard/lib/runners/run-request";
+import {
+  chatRunRequest,
+  withStoreTarget,
+} from "@dashboard/lib/runners/run-request";
 import { checkGitHubActionsHealth } from "@dashboard/lib/runners/github-health";
 import { dispatchRun } from "@dashboard/lib/runners/runner-dispatch";
 
@@ -102,6 +105,7 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "taskId required" }, { status: 400 });
   }
 
+  const headerAuth = getRequestAuth(req);
   const { owner, repo } = getEngineRepo(req);
   const octokit = await getUserOctokit(req);
   if (!octokit) {
@@ -157,6 +161,10 @@ export async function POST(req: NextRequest) {
       reasoningEffort.trim().length > 0
         ? { reasoningEffort: reasoningEffort.trim() }
         : {}),
+      ...(headerAuth?.storeRepoUrl
+        ? { storeRepoUrl: headerAuth.storeRepoUrl }
+        : {}),
+      ...(headerAuth?.storeRef ? { storeRef: headerAuth.storeRef } : {}),
     };
 
     // GitHub is the base runner; Fly is the fallback when GitHub Actions is
@@ -201,7 +209,7 @@ export async function POST(req: NextRequest) {
       runFly: () =>
         claimOrSpawnFly(flyCtx!.ok ? flyCtx!.context : (null as never), {
           taskId,
-          runRequest: chatRunRequest(taskId),
+          runRequest: withStoreTarget(chatRunRequest(taskId), headerAuth),
           idleExitMs,
           hardCapMs,
           ...(typeof reasoningEffort === "string" &&

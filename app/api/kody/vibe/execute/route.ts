@@ -23,7 +23,10 @@ import { logger } from "@dashboard/lib/logger";
 import { spawnRunner } from "@dashboard/lib/runners/fly";
 import { resolveFlyContext } from "@dashboard/lib/runners/fly-context";
 import { claimFromPool } from "@dashboard/lib/runners/pool-client";
-import { issueRunRequest } from "@dashboard/lib/runners/run-request";
+import {
+  issueRunRequest,
+  withStoreTarget,
+} from "@dashboard/lib/runners/run-request";
 
 export const runtime = "nodejs";
 
@@ -58,6 +61,10 @@ export async function POST(req: NextRequest) {
   }
   const { owner, repo, githubToken, octokit, allSecrets, flyToken, perfTier } =
     ctxResult.context;
+  const runRequest = withStoreTarget(
+    issueRunRequest(issueNumber),
+    ctxResult.context,
+  );
 
   // sessionId is traceable but unused by the engine in agent mode —
   // entry.ts only consults SESSION_ID when argv is empty, and our
@@ -91,7 +98,7 @@ export async function POST(req: NextRequest) {
     const claim = await claimFromPool({
       jobId: sessionId,
       repo: `${owner}/${repo}`,
-      runRequest: issueRunRequest(issueNumber),
+      runRequest,
       ref,
     });
     if (claim.ok) {
@@ -116,7 +123,7 @@ export async function POST(req: NextRequest) {
     const { machineId, region } = await spawnRunner({
       repo: `${owner}/${repo}`,
       githubToken,
-      runRequest: issueRunRequest(issueNumber),
+      runRequest,
       ref,
       allSecrets,
       flyToken,

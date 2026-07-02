@@ -25,7 +25,10 @@ import {
 import { logger } from "@dashboard/lib/logger";
 import { recordAudit } from "@dashboard/lib/activity/audit";
 import { runScheduledKodyOnRunner } from "@dashboard/lib/runners/kody-runner";
-import { goalRunRequest } from "@dashboard/lib/runners/run-request";
+import {
+  goalRunRequest,
+  withStoreTarget,
+} from "@dashboard/lib/runners/run-request";
 import {
   goalStatePath,
   makeInitialSimpleGoalState,
@@ -226,7 +229,7 @@ export async function PUT(
     if (next.state === "active") {
       const run = await runScheduledKodyOnRunner(req, {
         taskId: `goal-start-${id}-${Date.now()}`,
-        runRequest: goalRunRequest(id),
+        runRequest: withStoreTarget(goalRunRequest(id), headerAuth),
       });
       if (run.ok) {
         engineDispatched = true;

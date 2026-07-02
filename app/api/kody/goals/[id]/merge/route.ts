@@ -25,7 +25,10 @@ import {
 } from "@dashboard/lib/github-client";
 import { logger } from "@dashboard/lib/logger";
 import { runScheduledKodyOnRunner } from "@dashboard/lib/runners/kody-runner";
-import { goalRunRequest } from "@dashboard/lib/runners/run-request";
+import {
+  goalRunRequest,
+  withStoreTarget,
+} from "@dashboard/lib/runners/run-request";
 import { goalStatePath, type GoalRunState } from "@dashboard/lib/goal-state";
 import {
   readManagedGoalFile,
@@ -148,7 +151,7 @@ export async function POST(
     let engineDispatched = false;
     const run = await runScheduledKodyOnRunner(req, {
       taskId: `goal-merge-${id}-${Date.now()}`,
-      runRequest: goalRunRequest(id),
+      runRequest: withStoreTarget(goalRunRequest(id), headerAuth),
     });
     if (run.ok) {
       engineDispatched = true;

@@ -48,7 +48,13 @@ export async function POST(
   const { owner, repo } = headerAuth;
 
   let payload: { force: boolean };
-  setGitHubContext(owner, repo, headerAuth.token);
+  setGitHubContext(
+    owner,
+    repo,
+    headerAuth.token,
+    headerAuth.storeRepoUrl,
+    headerAuth.storeRef,
+  );
   try {
     const raw =
       req.headers.get("content-length") === "0"
@@ -90,6 +96,8 @@ export async function POST(
       repo,
       ref,
       action,
+      storeRepoUrl: headerAuth.storeRepoUrl,
+      storeRef: headerAuth.storeRef,
     });
     await octokit.rest.actions.createWorkflowDispatch({
       owner,
