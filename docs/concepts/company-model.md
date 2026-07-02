@@ -33,14 +33,14 @@ Not every intent should create durable agency structure.
 Use intents as human direction. The manager interprets them and creates the
 smallest useful structure only when the need is stable:
 
-| Step      | Meaning                                                   |
-| --------- | --------------------------------------------------------- |
-| Intent    | Human says what Kody should care about                    |
-| Manager   | Decides whether the current agency structure is enough    |
-| Goal      | Created only for a concrete outcome that should become true |
-| Loop      | Created only for recurring attention                      |
+| Step       | Meaning                                                        |
+| ---------- | -------------------------------------------------------------- |
+| Intent     | Human says what Kody should care about                         |
+| Manager    | Decides whether the current agency structure is enough         |
+| Goal       | Created only for a concrete outcome that should become true    |
+| Loop       | Created only for recurring attention                           |
 | Capability | Reused when possible; added only when no existing ability fits |
-| Link back | New goals and loops must be attached to the intent they serve |
+| Link back  | New goals and loops must be attached to the intent they serve  |
 
 The manager should prefer a note over new structure when the intent is vague,
 temporary, already covered, or too small to justify durable machinery.

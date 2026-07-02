@@ -3,9 +3,18 @@
  * @domain brain
  * @pattern brain-image-apply
  *
- * Applies the selected Brain image to the user's Fly Brain. This is separate
- * from terminal session start so connecting to a terminal never mutates Brain
- * infrastructure.
+ * @ai-summary Applies the selected saved Brain image to the user's Fly
+ *   Brain: select image, provision/replace machine, copy image into the
+ *   per-app Fly registry, write app record. Deliberately split from
+ *   terminal-session start so connecting to a terminal never mutates Brain
+ *   infrastructure (terminal code never imports this module — only the
+ *   `/api/kody/chat/brain` apply route does). Trap: `writeBrainApp` is
+ *   best-effort (a failed metadata write is logged but does not fail the
+ *   apply), while the actual `provisionBrain` machine create is fatal —
+ *   the UI tolerates stale app metadata but a half-built machine would be
+ *   the orphan case from `store.ts`. Do not promote the metadata write to
+ *   fatal without also revisiting the Runner page's "we think you have an
+ *   app, terminate it" recovery flow.
  */
 import "server-only";
 

@@ -317,7 +317,11 @@ describe("Brain image store", () => {
 
     const content = JSON.parse(
       (state.writeStateText.mock.calls[0]?.[0] as { content: string }).content,
-    ) as { imageRef?: string; images?: unknown[]; forgottenImageRefs?: string[] };
+    ) as {
+      imageRef?: string;
+      images?: unknown[];
+      forgottenImageRefs?: string[];
+    };
     expect(content.imageRef).toBeUndefined();
     expect(content.images).toEqual([]);
     expect(content.forgottenImageRefs).toEqual([

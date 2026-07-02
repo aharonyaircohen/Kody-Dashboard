@@ -37,9 +37,8 @@ describe("Brain runtime store", () => {
   it("writes runtime state to brain-runtime.json, not the image catalog", async () => {
     state.readStateText.mockResolvedValue(null);
     state.writeStateText.mockResolvedValue({ sha: "new-sha" });
-    const { writeBrainRuntimeState } = await import(
-      "@dashboard/lib/brain/runtime-store"
-    );
+    const { writeBrainRuntimeState } =
+      await import("@dashboard/lib/brain/runtime-store");
 
     await writeBrainRuntimeState("Alice", "token", {
       version: 1,
@@ -64,9 +63,8 @@ describe("Brain runtime store", () => {
   });
 
   it("rejects invalid runtime image refs", async () => {
-    const { writeBrainRuntimeState } = await import(
-      "@dashboard/lib/brain/runtime-store"
-    );
+    const { writeBrainRuntimeState } =
+      await import("@dashboard/lib/brain/runtime-store");
 
     await expect(
       writeBrainRuntimeState("Alice", "token", {

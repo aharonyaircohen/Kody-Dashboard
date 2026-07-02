@@ -4812,9 +4812,9 @@ export function KodyChat({
           >
             <option value="local">Local terminal</option>
             {(activeTerminalTransport.type === "brain" ||
-              terminalMachines.some((machine) => machine.feature === "brain")) && (
-              <option value="brain">Brain terminal</option>
-            )}
+              terminalMachines.some(
+                (machine) => machine.feature === "brain",
+              )) && <option value="brain">Brain terminal</option>}
             {activeTerminalTransport.type === "fly" &&
               !terminalMachines.some(
                 (machine) =>
@@ -4827,14 +4827,14 @@ export function KodyChat({
             {terminalMachines
               .filter((machine) => machine.feature !== "brain")
               .map((machine) => (
-              <option
-                key={terminalFlyMachineKey(machine)}
-                value={terminalFlyMachineKey(machine)}
-              >
-                {flyMachineTerminalLabel(machine)} · {machine.state} ·{" "}
-                {machine.region} · {terminalMachineIdShort(machine.machineId)}
-              </option>
-            ))}
+                <option
+                  key={terminalFlyMachineKey(machine)}
+                  value={terminalFlyMachineKey(machine)}
+                >
+                  {flyMachineTerminalLabel(machine)} · {machine.state} ·{" "}
+                  {machine.region} · {terminalMachineIdShort(machine.machineId)}
+                </option>
+              ))}
           </select>
           {flyInventoryError && (
             <span className="max-w-48 min-w-0 truncate text-body-xs text-destructive">

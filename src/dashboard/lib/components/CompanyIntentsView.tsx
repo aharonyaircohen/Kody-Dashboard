@@ -840,9 +840,7 @@ function PlainFact({ label, value }: { label: string; value: string }) {
       <div className="text-body-xs font-medium uppercase tracking-wide text-white/40">
         {label}
       </div>
-      <div className="mt-1 break-words text-body-sm text-white/85">
-        {value}
-      </div>
+      <div className="mt-1 break-words text-body-sm text-white/85">{value}</div>
     </div>
   );
 }

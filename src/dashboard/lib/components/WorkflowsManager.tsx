@@ -569,9 +569,7 @@ function WorkflowDialog({
   }, [initial, open]);
 
   const canSave =
-    form.name.trim().length > 0 &&
-    form.capabilities.length > 0 &&
-    !saving;
+    form.name.trim().length > 0 && form.capabilities.length > 0 && !saving;
 
   const submit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();

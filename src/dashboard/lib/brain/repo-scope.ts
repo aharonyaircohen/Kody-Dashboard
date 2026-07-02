@@ -3,9 +3,16 @@
  * @domain brain
  * @pattern repo-brain-scope
  *
- * Repo Brain is a repo-scoped chat/workspace contract. The Fly machine can be
- * user-owned and reused, but every chat turn must name the selected repo so
- * Brain clones, persists, and resumes the right repo workspace.
+ * @ai-summary Repo-scoped Brain conversation identity. The Brain Fly
+ *   machine itself is user-owned and persists across repos, but every chat
+ *   turn MUST carry a `RepoBrainScope` so Brain clones, persists, and
+ *   resumes the right repo workspace. The key is `${owner}/${repo}` —
+ *   fall back to `"norepo"` only when the caller truly has no repo (which
+ *   means no clone/persist). Trap: missing the scope collapses unrelated
+ *   sessions into one workspace. API routes that hit Brain must derive
+ *   the scope from the request (path params for `/chat/...` and
+ *   `/terminal/...`) and pass it through; never let the default
+ *   `"norepo"` be a silent default at the route layer.
  */
 
 export interface RepoBrainScope {
@@ -40,7 +47,9 @@ export function repoBrainScopeKey(input?: RepoBrainScopeInput | null): string {
   return owner && repo ? `${owner}/${repo}` : "norepo";
 }
 
-export function createRepoBrainScope(input: RepoBrainScopeInput): RepoBrainScope {
+export function createRepoBrainScope(
+  input: RepoBrainScopeInput,
+): RepoBrainScope {
   const owner = clean(input.owner);
   const repo = clean(input.repo);
   if (!owner || !repo) {

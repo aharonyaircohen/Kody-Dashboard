@@ -64,7 +64,7 @@ describe("chat issue-creation tools", () => {
       requirements: "Add a CSV export.",
     });
 
-    expect(result.url).toBe("/77");
+    expect(result.url).toBe("/repo/acme/app/77");
   });
 
   it("adds preview context to chat-created task issue bodies", async () => {
@@ -103,7 +103,7 @@ describe("chat issue-creation tools", () => {
       steps: "Open exports and click Download.",
     });
 
-    expect(result.url).toBe("/77");
+    expect(result.url).toBe("/repo/acme/app/77");
   });
 
   it("returns the dashboard task URL for mission-planner issues", async () => {
@@ -121,7 +121,7 @@ describe("chat issue-creation tools", () => {
       category: "feature",
     });
 
-    expect(result.url).toBe("/77");
+    expect(result.url).toBe("/repo/acme/app/77");
   });
 
   it("adds preview context to mission-planner task issue bodies", async () => {
@@ -178,6 +178,6 @@ describe("chat issue-creation tools", () => {
       notes: "Ship it.",
     });
 
-    expect(result.url).toBe("/88");
+    expect(result.url).toBe("/repo/acme/app/88");
   });
 });

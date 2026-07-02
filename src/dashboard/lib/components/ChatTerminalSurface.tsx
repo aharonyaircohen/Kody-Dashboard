@@ -141,9 +141,7 @@ function transportKey(transport: ChatTerminalTransport): string {
   return "local";
 }
 
-function parseBridgeMessage(
-  raw: string,
-): {
+function parseBridgeMessage(raw: string): {
   type?: string;
   data?: string;
   message?: string;
@@ -1088,16 +1086,15 @@ export const ChatTerminalSurface = forwardRef<
     ],
   );
 
-  const statusText =
-    isRemoteTerminalTransport(transport)
-      ? (error ??
-        `${
-          transport.type === "brain"
-            ? (transport.label ?? "Brain terminal")
-            : (transport.label ?? transport.app)
-        } · ${flyConnectionState}`)
-      : (error ??
-        (session?.alive ? session.cwd : connecting ? "starting" : "closed"));
+  const statusText = isRemoteTerminalTransport(transport)
+    ? (error ??
+      `${
+        transport.type === "brain"
+          ? (transport.label ?? "Brain terminal")
+          : (transport.label ?? transport.app)
+      } · ${flyConnectionState}`)
+    : (error ??
+      (session?.alive ? session.cwd : connecting ? "starting" : "closed"));
   const actionBusy = connecting || flyConnectionState === "connecting";
 
   useEffect(() => {

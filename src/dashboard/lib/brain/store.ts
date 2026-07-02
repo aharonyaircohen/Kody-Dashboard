@@ -2,6 +2,16 @@
  * @fileType utility
  * @domain kody
  * @pattern brain-app-file-store
+ *
+ * Folder purpose — `src/dashboard/lib/brain/` is the Brain subsystem: the
+ * dashboard's per-user persistent Fly machines (one per GitHub login) that
+ * host long-running workspace sessions ("Brians"). This file is the entry
+ * point — every other brain module builds on the persisted records defined
+ * here. Trap: Brain is per-ACCOUNT, not per-repo — the Fly machine outlives
+ * any single repo and is reused across them, so per-repo state assumptions
+ * don't apply. Repo scoping lives separately in `repo-scope.ts` and is
+ * threaded through chat calls; do not collapse it into Brain state.
+ *
  * @ai-summary Per-user record of the Brain Fly app the dashboard provisioned.
  *   One JSON file per GitHub login at
  *   `users/<login>/data/brain.json` at the root of the configured Kody

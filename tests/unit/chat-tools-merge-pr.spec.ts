@@ -118,7 +118,7 @@ describe("merge_pr — happy path", () => {
     expect(result.sha).toBe("deadbeef");
     expect(result.strategy).toBe("squash");
     expect(result.branchDeleted).toBe(false);
-    expect(result.url).toBe(`/${PR_NUMBER}`);
+    expect(result.url).toBe(`/repo/${OWNER}/${REPO}/${PR_NUMBER}`);
     // Default squash was passed to the GitHub merge endpoint.
     expect(pullsMerge).toHaveBeenCalledWith(
       expect.objectContaining({

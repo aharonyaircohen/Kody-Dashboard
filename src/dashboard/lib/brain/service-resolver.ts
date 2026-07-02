@@ -3,8 +3,18 @@
  * @domain brain
  * @pattern brain-service-resolver
  *
- * Server-side source of truth for the user's Brain service. It combines the
- * dashboard's stored Brain record with Fly's live machine state.
+ * @ai-summary Server-side source of truth for the user's Brain service.
+ *   Combines the dashboard's stored Brain record (`store.ts`) with Fly's
+ *   live status (`runners/brain-fly.ts::brainStatus` + Fly machine
+ *   inventory) into a single `BrainServiceResolution`. The `reason` field
+ *   (`not_provisioned` | `stored_app_not_found` | `app_has_no_machine` |
+ *   `machine_lookup_failed`) is how the Runner page tells the user that
+ *   dashboard state and Fly state have diverged (token revoked, app moved
+ *   org, Fly API down). Trap: `listMachines` failures are silently caught
+ *   and surfaced as `machine_lookup_failed` rather than thrown — callers
+ *   MUST check `reason` and not assume a successful `state !== "off"`
+ *   means we can reach the machine. Don't promote that catch to a throw
+ *   without first checking every caller handles it.
  */
 import "server-only";
 

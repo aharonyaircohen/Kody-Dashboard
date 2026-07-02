@@ -301,9 +301,7 @@ describe("DELETE /api/kody/brain/image", () => {
       createdAt: "2026-06-30T00:00:00.000Z",
       updatedAt: "2026-07-02T10:10:10.000Z",
       images: [],
-      forgottenImageRefs: [
-        "ghcr.io/a-guy-educ/kody-brain-aguyaharonyair:old",
-      ],
+      forgottenImageRefs: ["ghcr.io/a-guy-educ/kody-brain-aguyaharonyair:old"],
     });
   });
 
@@ -328,8 +326,7 @@ describe("PATCH /api/kody/brain/image", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     mocks.readRuntimeView.mockResolvedValue({
-      desiredImageRef:
-        "ghcr.io/a-guy-educ/kody-brain-aguyaharonyair:selected",
+      desiredImageRef: "ghcr.io/a-guy-educ/kody-brain-aguyaharonyair:selected",
       source: "runtime",
     });
     mocks.selectRuntimeImage.mockResolvedValue(undefined);

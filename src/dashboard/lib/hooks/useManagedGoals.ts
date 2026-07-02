@@ -9,11 +9,7 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 
-import {
-  kodyApi,
-  NoTokenError,
-  SessionExpiredError,
-} from "../api";
+import { kodyApi, NoTokenError, SessionExpiredError } from "../api";
 import {
   DEFAULT_KODY_STORE_REF,
   DEFAULT_KODY_STORE_REPO_URL,
@@ -39,7 +35,9 @@ type ManagedGoalQueryScope = {
   storeRef: string;
 };
 
-function managedGoalQueryScope(auth: KodyAuth | null): ManagedGoalQueryScope | null {
+function managedGoalQueryScope(
+  auth: KodyAuth | null,
+): ManagedGoalQueryScope | null {
   if (!auth) return null;
   return {
     owner: auth.owner,
@@ -147,14 +145,11 @@ export function useCreateManagedGoal() {
   return useMutation<ManagedGoalRecord, Error, CreateManagedGoalInput>({
     mutationFn: (data) => kodyApi.goals.createManaged(data),
     onSuccess: (created) => {
-      queryClient.setQueryData<ManagedGoalRecord[]>(
-        queryKey,
-        (prev) => {
-          if (!prev) return [created];
-          if (prev.some((goal) => goal.id === created.id)) return prev;
-          return [...prev, created].sort((a, b) => a.id.localeCompare(b.id));
-        },
-      );
+      queryClient.setQueryData<ManagedGoalRecord[]>(queryKey, (prev) => {
+        if (!prev) return [created];
+        if (prev.some((goal) => goal.id === created.id)) return prev;
+        return [...prev, created].sort((a, b) => a.id.localeCompare(b.id));
+      });
       queryClient.invalidateQueries({ queryKey });
       toast.success("Created");
     },
@@ -170,12 +165,10 @@ export function useUpdateManagedGoal(id: string) {
   return useMutation<ManagedGoalRecord, Error, UpdateManagedGoalInput>({
     mutationFn: (data) => kodyApi.goals.updateManaged(id, data),
     onSuccess: (updated) => {
-      queryClient.setQueryData<ManagedGoalRecord[]>(
-        queryKey,
-        (prev) =>
-          prev
-            ? prev.map((goal) => (goal.id === updated.id ? updated : goal))
-            : [updated],
+      queryClient.setQueryData<ManagedGoalRecord[]>(queryKey, (prev) =>
+        prev
+          ? prev.map((goal) => (goal.id === updated.id ? updated : goal))
+          : [updated],
       );
       queryClient.invalidateQueries({ queryKey });
       toast.success("Updated");
@@ -230,9 +223,8 @@ export function useRunManagedGoal() {
   >({
     mutationFn: (id) => kodyApi.goals.runManaged(id),
     onSuccess: (result) => {
-      queryClient.setQueryData<ManagedGoalRecord[]>(
-        queryKey,
-        (prev) => mergeManagedGoalRecord(prev, result.goal),
+      queryClient.setQueryData<ManagedGoalRecord[]>(queryKey, (prev) =>
+        mergeManagedGoalRecord(prev, result.goal),
       );
       toast.success("Run started");
     },
@@ -255,9 +247,8 @@ export function useSetManagedGoalState() {
       await queryClient.cancelQueries({ queryKey });
       const previous =
         queryClient.getQueryData<ManagedGoalRecord[]>(queryKey) ?? [];
-      queryClient.setQueryData<ManagedGoalRecord[]>(
-        queryKey,
-        (prev) => patchManagedGoalState(prev, id, state, pausedReason),
+      queryClient.setQueryData<ManagedGoalRecord[]>(queryKey, (prev) =>
+        patchManagedGoalState(prev, id, state, pausedReason),
       );
       return { previous };
     },
@@ -267,9 +258,8 @@ export function useSetManagedGoalState() {
         ...(pausedReason ? { pausedReason } : {}),
       }),
     onSuccess: (updated) => {
-      queryClient.setQueryData<ManagedGoalRecord[]>(
-        queryKey,
-        (prev) => mergeManagedGoalRecord(prev, updated),
+      queryClient.setQueryData<ManagedGoalRecord[]>(queryKey, (prev) =>
+        mergeManagedGoalRecord(prev, updated),
       );
       toast.success(
         updated.state.state === "active"

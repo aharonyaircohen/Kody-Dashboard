@@ -42,42 +42,44 @@ import { mintTerminalBridgeToken } from "@dashboard/lib/terminal/terminal-token"
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
-const Body = z.object({
-  target: z.literal("brain").optional(),
-  app: z.string().min(1).max(120).optional(),
-  machineId: z.string().min(1).max(120).optional(),
-  feature: z.enum(["runner", "brain"]).optional(),
-  chatSessionId: z.string().min(1).max(160).optional(),
-  resetSession: z.boolean().optional(),
-  activityLimitMs: z
-    .union([
-      z
-        .number()
-        .int()
-        .min(60_000)
-        .max(24 * 60 * 60_000),
-      z.null(),
-    ])
-    .optional(),
-  cols: z.number().int().min(20).max(300).optional(),
-  rows: z.number().int().min(8).max(120).optional(),
-}).superRefine((value, ctx) => {
-  if (value.target === "brain") return;
-  if (!value.app) {
-    ctx.addIssue({
-      code: z.ZodIssueCode.custom,
-      path: ["app"],
-      message: "app is required",
-    });
-  }
-  if (!value.machineId) {
-    ctx.addIssue({
-      code: z.ZodIssueCode.custom,
-      path: ["machineId"],
-      message: "machineId is required",
-    });
-  }
-});
+const Body = z
+  .object({
+    target: z.literal("brain").optional(),
+    app: z.string().min(1).max(120).optional(),
+    machineId: z.string().min(1).max(120).optional(),
+    feature: z.enum(["runner", "brain"]).optional(),
+    chatSessionId: z.string().min(1).max(160).optional(),
+    resetSession: z.boolean().optional(),
+    activityLimitMs: z
+      .union([
+        z
+          .number()
+          .int()
+          .min(60_000)
+          .max(24 * 60 * 60_000),
+        z.null(),
+      ])
+      .optional(),
+    cols: z.number().int().min(20).max(300).optional(),
+    rows: z.number().int().min(8).max(120).optional(),
+  })
+  .superRefine((value, ctx) => {
+    if (value.target === "brain") return;
+    if (!value.app) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ["app"],
+        message: "app is required",
+      });
+    }
+    if (!value.machineId) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ["machineId"],
+        message: "machineId is required",
+      });
+    }
+  });
 
 const TARGET_STATUS: Record<string, number> = {
   machine_not_found: 404,
@@ -140,9 +142,11 @@ export async function POST(req: NextRequest) {
     await appendSavedBrainMachineToInventory(req, inventory);
     const brainRequested =
       parsed.data.target === "brain" || parsed.data.feature === "brain";
-    let targetInput:
-      | { app: string; machineId: string; feature?: "runner" | "brain" }
-      | null =
+    let targetInput: {
+      app: string;
+      machineId: string;
+      feature?: "runner" | "brain";
+    } | null =
       parsed.data.app && parsed.data.machineId
         ? {
             app: parsed.data.app,
