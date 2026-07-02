@@ -8,10 +8,26 @@ const stateRepo = vi.hoisted(() => ({
   deleteStateFile: vi.fn(),
 }));
 
+const companyStore = vi.hoisted(() => ({
+  companyStoreAssetPath: vi.fn(async (_octokit, _kind, ...segments: string[]) =>
+    ["goals", ...segments].join("/"),
+  ),
+  listCompanyStoreDirectorySafe: vi.fn(
+    async (
+      ..._args: unknown[]
+    ): Promise<Array<{ name: string; type: string }>> => [],
+  ),
+  readCompanyStoreText: vi.fn(
+    async (..._args: unknown[]): Promise<string | null> => null,
+  ),
+}));
+
 vi.mock("../../src/dashboard/lib/state-repo", () => stateRepo);
+vi.mock("../../src/dashboard/lib/company-store/assets", () => companyStore);
 
 import {
   deleteManagedGoalFile,
+  listCompanyStoreGoalTemplateFiles,
   readManagedGoalFile,
   writeManagedGoalFile,
 } from "../../src/dashboard/lib/managed-goals-files";
@@ -63,6 +79,12 @@ const regularTodo = `${JSON.stringify(
 describe("managed goal todo-backed files", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    companyStore.companyStoreAssetPath.mockImplementation(
+      async (_octokit, _kind, ...segments: string[]) =>
+        ["goals", ...segments].join("/"),
+    );
+    companyStore.listCompanyStoreDirectorySafe.mockResolvedValue([]);
+    companyStore.readCompanyStoreText.mockResolvedValue(null);
   });
 
   it("returns null when no managed goal todo file exists", async () => {
@@ -275,6 +297,148 @@ describe("managed goal todo-backed files", () => {
         stage: "plan",
         capability: "plan",
       },
+    });
+  });
+
+  it("lists Store goal templates from the current goals/templates layout", async () => {
+    companyStore.listCompanyStoreDirectorySafe.mockImplementation(
+      async (...args: unknown[]) => {
+        const path = String(args[1] ?? "");
+        return path === "goals/templates"
+          ? [{ name: "prs-stay-mergeable", type: "dir" }]
+          : [];
+      },
+    );
+    companyStore.readCompanyStoreText.mockImplementation(
+      async (...args: unknown[]) => {
+        const path = String(args[1] ?? "");
+        return path === "goals/templates/prs-stay-mergeable/state.json"
+          ? JSON.stringify({
+              version: 1,
+              kind: "template",
+              state: "inactive",
+              type: "maintain",
+              scheduleMode: "agentLoop",
+              schedule: "15m",
+              destination: {
+                outcome: "PRs stay mergeable.",
+                evidence: ["pr-health-triage"],
+              },
+              capabilities: ["pr-health-triage"],
+              route: [],
+              facts: {},
+              blockers: [],
+            })
+          : null;
+      },
+    );
+
+    const goals = await listCompanyStoreGoalTemplateFiles({} as never);
+
+    expect(goals).toHaveLength(1);
+    expect(goals[0]).toMatchObject({
+      id: "prs-stay-mergeable",
+      path: "goals/templates/prs-stay-mergeable/state.json",
+      source: "store",
+      recordType: "template",
+      state: {
+        schedule: "15m",
+        scheduleMode: "agentLoop",
+      },
+    });
+  });
+
+  it("overlays Store template fields onto runtime goal state", async () => {
+    const existingTodo = `${JSON.stringify(
+      {
+        version: 1,
+        title: "prs-stay-mergeable",
+        description: "Old copied outcome.",
+        createdAt: "2026-06-28T00:00:00.000Z",
+        managed: true,
+        managedModel: "agentLoop",
+        state: "active",
+        type: "maintain",
+        sourceTemplate: "prs-stay-mergeable",
+        schedule: "manual",
+        scheduleMode: "agentLoop",
+        evidence: ["old-evidence"],
+        capabilities: ["old-capability"],
+        route: [],
+        facts: { "old-evidence": false },
+        blockers: [],
+        items: [
+          {
+            id: "old-evidence",
+            title: "Old evidence",
+            body: "",
+            assignee: null,
+            completed: false,
+            createdAt: "2026-06-28T00:00:00.000Z",
+            completedAt: null,
+          },
+        ],
+      },
+      null,
+      2,
+    )}\n`;
+    stateRepo.readStateText.mockImplementation(
+      async (_octokit, _owner, _repo, path: string) => {
+        if (path === "todos/prs-stay-mergeable.json") {
+          return { path, sha: "todo-sha", content: existingTodo };
+        }
+        return null;
+      },
+    );
+    companyStore.listCompanyStoreDirectorySafe.mockImplementation(
+      async (...args: unknown[]) => {
+        const path = String(args[1] ?? "");
+        return path === "goals/templates"
+          ? [{ name: "prs-stay-mergeable", type: "dir" }]
+          : [];
+      },
+    );
+    companyStore.readCompanyStoreText.mockImplementation(
+      async (...args: unknown[]) => {
+        const path = String(args[1] ?? "");
+        return path === "goals/templates/prs-stay-mergeable/state.json"
+          ? JSON.stringify({
+              version: 1,
+              kind: "template",
+              state: "inactive",
+              type: "maintain",
+              scheduleMode: "agentLoop",
+              schedule: "15m",
+              destination: {
+                outcome: "Pull requests stay mergeable.",
+                evidence: ["pr-health-triage"],
+              },
+              capabilities: ["pr-health-triage"],
+              route: [],
+              facts: {},
+              blockers: [],
+            })
+          : null;
+      },
+    );
+
+    const file = await readManagedGoalFile(
+      "prs-stay-mergeable",
+      {} as never,
+      "test-owner",
+      "test-repo",
+    );
+
+    expect(file?.state).toMatchObject({
+      state: "active",
+      sourceTemplate: "prs-stay-mergeable",
+      schedule: "15m",
+      scheduleMode: "agentLoop",
+      destination: {
+        outcome: "Pull requests stay mergeable.",
+        evidence: ["pr-health-triage"],
+      },
+      capabilities: ["pr-health-triage"],
     });
   });
 });

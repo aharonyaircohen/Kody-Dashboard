@@ -150,31 +150,41 @@ export async function listManagedGoalFiles(
 export async function listCompanyStoreGoalTemplateFiles(
   octokit: Octokit = getOctokit(),
 ): Promise<ManagedGoalRecord[]> {
-  const goalTemplateRoot = await companyStoreAssetPath(octokit, "goals");
-  const dirs = await listCompanyStoreDirectorySafe(octokit, goalTemplateRoot);
   const goals: ManagedGoalRecord[] = [];
+  const seen = new Set<string>();
+  const goalTemplateRoots = Array.from(
+    new Set([
+      await companyStoreAssetPath(octokit, "goals", "templates"),
+      await companyStoreAssetPath(octokit, "goals"),
+    ]),
+  );
 
-  for (const dir of dirs) {
-    if (dir.type !== "dir" || !dir.name) continue;
-    if (!/^[a-z0-9][a-z0-9_-]{0,63}$/.test(dir.name)) continue;
+  for (const goalTemplateRoot of goalTemplateRoots) {
+    const dirs = await listCompanyStoreDirectorySafe(octokit, goalTemplateRoot);
 
-    const path = `${goalTemplateRoot}/${dir.name}/state.json`;
-    const raw = await readCompanyStoreText(octokit, path);
-    if (!raw) continue;
+    for (const dir of dirs) {
+      if (dir.type !== "dir" || !dir.name || seen.has(dir.name)) continue;
+      if (!/^[a-z0-9][a-z0-9_-]{0,63}$/.test(dir.name)) continue;
 
-    try {
-      const parsed = JSON.parse(raw) as unknown;
-      const state = normalizeManagedGoalState(parsed);
-      if (!state) continue;
-      goals.push({
-        id: dir.name,
-        path,
-        state,
-        source: "store",
-        recordType: "template",
-      });
-    } catch {
-      continue;
+      const path = `${goalTemplateRoot}/${dir.name}/state.json`;
+      const raw = await readCompanyStoreText(octokit, path);
+      if (!raw) continue;
+
+      try {
+        const parsed = JSON.parse(raw) as unknown;
+        const state = normalizeManagedGoalState(parsed);
+        if (!state) continue;
+        goals.push({
+          id: dir.name,
+          path,
+          state,
+          source: "store",
+          recordType: "template",
+        });
+        seen.add(dir.name);
+      } catch {
+        continue;
+      }
     }
   }
 
