@@ -70,6 +70,8 @@ One doc per dashboard-managed store / capability.
 
 - ✅ [Runners](runners.md) — GitHub Actions (default) vs Fly Machines
   (per-repo, opt-in, auto-fallback); the `/runner` page.
+- ✅ [Brain terminal Codex setup](brain-terminal-codex.md) — one-time setup
+  prompt for making Codex inside Brain terminal read Kody state context.
 - ✅ [Vibe & Voice](vibe-and-voice.md) — preview-driven element picking into
   the composer, and the browser-native voice conversation overlay.
 
