@@ -282,12 +282,11 @@ async function openItemPage(
   await expect(page.getByRole("heading", { name: heading })).toBeVisible({
     timeout: 10_000,
   });
-  await expect(
-    page.getByRole("button", { name: "Auto", exact: true }),
-  ).toBeVisible();
-  await expect(
-    page.getByRole("button", { name: "Manual", exact: true }),
-  ).toBeVisible();
+  const runMode = page.getByRole("group", { name: "Run Mode" });
+  await expect(runMode.getByRole("button", { name: "Auto" })).toBeVisible();
+  await expect(runMode.getByRole("button", { name: "Manual" })).toBeVisible();
+  await expect(runMode.getByRole("button", { name: "Auto" })).toHaveText("");
+  await expect(runMode.getByRole("button", { name: "Manual" })).toHaveText("");
 }
 
 async function clickModeAndExpectTrust(
@@ -340,7 +339,7 @@ function compareTrustPosts(a: TrustPost, b: TrustPost): number {
 }
 
 test.describe("Run Mode cascade", () => {
-  test("workflow, goal, and loop pages expose Auto / Manual and cascade to capabilities before run", async ({
+  test("workflow, goal, and loop pages expose icon-only Auto / Manual controls and cascade to capabilities before run", async ({
     page,
   }) => {
     const trustPosts: TrustPost[] = [];

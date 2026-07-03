@@ -38,10 +38,10 @@ The engine still checks capability permission at runtime.
 
 ## UI rule
 
-Use simple labels:
+Use icon-only controls:
 
-- `Auto`
-- `Manual`
+- lightning icon = `Auto`
+- check icon = `Manual`
 
-Use a small icon on list items. Avoid showing trust history controls in the
-main row.
+Keep `Auto` and `Manual` as tooltip / accessibility labels, not visible row
+text. Avoid showing trust history controls in the main row.

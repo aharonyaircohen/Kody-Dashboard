@@ -114,7 +114,7 @@ describe("ManagedModelsView model form", () => {
     );
   });
 
-  it("shows Auto / Manual run mode on goal and loop pages and cascades to capabilities", () => {
+  it("shows icon-only run mode on goal and loop pages and cascades to capabilities", () => {
     expect(source).toContain("RunModeControl");
     expect(source).toContain("RunModeBadge");
     expect(source).toContain("managedModelCapabilitySlugs(");
