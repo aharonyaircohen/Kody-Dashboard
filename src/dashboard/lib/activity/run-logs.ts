@@ -44,9 +44,27 @@ export interface KodyRunTimelineItem {
   meta: Record<string, unknown> | null;
 }
 
+export type AgencyBoundaryStatus = "pass" | "fail";
+
+export interface AgencyBoundaryFinding {
+  rule: string;
+  status: AgencyBoundaryStatus;
+  message: string;
+  evidence: Record<string, unknown>;
+}
+
+export interface AgencyBoundaryEval {
+  version: 1;
+  status: AgencyBoundaryStatus;
+  capability?: string;
+  capabilityKind?: "observe" | "act" | "verify";
+  findings: AgencyBoundaryFinding[];
+}
+
 export interface ParsedKodyRunLog {
   events: KodyRunLogEvent[];
   timeline: KodyRunTimelineItem[];
+  agencyBoundaryEvals: AgencyBoundaryEval[];
 }
 
 export interface KodyRunLogsRun {
@@ -65,6 +83,7 @@ export interface KodyRunLogsRun {
   message: string | null;
   events: KodyRunLogEvent[];
   timeline: KodyRunTimelineItem[];
+  agencyBoundaryEvals: AgencyBoundaryEval[];
 }
 
 export interface KodyRunLogsSnapshot {
@@ -168,6 +187,41 @@ export function parseKodyRunEventsJsonl(jsonl: string): KodyRunLogEvent[] {
   return events;
 }
 
+export function parseAgencyBoundaryEvalsFromText(
+  text: string,
+): AgencyBoundaryEval[] {
+  const out: AgencyBoundaryEval[] = [];
+  const seen = new Set<string>();
+  for (const line of text.split(/\r?\n/)) {
+    const marker = "KODY_AGENCY_BOUNDARY_EVAL=";
+    const index = line.indexOf(marker);
+    if (index < 0) continue;
+    const raw = line.slice(index + marker.length).trim();
+    if (!raw || seen.has(raw)) continue;
+    try {
+      const parsed = parseAgencyBoundaryEval(JSON.parse(raw));
+      if (parsed) {
+        seen.add(raw);
+        out.push(parsed);
+      }
+    } catch {}
+  }
+  return out;
+}
+
+export function parseAgencyBoundaryEvalsFromLogZip(
+  zip: Buffer,
+): AgencyBoundaryEval[] {
+  return extractZipEntryTexts(zip)
+    .flatMap(parseAgencyBoundaryEvalsFromText)
+    .filter(
+      (evalResult, index, all) =>
+        all.findIndex(
+          (other) => JSON.stringify(other) === JSON.stringify(evalResult),
+        ) === index,
+    );
+}
+
 export function buildRunTimeline(
   events: KodyRunLogEvent[],
 ): KodyRunTimelineItem[] {
@@ -234,6 +288,88 @@ export function extractZipEntryText(
   return null;
 }
 
+function extractZipEntryTexts(zip: Buffer): string[] {
+  const eocd = findEndOfCentralDirectory(zip);
+  if (eocd < 0) return [];
+
+  const out: string[] = [];
+  const totalEntries = zip.readUInt16LE(eocd + 10);
+  let cursor = zip.readUInt32LE(eocd + 16);
+
+  for (let i = 0; i < totalEntries; i += 1) {
+    if (zip.readUInt32LE(cursor) !== 0x02014b50) return out;
+
+    const compression = zip.readUInt16LE(cursor + 10);
+    const compressedSize = zip.readUInt32LE(cursor + 20);
+    const filenameLength = zip.readUInt16LE(cursor + 28);
+    const extraLength = zip.readUInt16LE(cursor + 30);
+    const commentLength = zip.readUInt16LE(cursor + 32);
+    const localOffset = zip.readUInt32LE(cursor + 42);
+    const name = zip
+      .subarray(cursor + 46, cursor + 46 + filenameLength)
+      .toString("utf8");
+
+    if (/\.(txt|log)$/i.test(name)) {
+      const text = readLocalZipEntry(
+        zip,
+        localOffset,
+        compressedSize,
+        compression,
+      );
+      if (text) out.push(text);
+    }
+
+    cursor += 46 + filenameLength + extraLength + commentLength;
+  }
+
+  return out;
+}
+
+function parseAgencyBoundaryEval(raw: unknown): AgencyBoundaryEval | null {
+  if (!raw || typeof raw !== "object" || Array.isArray(raw)) return null;
+  const value = raw as Record<string, unknown>;
+  if (value.version !== 1) return null;
+  if (value.status !== "pass" && value.status !== "fail") return null;
+  if (!Array.isArray(value.findings)) return null;
+  const capabilityKind = value.capabilityKind;
+  return {
+    version: 1,
+    status: value.status,
+    ...(typeof value.capability === "string"
+      ? { capability: value.capability }
+      : {}),
+    ...(capabilityKind === "observe" ||
+    capabilityKind === "act" ||
+    capabilityKind === "verify"
+      ? { capabilityKind }
+      : {}),
+    findings: value.findings
+      .map(parseAgencyBoundaryFinding)
+      .filter((finding): finding is AgencyBoundaryFinding => finding != null),
+  };
+}
+
+function parseAgencyBoundaryFinding(
+  raw: unknown,
+): AgencyBoundaryFinding | null {
+  if (!raw || typeof raw !== "object" || Array.isArray(raw)) return null;
+  const value = raw as Record<string, unknown>;
+  if (typeof value.rule !== "string") return null;
+  if (value.status !== "pass" && value.status !== "fail") return null;
+  if (typeof value.message !== "string") return null;
+  return {
+    rule: value.rule,
+    status: value.status,
+    message: value.message,
+    evidence:
+      value.evidence &&
+      typeof value.evidence === "object" &&
+      !Array.isArray(value.evidence)
+        ? (value.evidence as Record<string, unknown>)
+        : {},
+  };
+}
+
 export function parseKodyRunLogZip(
   zip: Buffer,
   runId: number | string,
@@ -247,6 +383,7 @@ export function parseKodyRunLogZip(
   return {
     events,
     timeline: buildRunTimeline(events),
+    agencyBoundaryEvals: parseAgencyBoundaryEvalsFromLogZip(zip),
   };
 }
 

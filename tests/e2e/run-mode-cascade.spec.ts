@@ -169,7 +169,29 @@ async function mockManagedGoals(page: Page, runs: RunPost[]): Promise<void> {
       facts: {},
       blockers: [],
       scheduleMode: "agentLoop",
-      loopTarget: { type: "workflow", id: "release-workflow" },
+      loopTarget: { type: "goal", id: "web-release" },
+      scheduleState: {
+        mode: "agentLoop",
+        lastGoalTickAt: NOW,
+        lastDecision: {
+          kind: "dispatch",
+          targetType: "goal",
+          targetId: "web-release",
+          capability: "release-prepare",
+          reason: "ready target loop tick",
+          at: NOW,
+        },
+        capabilities: Object.fromEntries(
+          expectedCapabilities.map((slug) => [
+            slug,
+            {
+              slug,
+              state: "waiting",
+              reason: "waiting",
+            },
+          ]),
+        ),
+      },
       instances: [],
     },
   };

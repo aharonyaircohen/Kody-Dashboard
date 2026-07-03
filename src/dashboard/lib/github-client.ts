@@ -990,6 +990,7 @@ export async function fetchKodyRunLogArtifact(
       "Run log artifact is missing or expired. Artifacts are retained for 30 days.",
     events: [],
     timeline: [],
+    agencyBoundaryEvals: [],
   };
 
   const cacheKey = `run-log-artifact:${getOwner()}:${getRepo()}:${run.id}:${runAttempt}`;
@@ -1042,6 +1043,7 @@ export async function fetchKodyRunLogArtifact(
         : "Run log artifact did not contain .kody/agent-runs/<runId>/events.jsonl.",
       events: parsed?.events ?? [],
       timeline: parsed?.timeline ?? [],
+      agencyBoundaryEvals: parsed?.agencyBoundaryEvals ?? [],
     };
     setCache(cacheKey, CACHE_TTL.pipeline, result);
     return result;
@@ -1054,6 +1056,7 @@ export async function fetchKodyRunLogArtifact(
         message:
           error?.message ??
           "Run log artifact could not be downloaded from GitHub Actions.",
+        agencyBoundaryEvals: [],
       };
       setCache(cacheKey, CACHE_TTL.pipeline, result);
       return result;

@@ -57,6 +57,20 @@ describe("run mode", () => {
     ).toEqual(["ci-health", "qa"]);
   });
 
+  it("reads schedule capability state", () => {
+    expect(
+      managedModelCapabilitySlugs(
+        goal("daily-web-release-loop", {
+          scheduleMode: "agentLoop",
+          loopTarget: { type: "goal", id: "web-release" },
+          scheduleState: scheduleState(["release-prepare", "task-leader"]),
+        }),
+        [],
+        [],
+      ),
+    ).toEqual(["release-prepare", "task-leader"]);
+  });
+
   it("cascades loop mode through capability, goal, and workflow targets", () => {
     const targetGoal = goal("target-goal", { capabilities: ["goal-cap"] });
     const targetWorkflow = workflow("target-workflow", ["workflow-cap"]);
@@ -114,6 +128,30 @@ function goal(
       blockers: [],
       ...state,
     },
+  };
+}
+
+function scheduleState(
+  capabilities: string[],
+): ManagedGoalRecord["state"]["scheduleState"] {
+  return {
+    mode: "agentLoop",
+    lastGoalTickAt: "2026-07-03T00:00:00.000Z",
+    lastDecision: {
+      kind: "idle",
+      reason: "waiting",
+      at: "2026-07-03T00:00:00.000Z",
+    },
+    capabilities: Object.fromEntries(
+      capabilities.map((slug) => [
+        slug,
+        {
+          slug,
+          state: "waiting",
+          reason: "waiting",
+        },
+      ]),
+    ),
   };
 }
 

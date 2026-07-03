@@ -65,12 +65,20 @@ function managedModelCapabilitySlugsInner(
 
   const target = goalLoopTarget(goal);
   if (managedGoalModel(goal) === "agentLoop" && target) {
-    return targetCapabilitySlugs(target, goals, workflows, seen);
+    const targetSlugs = targetCapabilitySlugs(target, goals, workflows, seen);
+    return targetSlugs.length
+      ? targetSlugs
+      : ownManagedModelCapabilitySlugs(goal);
   }
 
+  return ownManagedModelCapabilitySlugs(goal);
+}
+
+function ownManagedModelCapabilitySlugs(goal: ManagedGoalRecord): string[] {
   return uniqueCapabilitySlugs([
     ...goal.state.capabilities,
     ...goal.state.route.map((step) => step.capability),
+    ...Object.keys(goal.state.scheduleState?.capabilities ?? {}),
   ]);
 }
 

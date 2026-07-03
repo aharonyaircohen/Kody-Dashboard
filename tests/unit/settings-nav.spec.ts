@@ -93,9 +93,18 @@ describe("settings navigation", () => {
     );
   });
 
-  it("keeps Dashboard as the mobile-only extra view entry", () => {
+  it("keeps Dashboard fixed and Attention in the primary side-panel views", () => {
+    expect(navLabelForPath("/")).toBe("Dashboard");
+    expect(navLabelForPath("/attention")).toBe("Attention");
+    expect(sectionHrefs(ENGINEER_MODE_SECTIONS, PRIMARY_VIEW_TITLE)).toEqual([
+      "/attention",
+      "/tasks",
+      "/vibe",
+      "/preview",
+    ]);
     expect(sectionHrefs(MOBILE_NAV_SECTIONS, PRIMARY_VIEW_TITLE)).toEqual([
       "/",
+      "/attention",
       "/tasks",
       "/vibe",
       "/preview",

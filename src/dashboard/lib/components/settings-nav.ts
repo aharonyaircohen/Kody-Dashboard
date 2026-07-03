@@ -82,15 +82,25 @@ export const TASKS_NAV_ITEM: SettingsNavItem = {
   tint: "text-emerald-300 bg-emerald-500/10",
 };
 
-/** Dashboard — the operations overview at `/`. Rendered in the nav's "Views"
- *  group; `/` no longer redirects, it lands here. */
+/** Dashboard — the fixed home link at `/`. */
 export const DASHBOARD_NAV_ITEM: SettingsNavItem = {
   href: "/",
   label: "Dashboard",
   icon: Home,
   exact: true,
-  description: "Overview of tasks, runs, and activity at a glance.",
+  description: "Dashboard home.",
   tint: "text-emerald-300 bg-emerald-500/10",
+};
+
+/** Attention — the operations overview at `/attention`. Rendered in the nav's "Views"
+ *  group; `/` no longer redirects, it lands here. */
+export const ATTENTION_NAV_ITEM: SettingsNavItem = {
+  href: "/attention",
+  label: "Attention",
+  icon: Activity,
+  exact: true,
+  description: "What needs attention, what is running, and what finished.",
+  tint: "text-amber-300 bg-amber-500/10",
 };
 
 /** Vibe — chat-driven preview. Now a first-class nav entry (it used to be a
@@ -446,6 +456,7 @@ export const SETTINGS_NAV_SECTIONS: readonly SettingsNavSection[] = [
 const ALL_NAV_ITEMS: readonly SettingsNavItem[] = [
   HOME_NAV_ITEM,
   DASHBOARD_NAV_ITEM,
+  ATTENTION_NAV_ITEM,
   TASKS_NAV_ITEM,
   VIBE_NAV_ITEM,
   PREVIEW_NAV_ITEM,
@@ -472,7 +483,7 @@ function settingsSection(title: string): SettingsNavSection {
 export const VIBE_MODE_SECTIONS: readonly SettingsNavSection[] = [
   {
     title: PRIMARY_VIEW_TITLE,
-    items: [VIBE_NAV_ITEM, PREVIEW_NAV_ITEM],
+    items: [ATTENTION_NAV_ITEM, VIBE_NAV_ITEM, PREVIEW_NAV_ITEM],
   },
   {
     title: PRIMARY_NAV_TITLE,
@@ -498,7 +509,12 @@ export const VIBE_MODE_SECTIONS: readonly SettingsNavSection[] = [
 export const ENGINEER_MODE_SECTIONS: readonly SettingsNavSection[] = [
   {
     title: PRIMARY_VIEW_TITLE,
-    items: [TASKS_NAV_ITEM, VIBE_NAV_ITEM, PREVIEW_NAV_ITEM],
+    items: [
+      ATTENTION_NAV_ITEM,
+      TASKS_NAV_ITEM,
+      VIBE_NAV_ITEM,
+      PREVIEW_NAV_ITEM,
+    ],
   },
   settingsSection("AI Agency"),
   {
@@ -527,6 +543,7 @@ export const MOBILE_NAV_SECTIONS: readonly SettingsNavSection[] = [
     title: PRIMARY_VIEW_TITLE,
     items: [
       DASHBOARD_NAV_ITEM,
+      ATTENTION_NAV_ITEM,
       TASKS_NAV_ITEM,
       VIBE_NAV_ITEM,
       PREVIEW_NAV_ITEM,

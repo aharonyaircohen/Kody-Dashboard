@@ -97,6 +97,23 @@ export function useRetryTask(actorLogin?: string) {
   });
 }
 
+export function useAbortTask(actorLogin?: string) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (issueNumber: number) =>
+      kodyApi.tasks.abort(issueNumber, actorLogin),
+    onSuccess: (_data, issueNumber) => {
+      queryClient.invalidateQueries({ queryKey: ["kody-tasks"] });
+      toast.success("Task stopped", {
+        description: `#${issueNumber} has been asked to stop.`,
+      });
+    },
+    onError: (error) => {
+      toast.error("Stop failed", { description: error.message });
+    },
+  });
+}
+
 const ACK_STORAGE_KEY = "kody.health.ack";
 
 type AckMap = Record<string, string>;

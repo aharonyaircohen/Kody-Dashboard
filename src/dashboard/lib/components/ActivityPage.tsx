@@ -38,7 +38,12 @@ import { useAutonomousActivity } from "../hooks/useAutonomousActivity";
 import { cn, formatDuration } from "../utils";
 import type { ActivityRun } from "../activity/types";
 import type { ActionLogEntry } from "../activity/action-log";
-import type { KodyRunLogsRun, KodyRunTimelineItem } from "../activity/run-logs";
+import type {
+  AgencyBoundaryEval,
+  AgencyBoundaryFinding,
+  KodyRunLogsRun,
+  KodyRunTimelineItem,
+} from "../activity/run-logs";
 import type {
   FeedEvent,
   FeedSession,
@@ -417,8 +422,87 @@ function RunTimelineItem({ item }: { item: KodyRunTimelineItem }) {
   );
 }
 
+function traceTone(status: AgencyBoundaryEval["status"]): string {
+  return status === "fail"
+    ? "border-rose-500/30 bg-rose-500/[0.06]"
+    : "border-emerald-500/25 bg-emerald-500/[0.045]";
+}
+
+function findingTone(status: AgencyBoundaryFinding["status"]): string {
+  return status === "fail"
+    ? "bg-rose-500/15 text-rose-200/90"
+    : "bg-emerald-500/15 text-emerald-200/85";
+}
+
+function sortedFindings(
+  findings: AgencyBoundaryFinding[],
+): AgencyBoundaryFinding[] {
+  return [...findings].sort((a, b) => {
+    if (a.status !== b.status) return a.status === "fail" ? -1 : 1;
+    return a.rule.localeCompare(b.rule);
+  });
+}
+
+function AgencyBoundaryTrace({
+  evalResult,
+}: {
+  evalResult: AgencyBoundaryEval;
+}) {
+  const failed = evalResult.findings.filter((f) => f.status === "fail").length;
+  const passed = evalResult.findings.filter((f) => f.status === "pass").length;
+  return (
+    <div className={cn("rounded-md border p-3", traceTone(evalResult.status))}>
+      <div className="flex flex-wrap items-center gap-2">
+        <span
+          className={cn(
+            "rounded px-2 py-0.5 text-xs font-medium uppercase tracking-wide",
+            findingTone(evalResult.status),
+          )}
+        >
+          {evalResult.status}
+        </span>
+        <span className="text-sm font-medium text-white/85">
+          {evalResult.capability ?? "capability"}
+        </span>
+        {evalResult.capabilityKind && (
+          <span className="rounded bg-white/[0.06] px-1.5 py-0.5 text-[11px] text-white/55">
+            {evalResult.capabilityKind}
+          </span>
+        )}
+        <span className="text-[11px] text-white/40">
+          {failed} failed · {passed} passed
+        </span>
+      </div>
+      <ul className="mt-2 space-y-1">
+        {sortedFindings(evalResult.findings).map((finding) => (
+          <li
+            key={finding.rule}
+            className="grid gap-1 rounded border border-white/[0.05] bg-black/10 px-2 py-1.5 text-xs md:grid-cols-[7rem_1fr]"
+          >
+            <span
+              className={cn(
+                "w-fit rounded px-1.5 py-0.5 text-[10px] uppercase",
+                findingTone(finding.status),
+              )}
+            >
+              {finding.status}
+            </span>
+            <span className="min-w-0">
+              <span className="font-mono text-white/65">{finding.rule}</span>
+              <span className="block text-white/45">{finding.message}</span>
+            </span>
+          </li>
+        ))}
+      </ul>
+    </div>
+  );
+}
+
 function RunLogCard({ run }: { run: KodyRunLogsRun }) {
   const isAvailable = run.artifactStatus === "available";
+  const traceFailures = run.agencyBoundaryEvals.filter(
+    (evalResult) => evalResult.status === "fail",
+  ).length;
   return (
     <li className="rounded-lg border border-white/[0.06] bg-white/[0.02]">
       <div className="flex flex-wrap items-start gap-3 px-3 py-2.5">
@@ -443,6 +527,19 @@ function RunLogCard({ run }: { run: KodyRunLogsRun }) {
         >
           {isAvailable ? `${run.timeline.length} events` : run.artifactStatus}
         </span>
+        {run.agencyBoundaryEvals.length > 0 && (
+          <span
+            className={cn(
+              "rounded px-2 py-0.5 text-[11px]",
+              traceFailures > 0
+                ? "bg-rose-500/15 text-rose-200/85"
+                : "bg-emerald-500/15 text-emerald-200/85",
+            )}
+          >
+            {run.agencyBoundaryEvals.length} trace
+            {run.agencyBoundaryEvals.length === 1 ? "" : "s"}
+          </span>
+        )}
         <a
           href={run.htmlUrl}
           target="_blank"
@@ -453,6 +550,16 @@ function RunLogCard({ run }: { run: KodyRunLogsRun }) {
         </a>
       </div>
       <div className="border-t border-white/[0.06] px-3 py-2.5">
+        {run.agencyBoundaryEvals.length > 0 && (
+          <div className="mb-3 space-y-2">
+            {run.agencyBoundaryEvals.map((evalResult, index) => (
+              <AgencyBoundaryTrace
+                key={`${evalResult.capability ?? "trace"}:${index}`}
+                evalResult={evalResult}
+              />
+            ))}
+          </div>
+        )}
         {!isAvailable ? (
           <p className="text-xs text-white/45">
             {run.message ??
@@ -476,6 +583,14 @@ function RunLogCard({ run }: { run: KodyRunLogsRun }) {
 
 function RunLogsView({ active }: { active: boolean }) {
   const { data, isLoading, error } = useActivityRunLogs(active);
+  const traceCount = useMemo(
+    () =>
+      (data?.runs ?? []).reduce(
+        (count, run) => count + run.agencyBoundaryEvals.length,
+        0,
+      ),
+    [data],
+  );
 
   return (
     <div>
@@ -485,7 +600,7 @@ function RunLogsView({ active }: { active: boolean }) {
         </div>
       )}
 
-      <div className="mb-3 grid grid-cols-3 gap-3">
+      <div className="mb-3 grid grid-cols-2 gap-3 md:grid-cols-4">
         <StatCard label="Runs" value={data?.total ?? "—"} />
         <StatCard
           label="Artifacts"
@@ -493,6 +608,11 @@ function RunLogsView({ active }: { active: boolean }) {
           tone="good"
         />
         <StatCard label="Fallbacks" value={data?.missing ?? "—"} />
+        <StatCard
+          label="Traces"
+          value={data ? traceCount : "—"}
+          tone={traceCount > 0 ? "good" : "default"}
+        />
       </div>
 
       {isLoading ? (
