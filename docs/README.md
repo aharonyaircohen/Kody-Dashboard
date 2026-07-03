@@ -36,6 +36,8 @@ One doc per dashboard-managed store / capability.
 - ✅ [Reports](reports.md) — markdown reports from capabilities, including
   structured findings and optional suggested actions (`dispatch`,
   `create-task`, `dismiss`).
+- ✅ [Run Mode](run-mode.md) — `Auto` vs `Manual` for loops, goals,
+  workflows, and capabilities.
 - ✅ [Activity & audit](activity.md) — the Log / Auto / Runs / Feed timeline;
   merges `recordAudit`, engine `.kody/activity` events, and GitHub artifacts.
 - ✅ [Messages & mentions](messages-and-mentions.md) — `#`-channel team chat

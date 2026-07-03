@@ -127,6 +127,18 @@ Do not put metadata frontmatter in `capability.md`. Metadata belongs in
 | `writesTo`    | Report or context slugs this capability writes.                                                               |
 | `disabled`    | `true` pauses autonomous scheduling.                                                                          |
 
+## Run Mode
+
+Capabilities can be `Auto` or `Manual`.
+
+- `Auto`: Kody may start it without approval.
+- `Manual`: Kody waits for approval first.
+
+The flag is shown on the item the user runs. For a loop, goal, or workflow, the
+dashboard saves the needed capability permissions behind the scenes.
+
+See [Run Mode](run-mode.md).
+
 ## Output choice
 
 The dashboard creation form has two output choices:

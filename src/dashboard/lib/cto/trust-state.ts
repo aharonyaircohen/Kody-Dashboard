@@ -239,12 +239,17 @@ export function parseTrustManifest(
   if (!raw) return structuredClone(EMPTY_TRUST_MANIFEST);
   try {
     const parsed = JSON.parse(raw) as {
-      capabilities?: TrustManifest["capabilities"];
+      capabilities?: Record<string, Partial<TrustCapabilityStats>>;
       log?: Array<Partial<TrustDecisionLogEntry> & { capability?: string }>;
     };
     const capabilities =
       parsed.capabilities && typeof parsed.capabilities === "object"
-        ? parsed.capabilities
+        ? Object.fromEntries(
+            Object.entries(parsed.capabilities).map(([capability, stats]) => [
+              capability,
+              normalizeStats(stats),
+            ]),
+          )
         : {};
     const log = Array.isArray(parsed.log)
       ? parsed.log.flatMap((entry): TrustDecisionLogEntry[] => {
@@ -278,6 +283,27 @@ export function parseTrustManifest(
   } catch {
     return structuredClone(EMPTY_TRUST_MANIFEST);
   }
+}
+
+function normalizeStats(
+  stats: Partial<TrustCapabilityStats> | null | undefined,
+): TrustCapabilityStats {
+  const mode = stats?.mode === "auto" ? "auto" : "ask";
+  const consecutiveApprovals =
+    typeof stats?.consecutiveApprovals === "number"
+      ? Math.max(0, stats.consecutiveApprovals)
+      : mode === "auto"
+        ? TRUST_GRADUATION_THRESHOLD
+        : 0;
+
+  return {
+    approvals:
+      typeof stats?.approvals === "number" ? Math.max(0, stats.approvals) : 0,
+    rejections:
+      typeof stats?.rejections === "number" ? Math.max(0, stats.rejections) : 0,
+    consecutiveApprovals,
+    mode,
+  };
 }
 
 export function serializeTrustManifest(manifest: TrustManifest): string {

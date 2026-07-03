@@ -103,6 +103,19 @@ describe("parse/serialize", () => {
     expect(parseTrustManifest("not json")).toEqual(EMPTY_TRUST_MANIFEST);
     expect(parseTrustManifest(null)).toEqual(EMPTY_TRUST_MANIFEST);
   });
+
+  it("normalizes minimal direct trust config into dashboard stats", () => {
+    const parsed = parseTrustManifest(
+      JSON.stringify({ capabilities: { "dev-ci-health": { mode: "auto" } } }),
+    );
+
+    expect(parsed.capabilities["dev-ci-health"]).toEqual({
+      approvals: 0,
+      rejections: 0,
+      consecutiveApprovals: TRUST_GRADUATION_THRESHOLD,
+      mode: "auto",
+    });
+  });
 });
 
 describe("latestTrustDecisions", () => {

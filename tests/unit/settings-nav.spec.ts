@@ -36,7 +36,7 @@ function allHrefs(sections: readonly SettingsNavSection[]): string[] {
 }
 
 describe("settings navigation", () => {
-  it("exposes reports instead of legacy inbox, trust, or ledger sections", () => {
+  it("exposes reports without legacy inbox, trust, or ledger sections", () => {
     const hrefs = exposedHrefs();
 
     expect(hrefs).toContain("/reports");
