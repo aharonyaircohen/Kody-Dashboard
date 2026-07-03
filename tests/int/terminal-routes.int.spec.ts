@@ -228,6 +228,7 @@ beforeEach(() => {
 });
 
 afterEach(() => {
+  vi.useRealTimers();
   vi.unstubAllGlobals();
 });
 
@@ -649,6 +650,61 @@ describe("POST /api/kody/terminal/session", () => {
       "brain-current",
       expect.objectContaining({ orgSlug: "guy-koren" }),
     );
+  });
+
+  it("keeps waiting for a waking Brain machine before returning a terminal token", async () => {
+    vi.useFakeTimers();
+    let started = false;
+    let postStartPolls = 0;
+    flyPreview.startMachine.mockImplementationOnce(async () => {
+      started = true;
+    });
+    inventory.listFlyInventory.mockImplementation(async () => ({
+      running: 0,
+      total: 0,
+      machines: [],
+    }));
+    inventoryServer.appendSavedBrainMachineToInventory.mockImplementation(
+      async (
+        _req: unknown,
+        inv: { machines: Array<Record<string, unknown>> },
+      ) => {
+        const state = !started
+          ? "stopped"
+          : postStartPolls++ < 12
+            ? "starting"
+            : "started";
+        inv.machines.push({
+          feature: "brain",
+          app: "local-2",
+          machineId: "brain-current",
+          state,
+          region: "fra",
+          label: "local-2",
+          sizeLabel: "perf 1x",
+          orgSlug: "guy-koren",
+        });
+        return true;
+      },
+    );
+
+    const pending = sessionPOST(
+      makeSessionReq({
+        app: "local-2",
+        machineId: "brain-current",
+        chatSessionId: "chat-1",
+      }),
+    );
+    await vi.advanceTimersByTimeAsync(20_000);
+    const res = await pending;
+
+    expect(res.status).toBe(200);
+    expect(await res.json()).toMatchObject({
+      ok: true,
+      app: "local-2",
+      machineId: "brain-current",
+    });
+    expect(postStartPolls).toBeGreaterThan(10);
   });
 });
 

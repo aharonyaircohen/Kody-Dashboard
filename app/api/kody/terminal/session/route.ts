@@ -41,6 +41,7 @@ import { mintTerminalBridgeToken } from "@dashboard/lib/terminal/terminal-token"
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
+export const maxDuration = 90;
 
 const Body = z.object({
   target: z.literal("brain").optional(),
@@ -89,12 +90,13 @@ const TARGET_STATUS: Record<string, number> = {
 const TARGET_MESSAGE: Record<string, string> = {
   machine_not_found: "Machine not found.",
   machine_not_terminal_capable: "Only Brain machines can open a Fly terminal.",
-  machine_not_running: "Machine is still waking up. Try Connect again.",
+  machine_not_running:
+    "Brain machine did not become ready in time. Try Connect again.",
   selected_image_not_running:
     "Selected image is not running. Apply it from Brain Images first.",
 };
 
-const WAKE_POLL_ATTEMPTS = 10;
+const WAKE_POLL_ATTEMPTS = 60;
 const WAKE_POLL_INTERVAL_MS = 1000;
 
 function sleep(ms: number): Promise<void> {

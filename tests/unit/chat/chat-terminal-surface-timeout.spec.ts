@@ -26,6 +26,7 @@ describe("ChatTerminalSurface timeout guard", () => {
     expect(SOURCE).toContain("TERMINAL_START_TIMEOUT_MS");
     expect(SOURCE).toContain("LOCAL_POLL_TIMEOUT_MS");
     expect(SOURCE).toContain("FLY_CONNECT_TIMEOUT_MS");
+    expect(SOURCE).toContain("const FLY_CONNECT_TIMEOUT_MS = 75_000;");
     expect(SOURCE).toContain(
       'fetchWithTimeout(\n      "/api/kody/chat/terminal/resize"',
     );
