@@ -217,6 +217,7 @@ export interface BrainStatusResult {
   state: "running" | "suspended" | "stopped" | "off";
   url?: string;
   machineId?: string;
+  machineImageRef?: string;
   org?: string;
 }
 
@@ -1350,6 +1351,7 @@ export async function brainStatus(
     state,
     url: brainAppUrl(app),
     machineId: machine.id,
+    machineImageRef: machine.config?.image,
     org: existing.organization?.slug ?? orgSlug,
   };
 }

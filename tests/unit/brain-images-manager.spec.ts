@@ -59,6 +59,9 @@ describe("BrainImagesManager", () => {
     expect(SOURCE).toContain("Latest save");
     expect(SOURCE).toContain("Selected image");
     expect(SOURCE).toContain("Running image");
+    expect(SOURCE).toContain("Selected image is not running yet");
+    expect(SOURCE).toContain('Machine {machineState ?? "state unknown"}');
+    expect(SOURCE).toContain("machineImageRef");
     expect(SOURCE).toContain("Saved {formatDate(image.updatedAt)}");
     expect(SOURCE).toContain("`Applied ${formatDate(runningAt)}`");
   });

@@ -115,6 +115,8 @@ export function rowsForFlyApp(
       label,
       sizeLabel: sizeLabel(m.guest),
       guest: m.guest,
+      imageRef:
+        typeof m.config?.image === "string" ? m.config.image : undefined,
       createdAt: m.createdAt,
       ageDays: Number.isFinite(created)
         ? Math.floor((now - created) / MS_PER_DAY)

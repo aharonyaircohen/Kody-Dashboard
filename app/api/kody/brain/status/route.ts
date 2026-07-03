@@ -74,6 +74,7 @@ export async function GET(req: NextRequest) {
       state: result.state,
       url: result.url,
       machineId: result.machineId,
+      machineImageRef: result.machineImageRef,
       org: result.orgSlug,
       reason: result.reason,
       stored: result.stored,

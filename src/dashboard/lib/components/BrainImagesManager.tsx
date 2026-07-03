@@ -47,6 +47,8 @@ interface BrainImagesResponse {
   runningAt?: string | null;
   runningApp?: string | null;
   runningMachineId?: string | null;
+  machineImageRef?: string | null;
+  machineState?: string | null;
   images?: BrainSavedImage[];
   save?: BrainImageSaveState | null;
   message?: string;
@@ -84,6 +86,8 @@ export function BrainImagesManager() {
   const [activeImageRef, setActiveImageRef] = useState<string | null>(null);
   const [runningImageRef, setRunningImageRef] = useState<string | null>(null);
   const [runningAt, setRunningAt] = useState<string | null>(null);
+  const [machineImageRef, setMachineImageRef] = useState<string | null>(null);
+  const [machineState, setMachineState] = useState<string | null>(null);
   const [save, setSave] = useState<BrainImageSaveState | null>(null);
   const [loading, setLoading] = useState(true);
   const [busyRef, setBusyRef] = useState<string | null>(null);
@@ -96,6 +100,8 @@ export function BrainImagesManager() {
       setActiveImageRef(null);
       setRunningImageRef(null);
       setRunningAt(null);
+      setMachineImageRef(null);
+      setMachineState(null);
       setSave(null);
       setLoading(false);
       return;
@@ -117,6 +123,8 @@ export function BrainImagesManager() {
       setActiveImageRef(body.imageRef ?? null);
       setRunningImageRef(body.runningImageRef ?? null);
       setRunningAt(body.runningAt ?? null);
+      setMachineImageRef(body.machineImageRef ?? null);
+      setMachineState(body.machineState ?? null);
       setSave(body.save ?? null);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to load images");
@@ -124,6 +132,8 @@ export function BrainImagesManager() {
       setActiveImageRef(null);
       setRunningImageRef(null);
       setRunningAt(null);
+      setMachineImageRef(null);
+      setMachineState(null);
       setSave(null);
     } finally {
       setLoading(false);
@@ -142,6 +152,10 @@ export function BrainImagesManager() {
     () => images.find((image) => image.imageRef === runningImageRef) ?? null,
     [images, runningImageRef],
   );
+  const selectedNeedsApply =
+    activeImageRef !== null && activeImageRef !== runningImageRef;
+  const runningNeedsMachineProof =
+    runningImageRef !== null && machineImageRef === null;
 
   useEffect(() => {
     void loadImages();
@@ -283,6 +297,12 @@ export function BrainImagesManager() {
                       ? `Saved ${formatDate(runningImage.updatedAt)}`
                       : "Terminal has no applied image"}
                 </div>
+                {machineImageRef && (
+                  <div className="mt-2 truncate font-mono text-[11px] text-emerald-100/70">
+                    Machine {machineState ?? "state unknown"} ·{" "}
+                    {imageLabel(machineImageRef)}
+                  </div>
+                )}
               </div>
               <div className="min-w-0 rounded-md border border-white/[0.08] bg-black/20 p-3">
                 <div className="text-[11px] font-semibold uppercase text-white/45">
@@ -301,6 +321,18 @@ export function BrainImagesManager() {
             {save?.status === "running" && (
               <div className="rounded-md border border-amber-400/20 bg-amber-400/[0.06] px-3 py-2 text-xs text-amber-200">
                 Save running: {imageTag(save.imageRef)}
+              </div>
+            )}
+            {selectedNeedsApply && (
+              <div className="rounded-md border border-amber-400/25 bg-amber-400/[0.08] px-3 py-2 text-xs text-amber-100">
+                Selected image is not running yet. Click Apply on the selected
+                row before opening the Brain terminal.
+              </div>
+            )}
+            {!selectedNeedsApply && runningNeedsMachineProof && (
+              <div className="rounded-md border border-sky-400/20 bg-sky-400/[0.06] px-3 py-2 text-xs text-sky-100">
+                Running image is recorded, but the live Fly machine image could
+                not be verified from this page.
               </div>
             )}
             {save?.status === "failed" && (

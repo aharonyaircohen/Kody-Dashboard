@@ -1645,13 +1645,27 @@ describe("brainStatus", () => {
         return { json: { name: "kody-brain-alice" } };
       }
       if (call.method === "GET" && call.url.endsWith("/machines")) {
-        return { json: [{ id: "m", state: "started", config: { env: {} } }] };
+        return {
+          json: [
+            {
+              id: "m",
+              state: "started",
+              config: {
+                image: "registry.fly.io/kody-brain-alice:20260703",
+                env: {},
+              },
+            },
+          ],
+        };
       }
       throw new Error(`unexpected: ${call.method} ${call.url}`);
     });
     const out = await brainStatus({ flyToken: TOKEN, account: "alice" });
     expect(out.state).toBe("running");
     expect(out.machineId).toBe("m");
+    expect(out.machineImageRef).toBe(
+      "registry.fly.io/kody-brain-alice:20260703",
+    );
   });
 
   it("honors an exact machine override instead of the first Fly machine", async () => {

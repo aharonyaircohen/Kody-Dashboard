@@ -81,6 +81,7 @@ export type MachineServiceConfig = Record<string, unknown> & {
 };
 
 export interface MachineConfig {
+  image?: string;
   checks?: unknown;
   guest?: { cpu_kind?: string; cpus?: number; memory_mb?: number };
   services?: MachineServiceConfig[];

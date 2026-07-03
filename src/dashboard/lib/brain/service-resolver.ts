@@ -36,6 +36,7 @@ export interface BrainServiceResolution {
   state: BrainStatusResult["state"];
   url?: string;
   machineId?: string;
+  machineImageRef?: string;
   machine?: FlyMachineRow;
   reason?: BrainServiceReason;
 }
@@ -117,6 +118,7 @@ export async function resolveBrainService(input: {
     state: status.state,
     url: status.url,
     machineId: machine?.machineId ?? targetMachineId ?? status.machineId,
+    machineImageRef: machine?.imageRef ?? status.machineImageRef,
     machine,
     reason,
   };

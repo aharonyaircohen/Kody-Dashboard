@@ -97,6 +97,7 @@ function savePollResponse(
 function imageManagementResponse(
   image: Awaited<ReturnType<typeof readBrainImage>>,
   runtime: Awaited<ReturnType<typeof readBrainRuntimeView>> | null,
+  machine: { imageRef?: string; state?: string } | null = null,
   discoveredImages: BrainSavedImage[] = [],
 ) {
   const images = mergeBrainSavedImages(image, discoveredImages);
@@ -107,6 +108,8 @@ function imageManagementResponse(
     runningAt: runtime?.runningAt ?? null,
     runningApp: runtime?.runningApp ?? null,
     runningMachineId: runtime?.runningMachineId ?? null,
+    machineImageRef: machine?.imageRef ?? null,
+    machineState: machine?.state ?? null,
     runtime: runtime ?? null,
     images,
     createdAt: image?.createdAt ?? null,
@@ -458,8 +461,27 @@ export async function GET(req: NextRequest) {
         ctx.context.account,
         ctx.context.githubToken,
       );
+      const service = ctx.context.flyToken
+        ? await resolveBrainService({
+            flyToken: ctx.context.flyToken,
+            account: ctx.context.account,
+            githubToken: ctx.context.githubToken,
+            orgSlug: ctx.context.flyOrgSlug,
+            defaultRegion: ctx.context.flyDefaultRegion,
+          }).catch(() => null)
+        : null;
       return NextResponse.json({
-        ...imageManagementResponse(image, runtime, discoveredImages),
+        ...imageManagementResponse(
+          image,
+          runtime,
+          service
+            ? {
+                imageRef: service.machineImageRef,
+                state: service.state,
+              }
+            : null,
+          discoveredImages,
+        ),
         save: save
           ? {
               status: save.status,

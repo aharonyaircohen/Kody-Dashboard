@@ -30,6 +30,8 @@ export interface FlyMachineRow {
   sizeLabel: string;
   /** Raw guest sizing — consumed by the activity snapshot store / cost estimate. */
   guest?: { cpuKind?: string; cpus?: number; memoryMb?: number };
+  /** Actual image ref Fly reports for this machine, including any resolved digest. */
+  imageRef?: string;
   createdAt?: string;
   ageDays?: number;
 }

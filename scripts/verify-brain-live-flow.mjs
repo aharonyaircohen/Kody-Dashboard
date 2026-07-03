@@ -38,6 +38,7 @@ const repo = resolveRepo();
 const allowSave = truthy("KODY_LIVE_ALLOW_SAVE");
 const allowDestructive = truthy("KODY_LIVE_ALLOW_DESTRUCTIVE");
 const allowProvision = truthy("KODY_LIVE_ALLOW_PROVISION") || allowDestructive;
+const allowApply = truthy("KODY_LIVE_ALLOW_APPLY") || allowDestructive;
 const allowBrainCheckpointMutation = truthy(
   "KODY_LIVE_ALLOW_CHECKPOINT_MUTATION",
 );
@@ -59,7 +60,8 @@ try {
 
   let brain = await ensureBrainMachine();
   brain = await ensureBrainRunning(brain);
-  await verifyBrainRuntimeSelection();
+  brain = (await verifyBrainRuntimeSelection()) ?? brain;
+  await verifyBrainMachineImage();
 
   await verifyTerminalSession(brain, {
     command: markerWriteCommand(marker),
@@ -275,8 +277,15 @@ async function brainImageState() {
 async function verifyBrainRuntimeSelection() {
   const image = await brainImageState();
   if (image.imageRef && image.imageRef !== image.runningImageRef) {
+    if (allowApply) {
+      step(
+        "Brain runtime mismatch",
+        `applying selected ${image.imageRef}; currently running ${image.runningImageRef ?? "none"}`,
+      );
+      return applyBrainImage(image.imageRef);
+    }
     throw new Error(
-      `Selected Brain image is not applied. Apply it before live terminal verification. Selected=${image.imageRef} running=${image.runningImageRef ?? "none"}`,
+      `Selected Brain image is not applied. Re-run with KODY_LIVE_ALLOW_APPLY=1 to apply it before terminal verification. Selected=${image.imageRef} running=${image.runningImageRef ?? "none"}`,
     );
   }
   if (image.runningImageRef && (!image.runningApp || !image.runningMachineId)) {
@@ -295,6 +304,53 @@ async function verifyBrainRuntimeSelection() {
     "Brain runtime state",
     "no applied image recorded; semantic terminal route must still resolve a live Brain or fail clearly",
   );
+}
+
+async function verifyBrainMachineImage() {
+  const image = await brainImageState();
+  if (!image.runningImageRef) {
+    step("Brain machine image", "skipped because no applied image is recorded");
+    return;
+  }
+  if (!image.runningApp || !image.runningMachineId) {
+    throw new Error(
+      `Applied Brain image is missing app/machine: ${JSON.stringify(image)}`,
+    );
+  }
+  if (!image.machineImageRef) {
+    throw new Error(
+      `Applied Brain image has no live Fly machine image proof: ${JSON.stringify(image)}`,
+    );
+  }
+
+  const expectedRuntimeRef = runtimeImageRef(
+    image.runningApp,
+    image.runningImageRef,
+  );
+  if (
+    !sameImageRepoTag(image.machineImageRef, expectedRuntimeRef) &&
+    !sameImageRepoTag(image.machineImageRef, image.runningImageRef)
+  ) {
+    throw new Error(
+      `Fly machine image does not match applied Brain image. Applied=${image.runningImageRef} expectedRuntime=${expectedRuntimeRef} machine=${image.machineImageRef}`,
+    );
+  }
+  step(
+    "Brain machine image",
+    `${image.machineImageRef} matches applied ${image.runningImageRef}`,
+  );
+}
+
+function runtimeImageRef(app, sourceImageRef) {
+  const withoutDigest = sourceImageRef.split("@")[0] ?? sourceImageRef;
+  const marker = withoutDigest.lastIndexOf(":");
+  const tag = marker === -1 ? "latest" : withoutDigest.slice(marker + 1);
+  return `registry.fly.io/${app}:${tag}`;
+}
+
+function sameImageRepoTag(a, b) {
+  const clean = (value) => String(value).split("@")[0];
+  return clean(a) === clean(b);
 }
 
 async function terminalSession(status, resetSession = false) {
@@ -685,6 +741,7 @@ async function applyBrainImage(imageRef) {
     15 * 60_000,
   );
   await verifyBrainRuntimeSelection();
+  await verifyBrainMachineImage();
   step("Brain image applied", `${status.app}/${status.machineId}`);
   return status;
 }
@@ -720,6 +777,7 @@ Optional:
   KODY_LIVE_STORE_REPO_URL=https://github.com/owner/state-repo
   KODY_LIVE_STORE_REF=main
   KODY_LIVE_ALLOW_PROVISION=1
+  KODY_LIVE_ALLOW_APPLY=1
   KODY_LIVE_ALLOW_SAVE=1
   KODY_LIVE_ALLOW_DESTRUCTIVE=1
   KODY_LIVE_ALLOW_CHECKPOINT_MUTATION=1
