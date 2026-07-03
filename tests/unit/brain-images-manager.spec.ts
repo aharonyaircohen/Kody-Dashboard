@@ -16,9 +16,6 @@ const SOURCE = readFileSync(
 
 describe("BrainImagesManager", () => {
   it("reloads authoritative image state after each mutating action", () => {
-    expect(SOURCE).toContain(
-      'await loadImages();\n      toast.success("Brain image selected");',
-    );
     expect(SOURCE).toContain("await loadImages();");
     expect(SOURCE).toContain('toast.success("Brain image applied");');
     expect(SOURCE).toContain(
@@ -46,15 +43,20 @@ describe("BrainImagesManager", () => {
     );
   });
 
-  it("applies the clicked image row without requiring prior selection", () => {
+  it("runs the clicked image as the only image activation action", () => {
     expect(SOURCE).toContain('body: JSON.stringify({ imageRef }),');
     expect(SOURCE).toContain('headers: { "content-type": "application/json", ...headers },');
+    expect(SOURCE).toContain("Run this image");
+    expect(SOURCE).toContain("Running");
     expect(SOURCE).toContain("disabled={running || busy}");
+    expect(SOURCE).not.toContain("selectImage(");
+    expect(SOURCE).not.toContain('toast.success("Brain image selected")');
+    expect(SOURCE).not.toContain('method: "PATCH"');
     expect(SOURCE).not.toContain("disabled={!selected || running || busy}");
   });
 
   it("shows selected, running, and saved image state separately", () => {
-    expect(SOURCE).toContain("Selected image controls what Apply will run");
+    expect(SOURCE).toContain("Run this image changes both the selected image");
     expect(SOURCE).toContain("Running image is");
     expect(SOURCE).toContain("Latest save");
     expect(SOURCE).toContain("Selected image");

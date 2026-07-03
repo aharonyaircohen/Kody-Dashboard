@@ -1291,38 +1291,6 @@ export function KodyChat({
     ? terminalChromeById[activeTerminalInstanceId]
     : null;
 
-  const handleApplySelectedBrainImage = useCallback(async () => {
-    setBrainImageBusy(true);
-    try {
-      const res = await fetch("/api/kody/brain/image/apply", {
-        method: "POST",
-        headers: { "content-type": "application/json", ...authHeaders() },
-        body: JSON.stringify({}),
-      });
-      const body = (await res.json().catch(() => ({}))) as {
-        message?: string;
-        error?: string;
-      };
-      if (!res.ok) {
-        throw new Error(body.message ?? body.error ?? `HTTP ${res.status}`);
-      }
-      window.dispatchEvent(new Event("kody:fly-machines-refresh"));
-      await refreshChatTerminalFlyMachines();
-      if (activeTerminalInstanceId) {
-        terminalSurfaceRefs.current[activeTerminalInstanceId]?.restart();
-      }
-      toast.success("Selected Brain image applied");
-    } catch (err) {
-      toast.error(
-        err instanceof Error
-          ? err.message
-          : "Failed to apply selected Brain image",
-      );
-    } finally {
-      setBrainImageBusy(false);
-    }
-  }, [activeTerminalInstanceId, refreshChatTerminalFlyMachines]);
-
   const prevAgentIdRef = useRef<string>(selectedAgentId);
   useEffect(() => {
     const agentChanged = selectedAgentId !== prevAgentIdRef.current;
@@ -4948,23 +4916,6 @@ export function KodyChat({
           </div>
         </div>
         <div className="flex shrink-0 items-center gap-1">
-          {activeTerminalChrome?.recoveryAction?.kind ===
-            "apply-selected-brain-image" && (
-            <button
-              type="button"
-              onClick={() => void handleApplySelectedBrainImage()}
-              disabled={brainImageBusy || activeTerminalChrome.actionBusy}
-              className="inline-flex h-8 w-8 items-center justify-center rounded text-amber-600 transition-colors hover:bg-muted hover:text-amber-500 disabled:cursor-not-allowed disabled:opacity-50"
-              title="Apply selected Brain image"
-              aria-label="Apply selected Brain image"
-            >
-              {brainImageBusy ? (
-                <Loader2 className="h-4 w-4 animate-spin" />
-              ) : (
-                <ImageIcon className="h-4 w-4" />
-              )}
-            </button>
-          )}
           <button
             type="button"
             onClick={() => activeTerminalSurface?.addToChat()}
@@ -5663,13 +5614,7 @@ export function KodyChat({
                         current.statusText === state.statusText &&
                         current.inputLabel === state.inputLabel &&
                         current.inputTone === state.inputTone &&
-                        current.actionBusy === state.actionBusy &&
-                        current.recoveryAction?.kind ===
-                          state.recoveryAction?.kind &&
-                        current.recoveryAction?.imageRef ===
-                          state.recoveryAction?.imageRef &&
-                        current.recoveryAction?.runningImageRef ===
-                          state.recoveryAction?.runningImageRef
+                        current.actionBusy === state.actionBusy
                       ) {
                         return existing;
                       }

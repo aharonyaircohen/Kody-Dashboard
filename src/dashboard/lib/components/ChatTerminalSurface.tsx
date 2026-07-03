@@ -75,20 +75,11 @@ type TerminalInputSignal = {
   label: string;
 };
 
-type TerminalRecoveryAction = {
-  kind: "apply-selected-brain-image";
-  label: string;
-  title: string;
-  imageRef?: string;
-  runningImageRef?: string | null;
-};
-
 export interface ChatTerminalChromeState {
   statusText: string;
   inputLabel: string;
   inputTone: TerminalInputSignal["tone"];
   actionBusy: boolean;
-  recoveryAction?: TerminalRecoveryAction | null;
 }
 
 interface ChatTerminalSurfaceProps {
@@ -261,8 +252,6 @@ export const ChatTerminalSurface = forwardRef<
     tone: "idle",
     label: "No input",
   });
-  const [recoveryAction, setRecoveryAction] =
-    useState<TerminalRecoveryAction | null>(null);
   const [flyConnectionState, setFlyConnectionState] =
     useState<ChatTerminalConnectionState>("idle");
 
@@ -299,7 +288,6 @@ export const ChatTerminalSurface = forwardRef<
       setFlyConnectionState(state);
       onConnectionStateChange?.(state);
       if (state === "connected") {
-        setRecoveryAction(null);
         setInputSignal({ tone: "ready", label: "Ready for input" });
       } else if (state === "connecting") {
         setInputSignal({ tone: "blocked", label: "Waiting for terminal" });
@@ -717,7 +705,6 @@ export const ChatTerminalSurface = forwardRef<
         flyTargetKeyRef.current === key &&
         isRemoteTerminalTransport(transportRef.current);
       sessionEndNotifiedRef.current = false;
-      setRecoveryAction(null);
       updateFlyConnectionState("connecting");
       setError(null);
       terminal.writeln(
@@ -791,15 +778,8 @@ export const ChatTerminalSurface = forwardRef<
             const message = "Selected image is not running";
             flyConnectFailureKeyRef.current = attemptKey;
             setError(message);
-            setRecoveryAction({
-              kind: "apply-selected-brain-image",
-              label: "Apply selected Brain image",
-              title: `Apply selected Brain image (${selectedLabel})`,
-              imageRef: body.imageRef,
-              runningImageRef: body.runningImageRef ?? null,
-            });
             updateFlyConnectionState("error");
-            setInputSignal({ tone: "blocked", label: "Needs Apply" });
+            setInputSignal({ tone: "blocked", label: "Run image first" });
             terminal.writeln(
               `\x1b[33m${message}. Selected: ${selectedLabel}; running: ${runningLabel}.\x1b[0m`,
             );
@@ -808,7 +788,6 @@ export const ChatTerminalSurface = forwardRef<
           throw new Error(body.message ?? body.error ?? `HTTP ${res.status}`);
         }
         flyConnectFailureKeyRef.current = null;
-        setRecoveryAction(null);
         const session = (await res.json()) as { webSocketUrl: string };
         if (!isCurrentFlyConnect()) return;
         const ws = new WebSocket(session.webSocketUrl);
@@ -1152,14 +1131,12 @@ export const ChatTerminalSurface = forwardRef<
       inputLabel: inputSignal.label,
       inputTone: inputSignal.tone,
       actionBusy,
-      recoveryAction,
     });
   }, [
     actionBusy,
     inputSignal.label,
     inputSignal.tone,
     onChromeStateChange,
-    recoveryAction,
     statusText,
   ]);
 

@@ -22,17 +22,16 @@ const CHAT_SOURCE = readFileSync(
 );
 
 describe("Brain terminal image mismatch UI", () => {
-  it("shows a specific blocked state and recovery action", () => {
+  it("shows a specific blocked state without a second apply action", () => {
     expect(SURFACE_SOURCE).toContain("selected_image_not_running");
     expect(SURFACE_SOURCE).toContain("Selected image is not running");
-    expect(SURFACE_SOURCE).toContain("Apply selected Brain image");
-    expect(SURFACE_SOURCE).toContain("imageRef: body.imageRef");
-    expect(SURFACE_SOURCE).toContain("runningImageRef: body.runningImageRef");
+    expect(SURFACE_SOURCE).toContain("imageRef?: string");
+    expect(SURFACE_SOURCE).toContain("runningImageRef?: string | null");
+    expect(SURFACE_SOURCE).toContain("Run image first");
 
-    expect(CHAT_SOURCE).toContain("handleApplySelectedBrainImage");
-    expect(CHAT_SOURCE).toContain('fetch("/api/kody/brain/image/apply"');
-    expect(CHAT_SOURCE).toContain("kody:fly-machines-refresh");
-    expect(CHAT_SOURCE).toContain("activeTerminalChrome?.recoveryAction");
-    expect(CHAT_SOURCE).toContain("Apply selected Brain image");
+    expect(SURFACE_SOURCE).not.toContain("Apply selected Brain image");
+    expect(CHAT_SOURCE).not.toContain("handleApplySelectedBrainImage");
+    expect(CHAT_SOURCE).not.toContain("activeTerminalChrome?.recoveryAction");
+    expect(CHAT_SOURCE).not.toContain("Apply selected Brain image");
   });
 });

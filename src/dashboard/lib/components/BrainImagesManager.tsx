@@ -161,30 +161,6 @@ export function BrainImagesManager() {
     void loadImages();
   }, [loadImages]);
 
-  async function selectImage(imageRef: string) {
-    if (!headers) return;
-    setBusyRef(imageRef);
-    try {
-      const res = await fetch("/api/kody/brain/image", {
-        method: "PATCH",
-        headers: { "content-type": "application/json", ...headers },
-        body: JSON.stringify({ imageRef }),
-      });
-      const body = (await res.json().catch(() => ({}))) as BrainImagesResponse;
-      if (!res.ok) {
-        throw new Error(
-          body.message ?? body.error ?? `Select failed (${res.status})`,
-        );
-      }
-      await loadImages();
-      toast.success("Brain image selected");
-    } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Select failed");
-    } finally {
-      setBusyRef(null);
-    }
-  }
-
   async function applyImage(imageRef: string) {
     if (!headers) return;
     setBusyRef(imageRef);
@@ -249,8 +225,8 @@ export function BrainImagesManager() {
                   Saved images
                 </div>
                 <div className="mt-1 text-xs text-white/50">
-                  Selected image controls what Apply will run. Running image is
-                  what the terminal is using now.
+                  Run this image changes both the selected image and the
+                  terminal image.
                 </div>
               </div>
               <Button
@@ -325,7 +301,7 @@ export function BrainImagesManager() {
             )}
             {selectedNeedsApply && (
               <div className="rounded-md border border-amber-400/25 bg-amber-400/[0.08] px-3 py-2 text-xs text-amber-100">
-                Selected image is not running yet. Click Apply on the selected
+                Selected image is not running yet. Click Run this image on that
                 row before opening the Brain terminal.
               </div>
             )}
@@ -416,15 +392,6 @@ export function BrainImagesManager() {
                     <Button
                       type="button"
                       size="sm"
-                      variant={selected ? "secondary" : "outline"}
-                      disabled={selected || busy}
-                      onClick={() => void selectImage(image.imageRef)}
-                    >
-                      {selected ? "Selected" : "Select"}
-                    </Button>
-                    <Button
-                      type="button"
-                      size="sm"
                       variant={running ? "secondary" : "default"}
                       disabled={running || busy}
                       className="gap-2"
@@ -435,7 +402,7 @@ export function BrainImagesManager() {
                       ) : (
                         <Play className="h-4 w-4" />
                       )}
-                      {running ? "Running" : "Apply"}
+                      {running ? "Running" : "Run this image"}
                     </Button>
                     <Button
                       type="button"
