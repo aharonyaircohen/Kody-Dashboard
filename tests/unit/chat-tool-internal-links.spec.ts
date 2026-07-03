@@ -64,7 +64,7 @@ describe("chat issue-creation tools", () => {
       requirements: "Add a CSV export.",
     });
 
-    expect(result.url).toBe("/77");
+    expect(result.url).toBe("/repo/acme/app/77");
   });
 
   it("adds preview context to chat-created task issue bodies", async () => {
@@ -86,7 +86,23 @@ describe("chat issue-creation tools", () => {
       expect.anything(),
       expect.objectContaining({
         body: expect.stringContaining(
-          "### View Example\nCurrent preview page:\nURL: https://preview.test/demo",
+          "### View Example - Required Visual Contract",
+        ),
+      }),
+    );
+    expect(createIssueWithBestEffortMetadata).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({
+        body: expect.stringContaining(
+          "Do not substitute a new design direction",
+        ),
+      }),
+    );
+    expect(createIssueWithBestEffortMetadata).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({
+        body: expect.stringContaining(
+          "Current preview page:\nURL: https://preview.test/demo",
         ),
       }),
     );
@@ -103,7 +119,7 @@ describe("chat issue-creation tools", () => {
       steps: "Open exports and click Download.",
     });
 
-    expect(result.url).toBe("/77");
+    expect(result.url).toBe("/repo/acme/app/77");
   });
 
   it("returns the dashboard task URL for mission-planner issues", async () => {
@@ -121,7 +137,7 @@ describe("chat issue-creation tools", () => {
       category: "feature",
     });
 
-    expect(result.url).toBe("/77");
+    expect(result.url).toBe("/repo/acme/app/77");
   });
 
   it("adds preview context to mission-planner task issue bodies", async () => {
@@ -144,7 +160,15 @@ describe("chat issue-creation tools", () => {
       expect.anything(),
       expect.objectContaining({
         body: expect.stringContaining(
-          "### View Example\nCurrent preview page:\nURL: https://preview.test/goal",
+          "### View Example - Required Visual Contract",
+        ),
+      }),
+    );
+    expect(createIssueWithBestEffortMetadata).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({
+        body: expect.stringContaining(
+          "Current preview page:\nURL: https://preview.test/goal",
         ),
       }),
     );
@@ -178,6 +202,6 @@ describe("chat issue-creation tools", () => {
       notes: "Ship it.",
     });
 
-    expect(result.url).toBe("/88");
+    expect(result.url).toBe("/repo/acme/app/88");
   });
 });

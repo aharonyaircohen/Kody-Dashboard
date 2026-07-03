@@ -86,6 +86,12 @@ export function buildSystemPrompt(
      */
     currentPage?: string;
     /**
+     * Preview/page evidence collected by the dashboard for this turn. This is
+     * runtime context, not user-visible chat text: it tells the model that
+     * "this page" may refer to the preview reference the user is looking at.
+     */
+    previewContext?: string;
+    /**
      * Raw body of state repo `memory/INDEX.md` (or `null` when the file doesn't
      * exist). Injected under a `## Remembered context` heading so the agent
      * can decide whether a new memory would be a duplicate / update of an
@@ -138,6 +144,17 @@ export function buildSystemPrompt(
       `## Current page
 
 The user is currently viewing **${opts.currentPage.trim()}** in the dashboard. When they say "this page", "here", "what am I viewing", or "what is this", they mean this page — answer about it directly. Use your dashboard knowledge to describe it (call \`describe_feature\` with the matching id, e.g. the page slug, when you need the full rundown).`,
+    );
+  }
+  if (opts?.previewContext && opts.previewContext.trim().length > 0) {
+    sections.push(
+      `## Current preview reference
+
+The user is looking at the preview reference below. When they say "make this page", "build this page", "create this page", "copy this page", "turn this into a page", or similar, treat it as a request to create a GitHub issue for the connected repo using the create-issue workflow. Do not answer with a fresh design direction, marketing copy, or implementation plan as the final artifact.
+
+If an issue is created from this request, the preview reference is a required visual source for that issue.
+
+${opts.previewContext.trim()}`,
     );
   }
   if (opts?.org) {

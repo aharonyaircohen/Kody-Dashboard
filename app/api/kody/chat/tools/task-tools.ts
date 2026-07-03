@@ -106,7 +106,12 @@ export function appendPreviewContextToTaskInput(
     return { ...input, additionalContext: existing };
   }
 
-  const viewBlock = `### View Example\n${preview}`;
+  const viewBlock = `### View Example - Required Visual Contract
+The view below is the required visual source for this task. Reproduce its layout, spacing, typography, color, content hierarchy, and interaction feel as closely as the target app allows.
+
+Do not substitute a new design direction unless the issue requirements explicitly ask for changes or the source conflicts with the target app's design system. If exact matching is impossible, state what could not be matched and why in the implementation notes.
+
+${preview}`;
   return {
     ...input,
     additionalContext: existing ? `${existing}\n\n${viewBlock}` : viewBlock,

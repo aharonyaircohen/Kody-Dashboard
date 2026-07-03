@@ -948,6 +948,8 @@ export async function POST(req: NextRequest) {
       report: body.report,
       org: body.org,
       currentPage: body.currentPage,
+      previewContext:
+        typeof body.previewContext === "string" ? body.previewContext : undefined,
       memoryIndex,
       vibeMode,
       flyConfigured,

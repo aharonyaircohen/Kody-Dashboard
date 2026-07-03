@@ -155,6 +155,21 @@ describe("POST /api/kody/chat/kody", () => {
     expect(prompt).toBe("base");
   });
 
+  it("treats preview make-page requests as issue-creation requests", async () => {
+    const { buildSystemPrompt } =
+      await import("../../app/api/kody/chat/kody/system-prompt");
+    const prompt = buildSystemPrompt("base", { owner: "acme", repo: "app" }, undefined, {
+      previewContext:
+        "[Preview context]\n- Source path: views/demo-123\n- Preview URL: /api/kody/views/demo-123/index.html",
+    });
+
+    expect(prompt).toContain("## Current preview reference");
+    expect(prompt).toContain('"make this page"');
+    expect(prompt).toContain("create a GitHub issue");
+    expect(prompt).toContain("Do not answer with a fresh design direction");
+    expect(prompt).toContain("Source path: views/demo-123");
+  });
+
   it("appends a current-capability block when opts.capability is set", async () => {
     const { buildSystemPrompt } =
       await import("../../app/api/kody/chat/kody/system-prompt");
