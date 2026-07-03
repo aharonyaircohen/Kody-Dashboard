@@ -167,7 +167,7 @@ export function cmsCollectionFromModelDraft(
   return {
     name,
     label: draft.label.trim() || titleizeCmsModelName(name),
-    adapter: "mongodb",
+    adapter: "storage",
     titleField,
     searchFields,
     writePolicy: "enabled",

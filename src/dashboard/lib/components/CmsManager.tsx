@@ -125,13 +125,13 @@ import type {
 
 const DEFAULT_PAGE_SIZE = 25;
 const PAGE_SIZE_OPTIONS = [10, 25, 50, 100] as const;
-const DEFAULT_CMS_ADAPTER = "mongodb";
+const DEFAULT_CMS_ADAPTER = "storage";
 const DEFAULT_CMS_ADAPTERS: CmsAdapterCatalogItem[] = [
   {
     name: DEFAULT_CMS_ADAPTER,
-    label: "MongoDB",
-    description: "MongoDB collections",
-    supportsSchemaGeneration: true,
+    label: "Storage",
+    description: "JSON documents through the configured storage adapter",
+    supportsSchemaGeneration: false,
     htmlUrl: null,
   },
 ];

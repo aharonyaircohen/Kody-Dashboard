@@ -16,7 +16,7 @@ export interface CmsAdapterCatalogItem {
 }
 
 const CMS_ADAPTER_ROOT = "cms/adapters";
-const DEFAULT_CMS_ADAPTER = "mongodb";
+const DEFAULT_CMS_ADAPTER = "storage";
 
 const ADAPTER_METADATA: Record<
   string,
@@ -25,6 +25,11 @@ const ADAPTER_METADATA: Record<
     "label" | "description" | "supportsSchemaGeneration"
   >
 > = {
+  storage: {
+    label: "Storage",
+    description: "JSON documents through the configured storage adapter",
+    supportsSchemaGeneration: false,
+  },
   mongodb: {
     label: "MongoDB",
     description: "MongoDB collections",
@@ -49,11 +54,13 @@ export async function listStoreCmsAdapters(
     octokit,
     CMS_ADAPTER_ROOT,
   );
-  return entries
+  const storeAdapters = entries
     .filter(
       (entry) => entry.type === "dir" && isValidCmsAdapterName(entry.name),
     )
-    .map((entry) => cmsAdapterCatalogItem(entry.name))
+    .map((entry) => cmsAdapterCatalogItem(entry.name));
+  const items = uniqueByName([cmsAdapterCatalogItem(DEFAULT_CMS_ADAPTER), ...storeAdapters]);
+  return items
     .sort((a, b) => {
       if (a.name === DEFAULT_CMS_ADAPTER) return -1;
       if (b.name === DEFAULT_CMS_ADAPTER) return 1;
@@ -83,8 +90,20 @@ function cmsAdapterCatalogItem(name: string): CmsAdapterCatalogItem {
   return {
     name,
     ...metadata,
-    htmlUrl: buildCompanyStoreBlobUrl(`${CMS_ADAPTER_ROOT}/${name}/index.mjs`),
+    htmlUrl:
+      name === DEFAULT_CMS_ADAPTER
+        ? null
+        : buildCompanyStoreBlobUrl(`${CMS_ADAPTER_ROOT}/${name}/index.mjs`),
   };
+}
+
+function uniqueByName(items: CmsAdapterCatalogItem[]): CmsAdapterCatalogItem[] {
+  const seen = new Set<string>();
+  return items.filter((item) => {
+    if (seen.has(item.name)) return false;
+    seen.add(item.name);
+    return true;
+  });
 }
 
 function humanizeAdapterName(name: string): string {

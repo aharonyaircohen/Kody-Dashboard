@@ -16,18 +16,29 @@ import {
 } from "@dashboard/lib/cms/adapter-catalog";
 
 describe("CMS adapter defaults", () => {
+  it("has no backend-specific settings for the storage adapter", () => {
+    expect(defaultCmsAdapterSettings("storage")).toEqual({});
+  });
+
   it("provides the file adapter root directory", () => {
     expect(defaultCmsAdapterSettings("file")).toEqual({
       rootDir: "cms/content",
     });
   });
 
-  it("labels the file adapter as kody-state JSON", async () => {
+  it("lists storage first before Store-owned adapters", async () => {
     companyStore.listCompanyStoreDirectorySafe.mockResolvedValue([
       { name: "file", type: "dir" },
     ]);
 
     await expect(listStoreCmsAdapters({} as never)).resolves.toEqual([
+      {
+        name: "storage",
+        label: "Storage",
+        description: "JSON documents through the configured storage adapter",
+        supportsSchemaGeneration: false,
+        htmlUrl: null,
+      },
       {
         name: "file",
         label: "kody-state JSON",

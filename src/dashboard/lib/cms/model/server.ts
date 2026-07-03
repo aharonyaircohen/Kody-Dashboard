@@ -79,7 +79,7 @@ export function sanitizeCmsModelCollectionPayload(
   const collection: CmsCollectionConfig = {
     name,
     label: stringValue(rawCollection.label) ?? titleizeCmsModelName(name),
-    adapter: "mongodb",
+    adapter: "storage",
     titleField,
     searchFields,
     writePolicy: "enabled",
@@ -118,7 +118,7 @@ export function sanitizeCmsModelCollectionPayload(
     version: 1,
     name: "CMS",
     environment: "default",
-    defaultAdapter: "mongodb",
+    defaultAdapter: "storage",
     writePolicy: "enabled",
     collections: { [collection.name]: collection },
   });
@@ -151,7 +151,7 @@ export async function buildCmsModelFiles({
         name: `${repo} CMS`,
         environment: "default",
         environmentFile: "environments/default.json",
-        defaultAdapter: "mongodb",
+        defaultAdapter: "storage",
         writePolicy: "enabled",
         collections: [],
       };
@@ -161,7 +161,7 @@ export async function buildCmsModelFiles({
   root.environment = stringValue(root.environment) ?? "default";
   root.environmentFile =
     stringValue(root.environmentFile) ?? "environments/default.json";
-  root.defaultAdapter = stringValue(root.defaultAdapter) ?? "mongodb";
+  root.defaultAdapter = stringValue(root.defaultAdapter) ?? "storage";
   root.writePolicy = stringValue(root.writePolicy) ?? "enabled";
 
   const collectionPath = await upsertCollectionRef(
@@ -196,7 +196,7 @@ export async function buildCmsModelFiles({
       content: `${JSON.stringify(
         {
           name: "default",
-          adapter: "mongodb",
+          adapter: "storage",
           databaseUriSecret: CMS_DATABASE_URL_SECRET,
           writePolicy: "enabled",
         },

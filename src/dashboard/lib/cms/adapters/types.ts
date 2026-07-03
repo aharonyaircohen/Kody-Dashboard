@@ -7,6 +7,7 @@ import type {
   CmsRuntimeConfig,
 } from "../types";
 import type { Octokit } from "@octokit/rest";
+import type { CmsStorageTransport } from "@dashboard/lib/storage";
 
 export class CmsAdapterError extends Error {
   readonly code: string;
@@ -25,6 +26,7 @@ export interface CmsAdapterContext {
   collection: CmsCollectionConfig;
   settings: CmsAdapterSettings;
   getSecret: (name: string) => Promise<string | null>;
+  transport?: CmsStorageTransport;
   store?: {
     octokit: Octokit;
     repoUrl?: string;

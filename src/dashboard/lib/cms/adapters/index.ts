@@ -27,6 +27,7 @@ import {
   type CmsAdapter,
   type CmsAdapterContext,
 } from "./types";
+import { createStorageCmsAdapter } from "./storage";
 
 const ADAPTERS_ROOT_ENV = "KODY_CMS_ADAPTERS_ROOT";
 const STORE_ROOT_ENV = "KODY_STORE_ROOT";
@@ -85,7 +86,10 @@ export function getCmsAdapter(name: string): CmsAdapter | null {
 
   let adapter = ADAPTERS.get(adapterName);
   if (!adapter) {
-    adapter = createStoreAdapterBridge(adapterName);
+    adapter =
+      adapterName === "storage"
+        ? createStorageCmsAdapter({ resolveTransport: createSharedStorageTransport })
+        : createStoreAdapterBridge(adapterName);
     ADAPTERS.set(adapterName, adapter);
   }
   return adapter;
