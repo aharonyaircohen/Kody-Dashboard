@@ -36,6 +36,7 @@ import {
 import { Card } from "@dashboard/ui/card";
 import { Button } from "@dashboard/ui/button";
 import { HappeningNow } from "./HappeningNow";
+import { KodyStatusBanner } from "./KodyStatusBanner";
 import { TriageStrip } from "./TriageStrip";
 import { useKodyTasks } from "../hooks";
 import { useReports } from "../hooks/useReports";
@@ -62,7 +63,7 @@ import { cn } from "../utils";
 import { autoDirProps } from "../text-direction";
 import type { ColumnId, KodyTask } from "../types";
 import type { HealthLevel } from "../health/types";
-import type { Report } from "../api";
+import type { DefaultBranchCI, Report } from "../api";
 import { getStoredAuth } from "../api";
 import type { ActionLogEntry } from "../activity/action-log";
 import { repoScopedHref } from "../routes";
@@ -336,11 +337,12 @@ function NeedsYouCard() {
 function FailingCard({
   tasks,
   tasksLoading,
+  ci,
 }: {
   tasks: KodyTask[];
   tasksLoading: boolean;
+  ci?: DefaultBranchCI;
 }) {
-  const { data: ci } = useDefaultBranchCI();
   const { githubUser } = useGitHubIdentity();
   const { auth } = useAuth();
   const scopedHref = (href: string) =>
@@ -1037,11 +1039,13 @@ export function DashboardHome() {
   const {
     data: tasks,
     isLoading: tasksLoading,
+    isFetching: tasksFetching,
     dataUpdatedAt,
   } = useKodyTasks({
     refetchInterval: "auto",
   });
   const all = tasks ?? [];
+  const { data: mainCi, isFetching: mainCiFetching } = useDefaultBranchCI();
 
   if (!auth) {
     return <RepoManager />;
@@ -1055,6 +1059,16 @@ export function DashboardHome() {
           tasksLoading={tasksLoading}
           updatedAt={dataUpdatedAt}
         />
+
+        <div className="overflow-hidden rounded-md border border-white/[0.06]">
+          <KodyStatusBanner
+            tasks={all}
+            mainCi={mainCi}
+            mainCiLoading={mainCiFetching && !mainCi}
+            isFetching={tasksFetching}
+            dataUpdatedAt={dataUpdatedAt}
+          />
+        </div>
 
         <HappeningNow
           tasks={all}
@@ -1091,7 +1105,11 @@ export function DashboardHome() {
           </div>
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
             <NeedsYouCard />
-            <FailingCard tasks={all} tasksLoading={tasksLoading} />
+            <FailingCard
+              tasks={all}
+              tasksLoading={tasksLoading}
+              ci={mainCi}
+            />
           </div>
         </section>
 
