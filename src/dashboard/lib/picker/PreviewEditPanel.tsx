@@ -1,12 +1,11 @@
 "use client";
 
-import { useState } from "react";
+import { useRef, useState } from "react";
 import {
   Copy,
   EyeOff,
   Image,
   Link,
-  Paintbrush,
   RotateCcw,
   Send,
   Trash2,
@@ -30,7 +29,7 @@ interface PreviewEditPanelProps {
 }
 
 const inputClass =
-  "h-8 rounded border border-zinc-700 bg-zinc-950 px-2 text-xs text-zinc-100 outline-none focus:border-blue-500";
+  "h-8 rounded border border-zinc-700 bg-zinc-950 px-2 text-xs text-zinc-100 outline-none focus:border-blue-500 disabled:opacity-50";
 const actionClass =
   "inline-flex h-8 items-center justify-center gap-1.5 rounded border border-zinc-700 bg-zinc-800 px-2.5 text-xs font-medium text-zinc-300 transition-colors hover:bg-zinc-700 hover:text-white disabled:cursor-not-allowed disabled:opacity-50";
 const controlLabelClass = "text-[11px] font-medium text-zinc-500";
@@ -97,11 +96,13 @@ function ColorControl({
   label,
   value,
   fallback,
+  disabled,
   onChange,
 }: {
   label: string;
   value: string;
   fallback: string;
+  disabled?: boolean;
   onChange: (value: string) => void;
 }) {
   const hex = colorToHex(value, fallback);
@@ -111,8 +112,9 @@ function ColorControl({
       <input
         type="color"
         value={hex}
+        disabled={disabled}
         onChange={(event) => onChange(event.target.value)}
-        className="ml-auto h-6 w-8 cursor-pointer rounded border border-zinc-700 bg-transparent p-0"
+        className="ml-auto h-6 w-8 cursor-pointer rounded border border-zinc-700 bg-transparent p-0 disabled:cursor-not-allowed disabled:opacity-50"
         aria-label={label}
       />
       <span className="w-16 font-mono text-[11px] text-zinc-400">{hex}</span>
@@ -126,6 +128,7 @@ function SliderControl({
   min,
   max,
   step = 1,
+  disabled,
   onChange,
 }: {
   label: string;
@@ -133,25 +136,147 @@ function SliderControl({
   min: number;
   max: number;
   step?: number;
+  disabled?: boolean;
   onChange: (value: string) => void;
 }) {
   const numeric = clamp(firstPx(value, min), min, max);
+  const percent = max === min ? 0 : ((numeric - min) / (max - min)) * 100;
+  const trackRef = useRef<HTMLDivElement | null>(null);
+  const dragRef = useRef<{ pointerId: number } | null>(null);
+  const scrubRef = useRef<{
+    pointerId: number;
+    startX: number;
+    startValue: number;
+  } | null>(null);
+  const applyNumericValue = (next: number): void => {
+    const stepped = Math.round(next / step) * step;
+    onChange(toPx(clamp(stepped, min, max)));
+  };
+  const valueFromClientX = (clientX: number): number | null => {
+    const rect = trackRef.current?.getBoundingClientRect();
+    if (!rect || rect.width <= 0) return null;
+    const ratio = clamp((clientX - rect.left) / rect.width, 0, 1);
+    return min + ratio * (max - min);
+  };
+  const applyPointerValue = (clientX: number): void => {
+    const next = valueFromClientX(clientX);
+    if (next === null) return;
+    applyNumericValue(next);
+  };
+  const stopDragging = (pointerId: number): void => {
+    if (dragRef.current?.pointerId === pointerId) {
+      dragRef.current = null;
+    }
+  };
   return (
     <label className="space-y-1.5">
       <div className="flex items-center justify-between gap-2">
         <span className={controlLabelClass}>{label}</span>
-        <span className={controlValueClass}>{toPx(numeric)}</span>
+        <span
+          role="spinbutton"
+          aria-label={`${label} value`}
+          aria-valuemin={min}
+          aria-valuemax={max}
+          aria-valuenow={numeric}
+          tabIndex={disabled ? -1 : 0}
+          className={cn(
+            controlValueClass,
+            "cursor-ew-resize select-none rounded px-1 py-0.5 hover:bg-zinc-800 hover:text-zinc-200 focus:bg-zinc-800 focus:text-zinc-100 focus:outline-none",
+            disabled && "cursor-not-allowed opacity-50",
+          )}
+          onPointerDown={(event) => {
+            if (disabled) return;
+            event.currentTarget.setPointerCapture(event.pointerId);
+            scrubRef.current = {
+              pointerId: event.pointerId,
+              startX: event.clientX,
+              startValue: numeric,
+            };
+          }}
+          onPointerMove={(event) => {
+            const scrub = scrubRef.current;
+            if (!scrub || scrub.pointerId !== event.pointerId) return;
+            applyNumericValue(
+              scrub.startValue + (event.clientX - scrub.startX),
+            );
+          }}
+          onPointerUp={(event) => {
+            if (scrubRef.current?.pointerId === event.pointerId) {
+              scrubRef.current = null;
+            }
+          }}
+          onPointerCancel={(event) => {
+            if (scrubRef.current?.pointerId === event.pointerId) {
+              scrubRef.current = null;
+            }
+          }}
+          onKeyDown={(event) => {
+            if (disabled) return;
+            if (event.key === "ArrowRight" || event.key === "ArrowUp") {
+              event.preventDefault();
+              applyNumericValue(numeric + step);
+            } else if (event.key === "ArrowLeft" || event.key === "ArrowDown") {
+              event.preventDefault();
+              applyNumericValue(numeric - step);
+            }
+          }}
+          title="Drag left or right"
+        >
+          {toPx(numeric)}
+        </span>
       </div>
-      <input
-        type="range"
-        min={min}
-        max={max}
-        step={step}
-        value={numeric}
-        onChange={(event) => onChange(toPx(Number(event.target.value)))}
-        className="w-full accent-blue-500"
+      <div
+        ref={trackRef}
+        role="slider"
+        tabIndex={disabled ? -1 : 0}
         aria-label={label}
-      />
+        aria-valuemin={min}
+        aria-valuemax={max}
+        aria-valuenow={numeric}
+        className={cn(
+          "relative h-8 touch-none select-none outline-none",
+          disabled ? "cursor-not-allowed opacity-50" : "cursor-ew-resize",
+        )}
+        onPointerDown={(event) => {
+          if (disabled) return;
+          event.preventDefault();
+          event.currentTarget.setPointerCapture(event.pointerId);
+          dragRef.current = { pointerId: event.pointerId };
+          applyPointerValue(event.clientX);
+        }}
+        onPointerMove={(event) => {
+          if (dragRef.current?.pointerId !== event.pointerId) return;
+          applyPointerValue(event.clientX);
+        }}
+        onPointerUp={(event) => stopDragging(event.pointerId)}
+        onPointerCancel={(event) => stopDragging(event.pointerId)}
+        onKeyDown={(event) => {
+          if (disabled) return;
+          if (event.key === "ArrowRight" || event.key === "ArrowUp") {
+            event.preventDefault();
+            applyNumericValue(numeric + step);
+          } else if (event.key === "ArrowLeft" || event.key === "ArrowDown") {
+            event.preventDefault();
+            applyNumericValue(numeric - step);
+          } else if (event.key === "Home") {
+            event.preventDefault();
+            applyNumericValue(min);
+          } else if (event.key === "End") {
+            event.preventDefault();
+            applyNumericValue(max);
+          }
+        }}
+      >
+        <div className="absolute left-0 right-0 top-1/2 h-2 -translate-y-1/2 rounded-full bg-zinc-700 shadow-inner" />
+        <div
+          className="absolute left-0 top-1/2 h-2 -translate-y-1/2 rounded-full bg-blue-500"
+          style={{ width: `${percent}%` }}
+        />
+        <div
+          className="absolute top-1/2 h-5 w-5 -translate-x-1/2 -translate-y-1/2 rounded-full border border-blue-300 bg-blue-500 shadow-sm shadow-blue-950/40 ring-2 ring-blue-500/20"
+          style={{ left: `${percent}%` }}
+        />
+      </div>
     </label>
   );
 }
@@ -160,11 +285,13 @@ function SelectControl({
   label,
   value,
   options,
+  disabled,
   onChange,
 }: {
   label: string;
   value: string;
   options: Array<{ label: string; value: string }>;
+  disabled?: boolean;
   onChange: (value: string) => void;
 }) {
   return (
@@ -172,8 +299,9 @@ function SelectControl({
       <span className={controlLabelClass}>{label}</span>
       <select
         value={value}
+        disabled={disabled}
         onChange={(event) => onChange(event.target.value)}
-        className="ml-auto h-8 rounded border border-zinc-700 bg-zinc-950 px-2 text-xs text-zinc-100 outline-none focus:border-blue-500"
+        className="ml-auto h-8 rounded border border-zinc-700 bg-zinc-950 px-2 text-xs text-zinc-100 outline-none focus:border-blue-500 disabled:opacity-50"
       >
         {options.map((option) => (
           <option key={option.value} value={option.value}>
@@ -183,19 +311,6 @@ function SelectControl({
       </select>
     </label>
   );
-}
-
-function compactChangedStyles(
-  styles: Record<string, string>,
-  changed: Set<string>,
-): PreviewEditMutation | null {
-  const clean = Object.fromEntries(
-    Object.entries(styles)
-      .filter(([key]) => changed.has(key))
-      .map(([key, value]) => [key, value.trim()])
-      .filter(([, value]) => value),
-  );
-  return Object.keys(clean).length ? { op: "style", styles: clean } : null;
 }
 
 export function PreviewEditPanel({
@@ -228,24 +343,12 @@ export function PreviewEditPanel({
     width: computedStyles.width ?? "",
     maxWidth: computedStyles.maxWidth ?? "",
   });
-  const [changedStyles, setChangedStyles] = useState<Set<string>>(
-    () => new Set(),
-  );
 
   const updateStyle = (name: StyleName, value: string): void => {
     setStyles((prev) => ({ ...prev, [name]: value }));
-    setChangedStyles((prev) => {
-      const next = new Set(prev);
-      next.add(name);
-      return next;
-    });
-  };
-
-  const applyStyles = async (): Promise<void> => {
-    const mutation = compactChangedStyles(styles, changedStyles);
-    if (!mutation) return;
-    await onApply(mutation);
-    setChangedStyles(new Set());
+    const clean = value.trim();
+    if (!clean) return;
+    void onApply({ op: "style", styles: { [name]: clean } });
   };
 
   const hasHref = element.tagName === "a" || "href" in element.attributes;
@@ -282,7 +385,6 @@ export function PreviewEditPanel({
       <div className="space-y-3">
         <section className="space-y-2">
           <div className="flex items-center gap-1.5 text-[11px] font-medium uppercase tracking-wide text-zinc-500">
-            <Paintbrush className="h-3 w-3" />
             Style
           </div>
           <div className="space-y-3 rounded border border-zinc-800 bg-zinc-900/30 p-2.5">
@@ -291,12 +393,14 @@ export function PreviewEditPanel({
                 label="Text"
                 value={styles.color}
                 fallback="#ffffff"
+                disabled={busy}
                 onChange={(value) => updateStyle("color", value)}
               />
               <ColorControl
                 label="Fill"
                 value={styles.backgroundColor}
                 fallback="#111827"
+                disabled={busy}
                 onChange={(value) => updateStyle("backgroundColor", value)}
               />
             </div>
@@ -307,11 +411,13 @@ export function PreviewEditPanel({
                 value={styles.fontSize}
                 min={8}
                 max={96}
+                disabled={busy}
                 onChange={(value) => updateStyle("fontSize", value)}
               />
               <SelectControl
                 label="Weight"
                 value={styles.fontWeight}
+                disabled={busy}
                 onChange={(value) => updateStyle("fontWeight", value)}
                 options={[
                   { label: "Thin", value: "100" },
@@ -333,6 +439,7 @@ export function PreviewEditPanel({
                 value={styles.padding}
                 min={0}
                 max={96}
+                disabled={busy}
                 onChange={(value) => updateStyle("padding", value)}
               />
               <SliderControl
@@ -340,6 +447,7 @@ export function PreviewEditPanel({
                 value={styles.margin}
                 min={0}
                 max={96}
+                disabled={busy}
                 onChange={(value) => updateStyle("margin", value)}
               />
               <SliderControl
@@ -347,6 +455,7 @@ export function PreviewEditPanel({
                 value={styles.gap}
                 min={0}
                 max={80}
+                disabled={busy}
                 onChange={(value) => updateStyle("gap", value)}
               />
             </div>
@@ -357,6 +466,7 @@ export function PreviewEditPanel({
                 value={styles.borderRadius}
                 min={0}
                 max={64}
+                disabled={busy}
                 onChange={(value) => updateStyle("borderRadius", value)}
               />
               <SliderControl
@@ -365,6 +475,7 @@ export function PreviewEditPanel({
                 min={0}
                 max={1200}
                 step={10}
+                disabled={busy}
                 onChange={(value) => updateStyle("width", value)}
               />
               <SliderControl
@@ -373,6 +484,7 @@ export function PreviewEditPanel({
                 min={0}
                 max={1200}
                 step={10}
+                disabled={busy}
                 onChange={(value) => updateStyle("maxWidth", value)}
               />
             </div>
@@ -382,6 +494,7 @@ export function PreviewEditPanel({
                 value={styles.border}
                 onChange={(event) => updateStyle("border", event.target.value)}
                 placeholder="border, e.g. 1px solid #ddd"
+                disabled={busy}
                 className={inputClass}
               />
               <input
@@ -390,19 +503,11 @@ export function PreviewEditPanel({
                   updateStyle("boxShadow", event.target.value)
                 }
                 placeholder="shadow"
+                disabled={busy}
                 className={inputClass}
               />
             </div>
           </div>
-          <button
-            type="button"
-            onClick={() => void applyStyles()}
-            disabled={busy || changedStyles.size === 0}
-            className={cn(actionClass, "w-full")}
-          >
-            <Paintbrush className="h-3.5 w-3.5" />
-            Apply style
-          </button>
         </section>
 
         <section className="space-y-2">
