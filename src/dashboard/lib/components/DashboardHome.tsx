@@ -233,35 +233,31 @@ function HealthRow({
       ? `${problems.length} signal${problems.length === 1 ? "" : "s"} need attention`
       : "Activity checks clear";
   const cellClassName =
-    "flex min-h-16 items-center gap-3 px-3 py-2.5 transition-colors hover:bg-white/[0.04]";
+    "inline-flex h-7 min-w-0 items-center gap-1.5 rounded-md px-2 text-body-xs transition-colors hover:bg-white/[0.04]";
   const ciCellContent = (
     <>
+      <GitBranch className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
+      <span className="text-muted-foreground">CI</span>
       <span
         className={cn(
-          "inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-md",
+          "rounded-sm border px-1.5 py-0.5 font-medium leading-none",
           ciStatus.tone,
         )}
       >
-        <GitBranch className="h-3.5 w-3.5" />
+        {ciStatus.text}
       </span>
-      <span className="min-w-0 flex-1">
-        <span className="block text-body-xs text-muted-foreground">CI</span>
-        <span className="block truncate text-body-sm font-medium">
-          {ciStatus.text}
-        </span>
-        <span className="block truncate text-body-xs text-muted-foreground">
-          {ciDetail}
-        </span>
+      <span className="truncate text-muted-foreground">
+        {ciDetail}
       </span>
       {ciRunUrl ? (
-        <ExternalLink className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
+        <ExternalLink className="h-3 w-3 shrink-0 text-muted-foreground" />
       ) : null}
     </>
   );
 
   return (
-    <Card className="mb-3 overflow-hidden p-0">
-      <div className="grid grid-cols-1 divide-y divide-white/[0.06] sm:grid-cols-2 sm:divide-x sm:divide-y-0">
+    <Card className="mb-2 px-2 py-1.5">
+      <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
         {ciRunUrl ? (
           <a
             href={ciRunUrl}
@@ -285,26 +281,20 @@ function HealthRow({
           title={engineTitle}
           className={cellClassName}
         >
+          <Activity className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
+          <span className="text-muted-foreground">Engine</span>
           <span
             className={cn(
-              "inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-md",
+              "rounded-sm px-1.5 py-0.5 font-medium leading-none",
               LEVEL_TINT[level],
             )}
           >
-            <Activity className="h-3.5 w-3.5" />
+            {engineStatus}
           </span>
-          <span className="min-w-0 flex-1">
-            <span className="block text-body-xs text-muted-foreground">
-              Engine
-            </span>
-            <span className="block truncate text-body-sm font-medium">
-              {engineStatus}
-            </span>
-            <span className="block truncate text-body-xs text-muted-foreground">
-              {engineDetail}
-            </span>
+          <span className="truncate text-muted-foreground">
+            {engineDetail}
           </span>
-          <ArrowRight className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
+          <ArrowRight className="h-3 w-3 shrink-0 text-muted-foreground" />
         </RepoScopedLink>
       </div>
     </Card>
