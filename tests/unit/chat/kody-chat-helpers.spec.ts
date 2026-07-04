@@ -8,9 +8,11 @@
 import { describe, it, expect } from "vitest";
 import {
   bootPhaseLabel,
+  composeUserWireContent,
   formatElapsed,
   formatFileSize,
   getFileIcon,
+  shouldCollectPreviewContextForTurn,
 } from "@dashboard/lib/components/kody-chat-helpers";
 
 describe("bootPhaseLabel — Fly timeline", () => {
@@ -79,5 +81,45 @@ describe("getFileIcon", () => {
       expect(el.type).toBeDefined();
       expect(el.props).toBeDefined();
     }
+  });
+});
+
+describe("kody chat preview context shaping", () => {
+  it("keeps kody-direct user text clean because preview context is sent separately", () => {
+    expect(
+      composeUserWireContent({
+        messageContent: "can u change this label color ?",
+        previewContext: "Text: test\nBranch: dev",
+        backend: "kody-direct",
+      }),
+    ).toBe("can u change this label color ?");
+  });
+
+  it("inlines preview context for text-only backends that have no separate preview field", () => {
+    expect(
+      composeUserWireContent({
+        messageContent: "can u change this label color ?",
+        previewContext: "Text: test\nBranch: dev",
+        backend: "kody-live",
+      }),
+    ).toContain("Text: test");
+  });
+
+  it("does not auto-attach preview context to hidden observation turns", () => {
+    expect(
+      shouldCollectPreviewContextForTurn({
+        hidden: true,
+        hasImageAttachments: false,
+      }),
+    ).toBe(false);
+  });
+
+  it("does not auto-attach preview context to image turns", () => {
+    expect(
+      shouldCollectPreviewContextForTurn({
+        hidden: false,
+        hasImageAttachments: true,
+      }),
+    ).toBe(false);
   });
 });

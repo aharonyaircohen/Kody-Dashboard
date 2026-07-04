@@ -31,9 +31,11 @@ import {
   type ShowViewInput,
 } from "@dashboard/lib/view-renderers/chat-contract";
 import {
+  FINAL_ANSWER_REQUIRES_VIEW_ERROR,
   FINAL_ANSWER_TOOL,
   SHOW_VIEW_TOOL,
 } from "@dashboard/lib/chat-output-tools";
+import { shouldRequireViewOutputForAssistantText } from "@dashboard/lib/view-renderers/chat-intent";
 
 const SELECTABLE_AGENT_IDS = Object.values(AGENTS).map(
   (a) => a.id,
@@ -177,7 +179,8 @@ export function createUiTools(ctx: UiToolsCtx = {}) {
     [FINAL_ANSWER_TOOL]: tool({
       description:
         "Finish the turn with plain text when no chat UI renderer is needed. " +
-        "Use this for ordinary answers, summaries, and status updates.",
+        "Use this for ordinary answers, summaries, and status updates. " +
+        "Do not use this for questions that ask the user to choose, approve, confirm, continue, cancel, or pick an action; use show_view instead.",
       inputSchema: z.object({
         content: z
           .string()
@@ -185,7 +188,19 @@ export function createUiTools(ctx: UiToolsCtx = {}) {
           .max(12000)
           .describe("The final user-visible answer."),
       }),
-      execute: async ({ content }) => ({ content }),
+      execute: async ({ content }) => {
+        if (
+          shouldRequireViewOutputForAssistantText({
+            assistantText: content,
+            definitions: ctx.viewRendererDefinitions ?? [],
+          })
+        ) {
+          return {
+            error: FINAL_ANSWER_REQUIRES_VIEW_ERROR,
+          };
+        }
+        return { content };
+      },
     }),
     switch_agent: switchAgentTool,
     preview_act: previewActTool,

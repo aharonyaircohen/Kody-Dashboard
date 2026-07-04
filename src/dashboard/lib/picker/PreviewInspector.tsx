@@ -11,7 +11,15 @@
  */
 "use client";
 
-import { useEffect, useRef, useState, type RefObject } from "react";
+import {
+  useCallback,
+  useEffect,
+  useRef,
+  useState,
+  type CSSProperties,
+  type RefObject,
+} from "react";
+import { createPortal } from "react-dom";
 import { toast } from "sonner";
 import {
   Bug,
@@ -24,6 +32,7 @@ import {
   Globe,
   Puzzle,
   ChevronDown,
+  Paintbrush,
 } from "lucide-react";
 import { cn } from "../utils";
 import { useElementPicker } from "./useElementPicker";
@@ -34,16 +43,21 @@ import {
   formatPerf,
   formatPickedElement,
   formatPickedElementLabel,
+  formatPreviewEditRequest,
   PICKER_DOWNLOAD_PATH,
   PICKER_DOCS_URL,
   PICKER_FIREFOX_DOWNLOAD_PATH,
   PICKER_FIREFOX_INSTALL_HINT,
   PICKER_INSTALL_HINT,
+  type PickedElement,
+  type PreviewEditChange,
+  type PreviewEditMutation,
   type PreviewAction,
 } from "./protocol";
 import { recordedStepToAction } from "../macros";
 import { PreviewMacrosMenu } from "../components/PreviewMacrosMenu";
 import { PreviewFloatingMenu } from "../components/PreviewFloatingMenu";
+import { PreviewEditPanel } from "./PreviewEditPanel";
 
 export interface ComposerChip {
   id: string;
@@ -89,10 +103,17 @@ export function PreviewInspector({
   repo,
 }: PreviewInspectorProps) {
   const [busy, setBusy] = useState<
-    null | "logs" | "network" | "shot" | "perf" | "rec"
+    null | "logs" | "network" | "shot" | "perf" | "rec" | "edit"
   >(null);
   const actionMenuRef = useRef<HTMLDivElement | null>(null);
   const [actionMenuOpen, setActionMenuOpen] = useState(false);
+  const [editPanelOpen, setEditPanelOpen] = useState(false);
+  const [editElement, setEditElement] = useState<PickedElement | null>(null);
+  const [editChanges, setEditChanges] = useState<PreviewEditChange[]>([]);
+  const [editPanelStyle, setEditPanelStyle] = useState<CSSProperties | null>(
+    null,
+  );
+  const selectModeRef = useRef<"context" | "edit">("context");
   const diagnosticMenuRef = useRef<HTMLDivElement | null>(null);
   const [diagnosticMenuOpen, setDiagnosticMenuOpen] = useState(false);
   // Hoisted above the "not installed" early-return below so hooks order
@@ -124,8 +145,72 @@ export function PreviewInspector({
     }
   }, [autoContext]);
 
+  const updateEditPanelPosition = useCallback(
+    (el: PickedElement | null = editElement): void => {
+      if (!el || typeof window === "undefined") {
+        setEditPanelStyle(null);
+        return;
+      }
+      const iframe = previewRef.current?.querySelector("iframe");
+      const iframeRect = iframe?.getBoundingClientRect();
+      if (!iframeRect) {
+        setEditPanelStyle(null);
+        return;
+      }
+
+      const gap = 12;
+      const viewportGap = 8;
+      const panelWidth = 320;
+      const panelHeight = Math.min(520, window.innerHeight - viewportGap * 2);
+      const targetLeft = iframeRect.left + el.rect.x;
+      const targetRight = targetLeft + el.rect.width;
+      const targetTop = iframeRect.top + el.rect.y;
+      const targetCenterX = targetLeft + el.rect.width / 2;
+      const preferRight = targetCenterX < window.innerWidth / 2;
+      const rightLeft = targetRight + gap;
+      const leftLeft = targetLeft - panelWidth - gap;
+      let left = preferRight ? rightLeft : leftLeft;
+
+      if (left + panelWidth > window.innerWidth - viewportGap) {
+        left = leftLeft;
+      }
+      if (left < viewportGap) {
+        left = Math.min(
+          window.innerWidth - panelWidth - viewportGap,
+          Math.max(viewportGap, rightLeft),
+        );
+      }
+
+      const maxTop = window.innerHeight - panelHeight - viewportGap;
+      const top = Math.max(viewportGap, Math.min(targetTop, maxTop));
+      setEditPanelStyle({ position: "fixed", top, left, zIndex: 130 });
+    },
+    [editElement, previewRef],
+  );
+
+  useEffect(() => {
+    if (!editPanelOpen || !editElement) return;
+    updateEditPanelPosition(editElement);
+    const reposition = (): void => updateEditPanelPosition(editElement);
+    window.addEventListener("resize", reposition);
+    window.addEventListener("scroll", reposition, true);
+    return () => {
+      window.removeEventListener("resize", reposition);
+      window.removeEventListener("scroll", reposition, true);
+    };
+  }, [editElement, editPanelOpen, updateEditPanelPosition]);
+
   const picker = useElementPicker({
     onSelect: (el) => {
+      if (selectModeRef.current === "edit") {
+        setEditElement(el);
+        setEditChanges([]);
+        updateEditPanelPosition(el);
+        setEditPanelOpen(true);
+        setActionMenuOpen(false);
+        toast.success(`Editing ${formatPickedElementLabel(el)}`);
+        return;
+      }
       onContext({
         id: newId(),
         label: formatPickedElementLabel(el),
@@ -232,6 +317,90 @@ export function PreviewInspector({
     }
   };
 
+  const applyPreviewEdit = async (
+    mutation: PreviewEditMutation,
+  ): Promise<void> => {
+    if (!editElement) return;
+    setBusy("edit");
+    try {
+      const result = await picker.editPreview({
+        selector: editElement.selector,
+        mutation,
+      });
+      if (!result.ok) {
+        toast.error(result.error ?? "Preview edit failed");
+        return;
+      }
+      setEditChanges((prev) => [
+        ...prev,
+        {
+          id: newId(),
+          selector: editElement.selector,
+          label: formatPickedElementLabel(editElement),
+          url: editElement.url,
+          mutation,
+        },
+      ]);
+    } finally {
+      setBusy(null);
+    }
+  };
+
+  const undoPreviewEdit = async (): Promise<void> => {
+    setBusy("edit");
+    try {
+      const result = await picker.undoPreviewEdit();
+      if (!result.ok) {
+        toast.error(result.error ?? "Nothing to undo");
+        return;
+      }
+      setEditChanges((prev) => prev.slice(0, -1));
+    } finally {
+      setBusy(null);
+    }
+  };
+
+  const resetPreviewEdits = async (selector?: string): Promise<void> => {
+    setBusy("edit");
+    try {
+      const result = await picker.resetPreviewEdits(selector);
+      if (!result.ok) {
+        toast.error(result.error ?? "Nothing to reset");
+        return;
+      }
+      setEditChanges((prev) =>
+        selector ? prev.filter((change) => change.selector !== selector) : [],
+      );
+    } finally {
+      setBusy(null);
+    }
+  };
+
+  const askKodyToApplyEdits = async (): Promise<void> => {
+    if (!editElement || editChanges.length === 0) return;
+    onContext({
+      id: newId(),
+      label: `Preview edit · ${formatPickedElementLabel(editElement)}`,
+      context: formatPreviewEditRequest(editElement, editChanges),
+    });
+
+    const rect = previewRef.current?.getBoundingClientRect();
+    const clip = rect
+      ? { x: rect.x, y: rect.y, width: rect.width, height: rect.height }
+      : undefined;
+    const { dataUrl, mimeType } = await picker.captureScreenshot(clip);
+    if (dataUrl) {
+      const attachmentMimeType = mimeType ?? getDataUrlMimeType(dataUrl);
+      onAttachment({
+        id: newId(),
+        name: `preview-edit-${Date.now()}.${extensionForMimeType(attachmentMimeType)}`,
+        dataUrl,
+        mimeType: attachmentMimeType,
+      });
+    }
+    toast.success("Added preview edit to chat");
+  };
+
   const sendPerf = async () => {
     setBusy("perf");
     try {
@@ -334,6 +503,7 @@ export function PreviewInspector({
               type="button"
               role="menuitem"
               onClick={() => {
+                selectModeRef.current = "context";
                 picker.toggle();
                 setActionMenuOpen(false);
               }}
@@ -348,6 +518,20 @@ export function PreviewInspector({
               <span className="flex-1">
                 {picker.armed ? "Cancel picker" : "Pick element"}
               </span>
+            </button>
+            <button
+              type="button"
+              role="menuitem"
+              onClick={() => {
+                selectModeRef.current = "edit";
+                picker.arm();
+                setEditPanelOpen(false);
+                setActionMenuOpen(false);
+              }}
+              className="flex w-full items-center gap-2 rounded px-2 py-1.5 text-left text-xs text-zinc-300 transition-colors hover:bg-zinc-800 hover:text-white"
+            >
+              <Paintbrush className="h-3 w-3" />
+              <span className="flex-1">Edit preview</span>
             </button>
             <button
               type="button"
@@ -403,6 +587,27 @@ export function PreviewInspector({
             />
           </div>
         </PreviewFloatingMenu>
+        {editPanelOpen &&
+          editElement &&
+          editPanelStyle &&
+          typeof document !== "undefined" &&
+          createPortal(
+            <div style={editPanelStyle}>
+              <PreviewEditPanel
+                key={`${editElement.url}:${editElement.selector}`}
+                element={editElement}
+                changeCount={editChanges.length}
+                busy={busy === "edit"}
+                onApply={applyPreviewEdit}
+                onUndo={undoPreviewEdit}
+                onResetSelected={() => resetPreviewEdits(editElement.selector)}
+                onResetAll={() => resetPreviewEdits()}
+                onAskKody={askKodyToApplyEdits}
+                onClose={() => setEditPanelOpen(false)}
+              />
+            </div>,
+            document.body,
+          )}
       </div>
       {/* Group 2 - DIAGNOSTICS: passive observers of the preview. */}
       <div ref={diagnosticMenuRef} className="relative inline-flex">

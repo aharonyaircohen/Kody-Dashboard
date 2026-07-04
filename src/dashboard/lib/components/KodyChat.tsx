@@ -97,9 +97,11 @@ import {
 } from "./kody-chat-live-session";
 import {
   bootPhaseLabel,
+  composeUserWireContent,
   formatElapsed,
   formatFileSize,
   getFileIcon,
+  shouldCollectPreviewContextForTurn,
 } from "./kody-chat-helpers";
 import { formatAttachmentForTextBackend } from "../chat/attachment-text";
 import {
@@ -2434,19 +2436,25 @@ export function KodyChat({
       // prompt — the user bubble still shows the typed input).
       const displayContent = options.displayContent ?? messageContent;
 
-      // Preview page context is appended INVISIBLY: the model sees it on the
-      // wire, but the chat UI still shows the user's clean message. Image
+      // Preview page context is invisible in the UI. Kody-direct receives it
+      // as a separate context field so renderer/tool routing sees only the
+      // user's real words; text-only backends still need it appended. Image
       // turns are different: the screenshot is the evidence, and hidden DOM
       // text can pull vision models toward a stale/wrong page description.
       const imageTurnHasVisualEvidence = currentAttachments.some((a) =>
         a.mimeType.startsWith("image/"),
       );
-      const previewContext = imageTurnHasVisualEvidence
-        ? null
-        : await collectPreviewContextRef.current();
-      const wireContent = previewContext
-        ? `${messageContent}\n\n${previewContext}`
-        : messageContent;
+      const previewContext = shouldCollectPreviewContextForTurn({
+        hidden: options.hidden === true,
+        hasImageAttachments: imageTurnHasVisualEvidence,
+      })
+        ? await collectPreviewContextRef.current()
+        : null;
+      const wireContent = composeUserWireContent({
+        messageContent,
+        previewContext,
+        backend: effectiveAgent.backend,
+      });
       const uiSessionId =
         sessionHook.activeSession?.id ?? sessionHook.createSession();
       const turnMessages =

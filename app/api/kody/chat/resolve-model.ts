@@ -17,6 +17,7 @@ import { createOpenAICompatible } from "@ai-sdk/openai-compatible";
 import { getRequestAuth, getUserOctokit } from "@dashboard/lib/auth";
 import { getEngineConfig } from "@dashboard/lib/engine/config";
 import { getSecret } from "@dashboard/lib/vault/get-secret";
+import { normalizeOpenAICompatibleRequestBody } from "@dashboard/lib/chat/openai-compatible-request";
 import { supportsVision } from "@dashboard/lib/chat/vision-support";
 import { loadChatModels } from "@dashboard/lib/variables/load-chat-models";
 import {
@@ -226,6 +227,7 @@ export async function resolveChatModel(
       name: resolvedModel.provider,
       apiKey,
       baseURL: resolvedModel.baseURL,
+      transformRequestBody: normalizeOpenAICompatibleRequestBody,
     });
     model = openai(resolvedModel.modelName);
   }

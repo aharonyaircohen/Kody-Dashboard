@@ -25,6 +25,7 @@ import { BranchBehindBanner } from "./BranchBehindBanner";
 import { useGitHubIdentity } from "../hooks/useGitHubIdentity";
 import { usePreviewUrl } from "../hooks/usePreviewUrl";
 import { PreviewBrowser } from "./PreviewBrowser";
+import { useChatScope } from "./ChatRailShell";
 import { cn } from "../utils";
 import { autoDirProps } from "../text-direction";
 import { useAuth } from "../auth-context";
@@ -76,6 +77,7 @@ export function PreviewModal({
   const [loadError, setLoadError] = useState<string | null>(null);
   const [commentCount, setCommentCount] = useState<number | null>(null);
   const { auth } = useAuth();
+  const { setComposerInjection, setAttachmentInjection } = useChatScope();
   const ownerRepo = {
     owner: auth?.owner ?? "",
     repo: auth?.repo ?? "",
@@ -364,8 +366,8 @@ export function PreviewModal({
                   iframeTitle="Preview Deployment"
                   onRefreshPreviewUrl={refreshPreviewUrl}
                   onBeforePreviewLoad={wakePreview}
-                  onComposerInjection={() => {}}
-                  onAttachmentInjection={() => {}}
+                  onComposerInjection={setComposerInjection}
+                  onAttachmentInjection={setAttachmentInjection}
                   emptyState={
                     <div className="flex items-center justify-center h-full">
                       <div className="flex flex-col items-center gap-3 text-center">

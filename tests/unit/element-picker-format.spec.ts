@@ -11,8 +11,11 @@ import {
   formatNetwork,
   formatPerf,
   formatPlaywrightTest,
+  formatPreviewActResult,
+  formatPreviewEditRequest,
   type PickedElement,
   type PerfReport,
+  type PreviewEditChange,
 } from "@dashboard/lib/picker/protocol";
 
 function el(overrides: Partial<PickedElement> = {}): PickedElement {
@@ -107,6 +110,62 @@ describe("formatLogs", () => {
     expect(formatLogs([{ level: "error", message: "x", ts: 1 }])).toContain(
       "1 entry",
     );
+  });
+});
+
+describe("formatPreviewEditRequest", () => {
+  it("renders structured preview edits as repo-change context", () => {
+    const changes: PreviewEditChange[] = [
+      {
+        id: "1",
+        label: "<button>",
+        selector: "div > button:nth-of-type(2)",
+        url: "https://preview.example.com/",
+        mutation: {
+          op: "style",
+          styles: { color: "red", padding: "12px" },
+        },
+      },
+      {
+        id: "2",
+        label: "<button>",
+        selector: "div > button:nth-of-type(2)",
+        url: "https://preview.example.com/",
+        mutation: { op: "text", value: "Start now" },
+      },
+    ];
+
+    const out = formatPreviewEditRequest(
+      el({ text: "Start", selector: "div > button:nth-of-type(2)" }),
+      changes,
+    );
+
+    expect(out).toContain("temporary visual edits");
+    expect(out).toContain("- Target: <button>");
+    expect(out).toContain("Style color: red, padding: 12px");
+    expect(out).toContain('Change text to "Start now"');
+    expect(out).toContain("real repo code");
+  });
+});
+
+describe("formatPreviewActResult", () => {
+  it("labels post-action page info as observation, not a user request", () => {
+    const out = formatPreviewActResult(
+      { op: "click", selector: "button.save" },
+      {
+        ok: true,
+        info: {
+          url: "https://preview.example.com/",
+          title: "Preview",
+          selection: "",
+          dom: 'Button "Save"',
+        },
+      },
+    );
+
+    expect(out).toContain("Preview observation after that action");
+    expect(out).toContain("it is not a new user request");
+    expect(out).toContain("Button \"Save\"");
   });
 });
 

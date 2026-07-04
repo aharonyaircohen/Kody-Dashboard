@@ -5,7 +5,10 @@
 import { describe, expect, it } from "vitest";
 import { asSchema } from "ai";
 import { createUiTools } from "../../../app/api/kody/chat/tools/ui-tools";
-import { FINAL_ANSWER_TOOL } from "@dashboard/lib/chat-output-tools";
+import {
+  FINAL_ANSWER_REQUIRES_VIEW_ERROR,
+  FINAL_ANSWER_TOOL,
+} from "@dashboard/lib/chat-output-tools";
 import type { ViewRendererDefinition } from "@dashboard/lib/view-renderers/renderers";
 
 describe("ui tools", () => {
@@ -57,6 +60,41 @@ describe("ui tools", () => {
   it("exposes a generic final output tool", () => {
     const tools = createUiTools() as Record<string, unknown>;
     expect(tools[FINAL_ANSWER_TOOL]).toBeTruthy();
+  });
+
+  it("rejects plain final answers that should be rendered as user choices", async () => {
+    const tools = createUiTools({
+      viewRendererDefinitions: [decisionRenderer],
+    }) as Record<string, unknown>;
+    const finalAnswer = tools[FINAL_ANSWER_TOOL] as {
+      execute: (value: { content: string }) => Promise<{ error?: string }>;
+    };
+
+    await expect(
+      finalAnswer.execute({
+        content:
+          "Want me to file this as a bug issue in the repo so a dev can pick it up, or should I draft the small code change here?",
+      }),
+    ).resolves.toEqual({
+      error: FINAL_ANSWER_REQUIRES_VIEW_ERROR,
+    });
+  });
+
+  it("keeps plain final answers for non-interactive text", async () => {
+    const tools = createUiTools({
+      viewRendererDefinitions: [decisionRenderer],
+    }) as Record<string, unknown>;
+    const finalAnswer = tools[FINAL_ANSWER_TOOL] as {
+      execute: (value: { content: string }) => Promise<{ content?: string }>;
+    };
+
+    await expect(
+      finalAnswer.execute({
+        content: "The bug is in the login redirect handler.",
+      }),
+    ).resolves.toEqual({
+      content: "The bug is in the login redirect handler.",
+    });
   });
 
   it("preserves renderer fields that arrive beside data instead of stripping them", async () => {

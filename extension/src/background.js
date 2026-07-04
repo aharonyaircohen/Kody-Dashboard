@@ -24,6 +24,9 @@ const BROADCAST_DOWN = new Set([
   "collect-perf",
   "collect-page",
   "act",
+  "preview-edit",
+  "preview-edit-undo",
+  "preview-edit-reset",
   "record-start",
   "record-stop",
 ]);
@@ -35,6 +38,7 @@ const RELAY_UP = new Set([
   "perf",
   "page",
   "act-result",
+  "preview-edit-result",
   "recording",
   "rec-count",
 ]);

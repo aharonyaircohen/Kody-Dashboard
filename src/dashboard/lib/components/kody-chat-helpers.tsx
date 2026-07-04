@@ -8,6 +8,7 @@
  */
 
 import { Image as ImageIcon, FileText, FileCode } from "lucide-react";
+import type { ChatBackend } from "../agents";
 
 /**
  * Phase label for the Kody Live boot banner. Two timelines because the
@@ -56,4 +57,27 @@ export function formatFileSize(bytes: number): string {
   if (bytes < 1024) return `${bytes} B`;
   if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
   return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+}
+
+export function shouldCollectPreviewContextForTurn({
+  hidden,
+  hasImageAttachments,
+}: {
+  hidden: boolean;
+  hasImageAttachments: boolean;
+}): boolean {
+  return !hidden && !hasImageAttachments;
+}
+
+export function composeUserWireContent({
+  messageContent,
+  previewContext,
+  backend,
+}: {
+  messageContent: string;
+  previewContext: string | null;
+  backend: ChatBackend;
+}): string {
+  if (!previewContext || backend === "kody-direct") return messageContent;
+  return `${messageContent}\n\n${previewContext}`;
 }

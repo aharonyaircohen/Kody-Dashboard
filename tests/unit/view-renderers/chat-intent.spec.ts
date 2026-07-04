@@ -6,6 +6,7 @@ import { describe, expect, it } from "vitest";
 import type { ViewRendererDefinition } from "@dashboard/lib/view-renderers/renderers";
 import {
   shouldAllowPreRenderToolCallsForTurn,
+  shouldRequireViewOutputForAssistantText,
   shouldRequireViewOutputForTurn,
 } from "@dashboard/lib/view-renderers/chat-intent";
 
@@ -131,6 +132,26 @@ describe("view renderer chat intent", () => {
       shouldAllowPreRenderToolCallsForTurn({
         userText: "aske me a q and ask for approval to confirm it",
         toolNames: ["list_reports", "read_report", "show_view"],
+      }),
+    ).toBe(false);
+  });
+
+  it("requires a renderer when Kody's final answer asks the user to choose an action", () => {
+    expect(
+      shouldRequireViewOutputForAssistantText({
+        assistantText:
+          "Want me to file this as a bug issue in the repo so a dev can pick it up, or should I draft the small code change here?",
+        definitions: [approvalRenderer],
+      }),
+    ).toBe(true);
+  });
+
+  it("allows plain final answers that are informational questions without a renderer interaction", () => {
+    expect(
+      shouldRequireViewOutputForAssistantText({
+        assistantText:
+          "The bug is in the login redirect. Does that make sense?",
+        definitions: [approvalRenderer],
       }),
     ).toBe(false);
   });

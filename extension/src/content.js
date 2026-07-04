@@ -22,7 +22,7 @@
   const PAGE_SOURCE = "kody-picker:page";
   const EXT_SOURCE = "kody-picker:ext";
   const COLLECTOR_SOURCE = "kody-picker:collector";
-  const VERSION = "0.4.2";
+  const VERSION = "0.4.3";
   const BUFFER_CAP = 50;
 
   if (window.top === window.self) {
@@ -67,6 +67,9 @@
       "collect-perf": { kind: "collect-perf" },
       "collect-page": { kind: "collect-page" },
       act: { kind: "act" },
+      "preview-edit": { kind: "preview-edit" },
+      "preview-edit-undo": { kind: "preview-edit-undo" },
+      "preview-edit-reset": { kind: "preview-edit-reset" },
       "record-start": { kind: "record-start" },
       "record-stop": { kind: "record-stop" },
       screenshot: { kind: "capture-screenshot" },
@@ -127,6 +130,13 @@
           error: msg.error,
           info: msg.info,
         });
+      } else if (msg?.kind === "preview-edit-result") {
+        postToPage({
+          type: "preview-edit-result",
+          requestId: msg.requestId,
+          ok: msg.ok,
+          error: msg.error,
+        });
       }
     });
   }
@@ -161,6 +171,7 @@
     let recording = false;
     let recStartUrl = window.location.href;
     const recSteps = [];
+    const previewEditHistory = [];
 
     // Coalesce count pushes so a chatty app doesn't flood the bridge.
     // NOTE: declared before first use — `pushCounts` reads `countsTimer`, so
@@ -295,6 +306,38 @@
             })
             .catch(function () {});
         });
+      } else if (msg?.kind === "preview-edit") {
+        var editResult = applyPreviewEdit(msg.payload);
+        if (!editResult) return;
+        chrome.runtime
+          .sendMessage({
+            kind: "preview-edit-result",
+            requestId: msg.requestId,
+            ok: editResult.ok,
+            error: editResult.error,
+          })
+          .catch(function () {});
+      } else if (msg?.kind === "preview-edit-undo") {
+        var undoResult = undoPreviewEdit();
+        chrome.runtime
+          .sendMessage({
+            kind: "preview-edit-result",
+            requestId: msg.requestId,
+            ok: undoResult.ok,
+            error: undoResult.error,
+          })
+          .catch(function () {});
+      } else if (msg?.kind === "preview-edit-reset") {
+        var resetSelector = msg.payload && msg.payload.selector;
+        var resetResult = resetPreviewEdits(resetSelector);
+        chrome.runtime
+          .sendMessage({
+            kind: "preview-edit-result",
+            requestId: msg.requestId,
+            ok: resetResult.ok,
+            error: resetResult.error,
+          })
+          .catch(function () {});
       } else if (msg?.kind === "record-start") {
         startRecording();
       } else if (msg?.kind === "record-stop") {
@@ -338,8 +381,8 @@
     }
 
     function onMove(e) {
-      const el = e.target;
-      if (!(el instanceof Element)) return;
+      const el = pickElementFromPoint(e);
+      if (!el) return;
       current = el;
       drawBox(el);
     }
@@ -349,7 +392,7 @@
       // Stop the click from activating the page (links, buttons, etc.).
       e.preventDefault();
       e.stopPropagation();
-      const el = e.target instanceof Element ? e.target : current;
+      const el = pickElementFromPoint(e) || current;
       if (!el) return;
       chrome.runtime
         .sendMessage({ kind: "selected", element: describe(el) })
@@ -616,6 +659,195 @@
           });
         }
       });
+    }
+
+    function applyPreviewEdit(payload) {
+      try {
+        if (!payload || typeof payload.selector !== "string") {
+          return { ok: false, error: "missing selector" };
+        }
+        var mutation = payload.mutation;
+        if (!mutation || typeof mutation.op !== "string") {
+          return { ok: false, error: "missing edit operation" };
+        }
+        var target = safeQuery(payload.selector);
+        if (!target) return null;
+        if (!(target instanceof Element)) {
+          return { ok: false, error: "target is not an element" };
+        }
+
+        var undo = null;
+        if (mutation.op === "style") {
+          if (
+            !(target instanceof HTMLElement || target instanceof SVGElement)
+          ) {
+            return { ok: false, error: "target cannot be styled" };
+          }
+          var styles = mutation.styles || {};
+          var previousStyles = {};
+          Object.keys(styles).forEach(function (name) {
+            previousStyles[name] = target.style[name] || "";
+          });
+          undo = function () {
+            Object.keys(previousStyles).forEach(function (name) {
+              target.style[name] = previousStyles[name];
+            });
+          };
+          Object.keys(styles).forEach(function (name) {
+            target.style[name] = String(styles[name] || "");
+          });
+        } else if (mutation.op === "text") {
+          var previousText = target.textContent;
+          undo = function () {
+            target.textContent = previousText;
+          };
+          target.textContent = String(mutation.value || "");
+        } else if (mutation.op === "attribute") {
+          var attrName = String(mutation.name || "");
+          if (!/^(href|src|alt)$/.test(attrName)) {
+            return { ok: false, error: "unsupported attribute" };
+          }
+          var hadAttr = target.hasAttribute(attrName);
+          var previousAttr = target.getAttribute(attrName);
+          undo = function () {
+            if (hadAttr) target.setAttribute(attrName, previousAttr || "");
+            else target.removeAttribute(attrName);
+          };
+          target.setAttribute(attrName, String(mutation.value || ""));
+        } else if (mutation.op === "hide") {
+          var previousDisplay = target.style.display || "";
+          undo = function () {
+            target.style.display = previousDisplay;
+          };
+          target.style.display = "none";
+        } else if (mutation.op === "duplicate") {
+          var clone = target.cloneNode(true);
+          undo = function () {
+            if (clone.parentNode) clone.parentNode.removeChild(clone);
+          };
+          if (target.parentNode) {
+            target.parentNode.insertBefore(clone, target.nextSibling);
+          } else {
+            return { ok: false, error: "target has no parent" };
+          }
+        } else if (mutation.op === "remove") {
+          var parent = target.parentNode;
+          var next = target.nextSibling;
+          undo = function () {
+            if (!parent) return;
+            parent.insertBefore(
+              target,
+              next && next.parentNode === parent ? next : null,
+            );
+          };
+          if (parent) parent.removeChild(target);
+          else return { ok: false, error: "target has no parent" };
+        } else {
+          return { ok: false, error: "unsupported edit operation" };
+        }
+
+        previewEditHistory.push({
+          selector: payload.selector,
+          undo: undo,
+        });
+        return { ok: true };
+      } catch (err) {
+        return {
+          ok: false,
+          error: String(err && err.message ? err.message : err),
+        };
+      }
+    }
+
+    function pickElementFromPoint(event) {
+      try {
+        var x = event.clientX;
+        var y = event.clientY;
+        var stack = document.elementsFromPoint
+          ? document.elementsFromPoint(x, y)
+          : [];
+        var candidates = [];
+        for (var i = 0; i < stack.length; i++) {
+          var el = stack[i];
+          if (!(el instanceof Element)) continue;
+          if (el === box) continue;
+          var tag = el.tagName ? el.tagName.toLowerCase() : "";
+          if (tag === "html" || tag === "body") continue;
+          if (!isVisiblePickCandidate(el)) continue;
+          candidates.push(el);
+        }
+        if (candidates.length === 0) {
+          return event.target instanceof Element ? event.target : null;
+        }
+        var focused = candidates.filter(function (el) {
+          return !isPageSizedCandidate(el);
+        });
+        return focused[0] || candidates[0];
+      } catch {
+        return event.target instanceof Element ? event.target : null;
+      }
+    }
+
+    function isVisiblePickCandidate(el) {
+      try {
+        var rect = el.getBoundingClientRect();
+        if (rect.width < 1 || rect.height < 1) return false;
+        var style = window.getComputedStyle(el);
+        if (style.display === "none" || style.visibility === "hidden") {
+          return false;
+        }
+        return true;
+      } catch {
+        return true;
+      }
+    }
+
+    function isPageSizedCandidate(el) {
+      try {
+        var rect = el.getBoundingClientRect();
+        var viewportWidth = window.innerWidth || 1;
+        var viewportHeight = window.innerHeight || 1;
+        return (
+          rect.width >= viewportWidth * 0.9 &&
+          rect.height >= viewportHeight * 0.9
+        );
+      } catch {
+        return false;
+      }
+    }
+
+    function undoPreviewEdit() {
+      var entry = previewEditHistory.pop();
+      if (!entry) return { ok: false, error: "no preview edits to undo" };
+      try {
+        entry.undo();
+        return { ok: true };
+      } catch (err) {
+        return {
+          ok: false,
+          error: String(err && err.message ? err.message : err),
+        };
+      }
+    }
+
+    function resetPreviewEdits(selector) {
+      var didReset = false;
+      for (var i = previewEditHistory.length - 1; i >= 0; i--) {
+        var entry = previewEditHistory[i];
+        if (selector && entry.selector !== selector) continue;
+        previewEditHistory.splice(i, 1);
+        try {
+          entry.undo();
+          didReset = true;
+        } catch (err) {
+          return {
+            ok: false,
+            error: String(err && err.message ? err.message : err),
+          };
+        }
+      }
+      if (!didReset) return null;
+      return { ok: true };
     }
 
     // Resolve a selector to an element. Tries raw CSS first; falls back to
@@ -1154,9 +1386,32 @@
           ? ""
           : (el.textContent || "").trim().replace(/\s+/g, " ").slice(0, 300),
         attributes,
+        computedStyles: collectEditableStyles(el),
         rect: { x: rect.x, y: rect.y, width: rect.width, height: rect.height },
         url: window.location.href,
       };
+    }
+
+    function collectEditableStyles(el) {
+      try {
+        var s = window.getComputedStyle(el);
+        return {
+          color: s.color,
+          backgroundColor: s.backgroundColor,
+          fontSize: s.fontSize,
+          fontWeight: s.fontWeight,
+          padding: s.padding,
+          margin: s.margin,
+          gap: s.gap,
+          border: s.border,
+          borderRadius: s.borderRadius,
+          boxShadow: s.boxShadow,
+          width: s.width,
+          maxWidth: s.maxWidth,
+        };
+      } catch {
+        return {};
+      }
     }
 
     // Password / secret / payment fields whose value must never leave the page.

@@ -7,6 +7,11 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { NextRequest } from "next/server";
 import { RENDER_VIEW_DIRECTIVE } from "@dashboard/lib/chat-ui-actions";
+import {
+  FINAL_ANSWER_REQUIRES_VIEW_ERROR,
+  FINAL_ANSWER_TOOL,
+  SHOW_VIEW_TOOL,
+} from "@dashboard/lib/chat-output-tools";
 
 const streamTextMock = vi.hoisted(() => vi.fn());
 const createUIMessageStreamResponseMock = vi.hoisted(() => vi.fn());
@@ -341,6 +346,56 @@ describe("POST /api/kody/chat/kody preview prompt", () => {
       data: {
         title: expect.stringContaining("approval"),
       },
+    });
+  });
+
+  it("forces show_view after a plain final answer asks for a user choice", async () => {
+    const { POST } = await import("../../app/api/kody/chat/kody/route");
+
+    const res = await POST(
+      makeRequest({
+        messages: [
+          {
+            role: "user",
+            content: "look into this bug",
+          },
+        ],
+      }),
+    );
+
+    expect(res.status).toBe(200);
+    const options = streamTextMock.mock.calls[0]?.[0];
+    const prepareStep = options?.prepareStep as
+      | ((input: {
+          steps: Array<{
+            toolResults: Array<{
+              toolName: string;
+              output: unknown;
+            }>;
+          }>;
+        }) => {
+          activeTools?: string[];
+          toolChoice?: "required";
+        })
+      | undefined;
+
+    expect(prepareStep).toBeTypeOf("function");
+    expect(
+      prepareStep?.({
+        steps: [
+          {
+            toolResults: [
+              {
+                toolName: FINAL_ANSWER_TOOL,
+                output: { error: FINAL_ANSWER_REQUIRES_VIEW_ERROR },
+              },
+            ],
+          },
+        ],
+      }),
+    ).toEqual({
+      activeTools: [SHOW_VIEW_TOOL],
+      toolChoice: "required",
     });
   });
 });

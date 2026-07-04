@@ -22,6 +22,8 @@ import {
   type PickerExtMessage,
   type PreviewAction,
   type PreviewActResult,
+  type PreviewEditCommand,
+  type PreviewEditResult,
   type RecordedStep,
 } from "./protocol";
 import { prepareScreenshotDataUrl, type ScreenshotClip } from "./screenshot";
@@ -75,6 +77,18 @@ interface ElementPicker {
    * page snapshot the model can read.
    */
   act: (action: PreviewAction, timeoutMs?: number) => Promise<PreviewActResult>;
+  /** Apply a temporary visual/content edit inside the preview frame. */
+  editPreview: (
+    command: PreviewEditCommand,
+    timeoutMs?: number,
+  ) => Promise<PreviewEditResult>;
+  /** Undo the most recent temporary edit in the preview frame. */
+  undoPreviewEdit: (timeoutMs?: number) => Promise<PreviewEditResult>;
+  /** Reset temporary preview edits. Selector omitted = reset all edits. */
+  resetPreviewEdits: (
+    selector?: string,
+    timeoutMs?: number,
+  ) => Promise<PreviewEditResult>;
   /** True while recording a click-through into a test. */
   recording: boolean;
   /** Live count of recorded steps. */
@@ -92,6 +106,8 @@ type PageMessageType =
   | "collect-network"
   | "collect-perf"
   | "collect-page"
+  | "preview-edit-undo"
+  | "preview-edit-reset"
   | "record-start"
   | "record-stop"
   | "screenshot";
@@ -345,6 +361,71 @@ export function useElementPicker(opts: UseElementPickerOptions): ElementPicker {
     [],
   );
 
+  const runPreviewEditCommand = useCallback(
+    (
+      type: "preview-edit" | "preview-edit-undo" | "preview-edit-reset",
+      payload?: unknown,
+      timeoutMs: number = 1500,
+    ): Promise<PreviewEditResult> =>
+      new Promise((resolve) => {
+        if (typeof window === "undefined") {
+          resolve({ ok: false, error: "no window" });
+          return;
+        }
+        const requestId = `${Date.now()}-${Math.random().toString(36).slice(2)}`;
+        const handler = (event: MessageEvent) => {
+          if (event.source !== window) return;
+          const data = event.data as PickerExtMessage | undefined;
+          if (!data || data.source !== PICKER_EXT_SOURCE) return;
+          if (data.type !== "preview-edit-result") return;
+          if (data.requestId !== requestId) return;
+          window.removeEventListener("message", handler);
+          clearTimeout(timer);
+          resolve({ ok: data.ok, error: data.error });
+        };
+        window.addEventListener("message", handler);
+        window.postMessage(
+          {
+            source: PICKER_PAGE_SOURCE,
+            type,
+            payload,
+            requestId,
+          },
+          window.location.origin,
+        );
+        const timer = setTimeout(() => {
+          window.removeEventListener("message", handler);
+          resolve({
+            ok: false,
+            error: "selector not found in any preview frame",
+          });
+        }, timeoutMs);
+      }),
+    [],
+  );
+
+  const editPreview = useCallback(
+    (command: PreviewEditCommand, timeoutMs?: number) =>
+      runPreviewEditCommand("preview-edit", command, timeoutMs),
+    [runPreviewEditCommand],
+  );
+
+  const undoPreviewEdit = useCallback(
+    (timeoutMs?: number) =>
+      runPreviewEditCommand("preview-edit-undo", undefined, timeoutMs),
+    [runPreviewEditCommand],
+  );
+
+  const resetPreviewEdits = useCallback(
+    (selector?: string, timeoutMs?: number) =>
+      runPreviewEditCommand(
+        "preview-edit-reset",
+        selector ? { selector } : undefined,
+        timeoutMs,
+      ),
+    [runPreviewEditCommand],
+  );
+
   const startRecording = useCallback(() => {
     setRecStepCount(0);
     setRecording(true);
@@ -402,6 +483,9 @@ export function useElementPicker(opts: UseElementPickerOptions): ElementPicker {
     collectPerf,
     collectPage,
     act,
+    editPreview,
+    undoPreviewEdit,
+    resetPreviewEdits,
     recording,
     recStepCount,
     startRecording,

@@ -1,5 +1,7 @@
 export const FINAL_ANSWER_TOOL = "final_answer";
 export const SHOW_VIEW_TOOL = "show_view";
+export const FINAL_ANSWER_REQUIRES_VIEW_ERROR =
+  "final_answer requires show_view for this interactive response";
 export const CHAT_OUTPUT_TOOL_NAMES = [
   FINAL_ANSWER_TOOL,
   SHOW_VIEW_TOOL,
@@ -35,4 +37,8 @@ export function getToolErrorMessage(output: unknown): string | null {
 
 export function isToolErrorOutput(output: unknown): output is ToolErrorOutput {
   return getToolErrorMessage(output) !== null;
+}
+
+export function isFinalAnswerRequiresViewOutput(output: unknown): boolean {
+  return getToolErrorMessage(output) === FINAL_ANSWER_REQUIRES_VIEW_ERROR;
 }

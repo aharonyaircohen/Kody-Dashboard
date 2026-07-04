@@ -86,6 +86,7 @@ import {
   CHAT_OUTPUT_TOOL_NAMES,
   FINAL_ANSWER_TOOL,
   SHOW_VIEW_TOOL,
+  isFinalAnswerRequiresViewOutput,
   isToolErrorOutput,
 } from "@dashboard/lib/chat-output-tools";
 import {
@@ -1178,9 +1179,19 @@ This turn includes an image from the user. For questions about what is visible i
       ...(forceShowViewTool
         ? { toolChoice: { type: "tool" as const, toolName: SHOW_VIEW_TOOL } }
         : { toolChoice: "required" as const }),
-      ...(requireViewOutput
+      ...(!forceShowViewTool
         ? {
             prepareStep: ({ steps }) => {
+              const finalAnswerNeedsView = steps.some((step) =>
+                step.toolResults.some(
+                  (result) =>
+                    result.toolName === FINAL_ANSWER_TOOL &&
+                    isFinalAnswerRequiresViewOutput(result.output),
+                ),
+              );
+              if (!requireViewOutput && !finalAnswerNeedsView) {
+                return { toolChoice: "required" as const };
+              }
               const hasPreRenderToolResult = steps.some((step) =>
                 step.toolResults.some(
                   (result) =>
@@ -1190,7 +1201,9 @@ This turn includes an image from the user. For questions about what is visible i
               );
               return {
                 activeTools:
-                  shouldAllowPreRenderTools && !hasPreRenderToolResult
+                  requireViewOutput &&
+                  shouldAllowPreRenderTools &&
+                  !hasPreRenderToolResult
                     ? activeToolsWithoutFinalAnswer
                     : showViewOnlyTools,
                 toolChoice: "required" as const,
