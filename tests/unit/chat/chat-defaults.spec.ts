@@ -198,7 +198,7 @@ describe("chat-defaults bundle", () => {
     expect(uiTools).toContain("views/renderers/*.json");
     expect(uiTools).toContain("purpose matches the request");
     expect(uiTools).toContain("do not print JSON");
-    expect(uiTools).toContain("simple string labels");
+    expect(uiTools).toContain("array of labels or records");
     expect(uiTools).toContain("renderer defines defaults");
     expect(uiTools).toContain("Only put data into the view");
     expect(uiTools).toContain(
