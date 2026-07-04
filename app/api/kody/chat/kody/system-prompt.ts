@@ -59,6 +59,23 @@ export interface OrgContext {
  */
 const MEMORY_INDEX_MAX_LINES = 300;
 
+export function formatUserInstructionsPromptSection(
+  userInstructions: string | null | undefined,
+): string | null {
+  const body = userInstructions?.trim();
+  if (!body) return null;
+
+  return `## User instructions for this repo
+
+The block below is the live contents of state repo \`instructions.md\` for this repo — the user's explicit preferences for how you should behave in this chat. These OVERRIDE the base agent prompt for tone, length, formatting, audience, and any other preference the user has chosen to record here. Apply them automatically; do not narrate that you're applying them.
+
+If a user instruction conflicts with a hard rule above (never fake tool calls, research before evaluating, issue-creation gates), the hard rule still wins — those exist to prevent footguns. Everything else, the user instruction wins.
+
+When the instructions name the operator's role or audience, write for that person. For a PM, founder, or non-technical operator, lead with the business or product effect, avoid implementation detail by default, and mention files, functions, APIs, or logs only when the user asks for them or they are required proof.
+
+${body}`;
+}
+
 function truncateMemoryIndex(raw: string): string {
   const lines = raw.split(/\r?\n/);
   if (lines.length <= MEMORY_INDEX_MAX_LINES) return raw;
@@ -488,17 +505,10 @@ When they ask you to interact with or verify something in that preview
   // above except the voice overlay (applied outside this builder). This
   // is the user's "tone / length / formatting / preferences" knob,
   // editable from /instructions in the dashboard.
-  if (opts?.userInstructions && opts.userInstructions.trim().length > 0) {
-    sections.push(
-      `## User instructions for this repo
-
-The block below is the live contents of state repo \`instructions.md\` for this repo — the user's explicit preferences for how you should behave in this chat. These OVERRIDE the base agent prompt for tone, length, formatting, and any other preference the user has chosen to record here. Apply them automatically; do not narrate that you're applying them.
-
-If a user instruction conflicts with a hard rule above (never fake tool calls, research before evaluating, issue-creation gates), the hard rule still wins — those exist to prevent footguns. Everything else, the user instruction wins.
-
-${opts.userInstructions.trim()}`,
-    );
-  }
+  const userInstructionsSection = formatUserInstructionsPromptSection(
+    opts?.userInstructions,
+  );
+  if (userInstructionsSection) sections.push(userInstructionsSection);
 
   return sections.join("\n\n");
 }

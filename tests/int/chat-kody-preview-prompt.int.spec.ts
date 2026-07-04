@@ -12,6 +12,7 @@ const streamTextMock = vi.hoisted(() => vi.fn());
 const createUIMessageStreamResponseMock = vi.hoisted(() => vi.fn());
 const loadViewRendererContextForPromptMock = vi.hoisted(() => vi.fn());
 const resolveBestViewRendererDefinitionMock = vi.hoisted(() => vi.fn());
+const loadInstructionsForPromptMock = vi.hoisted(() => vi.fn());
 
 vi.mock("ai", () => ({
   tool: (definition: unknown) => definition,
@@ -57,7 +58,7 @@ vi.mock("@dashboard/lib/memory-files", () => ({
 }));
 
 vi.mock("@dashboard/lib/instructions/files", () => ({
-  loadInstructionsForPrompt: vi.fn(async () => null),
+  loadInstructionsForPrompt: loadInstructionsForPromptMock,
 }));
 
 vi.mock("@dashboard/lib/context/files", () => ({
@@ -163,6 +164,7 @@ describe("POST /api/kody/chat/kody preview prompt", () => {
     streamTextMock.mockReturnValue({
       toUIMessageStream: vi.fn(() => ({})),
     });
+    loadInstructionsForPromptMock.mockResolvedValue(null);
     createUIMessageStreamResponseMock.mockReturnValue(
       new Response("ok", { status: 200 }),
     );
@@ -187,6 +189,34 @@ describe("POST /api/kody/chat/kody preview prompt", () => {
     expect(system).toContain("create a GitHub issue");
     expect(system).toContain("Do not answer with a fresh design direction");
     expect(system).toContain("Source path: views/demo-123");
+  });
+
+  it("keeps repo PM-style instructions after the generic safety reminders", async () => {
+    loadInstructionsForPromptMock.mockResolvedValue(
+      "write short not technical answers, operator is a PM",
+    );
+    const { POST } = await import("../../app/api/kody/chat/kody/route");
+
+    const res = await POST(
+      makeRequest({
+        messages: [{ role: "user", content: "what is wrong here?" }],
+      }),
+    );
+
+    expect(res.status).toBe(200);
+    expect(streamTextMock).toHaveBeenCalledTimes(1);
+    const system = streamTextMock.mock.calls[0]?.[0]?.system;
+    expect(system).toContain("## Critical reminders");
+    expect(system).toContain("## User instructions for this repo");
+    expect(system.indexOf("## Critical reminders")).toBeLessThan(
+      system.indexOf("## User instructions for this repo"),
+    );
+    expect(system).toContain(
+      "write short not technical answers, operator is a PM",
+    );
+    expect(system).toContain(
+      "For a PM, founder, or non-technical operator, lead with the business or product effect",
+    );
   });
 
   it("exposes a working show_view contract for approval renderer requests", async () => {

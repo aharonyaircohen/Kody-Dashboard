@@ -53,6 +53,7 @@ import { supportsVision } from "@dashboard/lib/chat/vision-support";
 import { formatAttachmentForTextBackend } from "@dashboard/lib/chat/attachment-text";
 import {
   buildSystemPrompt,
+  formatUserInstructionsPromptSection,
   type GoalContext,
   type CapabilityContext,
   type TaskContext,
@@ -1071,18 +1072,24 @@ export async function POST(req: NextRequest) {
       memoryIndex,
       vibeMode,
       flyConfigured,
-      userInstructions,
+      userInstructions: null,
       context,
       viewRendererRules,
     },
   );
 
-  // Critical reminders appended LAST among the static rules (recency
-  // bias) so the model holds them through the runtime blocks. The voice
-  // overlay still wins over these when voice is on (applied next).
-  const promptWithReminders = voiceMode
-    ? assembledPrompt
-    : `${assembledPrompt}\n\n${CRITICAL_REMINDERS_MD}`;
+  // Critical reminders stay near the end for recency, but repo instructions
+  // come after them so per-repo tone/audience rules still win. The voice
+  // overlay remains the final modality-specific override.
+  const userInstructionsSection =
+    formatUserInstructionsPromptSection(userInstructions);
+  const promptWithReminders = [
+    assembledPrompt,
+    voiceMode ? null : CRITICAL_REMINDERS_MD,
+    userInstructionsSection,
+  ]
+    .filter((section): section is string => Boolean(section))
+    .join("\n\n");
   const promptWithSpeakerOverride = appendAgentChatSpeakerOverride(
     promptWithReminders,
     addressedAgentMember,
