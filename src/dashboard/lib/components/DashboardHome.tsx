@@ -246,12 +246,6 @@ function DashboardHeader({
         </div>
         <div className="flex shrink-0 items-center gap-3 text-body-xs text-muted-foreground">
           {updated ? <span>Updated {updated}</span> : null}
-          <RepoScopedLink
-            href="/tasks"
-            className="inline-flex h-8 items-center gap-1 rounded-md border border-white/[0.08] px-2.5 hover:bg-white/[0.06] hover:text-foreground"
-          >
-            Open board <ArrowRight className="h-3 w-3" />
-          </RepoScopedLink>
         </div>
       </div>
     </header>
@@ -904,7 +898,7 @@ export function DashboardHome() {
         />
 
         <section>
-          <SectionHeader title="At a glance" href="/tasks" cta="Open board" />
+          <SectionHeader title="At a glance" />
           <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
             <StatTile
               icon={Activity}
