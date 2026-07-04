@@ -23,6 +23,8 @@ describe("DashboardHome layout", () => {
     expect(source).not.toContain("AgentGoals / agentLoops");
     expect(source).not.toContain("Team channels");
     expect(source).not.toContain("Open board");
+    expect(source).not.toContain("Updated {updated}");
+    expect(source).not.toContain("updatedAt?: number");
     expect(source).not.toContain("<ModelsOverview");
     expect(source).not.toContain("<ChannelsOverview");
     expect(atAGlance).toBeGreaterThan(-1);

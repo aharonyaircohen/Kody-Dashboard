@@ -169,22 +169,12 @@ function AllClear({ message }: { message: string }) {
 }
 
 function DashboardHeader({
-  tasks,
-  tasksLoading,
   mainCi,
   mainCiLoading,
-  updatedAt,
 }: {
-  tasks: KodyTask[];
-  tasksLoading: boolean;
   mainCi?: DefaultBranchCI;
   mainCiLoading?: boolean;
-  updatedAt?: number;
 }) {
-  const active = countBy(tasks, ACTIVE_COLUMNS);
-  const review = countBy(tasks, ["review"]);
-  const failing = countBy(tasks, ["failed"]);
-  const updated = updatedAt ? timeAgo(new Date(updatedAt).toISOString()) : "";
   const ciState: DefaultBranchCI["state"] | "loading" = mainCi
     ? mainCi.state
     : mainCiLoading
@@ -230,20 +220,6 @@ function DashboardHeader({
           >
             {ciStatus.text}
           </span>
-          <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-body-sm text-muted-foreground">
-            <span className="tabular-nums text-amber-200">
-              {tasksLoading ? "—" : active} active
-            </span>
-            <span className="tabular-nums text-sky-200">
-              {tasksLoading ? "—" : review} in review
-            </span>
-            <span className="tabular-nums text-rose-200">
-              {tasksLoading ? "—" : failing} failing
-            </span>
-          </div>
-        </div>
-        <div className="flex shrink-0 items-center gap-3 text-body-xs text-muted-foreground">
-          {updated ? <span>Updated {updated}</span> : null}
         </div>
       </div>
     </header>
@@ -835,11 +811,8 @@ export function DashboardHome() {
     <div className="flex-1 min-h-0 overflow-y-auto">
       <div className="mx-auto max-w-6xl space-y-8 px-4 py-6 md:px-6">
         <DashboardHeader
-          tasks={all}
-          tasksLoading={tasksLoading}
           mainCi={mainCi}
           mainCiLoading={mainCiFetching && !mainCi}
-          updatedAt={dataUpdatedAt}
         />
 
         <section>
