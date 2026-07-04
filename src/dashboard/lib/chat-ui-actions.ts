@@ -82,6 +82,32 @@ export interface RenderedViewBlock {
   label?: string;
 }
 
+export type RenderedViewUiNode =
+  | {
+      type: "stack" | "row" | "list";
+      children: RenderedViewUiNode[];
+    }
+  | {
+      type: "text";
+      value: string;
+      variant?: "title" | "body" | "label";
+    }
+  | {
+      type: "markdown";
+      value: string;
+    }
+  | {
+      type: "input";
+      value: string;
+      label?: string;
+      readOnly?: boolean;
+    }
+  | {
+      type: "button";
+      label: string;
+      action: RenderedViewAction;
+    };
+
 export interface RenderedViewDirective {
   action: typeof RENDER_VIEW_DIRECTIVE;
   view: "renderer";
@@ -90,6 +116,7 @@ export interface RenderedViewDirective {
   rendererName: string;
   resultTarget: "chat";
   blocks: RenderedViewBlock[];
+  ui?: RenderedViewUiNode;
   data: Record<string, RenderedViewDataValue>;
 }
 
@@ -138,6 +165,39 @@ function isRenderedViewDataValue(
   );
 }
 
+function isRenderedViewUiNode(value: unknown): value is RenderedViewUiNode {
+  if (!value || typeof value !== "object") return false;
+  const node = value as Record<string, unknown>;
+  if (node.type === "stack" || node.type === "row" || node.type === "list") {
+    return (
+      Array.isArray(node.children) && node.children.every(isRenderedViewUiNode)
+    );
+  }
+  if (node.type === "text") {
+    return (
+      typeof node.value === "string" &&
+      (node.variant === undefined ||
+        node.variant === "title" ||
+        node.variant === "body" ||
+        node.variant === "label")
+    );
+  }
+  if (node.type === "markdown") {
+    return typeof node.value === "string";
+  }
+  if (node.type === "input") {
+    return (
+      typeof node.value === "string" &&
+      (node.label === undefined || typeof node.label === "string") &&
+      (node.readOnly === undefined || typeof node.readOnly === "boolean")
+    );
+  }
+  if (node.type === "button") {
+    return typeof node.label === "string" && isRenderedViewAction(node.action);
+  }
+  return false;
+}
+
 export function isRenderedViewDirective(
   value: unknown,
 ): value is RenderedViewDirective {
@@ -174,9 +234,93 @@ export function isRenderedViewDirective(
     );
   });
   if (!validBlocks) return false;
+  if (v.ui !== undefined && !isRenderedViewUiNode(v.ui)) return false;
   return Object.values(v.data as Record<string, unknown>).every(
     isRenderedViewDataValue,
   );
+}
+
+function textValueForBind(view: RenderedViewDirective, bind: string): string {
+  const value = view.data[bind];
+  if (Array.isArray(value)) return "";
+  if (value === null || value === undefined) return "";
+  return String(value);
+}
+
+function actionNodesForBind(
+  view: RenderedViewDirective,
+  bind: string,
+): RenderedViewUiNode[] {
+  const actions = view.data[bind];
+  if (!Array.isArray(actions)) return [];
+  return actions.map((action) => ({
+    type: "button",
+    label: action.label,
+    action,
+  }));
+}
+
+export function getRenderedViewUi(
+  view: RenderedViewDirective,
+): RenderedViewUiNode {
+  if (view.ui) return view.ui;
+
+  const children: RenderedViewUiNode[] = [];
+  for (const block of view.blocks) {
+    if (block.type === "title") {
+      children.push({
+        type: "text",
+        value: textValueForBind(view, block.bind),
+        variant: "title",
+      });
+      continue;
+    }
+    if (block.type === "text") {
+      children.push({
+        type: "text",
+        value: textValueForBind(view, block.bind),
+        variant: "body",
+      });
+      continue;
+    }
+    if (block.type === "markdown") {
+      children.push({
+        type: "markdown",
+        value: textValueForBind(view, block.bind),
+      });
+      continue;
+    }
+    if (block.type === "input") {
+      children.push({
+        type: "input",
+        value: textValueForBind(view, block.bind),
+        ...(block.label ? { label: block.label } : {}),
+        readOnly: true,
+      });
+      continue;
+    }
+    const actionChildren = actionNodesForBind(view, block.bind);
+    if (block.type === "selection") {
+      children.push({
+        type: "stack",
+        children: [
+          ...(block.label
+            ? [
+                {
+                  type: "text" as const,
+                  value: block.label,
+                  variant: "label" as const,
+                },
+              ]
+            : []),
+          { type: "list", children: actionChildren },
+        ],
+      });
+      continue;
+    }
+    children.push({ type: "row", children: actionChildren });
+  }
+  return { type: "stack", children };
 }
 
 export function isSwitchAgentDirective(

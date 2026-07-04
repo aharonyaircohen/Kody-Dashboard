@@ -9,6 +9,7 @@ import { z } from "zod";
 import type { Octokit } from "@octokit/rest";
 import {
   RENDER_VIEW_DIRECTIVE,
+  getRenderedViewUi,
   type RenderedViewDataValue,
   type RenderedViewDirective,
 } from "@dashboard/lib/chat-ui-actions";
@@ -155,7 +156,7 @@ export function buildRenderedViewDirective({
 }): RenderedViewDirective {
   const normalizedData = normalizeViewRendererData(definition, data);
   const mergedData = mergeViewRendererDefaults(definition, normalizedData);
-  return {
+  const directive: RenderedViewDirective = {
     action: RENDER_VIEW_DIRECTIVE,
     view: "renderer",
     id,
@@ -165,6 +166,7 @@ export function buildRenderedViewDirective({
     blocks: definition.blocks.map((block) => ({ ...block })),
     data: mergedData,
   };
+  return { ...directive, ui: getRenderedViewUi(directive) };
 }
 
 function cloneDefaultValue(

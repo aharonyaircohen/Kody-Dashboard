@@ -176,6 +176,46 @@ describe("view renderer definitions", () => {
     expect(directive.data.title).toBe("Choose next step");
   });
 
+  it("adds a generic UI tree to rendered directives", () => {
+    const directive = buildRenderedViewDirective({
+      id: "view-test",
+      definition: choiceRenderer,
+      data: {
+        title: "Choose one",
+        body: "Pick one option.",
+        items: ["Alpha", "Beta"],
+      },
+    });
+
+    expect(directive.ui).toMatchObject({
+      type: "stack",
+      children: [
+        { type: "text", value: "Choose one", variant: "title" },
+        { type: "text", value: "Pick one option.", variant: "body" },
+        {
+          type: "stack",
+          children: [
+            {
+              type: "list",
+              children: [
+                {
+                  type: "button",
+                  label: "Alpha",
+                  action: { id: "alpha", response: "alpha" },
+                },
+                {
+                  type: "button",
+                  label: "Beta",
+                  action: { id: "beta", response: "beta" },
+                },
+              ],
+            },
+          ],
+        },
+      ],
+    });
+  });
+
   it("fills missing fields from renderer defaults", () => {
     const directive = buildRenderedViewDirective({
       id: "view-test",

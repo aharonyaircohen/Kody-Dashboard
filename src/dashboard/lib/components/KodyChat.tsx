@@ -1,6 +1,13 @@
 "use client";
 
-import { useState, useRef, useEffect, useCallback, useMemo } from "react";
+import {
+  useState,
+  useRef,
+  useEffect,
+  useCallback,
+  useMemo,
+  type ReactNode,
+} from "react";
 import { usePathname } from "next/navigation";
 import { navLabelForPath } from "./settings-nav";
 import {
@@ -172,11 +179,13 @@ import {
   type RecentVibeIssue,
 } from "../vibe/recent-issue";
 import {
+  getRenderedViewUi,
   isPreviewActDirective,
   isRenderedViewDirective,
   isSwitchAgentDirective,
   type RenderedViewAction,
   type RenderedViewDirective,
+  type RenderedViewUiNode,
   type PreviewActDirective,
 } from "@dashboard/lib/chat-ui-actions";
 import {
@@ -207,120 +216,133 @@ function RenderedViewCard({
   disabled: boolean;
   onAction: (action: RenderedViewAction) => void;
 }) {
-  const textValue = (bind: string) => {
-    const value = view.data[bind];
-    if (Array.isArray(value)) return "";
-    if (value === null || value === undefined) return "";
-    return String(value);
+  const ui = getRenderedViewUi(view);
+  const renderButton = (
+    node: Extract<RenderedViewUiNode, { type: "button" }>,
+    key: string,
+    layout: "row" | "list",
+  ) => {
+    const isPrimary = node.action.variant === "primary";
+    const isDanger = node.action.variant === "danger";
+    const Icon = isPrimary ? Check : isDanger ? X : MousePointerClick;
+    const tone = isPrimary
+      ? "border-primary bg-primary text-primary-foreground hover:bg-primary/90"
+      : isDanger
+        ? "border-destructive/40 text-destructive hover:bg-destructive/10"
+        : "border-border bg-background hover:bg-accent";
+    if (layout === "list") {
+      return (
+        <button
+          key={key}
+          type="button"
+          disabled={disabled}
+          onClick={() => onAction(node.action)}
+          className={`flex w-full items-center justify-between gap-3 rounded-md border px-3 py-2 text-left text-sm transition-colors disabled:cursor-not-allowed disabled:opacity-50 ${tone}`}
+        >
+          <span className="min-w-0 truncate font-medium">{node.label}</span>
+          <Icon className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
+        </button>
+      );
+    }
+    return (
+      <button
+        key={key}
+        type="button"
+        disabled={disabled}
+        onClick={() => onAction(node.action)}
+        className={`inline-flex h-8 items-center gap-1.5 rounded-md border px-2.5 text-sm font-medium transition-colors disabled:cursor-not-allowed disabled:opacity-50 ${tone}`}
+      >
+        <Icon className="h-3.5 w-3.5" />
+        {node.label}
+      </button>
+    );
+  };
+  const renderNode = (
+    node: RenderedViewUiNode,
+    key: string,
+    layout: "row" | "list" = "row",
+  ): ReactNode => {
+    if (node.type === "stack") {
+      return (
+        <div key={key} className="space-y-3">
+          {node.children.map((child, index) =>
+            renderNode(child, `${key}-${index}`),
+          )}
+        </div>
+      );
+    }
+    if (node.type === "row") {
+      return (
+        <div key={key} className="flex flex-wrap gap-2">
+          {node.children.map((child, index) =>
+            renderNode(child, `${key}-${index}`, "row"),
+          )}
+        </div>
+      );
+    }
+    if (node.type === "list") {
+      return (
+        <div key={key} className="space-y-1.5">
+          {node.children.map((child, index) =>
+            renderNode(child, `${key}-${index}`, "list"),
+          )}
+        </div>
+      );
+    }
+    if (node.type === "text") {
+      if (node.variant === "title") {
+        return (
+          <div key={key} className="font-medium text-foreground">
+            {node.value}
+          </div>
+        );
+      }
+      if (node.variant === "label") {
+        return (
+          <div key={key} className="text-xs font-medium text-muted-foreground">
+            {node.value}
+          </div>
+        );
+      }
+      return (
+        <div key={key} className="text-muted-foreground">
+          {node.value}
+        </div>
+      );
+    }
+    if (node.type === "markdown") {
+      return (
+        <MarkdownPreview
+          key={key}
+          content={node.value}
+          className="chat-message-text prose-sm break-words"
+        />
+      );
+    }
+    if (node.type === "input") {
+      return (
+        <label key={key} className="block space-y-1">
+          {node.label ? (
+            <span className="text-xs font-medium text-muted-foreground">
+              {node.label}
+            </span>
+          ) : null}
+          <input
+            value={node.value}
+            readOnly={node.readOnly ?? true}
+            className="h-8 w-full rounded-md border border-border bg-muted/40 px-2 text-sm text-foreground"
+          />
+        </label>
+      );
+    }
+    if (node.type === "button") {
+      return renderButton(node, key, layout);
+    }
+    return null;
   };
   return (
     <div className="mt-3 rounded-md border border-border bg-background/80 p-3 text-sm">
-      <div className="space-y-3">
-        {view.blocks.map((block, index) => {
-          const key = `${block.type}-${block.bind}-${index}`;
-          if (block.type === "title") {
-            return (
-              <div key={key} className="font-medium text-foreground">
-                {textValue(block.bind)}
-              </div>
-            );
-          }
-          if (block.type === "text") {
-            return (
-              <div key={key} className="text-muted-foreground">
-                {textValue(block.bind)}
-              </div>
-            );
-          }
-          if (block.type === "markdown") {
-            return (
-              <MarkdownPreview
-                key={key}
-                content={textValue(block.bind)}
-                className="chat-message-text prose-sm break-words"
-              />
-            );
-          }
-          if (block.type === "input") {
-            return (
-              <label key={key} className="block space-y-1">
-                {block.label ? (
-                  <span className="text-xs font-medium text-muted-foreground">
-                    {block.label}
-                  </span>
-                ) : null}
-                <input
-                  value={textValue(block.bind)}
-                  readOnly
-                  className="h-8 w-full rounded-md border border-border bg-muted/40 px-2 text-sm text-foreground"
-                />
-              </label>
-            );
-          }
-          if (block.type === "selection") {
-            const actions = view.data[block.bind];
-            if (!Array.isArray(actions)) return null;
-            return (
-              <div key={key} className="space-y-2">
-                {block.label ? (
-                  <div className="text-xs font-medium text-muted-foreground">
-                    {block.label}
-                  </div>
-                ) : null}
-                <div className="space-y-1.5">
-                  {actions.map((action) => (
-                    <button
-                      key={action.id}
-                      type="button"
-                      disabled={disabled}
-                      onClick={() => onAction(action)}
-                      className="flex w-full items-center justify-between gap-3 rounded-md border border-border bg-background px-3 py-2 text-left text-sm transition-colors hover:bg-accent disabled:cursor-not-allowed disabled:opacity-50"
-                    >
-                      <span className="min-w-0 truncate font-medium">
-                        {action.label}
-                      </span>
-                      <MousePointerClick className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
-                    </button>
-                  ))}
-                </div>
-              </div>
-            );
-          }
-          const actions = view.data[block.bind];
-          if (!Array.isArray(actions)) return null;
-          return (
-            <div key={key} className="flex flex-wrap gap-2">
-              {actions.map((action) => {
-                const isPrimary = action.variant === "primary";
-                const isDanger = action.variant === "danger";
-                const Icon = isPrimary
-                  ? Check
-                  : isDanger
-                    ? X
-                    : MousePointerClick;
-                return (
-                  <button
-                    key={action.id}
-                    type="button"
-                    disabled={disabled}
-                    onClick={() => onAction(action)}
-                    className={`inline-flex h-8 items-center gap-1.5 rounded-md border px-2.5 text-sm font-medium transition-colors disabled:cursor-not-allowed disabled:opacity-50 ${
-                      isPrimary
-                        ? "border-primary bg-primary text-primary-foreground hover:bg-primary/90"
-                        : isDanger
-                          ? "border-destructive/40 text-destructive hover:bg-destructive/10"
-                          : "border-border bg-background hover:bg-accent"
-                    }`}
-                  >
-                    <Icon className="h-3.5 w-3.5" />
-                    {action.label}
-                  </button>
-                );
-              })}
-            </div>
-          );
-        })}
-      </div>
+      {renderNode(ui, "root")}
     </div>
   );
 }
