@@ -298,6 +298,18 @@ async function mockCapabilities(page: Page): Promise<CapturedRequest[]> {
     ["ship-feature", capabilitySeed()],
   ]);
 
+  await page.route("**/api/kody/models", async (route) => {
+    await fulfillJson(route, {
+      models: [
+        {
+          id: "minimax/MiniMax-M2.7-highspeed",
+          label: "MiniMax M2.7 Highspeed",
+          enabled: true,
+        },
+      ],
+    });
+  });
+
   await page.route("**/api/kody/capabilities**", async (route) => {
     const request = route.request();
     const url = new URL(request.url());
@@ -612,6 +624,23 @@ test.describe("Operations actions", () => {
     await page
       .getByRole("textbox", { name: "Instructions" })
       .fill("# Instructions\nFix safely.");
+    await expect(page.getByText("Advanced")).toHaveCount(0);
+    await expect(page.getByText("Tool allowlist")).toHaveCount(0);
+    await expect(page.getByText("Generated profile.json")).toHaveCount(0);
+    await expect(page.getByRole("button", { name: "Add skill" })).toBeVisible();
+    await expect(page.getByRole("button", { name: "Add MCP" })).toBeVisible();
+    await expect(
+      page.getByRole("button", { name: "Add script" }),
+    ).toBeVisible();
+    await page.getByRole("combobox", { name: "Model" }).click();
+    await page.getByRole("option", { name: "MiniMax M2.7 Highspeed" }).click();
+    await page.getByRole("button", { name: "Edit tools" }).click();
+    await expect(page.getByText("Tool allowlist")).toBeVisible();
+    await page.getByRole("button", { name: "Show generated JSON" }).click();
+    await expect(page.getByText("Generated profile.json")).toHaveCount(0);
+    await expect(
+      page.locator("pre").filter({ hasText: "MiniMax" }),
+    ).toBeVisible();
     await Promise.all([
       page.waitForResponse(
         (response) =>
@@ -620,6 +649,9 @@ test.describe("Operations actions", () => {
       ),
       page.getByRole("button", { name: "Create", exact: true }).click(),
     ]);
+    expect((requests[0].body as { model?: string }).model).toBe(
+      "minimax/MiniMax-M2.7-highspeed",
+    );
     await expect(page.getByText("ship-hotfix").first()).toBeVisible();
 
     await page.getByText("ship-feature").first().click();

@@ -44,7 +44,13 @@ import { Input } from "@dashboard/ui/input";
 import { Label } from "@dashboard/ui/label";
 import { Textarea } from "@dashboard/ui/textarea";
 import { Checkbox } from "@dashboard/ui/checkbox";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@dashboard/ui/tabs";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@dashboard/ui/select";
 import { ConfirmDialog } from "./ConfirmDialog";
 import { EmptyState } from "./EmptyState";
 import { MasterDetailShell } from "./MasterDetailShell";
@@ -63,6 +69,7 @@ import {
   type McpServerSpec,
   type PermissionMode,
 } from "../capabilities/profile";
+import type { ChatModelEntry } from "../chat/agent-entries";
 
 /** One-line explanation per tool, shown beside its checkbox. */
 const TOOL_DESCRIPTIONS: Record<string, string> = {
@@ -1252,6 +1259,34 @@ function CapabilityEditorForm({
   const [importing, setImporting] = useState(false);
   const [mcpSource, setMcpSource] = useState("");
   const [analyzing, setAnalyzing] = useState(false);
+  const [showTools, setShowTools] = useState(false);
+  const [showProfileJson, setShowProfileJson] = useState(false);
+
+  const models = useQuery({
+    queryKey: ["kody-capability-models"],
+    queryFn: async (): Promise<ChatModelEntry[]> => {
+      const res = await fetch("/api/kody/models", {
+        headers,
+        cache: "no-store",
+      });
+      const json = (await res.json().catch(() => ({}))) as {
+        models?: ChatModelEntry[];
+        error?: string;
+        message?: string;
+      };
+      if (!res.ok)
+        throw new Error(json.message || json.error || `HTTP ${res.status}`);
+      return Array.isArray(json.models) ? json.models : [];
+    },
+    staleTime: 30_000,
+  });
+
+  const modelOptions = useMemo(
+    () => (models.data ?? []).filter((entry) => entry.enabled !== false),
+    [models.data],
+  );
+  const hasSavedCustomModel =
+    model !== "inherit" && !modelOptions.some((entry) => entry.id === model);
 
   // Analyze a GitHub repo and pre-fill a tool from it: the user pastes a URL,
   // the server reads the repo's README/package.json and proposes the MCP
@@ -1452,13 +1487,8 @@ function CapabilityEditorForm({
         </div>
       ) : null}
 
-      <Tabs defaultValue="basic" className="mt-2">
-        <TabsList>
-          <TabsTrigger value="basic">Basic</TabsTrigger>
-          <TabsTrigger value="advanced">Advanced</TabsTrigger>
-        </TabsList>
-
-        <TabsContent value="basic" className="space-y-3">
+      <div className="mt-2 space-y-5">
+        <section className="space-y-3">
           <div>
             <Label htmlFor="exec-name" className="text-xs">
               Name
@@ -1475,14 +1505,14 @@ function CapabilityEditorForm({
               disabled={!isNew}
               placeholder="Ship feature"
             />
-            <p className="text-[11px] text-white/40 mt-1">
+            <p className="mt-1 text-[11px] text-white/40">
               Saved as{" "}
               <span className="font-mono text-white/60">
                 {slug || "new-action"}
               </span>
             </p>
             {slugError && (
-              <p className="text-xs text-rose-300 mt-1">{slugError}</p>
+              <p className="mt-1 text-xs text-rose-300">{slugError}</p>
             )}
           </div>
 
@@ -1501,29 +1531,103 @@ function CapabilityEditorForm({
               <p className="text-xs text-rose-300">{promptError}</p>
             )}
           </div>
-        </TabsContent>
 
-        <TabsContent value="advanced" className="space-y-5">
-          <div>
+          <div className="space-y-2">
             <Label htmlFor="exec-model" className="text-xs">
               Model
             </Label>
-            <Input
-              id="exec-model"
-              value={model}
-              onChange={(e) => setModel(e.target.value)}
-              placeholder="inherit"
-              className="font-mono text-xs"
-            />
+            <Select value={model} onValueChange={setModel}>
+              <SelectTrigger id="exec-model" className="h-9">
+                <SelectValue placeholder="Default model" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="inherit">Default model</SelectItem>
+                {hasSavedCustomModel ? (
+                  <SelectItem value={model}>{model}</SelectItem>
+                ) : null}
+                {modelOptions.map((entry) => (
+                  <SelectItem key={entry.id} value={entry.id}>
+                    {entry.label}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            {models.isError ? (
+              <p className="text-[11px] text-amber-300/80">
+                Couldn&apos;t load model list; keeping the saved selection.
+              </p>
+            ) : null}
           </div>
+        </section>
 
-          <div>
-            <Label className="text-xs">Tool Allowlist</Label>
-            <div className="grid grid-cols-1 gap-1.5 mt-1">
+        <section className="space-y-3">
+          <div className="flex flex-wrap gap-2">
+            <Button
+              type="button"
+              size="sm"
+              variant="outline"
+              className="gap-1"
+              onClick={() =>
+                setSkills((prev) => [...prev, { name: "", body: "" }])
+              }
+            >
+              <Plus className="h-3.5 w-3.5" />
+              Add skill
+            </Button>
+            <Button
+              type="button"
+              size="sm"
+              variant="outline"
+              className="gap-1"
+              onClick={() =>
+                setMcpServers((prev) => [...prev, { name: "", command: "" }])
+              }
+            >
+              <Plus className="h-3.5 w-3.5" />
+              Add MCP
+            </Button>
+            <Button
+              type="button"
+              size="sm"
+              variant="outline"
+              className="gap-1"
+              onClick={() =>
+                setShellScripts((prev) => [...prev, { name: "", content: "" }])
+              }
+            >
+              <Plus className="h-3.5 w-3.5" />
+              Add script
+            </Button>
+            <Button
+              type="button"
+              size="sm"
+              variant={showTools ? "secondary" : "outline"}
+              className="gap-1"
+              onClick={() => setShowTools((open) => !open)}
+            >
+              <Wrench className="h-3.5 w-3.5" />
+              {showTools ? "Hide tools" : "Edit tools"}
+            </Button>
+          </div>
+        </section>
+
+        {showTools ? (
+          <section className="space-y-3 rounded-md border border-white/[0.08] bg-white/[0.02] p-3">
+            <div className="flex items-center justify-between gap-3">
+              <div>
+                <h3 className="text-xs font-semibold text-white/80">
+                  Tool allowlist
+                </h3>
+                <p className="text-[11px] text-white/40">
+                  {tools.length} selected
+                </p>
+              </div>
+            </div>
+            <div className="grid grid-cols-1 gap-2">
               {COMMON_TOOLS.map((tool) => (
                 <label
                   key={tool}
-                  className="flex items-start gap-2 text-xs text-white/70 cursor-pointer"
+                  className="flex cursor-pointer items-start gap-2 rounded border border-white/[0.06] bg-black/20 p-2 text-xs text-white/70"
                 >
                   <Checkbox
                     checked={tools.includes(tool)}
@@ -1540,23 +1644,37 @@ function CapabilityEditorForm({
                 </label>
               ))}
             </div>
-          </div>
+          </section>
+        ) : null}
 
+        {skills.length > 0 ? (
           <section className="space-y-3">
-            <h3 className="text-xs font-semibold text-white/80">
-              Skills ({skills.length})
-            </h3>
+            <div className="flex items-center justify-between gap-3">
+              <h3 className="text-xs font-semibold text-white/80">
+                Skills ({skills.length})
+              </h3>
+              <Button
+                type="button"
+                size="sm"
+                variant="outline"
+                className="gap-1"
+                onClick={() =>
+                  setSkills((prev) => [...prev, { name: "", body: "" }])
+                }
+              >
+                <Plus className="h-3.5 w-3.5" />
+                Add skill
+              </Button>
+            </div>
             <Card className="border-white/[0.08] bg-white/[0.02]">
-              <CardContent className="p-3 space-y-1.5">
-                <Label className="text-xs">
-                  Import from the skills ecosystem
-                </Label>
+              <CardContent className="space-y-1.5 p-3">
+                <Label className="text-xs">Import skill</Label>
                 <div className="flex items-center gap-2">
                   <Input
                     value={skillSource}
                     onChange={(e) => setSkillSource(e.target.value)}
                     placeholder="https://github.com/owner/repo/tree/main/path/to/skill"
-                    className="font-mono text-xs h-8"
+                    className="h-8 font-mono text-xs"
                     onKeyDown={(e) => {
                       if (e.key === "Enter") {
                         e.preventDefault();
@@ -1565,30 +1683,26 @@ function CapabilityEditorForm({
                     }}
                   />
                   <Button
+                    type="button"
                     size="sm"
                     variant="outline"
-                    className="gap-1 shrink-0"
+                    className="shrink-0 gap-1"
                     disabled={importing || !skillSource.trim()}
                     onClick={importSkillFromSource}
                   >
                     {importing ? (
-                      <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                      <Loader2 className="h-3.5 w-3.5 animate-spin" />
                     ) : (
-                      <Download className="w-3.5 h-3.5" />
+                      <Download className="h-3.5 w-3.5" />
                     )}
                     Import
                   </Button>
                 </div>
-                <p className="text-[11px] text-white/40">
-                  Paste the GitHub URL of a skill folder (the one containing its
-                  SKILL.md). Shorthand <code>owner/repo/path</code> also works.
-                  Fetches its SKILL.md; you can edit it below before saving.
-                </p>
               </CardContent>
             </Card>
             {skills.map((s, i) => (
               <Card key={i} className="border-white/[0.08] bg-white/[0.02]">
-                <CardContent className="p-3 space-y-2">
+                <CardContent className="space-y-2 p-3">
                   <div className="flex items-center gap-2">
                     <Input
                       value={s.name}
@@ -1602,9 +1716,10 @@ function CapabilityEditorForm({
                         )
                       }
                       placeholder="skill-name"
-                      className="font-mono text-xs h-8"
+                      className="h-8 font-mono text-xs"
                     />
                     <Button
+                      type="button"
                       size="sm"
                       variant="ghost"
                       className="text-rose-300"
@@ -1612,7 +1727,7 @@ function CapabilityEditorForm({
                         setSkills((prev) => prev.filter((_, xi) => xi !== i))
                       }
                     >
-                      <Trash2 className="w-3.5 h-3.5" />
+                      <Trash2 className="h-3.5 w-3.5" />
                     </Button>
                   </div>
                   <Textarea
@@ -1631,31 +1746,37 @@ function CapabilityEditorForm({
                 </CardContent>
               </Card>
             ))}
-            <Button
-              size="sm"
-              variant="outline"
-              className="gap-1"
-              onClick={() =>
-                setSkills((prev) => [...prev, { name: "", body: "" }])
-              }
-            >
-              <Plus className="w-3.5 h-3.5" /> Add skill
-            </Button>
           </section>
+        ) : null}
 
+        {mcpServers.length > 0 ? (
           <section className="space-y-3">
-            <h3 className="text-xs font-semibold text-white/80">
-              MCP Tools ({mcpServers.length})
-            </h3>
+            <div className="flex items-center justify-between gap-3">
+              <h3 className="text-xs font-semibold text-white/80">
+                MCP ({mcpServers.length})
+              </h3>
+              <Button
+                type="button"
+                size="sm"
+                variant="outline"
+                className="gap-1"
+                onClick={() =>
+                  setMcpServers((prev) => [...prev, { name: "", command: "" }])
+                }
+              >
+                <Plus className="h-3.5 w-3.5" />
+                Add MCP
+              </Button>
+            </div>
             <Card className="border-white/[0.08] bg-white/[0.02]">
-              <CardContent className="p-3 space-y-1.5">
-                <Label className="text-xs">Add from a GitHub repo</Label>
+              <CardContent className="space-y-1.5 p-3">
+                <Label className="text-xs">Add MCP from GitHub</Label>
                 <div className="flex items-center gap-2">
                   <Input
                     value={mcpSource}
                     onChange={(e) => setMcpSource(e.target.value)}
                     placeholder="https://github.com/colbymchenry/codegraph"
-                    className="font-mono text-xs h-8"
+                    className="h-8 font-mono text-xs"
                     onKeyDown={(e) => {
                       if (e.key === "Enter") {
                         e.preventDefault();
@@ -1664,32 +1785,26 @@ function CapabilityEditorForm({
                     }}
                   />
                   <Button
+                    type="button"
                     size="sm"
                     variant="outline"
-                    className="gap-1 shrink-0"
+                    className="shrink-0 gap-1"
                     disabled={analyzing || !mcpSource.trim()}
                     onClick={analyzeToolFromSource}
                   >
                     {analyzing ? (
-                      <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                      <Loader2 className="h-3.5 w-3.5 animate-spin" />
                     ) : (
-                      <Download className="w-3.5 h-3.5" />
+                      <Download className="h-3.5 w-3.5" />
                     )}
                     Analyze
                   </Button>
                 </div>
-                <p className="text-[11px] text-white/40">
-                  Reads the repo&apos;s README + package.json and pre-fills the
-                  command, args, and an install script below.{" "}
-                  <span className="text-amber-300/70">
-                    Review the generated install script before saving.
-                  </span>
-                </p>
               </CardContent>
             </Card>
             {mcpServers.map((m, i) => (
               <Card key={i} className="border-white/[0.08] bg-white/[0.02]">
-                <CardContent className="p-3 space-y-2">
+                <CardContent className="space-y-2 p-3">
                   <div className="flex items-center gap-2">
                     <Input
                       value={m.name}
@@ -1702,10 +1817,11 @@ function CapabilityEditorForm({
                           ),
                         )
                       }
-                      placeholder="tool-name"
-                      className="font-mono text-xs h-8"
+                      placeholder="mcp-name"
+                      className="h-8 font-mono text-xs"
                     />
                     <Button
+                      type="button"
                       size="sm"
                       variant="ghost"
                       className="text-rose-300"
@@ -1715,7 +1831,7 @@ function CapabilityEditorForm({
                         )
                       }
                     >
-                      <Trash2 className="w-3.5 h-3.5" />
+                      <Trash2 className="h-3.5 w-3.5" />
                     </Button>
                   </div>
                   <div>
@@ -1730,13 +1846,11 @@ function CapabilityEditorForm({
                         )
                       }
                       placeholder="codegraph"
-                      className="font-mono text-xs h-8"
+                      className="h-8 font-mono text-xs"
                     />
                   </div>
                   <div>
-                    <Label className="text-[11px] text-white/50">
-                      Args (space-separated)
-                    </Label>
+                    <Label className="text-[11px] text-white/50">Args</Label>
                     <Input
                       value={(m.args ?? []).join(" ")}
                       onChange={(e) => {
@@ -1755,31 +1869,40 @@ function CapabilityEditorForm({
                         );
                       }}
                       placeholder="serve --mcp"
-                      className="font-mono text-xs h-8"
+                      className="h-8 font-mono text-xs"
                     />
                   </div>
                 </CardContent>
               </Card>
             ))}
-            <Button
-              size="sm"
-              variant="outline"
-              className="gap-1"
-              onClick={() =>
-                setMcpServers((prev) => [...prev, { name: "", command: "" }])
-              }
-            >
-              <Plus className="w-3.5 h-3.5" /> Add tool
-            </Button>
           </section>
+        ) : null}
 
+        {shellScripts.length > 0 ? (
           <section className="space-y-3">
-            <h3 className="text-xs font-semibold text-white/80">
-              Scripts ({shellScripts.length})
-            </h3>
+            <div className="flex items-center justify-between gap-3">
+              <h3 className="text-xs font-semibold text-white/80">
+                Scripts ({shellScripts.length})
+              </h3>
+              <Button
+                type="button"
+                size="sm"
+                variant="outline"
+                className="gap-1"
+                onClick={() =>
+                  setShellScripts((prev) => [
+                    ...prev,
+                    { name: "", content: "" },
+                  ])
+                }
+              >
+                <Plus className="h-3.5 w-3.5" />
+                Add script
+              </Button>
+            </div>
             {shellScripts.map((s, i) => (
               <Card key={i} className="border-white/[0.08] bg-white/[0.02]">
-                <CardContent className="p-3 space-y-2">
+                <CardContent className="space-y-2 p-3">
                   <div className="flex items-center gap-2">
                     <Input
                       value={s.name}
@@ -1791,9 +1914,10 @@ function CapabilityEditorForm({
                         )
                       }
                       placeholder="setup.sh"
-                      className="font-mono text-xs h-8"
+                      className="h-8 font-mono text-xs"
                     />
                     <Button
+                      type="button"
                       size="sm"
                       variant="ghost"
                       className="text-rose-300"
@@ -1803,7 +1927,7 @@ function CapabilityEditorForm({
                         )
                       }
                     >
-                      <Trash2 className="w-3.5 h-3.5" />
+                      <Trash2 className="h-3.5 w-3.5" />
                     </Button>
                   </div>
                   <Textarea
@@ -1822,44 +1946,43 @@ function CapabilityEditorForm({
                 </CardContent>
               </Card>
             ))}
-            <Button
-              size="sm"
-              variant="outline"
-              className="gap-1"
-              onClick={() =>
-                setShellScripts((prev) => [...prev, { name: "", content: "" }])
-              }
-            >
-              <Plus className="w-3.5 h-3.5" /> Add script
-            </Button>
           </section>
+        ) : null}
 
-          <section className="space-y-3">
-            {validation.errors.length === 0 ? (
-              <p className="text-sm text-emerald-300 flex items-center gap-2">
-                <CheckCircle2 className="w-4 h-4" /> Valid
+        <section className="space-y-3">
+          {validation.errors.length > 0 ? (
+            <div className="space-y-1 text-sm text-rose-300">
+              <p className="flex items-center gap-2">
+                <XCircle className="h-4 w-4" /> Problems
               </p>
-            ) : (
-              <div className="text-sm text-rose-300 space-y-1">
-                <p className="flex items-center gap-2">
-                  <XCircle className="w-4 h-4" /> Problems
-                </p>
-                <ul className="list-disc pl-6 text-rose-200/80 text-xs">
-                  {validation.errors.map((e, i) => (
-                    <li key={i}>{e}</li>
-                  ))}
-                </ul>
-              </div>
-            )}
-            <div>
-              <Label className="text-xs">Generated profile.json</Label>
-              <pre className="mt-1 text-[11px] font-mono bg-black/40 border border-white/[0.08] rounded p-3 overflow-x-auto max-h-72">
-                {validation.json}
-              </pre>
+              <ul className="list-disc pl-6 text-xs text-rose-200/80">
+                {validation.errors.map((e, i) => (
+                  <li key={i}>{e}</li>
+                ))}
+              </ul>
             </div>
-          </section>
-        </TabsContent>
-      </Tabs>
+          ) : (
+            <p className="flex items-center gap-2 text-sm text-emerald-300">
+              <CheckCircle2 className="h-4 w-4" /> Valid
+            </p>
+          )}
+          <Button
+            type="button"
+            size="sm"
+            variant="ghost"
+            className="gap-1 px-0 text-white/60 hover:text-white"
+            onClick={() => setShowProfileJson((open) => !open)}
+          >
+            <FileCode className="h-3.5 w-3.5" />
+            {showProfileJson ? "Hide generated JSON" : "Show generated JSON"}
+          </Button>
+          {showProfileJson ? (
+            <pre className="max-h-72 overflow-x-auto rounded border border-white/[0.08] bg-black/40 p-3 font-mono text-[11px]">
+              {validation.json}
+            </pre>
+          ) : null}
+        </section>
+      </div>
 
       <div className="flex justify-end gap-2 mt-4">
         <Button variant="ghost" size="sm" onClick={onClose} disabled={saving}>
