@@ -48,6 +48,7 @@ interface UiToolsCtx {
   actorLogin?: string | null;
   viewRendererRules?: string | null;
   viewRendererDefinitions?: ViewRendererDefinition[];
+  userText?: string | null;
 }
 
 export const switchAgentTool = tool({
@@ -232,6 +233,7 @@ export function createUiTools(ctx: UiToolsCtx = {}) {
               : {}),
             purpose: input.purpose,
             data,
+            userText: ctx.userText,
           });
           return buildRenderedViewDirective({
             id: `view-${randomUUID()}`,

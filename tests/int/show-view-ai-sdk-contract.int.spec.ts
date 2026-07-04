@@ -76,6 +76,35 @@ const approvalRendererDefinition: ViewRendererDefinition = {
   },
 };
 
+const selectionRendererDefinition: ViewRendererDefinition = {
+  slug: "selection-list",
+  name: "Selection List",
+  purpose: "selection-list",
+  rule: "Use this purpose when Kody asks the user to choose exactly one item from a list.",
+  data: {
+    title: { type: "text", description: "Short choice title." },
+    body: { type: "text", optional: true },
+    items: {
+      type: "selection",
+      description: "Selectable items.",
+    },
+  },
+  type: "layout",
+  ui: {
+    type: "stack",
+    children: [
+      { type: "text", value: "$title", variant: "title" },
+      { type: "text", value: "$body" },
+      {
+        type: "list",
+        for: "$items",
+        as: "item",
+        item: { type: "button", label: "$item.label", action: "$item" },
+      },
+    ],
+  },
+};
+
 describe("show_view AI SDK contract", () => {
   it("accepts model-emitted approval data and returns a rendered view result", async () => {
     resolveBestViewRendererDefinitionMock.mockResolvedValue({
@@ -323,6 +352,117 @@ describe("show_view AI SDK contract", () => {
           rendererSlug: "approval-card",
           data: expect.objectContaining({
             title: expect.stringContaining("approval"),
+          }),
+        }),
+      }),
+    ]);
+  });
+
+  it("repairs an empty show_view call from prior list tool results before executing the renderer", async () => {
+    resolveBestViewRendererDefinitionMock.mockResolvedValue({
+      definition: selectionRendererDefinition,
+      source: "repo",
+      sha: "selection-fixture",
+      htmlUrl:
+        "https://github.test/acme/app/views/renderers/selection-list.json",
+    });
+
+    const model = new MockLanguageModelV3({
+      modelId: "renderer-contract-model",
+      doStream: async () => ({
+        stream: simulateReadableStream({
+          chunks: [
+            { type: "stream-start", warnings: [] },
+            {
+              type: "tool-call",
+              toolCallId: "call-empty-selection",
+              toolName: "show_view",
+              input: "{}",
+            },
+            {
+              type: "finish",
+              finishReason: { unified: "tool-calls", raw: "tool_calls" },
+              usage,
+            },
+          ],
+        }),
+      }),
+    });
+    const tools = createUiTools({
+      viewRendererDefinitions: [selectionRendererDefinition],
+      viewRendererRules:
+        "- Purpose `selection-list`: Use this purpose when Kody asks the user to choose exactly one item from a list.\n" +
+        "  Data keys:\n" +
+        "  - title (text): Short choice title.\n" +
+        "  - body (text, optional)\n" +
+        "  - items (selection): Selectable items.",
+    });
+
+    const result = streamText({
+      model,
+      messages: [
+        {
+          role: "user",
+          content: "list reports and allow me to select one",
+        },
+        {
+          role: "tool",
+          content: [
+            {
+              type: "tool-result",
+              toolCallId: "call-list-reports",
+              toolName: "list_reports",
+              output: {
+                type: "json",
+                value: {
+                  reports: [
+                    { slug: "cto", title: "CTO Report" },
+                    { slug: "security-audit", title: "Security Audit" },
+                  ],
+                },
+              },
+            },
+          ],
+        },
+      ],
+      tools: {
+        show_view: tools.show_view,
+      },
+      toolChoice: { type: "tool", toolName: "show_view" },
+      experimental_repairToolCall: async ({ toolCall, messages }) => {
+        return repairShowViewToolCall({
+          toolCall,
+          definitions: [selectionRendererDefinition],
+          userText: "list reports and allow me to select one",
+          context: messages,
+        });
+      },
+      stopWhen: ({ steps }) => steps.length > 0,
+    });
+
+    const toolResults = await result.toolResults;
+
+    expect(toolResults).toEqual([
+      expect.objectContaining({
+        type: "tool-result",
+        toolCallId: "call-empty-selection",
+        toolName: "show_view",
+        output: expect.objectContaining({
+          action: RENDER_VIEW_DIRECTIVE,
+          rendererSlug: "selection-list",
+          data: expect.objectContaining({
+            items: [
+              expect.objectContaining({
+                id: "cto",
+                label: "CTO Report",
+                response: "cto",
+              }),
+              expect.objectContaining({
+                id: "security-audit",
+                label: "Security Audit",
+                response: "security-audit",
+              }),
+            ],
           }),
         }),
       }),

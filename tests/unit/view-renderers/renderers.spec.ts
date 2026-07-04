@@ -432,6 +432,141 @@ describe("view renderer definitions", () => {
     ).toBe("title-body-actions");
   });
 
+  it("uses user wording to choose between compatible list renderers", () => {
+    const singleSelect: ViewRendererDefinition = {
+      slug: "selection-list",
+      name: "Selection list",
+      purpose: "selection-list",
+      rule: "Use this purpose when Kody asks the user to choose exactly one item from a list.",
+      type: "layout",
+      data: {
+        title: { type: "text" },
+        items: { type: "selection" },
+      },
+      ui: {
+        type: "list",
+        for: "$items",
+        as: "item",
+        item: { type: "button", label: "$item.label", action: "$item" },
+      },
+    };
+    const multiSelect: ViewRendererDefinition = {
+      slug: "multi-select-list",
+      name: "Multi-select list",
+      purpose: "multi-select-list",
+      rule: "Use this purpose when Kody asks the user to choose multiple, several, a few, one or more, or zero or more items from a list.",
+      type: "layout",
+      data: {
+        title: { type: "text" },
+        items: { type: "selection" },
+      },
+      ui: {
+        type: "list",
+        for: "$items",
+        as: "item",
+        item: {
+          type: "checkbox",
+          name: "selected",
+          value: "$item.id",
+          label: "$item.label",
+        },
+      },
+    };
+
+    const matched = matchViewRendererDefinition(
+      [singleSelect, multiSelect],
+      "selection-list",
+      {
+        title: "Choose reports",
+        items: [
+          { slug: "cto", title: "CTO Report" },
+          { slug: "security-audit", title: "Security Audit" },
+        ],
+      },
+      "list reports and allow me to select choose multiple items from the list.",
+    );
+
+    expect(matched?.slug).toBe("multi-select-list");
+
+    const phraseMatched = matchViewRendererDefinition(
+      [singleSelect, multiSelect],
+      "selection-list",
+      {
+        title: "Choose one or more reports to review",
+        items: [
+          { slug: "cto", title: "CTO Report" },
+          { slug: "security-audit", title: "Security Audit" },
+        ],
+      },
+      "Choose one or more reports to review",
+    );
+
+    expect(phraseMatched?.slug).toBe("multi-select-list");
+  });
+
+  it("renders multi-select definitions as checkbox atoms, not choice buttons", () => {
+    const multiSelectRenderer: ViewRendererDefinition = {
+      slug: "multi-select-list",
+      name: "Multi-select list",
+      purpose: "multi-select-list",
+      rule: "Use this purpose when Kody asks the user to choose multiple, several, a few, one or more, or zero or more items from a list.",
+      type: "layout",
+      data: {
+        title: { type: "text" },
+        items: { type: "selection" },
+      },
+      ui: {
+        type: "stack",
+        children: [
+          { type: "text", value: "$title", variant: "title" },
+          {
+            type: "list",
+            for: "$items",
+            as: "item",
+            item: {
+              type: "checkbox",
+              name: "selected",
+              value: "$item.id",
+              label: "$item.label",
+            },
+          },
+          { type: "submit", label: "Confirm" },
+        ],
+      },
+    };
+
+    const directive = buildRenderedViewDirective({
+      id: "view-multi-select-regression",
+      definition: multiSelectRenderer,
+      data: {
+        title: "Choose one or more reports",
+        items: [
+          { slug: "cto", title: "CTO Report" },
+          { slug: "security-audit", title: "Security Audit" },
+        ],
+      },
+    });
+
+    expect(directive.ui).toMatchObject({
+      type: "stack",
+      children: [
+        { type: "text", value: "Choose one or more reports" },
+        {
+          type: "list",
+          children: [
+            { type: "checkbox", value: "cto", label: "CTO Report" },
+            {
+              type: "checkbox",
+              value: "security-audit",
+              label: "Security Audit",
+            },
+          ],
+        },
+        { type: "submit", label: "Confirm" },
+      ],
+    });
+  });
+
   it("falls back to a partial renderer when no exact shape exists", () => {
     const matched = matchViewRendererDefinition(
       [decisionRenderer],

@@ -154,6 +154,32 @@ const approvalRendererDefinition = {
   },
 } as const;
 
+const reportSelectionRendererDefinition = {
+  slug: "selection-list",
+  name: "Selection list",
+  purpose: "selection-list",
+  rule: "Use this purpose when Kody asks the user to choose exactly one item from a list.",
+  data: {
+    title: { type: "text", description: "Short title." },
+    body: { type: "text", optional: true },
+    items: { type: "selection", description: "Selectable items." },
+  },
+  type: "layout",
+  ui: {
+    type: "stack",
+    children: [
+      { type: "text", value: "$title", variant: "title" },
+      { type: "text", value: "$body" },
+      {
+        type: "list",
+        for: "$items",
+        as: "item",
+        item: { type: "button", label: "$item.label", action: "$item" },
+      },
+    ],
+  },
+} as const;
+
 describe("POST /api/kody/chat/kody preview prompt", () => {
   beforeEach(() => {
     vi.clearAllMocks();
@@ -353,6 +379,81 @@ describe("POST /api/kody/chat/kody preview prompt", () => {
       purpose: "approval-card",
       data: {
         title: expect.stringContaining("approval"),
+      },
+    });
+  });
+
+  it("repairs an empty show_view call from prior list tool results", async () => {
+    loadViewRendererContextForPromptMock.mockResolvedValue({
+      rules:
+        "- Purpose `selection-list`: Use this purpose when Kody asks the user to choose exactly one item from a list.\n" +
+        "  Data keys:\n" +
+        "  - title (text): Short title.\n" +
+        "  - body (text, optional)\n" +
+        "  - items (selection): Selectable items.",
+      definitions: [reportSelectionRendererDefinition],
+    });
+    const { POST } = await import("../../app/api/kody/chat/kody/route");
+
+    const res = await POST(
+      makeRequest({
+        messages: [
+          {
+            role: "user",
+            content: "list reports and allow me to select a few",
+          },
+        ],
+      }),
+    );
+
+    expect(res.status).toBe(200);
+    const repairToolCall = streamTextMock.mock.calls[0]?.[0]
+      ?.experimental_repairToolCall as
+      | ((input: {
+          toolCall: {
+            type: "tool-call";
+            toolCallId: string;
+            toolName: string;
+            input: string;
+          };
+          messages: unknown[];
+        }) => Promise<{ input: string } | null>)
+      | undefined;
+
+    const repaired = await repairToolCall?.({
+      toolCall: {
+        type: "tool-call",
+        toolCallId: "empty-show-view",
+        toolName: "show_view",
+        input: "{}",
+      },
+      messages: [
+        {
+          role: "tool",
+          content: [
+            {
+              type: "tool-result",
+              toolName: "list_reports",
+              output: {
+                reports: [
+                  { slug: "cto", title: "CTO Report" },
+                  { slug: "security-audit", title: "Security Audit" },
+                ],
+              },
+            },
+          ],
+        },
+      ],
+    });
+
+    expect(repaired).toMatchObject({ toolName: "show_view" });
+    expect(JSON.parse(repaired?.input ?? "{}")).toMatchObject({
+      purpose: "selection-list",
+      data: {
+        items: [
+          { slug: "cto", title: "CTO Report" },
+          { slug: "security-audit", title: "Security Audit" },
+        ],
       },
     });
   });

@@ -199,6 +199,42 @@ describe("view renderer chat contract", () => {
     expect(fallback).toBeNull();
   });
 
+  it("repairs missing list data from prior read/list tool results", () => {
+    const fallback = buildFallbackShowViewInput({
+      definitions: [choiceRenderer],
+      userText: "list reports and allow me to select a few",
+      context: [
+        {
+          role: "tool",
+          content: [
+            {
+              type: "tool-result",
+              toolName: "list_reports",
+              output: {
+                reports: [
+                  { slug: "cto", title: "CTO Report" },
+                  { slug: "security-audit", title: "Security Audit" },
+                ],
+              },
+            },
+          ],
+        },
+      ],
+    });
+
+    expect(fallback).toEqual({
+      purpose: "choice",
+      data: {
+        title: "list reports and allow me to select a few",
+        body: "list reports and allow me to select a few",
+        items: [
+          { slug: "cto", title: "CTO Report" },
+          { slug: "security-audit", title: "Security Audit" },
+        ],
+      },
+    });
+  });
+
   it("repairs an invalid show_view tool call through the renderer contract", () => {
     const repaired = repairShowViewToolCall({
       toolCall: {

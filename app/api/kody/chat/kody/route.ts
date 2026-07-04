@@ -807,6 +807,7 @@ export async function POST(req: NextRequest) {
       actorLogin: verifiedActorLogin,
       viewRendererRules,
       viewRendererDefinitions,
+      userText: latestUserText,
     });
     extraTools = {
       ...extraTools,
@@ -1219,12 +1220,13 @@ This turn includes an image from the user. For questions about what is visible i
         successfulToolResult(FINAL_ANSWER_TOOL),
         stepCountIs(resolvedModel.maxSteps ?? DEFAULT_MAX_STEPS),
       ],
-      experimental_repairToolCall: async ({ toolCall }) => {
+      experimental_repairToolCall: async ({ toolCall, messages }) => {
         if (toolCall.toolName !== SHOW_VIEW_TOOL) return null;
         return repairShowViewToolCall({
           toolCall,
           definitions: viewRendererDefinitions,
           userText: latestUserText,
+          context: messages,
         });
       },
       // Per-provider thinking config so reasoning-delta chunks actually

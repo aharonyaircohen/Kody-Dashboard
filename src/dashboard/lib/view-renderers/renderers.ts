@@ -494,32 +494,163 @@ export function buildViewRendererRulesPrompt(
   return lines.length > 0 ? lines.join("\n") : null;
 }
 
+const RENDERER_MATCH_STOP_WORDS = new Set([
+  "a",
+  "all",
+  "an",
+  "and",
+  "as",
+  "data",
+  "for",
+  "from",
+  "in",
+  "is",
+  "it",
+  "item",
+  "items",
+  "kody",
+  "list",
+  "me",
+  "of",
+  "or",
+  "purpose",
+  "the",
+  "this",
+  "to",
+  "use",
+  "user",
+  "when",
+  "with",
+]);
+
+function rendererMatchTokens(text: string): Set<string> {
+  const tokens = new Set<string>();
+  for (const raw of text.toLowerCase().match(/[a-z0-9]+/g) ?? []) {
+    if (raw.length < 2 || RENDERER_MATCH_STOP_WORDS.has(raw)) continue;
+    tokens.add(raw);
+    if (raw.endsWith("ies") && raw.length > 4) {
+      tokens.add(`${raw.slice(0, -3)}y`);
+    }
+    if (raw.endsWith("ion") && raw.length > 5) {
+      tokens.add(raw.slice(0, -3));
+    }
+    if (raw.endsWith("ing") && raw.length > 5) {
+      tokens.add(raw.slice(0, -3));
+    }
+    if (raw.endsWith("ed") && raw.length > 4) {
+      tokens.add(raw.slice(0, -2));
+    }
+    if (raw.endsWith("s") && raw.length > 3) {
+      tokens.add(raw.slice(0, -1));
+    }
+  }
+  return tokens;
+}
+
+function rendererMatchWords(text: string): string[] {
+  return text.toLowerCase().match(/[a-z0-9]+/g) ?? [];
+}
+
+function rendererMatchPhrases(text: string): Set<string> {
+  const words = rendererMatchWords(text);
+  const phrases = new Set<string>();
+  for (let size = 2; size <= 4; size += 1) {
+    for (let index = 0; index <= words.length - size; index += 1) {
+      const slice = words.slice(index, index + size);
+      if (slice.every((word) => RENDERER_MATCH_STOP_WORDS.has(word))) {
+        continue;
+      }
+      phrases.add(slice.join(" "));
+    }
+  }
+  return phrases;
+}
+
+function rendererDefinitionMatchText(
+  definition: ViewRendererDefinition,
+): string {
+  return [
+    definition.slug,
+    definition.name,
+    definition.description,
+    definition.purpose,
+    ...(definition.aliases ?? []),
+    definition.rule,
+    ...Object.entries(definition.data ?? {}).flatMap(([key, field]) => [
+      key,
+      field.type,
+      field.description,
+    ]),
+  ]
+    .filter((value): value is string => typeof value === "string")
+    .join(" ");
+}
+
+function rendererUserTextScore(
+  definition: ViewRendererDefinition,
+  userText: string | null | undefined,
+): number {
+  const userTokens = rendererMatchTokens(userText ?? "");
+  if (userTokens.size === 0) return 0;
+  const definitionText = rendererDefinitionMatchText(definition);
+  const definitionTokens = rendererMatchTokens(definitionText);
+  let score = 0;
+  for (const token of userTokens) {
+    if (definitionTokens.has(token)) score += 1;
+  }
+  const userPhrases = rendererMatchPhrases(userText ?? "");
+  const definitionPhrases = rendererMatchPhrases(definitionText);
+  for (const phrase of userPhrases) {
+    if (definitionPhrases.has(phrase)) score += 3;
+  }
+  return score;
+}
+
 export function matchViewRendererDefinition(
   definitions: ViewRendererDefinition[],
   purpose: string,
   data: Record<string, unknown>,
+  userText?: string | null,
 ): ViewRendererDefinition | null {
   const dataKeys = Object.keys(data).filter((key) => data[key] !== undefined);
   if (dataKeys.length === 0) return null;
-  const purposeMatches = definitions.filter(
-    (definition) =>
-      definition.purpose === purpose ||
-      definition.slug === purpose ||
-      definition.aliases?.includes(purpose),
-  );
-  if (purposeMatches.length === 0) return null;
-  const matches = purposeMatches
+  const hasUserText = Boolean(userText?.trim());
+  const matches = definitions
     .map((definition, index) => {
+      const purposeMatched =
+        definition.purpose === purpose ||
+        definition.slug === purpose ||
+        definition.aliases?.includes(purpose) === true;
+      const userTextScore = rendererUserTextScore(definition, userText);
       const binds = rendererDataKeySet(definition);
       const matched = dataKeys.filter((key) => binds.has(key)).length;
       const missing = [...binds].filter(
         (bind) => !dataKeys.includes(bind),
       ).length;
-      return { definition, index, matched, missing, bindCount: binds.size };
+      return {
+        definition,
+        index,
+        matched,
+        missing,
+        bindCount: binds.size,
+        purposeMatched,
+        userTextScore,
+      };
     })
-    .filter((candidate) => candidate.matched > 0)
+    .filter(
+      (candidate) =>
+        candidate.matched > 0 &&
+        (candidate.purposeMatched ||
+          (hasUserText && candidate.userTextScore > 0)),
+    )
     .sort((a, b) => {
       if (a.missing !== b.missing) return a.missing - b.missing;
+      if (hasUserText && a.userTextScore !== b.userTextScore) {
+        return b.userTextScore - a.userTextScore;
+      }
+      if (a.purposeMatched !== b.purposeMatched) {
+        return a.purposeMatched ? -1 : 1;
+      }
       if (a.matched !== b.matched) return b.matched - a.matched;
       if (a.bindCount !== b.bindCount) return b.bindCount - a.bindCount;
       return a.index - b.index;
@@ -576,19 +707,26 @@ export async function resolveBestViewRendererDefinition({
   repo,
   purpose,
   data,
+  userText,
 }: {
   octokit?: Octokit;
   owner?: string;
   repo?: string;
   purpose: string;
   data: Record<string, unknown>;
+  userText?: string | null;
 }): Promise<ViewRendererDefinitionFile> {
   const files =
     octokit && owner && repo
       ? await listViewRendererDefinitionFiles({ octokit, owner, repo })
       : [];
   const definitions = files.map((file) => file.definition);
-  const matched = matchViewRendererDefinition(definitions, purpose, data);
+  const matched = matchViewRendererDefinition(
+    definitions,
+    purpose,
+    data,
+    userText,
+  );
   if (!matched) {
     throw new Error(`No view renderer matches purpose "${purpose}"`);
   }
