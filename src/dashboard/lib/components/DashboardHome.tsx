@@ -26,7 +26,6 @@ import {
   Inbox,
   Loader2,
   type LucideIcon,
-  MessageCircle,
   Plus,
   RefreshCw,
   Target,
@@ -40,8 +39,6 @@ import { useKodyTasks } from "../hooks";
 import { useReports } from "../hooks/useReports";
 import { useDefaultBranchCI } from "../hooks/useDefaultBranchCI";
 import { useHealth } from "../hooks/useHealth";
-import { useMessageChannels } from "../hooks/useMessages";
-import { useChannelsUnread } from "../hooks/useChannelsUnread";
 import { useActivityLog } from "../hooks/useActivityLog";
 import {
   useAcknowledgeHealthSignal,
@@ -50,9 +47,7 @@ import {
   useRetryTask,
 } from "../hooks/useDashboardActions";
 import { useGitHubIdentity } from "../hooks/useGitHubIdentity";
-import { useManagedGoals } from "../hooks/useManagedGoals";
 import { useAuth } from "../auth-context";
-import { managedGoalModel, type ManagedGoalRecord } from "../managed-goals";
 import { CreateTaskDialog } from "./CreateTaskDialog";
 import { CreateGoalDialog } from "./GoalControl";
 import { RepoManager } from "./RepoManager";
@@ -634,7 +629,7 @@ function sourceReportMarkdown(report: Report): string {
   return `Source report: [\`${path}\`](${report.htmlUrl})`;
 }
 
-function EngineHealth() {
+function EngineHealthCard() {
   const { data, isLoading } = useHealth();
   const ack = useAcknowledgeHealthSignal();
   const level = data?.level ?? "ok";
@@ -644,9 +639,8 @@ function EngineHealth() {
   const ackedCount = problems.filter((s) => ack.isAcknowledged(s.id)).length;
 
   return (
-    <section>
-      <SectionHeader title="Engine health" href="/activity" cta="Activity" />
-      <Card className="space-y-3 p-3">
+    <Card className="space-y-3 p-3">
+      <div className="flex flex-wrap items-center justify-between gap-3">
         <div className="flex items-center gap-2">
           <span
             className={cn(
@@ -656,251 +650,79 @@ function EngineHealth() {
           >
             <Activity className="w-4 h-4" />
           </span>
-          <div className="text-body-sm">
-            {isLoading
-              ? "Checking…"
-              : level === "ok"
-                ? "All systems healthy."
-                : level === "degraded"
-                  ? "Degraded — runs work but are at risk."
-                  : "Down — runs are blocked."}
+          <div>
+            <div className="text-body-sm font-medium">Engine health</div>
+            <div className="text-body-xs text-muted-foreground">
+              {isLoading
+                ? "Checking..."
+                : level === "ok"
+                  ? "All systems healthy."
+                  : level === "degraded"
+                    ? "Degraded - runs work but are at risk."
+                    : "Down - runs are blocked."}
+            </div>
           </div>
         </div>
-        {problems.length > 0 ? (
-          <div className="space-y-1 border-t border-white/[0.06] pt-2">
-            {problems.map((s) => {
-              const isAcked = ack.isAcknowledged(s.id);
-              return (
-                <div
-                  key={s.id}
-                  className={cn(
-                    "flex items-start gap-2 px-2 py-1.5 -mx-2 rounded-md",
-                    isAcked && "opacity-50",
-                  )}
-                >
-                  <span
-                    className={cn(
-                      "text-label uppercase tracking-wide px-2 py-1 rounded shrink-0 mt-0.5",
-                      LEVEL_TINT[s.level],
-                    )}
-                  >
-                    {s.label}
-                  </span>
-                  <span className="text-body-xs text-muted-foreground flex-1">
-                    {s.detail}
-                  </span>
-                  {isAcked ? (
-                    <button
-                      type="button"
-                      onClick={() => ack.unacknowledge(s.id)}
-                      className="text-body-xs text-muted-foreground hover:text-foreground inline-flex items-center gap-1"
-                      title="Restore this signal"
-                    >
-                      <X className="w-3 h-3" />
-                    </button>
-                  ) : (
-                    <button
-                      type="button"
-                      onClick={() => ack.acknowledge(s.id)}
-                      className="text-body-xs text-muted-foreground hover:text-foreground inline-flex items-center gap-1"
-                      title="Acknowledge — mute this signal until the next state change"
-                    >
-                      Ack
-                    </button>
-                  )}
-                </div>
-              );
-            })}
-            {ackedCount > 0 ? (
-              <div className="text-body-xs text-muted-foreground px-2 pt-1">
-                {ackedCount} acknowledged — click the × to restore.
-              </div>
-            ) : null}
-          </div>
-        ) : null}
-      </Card>
-    </section>
-  );
-}
-
-// ── strategic & historical slices ────────────────────────────────────────────
-
-function ModelsOverview() {
-  const { data: models = [], isLoading } = useManagedGoals();
-  const top = [...models]
-    .sort((a, b) => managedModelTime(b) - managedModelTime(a))
-    .slice(0, 4);
-  const objectiveCount = models.filter(
-    (model) => managedGoalModel(model) === "agentGoal",
-  ).length;
-  const routineCount = models.filter(
-    (model) => managedGoalModel(model) === "agentLoop",
-  ).length;
-
-  return (
-    <section>
-      <SectionHeader
-        title="AgentGoals / agentLoops"
-        href="/agent-goals"
-        cta="Open"
-      />
-      {isLoading ? (
-        <p className="text-body-sm text-muted-foreground">Loading models...</p>
-      ) : models.length === 0 ? (
-        <Card className="p-3 text-body-sm text-muted-foreground">
-          No agentGoals or agentLoops yet.
-        </Card>
-      ) : (
-        <Card className="overflow-hidden">
-          <div className="grid grid-cols-2 divide-x divide-white/[0.04] border-b border-white/[0.04] text-body-xs">
-            <RepoScopedLink
-              href="/agent-goals"
-              className="flex items-center justify-between px-3 py-2.5 text-muted-foreground hover:bg-white/[0.04] hover:text-foreground"
-            >
-              <span>AgentGoals</span>
-              <span className="font-mono text-white/70">{objectiveCount}</span>
-            </RepoScopedLink>
-            <RepoScopedLink
-              href="/agent-loops"
-              className="flex items-center justify-between px-3 py-2.5 text-muted-foreground hover:bg-white/[0.04] hover:text-foreground"
-            >
-              <span>AgentLoops</span>
-              <span className="font-mono text-white/70">{routineCount}</span>
-            </RepoScopedLink>
-          </div>
-          <div className="divide-y divide-white/[0.04]">
-            {top.map((model) => (
-              <ManagedModelOverviewRow key={model.id} model={model} />
-            ))}
-          </div>
-        </Card>
-      )}
-    </section>
-  );
-}
-
-function managedModelTime(model: ManagedGoalRecord): number {
-  const raw =
-    model.updatedAt ??
-    (typeof model.state.updatedAt === "string" ? model.state.updatedAt : "") ??
-    (typeof model.state.createdAt === "string" ? model.state.createdAt : "");
-  const parsed = Date.parse(raw);
-  return Number.isFinite(parsed) ? parsed : 0;
-}
-
-function ManagedModelOverviewRow({ model }: { model: ManagedGoalRecord }) {
-  const kind = managedGoalModel(model);
-  const href = kind === "agentLoop" ? "/agent-loops" : "/agent-goals";
-  const state = model.state.state;
-
-  return (
-    <RepoScopedLink
-      href={href}
-      className="flex items-center gap-2 px-3 py-2.5 transition-colors hover:bg-white/[0.04]"
-    >
-      <div className="flex items-center gap-2 min-w-0 flex-1">
-        {kind === "agentLoop" ? (
-          <Activity className="w-3.5 h-3.5 text-sky-400 shrink-0" />
-        ) : (
-          <Target className="w-3.5 h-3.5 text-emerald-400 shrink-0" />
-        )}
-        <span className="text-body-sm flex-1 truncate">
-          {model.state.destination.outcome || model.id}
-        </span>
-        <span className="text-label uppercase tracking-wide px-2 py-1 rounded bg-white/[0.06] text-white/55 shrink-0">
-          {kind}
-        </span>
-        <span className="text-label uppercase tracking-wide px-2 py-1 rounded bg-white/[0.06] text-white/55 shrink-0">
-          {state}
-        </span>
+        <RepoScopedLink
+          href="/activity"
+          className="inline-flex items-center gap-1 text-body-xs text-muted-foreground hover:text-foreground"
+        >
+          Activity <ArrowRight className="w-3 h-3" />
+        </RepoScopedLink>
       </div>
-      {managedModelTime(model) > 0 ? (
-        <span className="text-body-xs text-muted-foreground shrink-0 tabular-nums">
-          {timeAgo(
-            model.updatedAt ??
-              (typeof model.state.updatedAt === "string"
-                ? model.state.updatedAt
-                : undefined),
-          )}
-        </span>
-      ) : null}
-    </RepoScopedLink>
-  );
-}
-
-function ChannelsOverview() {
-  const channelsQuery = useMessageChannels();
-  const unread = useChannelsUnread();
-  const enabled = channelsQuery.data?.enabled === true;
-  const list = enabled ? channelsQuery.data!.channels : [];
-  const top = [...list]
-    .sort((a, b) => Date.parse(b.updatedAt) - Date.parse(a.updatedAt))
-    .slice(0, 4);
-
-  return (
-    <section>
-      <SectionHeader title="Team channels" href="/messages" cta="Messages" />
-      {channelsQuery.isLoading ? (
-        <p className="text-body-sm text-muted-foreground">Loading channels…</p>
-      ) : !enabled ? (
-        <Card className="p-3 text-body-sm text-muted-foreground">
-          Discussions are off — enable them to use team chat.
-        </Card>
-      ) : top.length === 0 ? (
-        <Card className="p-3 text-body-sm text-muted-foreground">
-          No channels yet — create one from the Messages page.
-        </Card>
-      ) : (
-        <Card className="divide-y divide-white/[0.04] overflow-hidden">
-          {top.map((c) => {
-            const isUnread = unread.unreadChannels.has(c.number);
+      {problems.length > 0 ? (
+        <div className="space-y-1 border-t border-white/[0.06] pt-2">
+          {problems.map((s) => {
+            const isAcked = ack.isAcknowledged(s.id);
             return (
               <div
-                key={c.id}
-                className="flex items-center gap-2 px-3 py-2.5 transition-colors hover:bg-white/[0.04]"
+                key={s.id}
+                className={cn(
+                  "flex items-start gap-2 px-2 py-1.5 -mx-2 rounded-md",
+                  isAcked && "opacity-50",
+                )}
               >
-                <RepoScopedLink
-                  href="/messages"
-                  className="flex items-center gap-2 min-w-0 flex-1"
-                >
-                  <MessageCircle
-                    className={cn(
-                      "w-3.5 h-3.5 shrink-0",
-                      isUnread ? "text-violet-300" : "text-muted-foreground",
-                    )}
-                  />
-                  <span className="text-body-sm flex-1 truncate">
-                    #{c.name}
-                  </span>
-                  {isUnread ? (
-                    <span className="text-label uppercase tracking-wide px-2 py-1 rounded bg-violet-500/15 text-violet-200 shrink-0">
-                      new
-                    </span>
-                  ) : (
-                    <span className="text-body-xs text-muted-foreground shrink-0 tabular-nums">
-                      {c.commentsCount} msg{c.commentsCount === 1 ? "" : "s"}
-                    </span>
+                <span
+                  className={cn(
+                    "text-label uppercase tracking-wide px-2 py-1 rounded shrink-0 mt-0.5",
+                    LEVEL_TINT[s.level],
                   )}
-                </RepoScopedLink>
-                {isUnread ? (
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    className="h-8 px-2.5 text-body-xs gap-1 shrink-0"
-                    disabled={unread.isLoading}
-                    onClick={() => unread.markSeen(c.number)}
-                    title="Mark this channel as read"
+                >
+                  {s.label}
+                </span>
+                <span className="text-body-xs text-muted-foreground flex-1">
+                  {s.detail}
+                </span>
+                {isAcked ? (
+                  <button
+                    type="button"
+                    onClick={() => ack.unacknowledge(s.id)}
+                    className="text-body-xs text-muted-foreground hover:text-foreground inline-flex items-center gap-1"
+                    title="Restore this signal"
                   >
-                    <CheckCircle2 className="w-3 h-3" />
-                    Mark read
-                  </Button>
-                ) : null}
+                    <X className="w-3 h-3" />
+                  </button>
+                ) : (
+                  <button
+                    type="button"
+                    onClick={() => ack.acknowledge(s.id)}
+                    className="text-body-xs text-muted-foreground hover:text-foreground inline-flex items-center gap-1"
+                    title="Acknowledge - mute this signal until the next state change"
+                  >
+                    Ack
+                  </button>
+                )}
               </div>
             );
           })}
-        </Card>
-      )}
-    </section>
+          {ackedCount > 0 ? (
+            <div className="text-body-xs text-muted-foreground px-2 pt-1">
+              {ackedCount} acknowledged - click the x to restore.
+            </div>
+          ) : null}
+        </div>
+      ) : null}
+    </Card>
   );
 }
 
@@ -1113,6 +935,9 @@ export function DashboardHome() {
               href="/tasks"
             />
           </div>
+          <div className="mt-3">
+            <EngineHealthCard />
+          </div>
         </section>
 
         <HappeningNow
@@ -1156,12 +981,7 @@ export function DashboardHome() {
           </div>
         </section>
 
-        <div className="grid grid-cols-1 gap-x-6 gap-y-8 lg:grid-cols-2">
-          <ModelsOverview />
-          <ChannelsOverview />
-          <LatestReports />
-          <EngineHealth />
-        </div>
+        <LatestReports />
 
         <ActivityOverview />
       </div>
