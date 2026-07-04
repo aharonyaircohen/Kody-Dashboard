@@ -48,6 +48,12 @@ const service = vi.hoisted(() => ({
               display: { role: "primary", width: "fill" },
               validation: { minLength: 3 },
             },
+            {
+              name: "status",
+              type: "select",
+              label: "Status",
+              options: ["draft", "published"],
+            },
           ],
           filters: [],
         },
@@ -127,6 +133,12 @@ describe("CMS chat tools", () => {
               required: true,
               display: { role: "primary", width: "fill" },
               validation: { minLength: 3 },
+            },
+            {
+              name: "status",
+              type: "select",
+              label: "Status",
+              options: ["draft", "published"],
             },
           ],
         },
@@ -289,6 +301,49 @@ describe("CMS chat tools", () => {
     );
   });
 
+  it("enforces collection field types and select options in the mutation schema", async () => {
+    const req = new NextRequest("https://dash.test/api/kody/chat/kody");
+    const tools = await createCmsTools({
+      req,
+      octokit: {} as never,
+      owner: "A-Guy-educ",
+      repo: "A-Guy-Web",
+    });
+
+    const schema = tools.cms_mutate_document.inputSchema as {
+      safeParse(input: unknown): { success: boolean };
+    };
+    const description = (
+      tools.cms_mutate_document.inputSchema as {
+        shape?: { data?: { description?: string } };
+      }
+    ).shape?.data?.description;
+
+    expect(description).toContain("status (select, options: draft, published)");
+    expect(
+      schema.safeParse({
+        collection: "lessons",
+        operation: "create",
+        data: { title: "Updated", status: "draft" },
+      }).success,
+    ).toBe(true);
+    expect(
+      schema.safeParse({
+        collection: "lessons",
+        operation: "create",
+        data: { title: "Updated", status: "ready" },
+      }).success,
+    ).toBe(false);
+    expect(
+      schema.safeParse({
+        collection: "lessons",
+        operation: "update",
+        id: "1",
+        data: { status: ["draft"] },
+      }).success,
+    ).toBe(false);
+  });
+
   it("does not advertise delete mutations when delete is disabled for every collection", async () => {
     service.listCmsCollections.mockResolvedValueOnce({
       configured: true,
@@ -317,7 +372,10 @@ describe("CMS chat tools", () => {
             delete: false,
           },
           defaultSort: [],
-          fields: [{ name: "id", type: "id", readOnly: true }],
+          fields: [
+            { name: "id", type: "id", readOnly: true },
+            { name: "title", type: "text" },
+          ],
           filters: [],
         },
       ],
