@@ -12,6 +12,7 @@ import {
   serializeViewRendererDefinition,
   type ViewRendererDefinition,
 } from "@dashboard/lib/view-renderers/renderers";
+import { parseViewRendererDefinitionInput } from "@dashboard/lib/view-renderers/definition";
 
 describe("view renderer definitions", () => {
   const decisionRenderer: ViewRendererDefinition = {
@@ -21,8 +22,8 @@ describe("view renderer definitions", () => {
     aliases: ["approval"],
     rule: "Use this purpose when Kody presents a decision.",
     data: {
-      title: { description: "Short heading." },
-      body: { description: "Supporting text." },
+      title: { type: "text", description: "Short heading." },
+      body: { type: "text", description: "Supporting text." },
       actions: {
         type: "actions",
         description: "Available responses.",
@@ -39,11 +40,19 @@ describe("view renderer definitions", () => {
       ],
     },
     type: "layout",
-    blocks: [
-      { type: "title", bind: "title" },
-      { type: "text", bind: "body" },
-      { type: "buttons", bind: "actions" },
-    ],
+    ui: {
+      type: "stack",
+      children: [
+        { type: "text", value: "$title", variant: "title" },
+        { type: "text", value: "$body" },
+        {
+          type: "row",
+          for: "$actions",
+          as: "action",
+          item: { type: "button", label: "$action.label", action: "$action" },
+        },
+      ],
+    },
   };
 
   const choiceRenderer: ViewRendererDefinition = {
@@ -52,17 +61,33 @@ describe("view renderer definitions", () => {
     purpose: "choice",
     rule: "Use this purpose when Kody presents choices.",
     data: {
+      title: {
+        type: "text",
+        description: "Short title.",
+      },
+      body: {
+        type: "text",
+        description: "Supporting text.",
+      },
       items: {
         type: "selection",
         description: "Choices the user can select from.",
       },
     },
     type: "layout",
-    blocks: [
-      { type: "title", bind: "title" },
-      { type: "text", bind: "body" },
-      { type: "selection", bind: "items" },
-    ],
+    ui: {
+      type: "stack",
+      children: [
+        { type: "text", value: "$title", variant: "title" },
+        { type: "text", value: "$body" },
+        {
+          type: "list",
+          for: "$items",
+          as: "item",
+          item: { type: "button", label: "$item.label", action: "$item" },
+        },
+      ],
+    },
   };
 
   it("parses a layout renderer", () => {
@@ -77,11 +102,7 @@ describe("view renderer definitions", () => {
     expect(parsed.data?.title?.description).toBe("Short heading.");
     expect(parsed.defaults?.actions).toHaveLength(1);
     expect(parsed.type).toBe("layout");
-    expect(parsed.blocks.map((block) => block.type)).toEqual([
-      "title",
-      "text",
-      "buttons",
-    ]);
+    expect(parsed.ui.type).toBe("stack");
   });
 
   it("formats renderer rules for the chat prompt", () => {
@@ -93,7 +114,7 @@ describe("view renderer definitions", () => {
     expect(prompt).toContain("Purpose `decision`");
     expect(prompt).toContain("Aliases: `approval`");
     expect(prompt).toContain("Data keys:");
-    expect(prompt).toContain("  - title (title): Short heading.");
+    expect(prompt).toContain("  - title (text): Short heading.");
     expect(prompt).toContain(
       "  - actions (actions, default available): Available responses.",
     );
@@ -115,21 +136,24 @@ describe("view renderer definitions", () => {
     expect(matched?.slug).toBe("decision-card");
   });
 
-  it("parses a selection block renderer", () => {
+  it("parses a selection renderer with generic UI atoms", () => {
     const parsed = parseViewRendererDefinition(
       serializeViewRendererDefinition(choiceRenderer),
     );
 
     expect(parsed.slug).toBe("choice-list");
     expect(parsed.purpose).toBe("choice");
-    expect(parsed.blocks.map((block) => block.type)).toEqual([
-      "title",
-      "text",
-      "selection",
-    ]);
+    expect(parsed.ui).toMatchObject({
+      type: "stack",
+      children: [
+        { type: "text", value: "$title", variant: "title" },
+        { type: "text", value: "$body" },
+        { type: "list", for: "$items" },
+      ],
+    });
   });
 
-  it("rejects unknown block types", () => {
+  it("rejects renderer definitions without generic UI", () => {
     expect(() =>
       parseViewRendererDefinition(
         JSON.stringify({
@@ -137,10 +161,66 @@ describe("view renderer definitions", () => {
           name: "Bad renderer",
           purpose: "bad",
           type: "layout",
-          blocks: [{ type: "script", bind: "code" }],
+          data: { title: { type: "text" } },
         }),
       ),
     ).toThrow(/Invalid view renderer/);
+  });
+
+  it("rejects renderer definitions whose UI references undeclared data", () => {
+    expect(() =>
+      parseViewRendererDefinition(
+        JSON.stringify({
+          slug: "bad-renderer",
+          name: "Bad renderer",
+          purpose: "bad",
+          type: "layout",
+          data: { title: { type: "text" } },
+          ui: {
+            type: "stack",
+            children: [
+              { type: "text", value: "$title" },
+              { type: "text", value: "$body" },
+            ],
+          },
+        }),
+      ),
+    ).toThrow(/data key "body" is not declared/);
+  });
+
+  it("migrates legacy block renderers into generic UI definitions", () => {
+    const parsed = parseViewRendererDefinitionInput(
+      JSON.stringify({
+        slug: "legacy-choice",
+        name: "Legacy choice",
+        purpose: "choice",
+        rule: "Use this purpose when Kody presents choices.",
+        type: "layout",
+        blocks: [
+          { type: "title", bind: "title" },
+          { type: "text", bind: "body" },
+          { type: "selection", bind: "items" },
+        ],
+      }),
+    );
+
+    expect(parsed.migrated).toBe(true);
+    expect(parsed.definition.data).toMatchObject({
+      title: { type: "text" },
+      body: { type: "text" },
+      items: { type: "selection" },
+    });
+    expect(parsed.definition.ui).toMatchObject({
+      type: "stack",
+      children: [
+        { type: "text", value: "$title", variant: "title" },
+        { type: "text", value: "$body" },
+        { type: "list", for: "$items" },
+      ],
+    });
+    expect(serializeViewRendererDefinition(parsed.definition)).not.toContain(
+      '"blocks"',
+    );
   });
 
   it("builds a generic chat render directive", () => {
@@ -168,11 +248,23 @@ describe("view renderer definitions", () => {
       rendererSlug: "decision-card",
       resultTarget: "chat",
     });
-    expect(directive.blocks.map((block) => block.type)).toEqual([
-      "title",
-      "text",
-      "buttons",
-    ]);
+    expect(directive.ui).toMatchObject({
+      type: "stack",
+      children: [
+        { type: "text", value: "Choose next step", variant: "title" },
+        { type: "text", value: "Pick one option before continuing." },
+        {
+          type: "row",
+          children: [
+            {
+              type: "button",
+              label: "Continue",
+              action: { id: "continue", response: "continue" },
+            },
+          ],
+        },
+      ],
+    });
     expect(directive.data.title).toBe("Choose next step");
   });
 
@@ -191,24 +283,19 @@ describe("view renderer definitions", () => {
       type: "stack",
       children: [
         { type: "text", value: "Choose one", variant: "title" },
-        { type: "text", value: "Pick one option.", variant: "body" },
+        { type: "text", value: "Pick one option." },
         {
-          type: "stack",
+          type: "list",
           children: [
             {
-              type: "list",
-              children: [
-                {
-                  type: "button",
-                  label: "Alpha",
-                  action: { id: "alpha", response: "alpha" },
-                },
-                {
-                  type: "button",
-                  label: "Beta",
-                  action: { id: "beta", response: "beta" },
-                },
-              ],
+              type: "button",
+              label: "Alpha",
+              action: { id: "alpha", response: "alpha" },
+            },
+            {
+              type: "button",
+              label: "Beta",
+              action: { id: "beta", response: "beta" },
             },
           ],
         },
@@ -237,6 +324,33 @@ describe("view renderer definitions", () => {
     expect(data.items).toEqual([
       { id: "alpha", label: "Alpha", response: "alpha" },
       { id: "beta", label: "Beta", response: "beta" },
+    ]);
+  });
+
+  it("normalizes selectable records from read/list tools", () => {
+    const data = normalizeViewRendererData(choiceRenderer, {
+      title: "Choose reports",
+      items: [
+        {
+          slug: "cto",
+          title: "CTO Report",
+          updatedAt: "2026-07-04T12:00:00Z",
+        },
+        {
+          slug: "security-audit",
+          title: "Security Audit Status",
+          path: "reports/security-audit.md",
+        },
+      ],
+    });
+
+    expect(data.items).toEqual([
+      { id: "cto", label: "CTO Report", response: "cto" },
+      {
+        id: "security-audit",
+        label: "Security Audit Status",
+        response: "security-audit",
+      },
     ]);
   });
 
@@ -277,18 +391,36 @@ describe("view renderer definitions", () => {
       name: "Title only",
       purpose: "decision",
       type: "layout" as const,
-      blocks: [{ type: "title" as const, bind: "title" }],
+      data: { title: { type: "text" as const } },
+      ui: { type: "text" as const, value: "$title", variant: "title" as const },
     };
     const titleBodyActions = {
       slug: "title-body-actions",
       name: "Title body actions",
       purpose: "decision",
       type: "layout" as const,
-      blocks: [
-        { type: "title" as const, bind: "title" },
-        { type: "text" as const, bind: "body" },
-        { type: "buttons" as const, bind: "actions" },
-      ],
+      data: {
+        title: { type: "text" as const },
+        body: { type: "text" as const },
+        actions: { type: "actions" as const },
+      },
+      ui: {
+        type: "stack" as const,
+        children: [
+          { type: "text" as const, value: "$title", variant: "title" as const },
+          { type: "text" as const, value: "$body" },
+          {
+            type: "row" as const,
+            for: "$actions",
+            as: "action",
+            item: {
+              type: "button" as const,
+              label: "$action.label",
+              action: "$action",
+            },
+          },
+        ],
+      },
     };
 
     expect(

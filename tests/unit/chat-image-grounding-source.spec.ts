@@ -22,8 +22,12 @@ describe("image-grounded chat turns", () => {
   it("does not append hidden preview context when the current turn has an image", () => {
     expect(KODY_CHAT_SOURCE).toContain("imageTurnHasVisualEvidence");
     expect(KODY_CHAT_SOURCE).toContain('a.mimeType.startsWith("image/")');
+    expect(KODY_CHAT_SOURCE).toContain("shouldCollectPreviewContextForTurn");
     expect(KODY_CHAT_SOURCE).toContain(
-      "imageTurnHasVisualEvidence\n        ? null\n        : await collectPreviewContextRef.current()",
+      "hasImageAttachments: imageTurnHasVisualEvidence",
+    );
+    expect(KODY_CHAT_SOURCE).toContain(
+      "await collectPreviewContextRef.current()\n        : null",
     );
   });
 

@@ -139,11 +139,19 @@ const approvalRendererDefinition = {
     ],
   },
   type: "layout",
-  blocks: [
-    { type: "title", bind: "title" },
-    { type: "text", bind: "body" },
-    { type: "buttons", bind: "actions" },
-  ],
+  ui: {
+    type: "stack",
+    children: [
+      { type: "text", value: "$title", variant: "title" },
+      { type: "text", value: "$body" },
+      {
+        type: "row",
+        for: "$actions",
+        as: "action",
+        item: { type: "button", label: "$action.label", action: "$action" },
+      },
+    ],
+  },
 } as const;
 
 describe("POST /api/kody/chat/kody preview prompt", () => {

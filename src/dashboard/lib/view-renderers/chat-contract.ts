@@ -66,26 +66,15 @@ export function collectShowViewData(
   };
 }
 
-function rendererBindSet(definition: ViewRendererDefinition): Set<string> {
-  return new Set(definition.blocks.map((block) => block.bind));
-}
-
-function blockTypeForBind(
-  definition: ViewRendererDefinition,
-  bind: string,
-): string {
-  const block = definition.blocks.find((candidate) => candidate.bind === bind);
-  if (!block) return "value";
-  if (block.type === "buttons") return "actions";
-  return block.type;
+function rendererDataKeySet(definition: ViewRendererDefinition): Set<string> {
+  return new Set(Object.keys(definition.data ?? {}));
 }
 
 function isListRendererField(
   definition: ViewRendererDefinition,
   bind: string,
 ): boolean {
-  const type =
-    definition.data?.[bind]?.type ?? blockTypeForBind(definition, bind);
+  const type = definition.data?.[bind]?.type ?? "value";
   return type === "actions" || type === "selection";
 }
 
@@ -108,6 +97,11 @@ function listRendererFieldJsonSchema(
     items: {
       anyOf: [
         { type: "string", minLength: 1 },
+        {
+          type: "object",
+          minProperties: 1,
+          additionalProperties: true,
+        },
         {
           type: "object",
           properties: {
@@ -133,7 +127,7 @@ function rendererFieldJsonSchema(
   bind: string,
 ): JsonSchemaRecord {
   const field = definition.data?.[bind];
-  const type = field?.type ?? blockTypeForBind(definition, bind);
+  const type = field?.type ?? "value";
   if (type === "actions" || type === "selection") {
     return listRendererFieldJsonSchema(field?.description);
   }
@@ -150,7 +144,7 @@ function rendererPurposeValues(definition: ViewRendererDefinition): string[] {
 
 function requiredRendererBinds(definition: ViewRendererDefinition): string[] {
   const defaults = definition.defaults ?? {};
-  return [...rendererBindSet(definition)].filter((bind) => {
+  return [...rendererDataKeySet(definition)].filter((bind) => {
     if (definition.data?.[bind]?.optional) return false;
     return !Object.prototype.hasOwnProperty.call(defaults, bind);
   });
@@ -191,7 +185,7 @@ export function buildShowViewInputJsonSchema(
     oneOf: definitions.flatMap((definition) =>
       rendererPurposeValues(definition).map((purpose) => {
         const properties = Object.fromEntries(
-          [...rendererBindSet(definition)].map((bind) => [
+          [...rendererDataKeySet(definition)].map((bind) => [
             bind,
             rendererFieldJsonSchema(definition, bind),
           ]),
@@ -330,10 +324,10 @@ function fallbackValueForRendererBind(
   definition: ViewRendererDefinition,
   bind: string,
   userText: string,
-): unknown {
+): unknown | undefined {
   if (isListRendererField(definition, bind)) {
     const items = listItemsFromUserText(userText);
-    return items.length > 0 ? items : ["Continue"];
+    return items.length > 0 ? items : undefined;
   }
   return firstUsefulLine(userText);
 }
@@ -362,9 +356,14 @@ export function buildFallbackShowViewInput({
   const data: Record<string, unknown> = {};
   const required = requiredRendererBinds(definition);
   const binds =
-    required.length > 0 ? required : [...rendererBindSet(definition)];
+    required.length > 0 ? required : [...rendererDataKeySet(definition)];
   for (const bind of binds) {
-    data[bind] = fallbackValueForRendererBind(definition, bind, text);
+    const value = fallbackValueForRendererBind(definition, bind, text);
+    if (value === undefined) {
+      if (required.includes(bind)) return null;
+      continue;
+    }
+    data[bind] = value;
   }
   if (Object.keys(data).length === 0) return null;
   return {

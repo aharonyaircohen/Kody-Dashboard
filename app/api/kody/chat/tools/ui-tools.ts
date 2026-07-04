@@ -210,7 +210,7 @@ export function createUiTools(ctx: UiToolsCtx = {}) {
         "Dashboard loads all renderers from views/renderers/*.json and chooses the renderer whose purpose matches the request. " +
         "Use this when the next user interaction matches an available renderer rule. " +
         "Also use it when the user asks to show, render, or display a UI card; do not print JSON for the user to copy. " +
-        "Pass plain data values only. For list-style data, pass simple string labels. " +
+        "Pass plain data values only. For list-style data, pass an array of labels or records from the read/list tool result. " +
         "Do not pass empty data. Use the selected renderer rule's Data keys as the object keys, and include any user-provided line-separated or bulleted choices under the matching list key. " +
         "If the selected renderer defines defaults, omitted fields are filled by Dashboard. " +
         "Only put data into the view when it belongs to the current interaction you are presenting for action. " +

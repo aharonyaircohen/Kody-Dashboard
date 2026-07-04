@@ -36,11 +36,19 @@ describe("ui tools", () => {
       ],
     },
     type: "layout",
-    blocks: [
-      { type: "title", bind: "title" },
-      { type: "text", bind: "body" },
-      { type: "buttons", bind: "actions" },
-    ],
+    ui: {
+      type: "stack",
+      children: [
+        { type: "text", value: "$title", variant: "title" },
+        { type: "text", value: "$body" },
+        {
+          type: "row",
+          for: "$actions",
+          as: "action",
+          item: { type: "button", label: "$action.label", action: "$action" },
+        },
+      ],
+    },
   };
 
   it("keeps renderer shape handling out of the generic chat tool", () => {

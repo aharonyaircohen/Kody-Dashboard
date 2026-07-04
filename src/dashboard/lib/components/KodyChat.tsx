@@ -217,6 +217,23 @@ function RenderedViewCard({
   onAction: (action: RenderedViewAction) => void;
 }) {
   const ui = getRenderedViewUi(view);
+  const [formValues, setFormValues] = useState<Record<string, string[]>>({});
+  const toggleFormValue = (name: string, value: string) => {
+    setFormValues((current) => {
+      const values = current[name] ?? [];
+      const nextValues = values.includes(value)
+        ? values.filter((candidate) => candidate !== value)
+        : [...values, value];
+      return { ...current, [name]: nextValues };
+    });
+  };
+  const submitForm = (label: string) => {
+    onAction({
+      id: "submit",
+      label,
+      response: JSON.stringify(formValues),
+    });
+  };
   const renderButton = (
     node: Extract<RenderedViewUiNode, { type: "button" }>,
     key: string,
@@ -337,6 +354,44 @@ function RenderedViewCard({
     }
     if (node.type === "button") {
       return renderButton(node, key, layout);
+    }
+    if (node.type === "checkbox") {
+      const checked = (formValues[node.name] ?? []).includes(node.value);
+      return (
+        <label
+          key={key}
+          className={`flex w-full items-center gap-3 rounded-md border px-3 py-2 text-left text-sm transition-colors ${
+            checked
+              ? "border-primary/50 bg-primary/10"
+              : "border-border bg-background hover:bg-accent"
+          } ${disabled ? "cursor-not-allowed opacity-50" : "cursor-pointer"}`}
+        >
+          <input
+            type="checkbox"
+            checked={checked}
+            disabled={disabled}
+            onChange={() => toggleFormValue(node.name, node.value)}
+            className="h-4 w-4 shrink-0 rounded border-border accent-primary"
+          />
+          <span className="min-w-0 flex-1 truncate font-medium">
+            {node.label}
+          </span>
+        </label>
+      );
+    }
+    if (node.type === "submit") {
+      return (
+        <button
+          key={key}
+          type="button"
+          disabled={disabled}
+          onClick={() => submitForm(node.label)}
+          className="inline-flex h-8 items-center gap-1.5 rounded-md border border-primary bg-primary px-2.5 text-sm font-medium text-primary-foreground transition-colors hover:bg-primary/90 disabled:cursor-not-allowed disabled:opacity-50"
+        >
+          <Check className="h-3.5 w-3.5" />
+          {node.label}
+        </button>
+      );
     }
     return null;
   };

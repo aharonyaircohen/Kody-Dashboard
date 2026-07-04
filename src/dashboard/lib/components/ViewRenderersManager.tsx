@@ -36,6 +36,16 @@ import {
 import { ConfirmDialog } from "./ConfirmDialog";
 import { EmptyState } from "./EmptyState";
 import { MasterDetailShell } from "./MasterDetailShell";
+import {
+  parseViewRendererDefinitionInput,
+  serializeViewRendererDefinition,
+  type RendererUiTemplateNode,
+} from "@dashboard/lib/view-renderers/definition";
+import type {
+  RenderedViewAction,
+  RenderedViewDataValue,
+  RenderedViewUiNode,
+} from "@dashboard/lib/chat-ui-actions";
 
 interface RendererRow {
   slug: string;
@@ -53,25 +63,13 @@ interface RendererRow {
   >;
   defaults?: Record<string, unknown>;
   type: "layout";
-  blocks: Array<{ type: string; bind: string; label?: string }>;
+  ui: unknown;
   source: "repo";
   htmlUrl: string;
   definition: string;
 }
 
-interface RendererPreviewAction {
-  id: string;
-  label: string;
-  response: string;
-  variant?: "primary" | "secondary" | "danger";
-}
-
-type RendererPreviewValue =
-  | string
-  | number
-  | boolean
-  | null
-  | RendererPreviewAction[];
+type RendererPreviewValue = RenderedViewDataValue;
 
 interface RendererQueryScope {
   owner?: string | null;
@@ -82,12 +80,6 @@ const SAMPLE_VALUES: Record<string, string> = {
   title: "Example title",
   body: "Example supporting text.",
 };
-
-const SAMPLE_LIST_ITEMS: RendererPreviewAction[] = [
-  { id: "option-a", label: "Option A", response: "option-a" },
-  { id: "option-b", label: "Option B", response: "option-b" },
-  { id: "option-c", label: "Option C", response: "option-c" },
-];
 
 const DEFAULT_RENDERER_JSON = JSON.stringify(
   {
@@ -127,11 +119,23 @@ const DEFAULT_RENDERER_JSON = JSON.stringify(
       ],
     },
     type: "layout",
-    blocks: [
-      { type: "title", bind: "title" },
-      { type: "text", bind: "body" },
-      { type: "buttons", bind: "actions" },
-    ],
+    ui: {
+      type: "stack",
+      children: [
+        { type: "text", variant: "title", value: "$title" },
+        { type: "text", value: "$body" },
+        {
+          type: "row",
+          for: "$actions",
+          as: "action",
+          item: {
+            type: "button",
+            label: "$action.label",
+            action: "$action",
+          },
+        },
+      ],
+    },
   },
   null,
   2,
@@ -145,24 +149,7 @@ const viewRendererQueryKeys = {
 
 function parseRendererJson(raw: string): RendererRow | null {
   try {
-    const parsed = JSON.parse(raw) as Partial<RendererRow>;
-    if (
-      typeof parsed.slug !== "string" ||
-      typeof parsed.name !== "string" ||
-      typeof parsed.purpose !== "string" ||
-      parsed.type !== "layout" ||
-      !Array.isArray(parsed.blocks)
-    ) {
-      return null;
-    }
-    const defaults =
-      parsed.defaults && typeof parsed.defaults === "object"
-        ? (parsed.defaults as Record<string, unknown>)
-        : null;
-    const data =
-      parsed.data && typeof parsed.data === "object"
-        ? (parsed.data as RendererRow["data"])
-        : null;
+    const parsed = parseViewRendererDefinitionInput(raw).definition;
     return {
       slug: parsed.slug,
       name: parsed.name,
@@ -170,17 +157,242 @@ function parseRendererJson(raw: string): RendererRow | null {
         typeof parsed.description === "string" ? parsed.description : "",
       purpose: parsed.purpose,
       rule: typeof parsed.rule === "string" ? parsed.rule : "",
-      ...(data ? { data } : {}),
-      ...(defaults ? { defaults } : {}),
+      data: parsed.data ?? {},
+      defaults: parsed.defaults ?? {},
       type: "layout",
-      blocks: parsed.blocks as RendererRow["blocks"],
+      ui: parsed.ui,
       source: "repo",
       htmlUrl: "",
-      definition: raw,
+      definition: serializeViewRendererDefinition(parsed),
     };
   } catch {
     return null;
   }
+}
+
+function isPreviewAction(value: unknown): value is RenderedViewAction {
+  if (!value || typeof value !== "object") return false;
+  const action = value as Record<string, unknown>;
+  const validVariant =
+    action.variant === undefined ||
+    action.variant === "primary" ||
+    action.variant === "secondary" ||
+    action.variant === "danger";
+  return (
+    typeof action.id === "string" &&
+    typeof action.label === "string" &&
+    typeof action.response === "string" &&
+    validVariant
+  );
+}
+
+function isPreviewActionList(value: unknown): value is RenderedViewAction[] {
+  return Array.isArray(value) && value.every(isPreviewAction);
+}
+
+function clonePreviewValue(value: unknown): RendererPreviewValue | undefined {
+  if (value === null) return null;
+  if (
+    typeof value === "string" ||
+    typeof value === "number" ||
+    typeof value === "boolean"
+  ) {
+    return value;
+  }
+  if (isPreviewActionList(value)) {
+    return value.map((action) => ({ ...action }));
+  }
+  return undefined;
+}
+
+function buildRendererPreviewData(
+  draft: RendererRow,
+): Record<string, RendererPreviewValue> {
+  const data: Record<string, RendererPreviewValue> = {};
+  const defaults = draft.defaults ?? {};
+  for (const key of Object.keys(draft.data ?? {})) {
+    const defaultValue = clonePreviewValue(defaults[key]);
+    if (defaultValue !== undefined) {
+      data[key] = defaultValue;
+      continue;
+    }
+    const type = draft.data?.[key]?.type ?? "value";
+    if (type === "actions" || type === "selection") {
+      data[key] = [];
+      continue;
+    }
+    data[key] = SAMPLE_VALUES[key] ?? `Example ${key}`;
+  }
+  return data;
+}
+
+function previewScopeValue(
+  data: Record<string, RendererPreviewValue>,
+  locals: Record<string, unknown>,
+  root: string,
+): unknown {
+  if (root === "data") return data;
+  if (Object.prototype.hasOwnProperty.call(data, root)) return data[root];
+  return locals[root];
+}
+
+function resolvePreviewPath(
+  data: Record<string, RendererPreviewValue>,
+  locals: Record<string, unknown>,
+  path: string,
+): unknown {
+  const parts = path.split(".").filter(Boolean);
+  if (parts.length === 0) return undefined;
+  let value = previewScopeValue(data, locals, parts[0]);
+  for (const part of parts.slice(1)) {
+    if (value === null || value === undefined) return undefined;
+    if (Array.isArray(value) && /^\d+$/.test(part)) {
+      value = value[Number(part)];
+      continue;
+    }
+    if (typeof value !== "object") return undefined;
+    value = (value as Record<string, unknown>)[part];
+  }
+  return value;
+}
+
+function resolvePreviewTemplateValue(
+  value: string,
+  data: Record<string, RendererPreviewValue>,
+  locals: Record<string, unknown>,
+): unknown {
+  const exact = /^\$([a-zA-Z0-9_.-]+)$/.exec(value);
+  if (exact) return resolvePreviewPath(data, locals, exact[1]);
+  return value.replace(/\$([a-zA-Z0-9_.-]+)/g, (_match, path: string) => {
+    const resolved = resolvePreviewPath(data, locals, path);
+    return resolved === null || resolved === undefined ? "" : String(resolved);
+  });
+}
+
+function resolvePreviewTemplateString(
+  value: string,
+  data: Record<string, RendererPreviewValue>,
+  locals: Record<string, unknown>,
+): string {
+  const resolved = resolvePreviewTemplateValue(value, data, locals);
+  if (resolved === null || resolved === undefined) return "";
+  if (typeof resolved === "string") return resolved;
+  if (typeof resolved === "number" || typeof resolved === "boolean") {
+    return String(resolved);
+  }
+  return "";
+}
+
+function actionIdFromLabel(label: string): string {
+  const id = label
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "");
+  return id || "action";
+}
+
+function resolvePreviewAction(
+  value: string | RenderedViewAction,
+  data: Record<string, RendererPreviewValue>,
+  locals: Record<string, unknown>,
+): RenderedViewAction {
+  const resolved =
+    typeof value === "string"
+      ? resolvePreviewTemplateValue(value, data, locals)
+      : value;
+  if (isPreviewAction(resolved)) return { ...resolved };
+  const label =
+    resolved === null || resolved === undefined ? "Submit" : String(resolved);
+  const id = actionIdFromLabel(label);
+  return { id, label, response: id };
+}
+
+function buildRendererPreviewNodes(
+  template: RendererUiTemplateNode,
+  data: Record<string, RendererPreviewValue>,
+  locals: Record<string, unknown> = {},
+): RenderedViewUiNode | null {
+  if (
+    template.type === "stack" ||
+    template.type === "row" ||
+    template.type === "list"
+  ) {
+    if (template.for) {
+      const value = resolvePreviewTemplateValue(template.for, data, locals);
+      if (!Array.isArray(value) || !template.item) {
+        return { type: template.type, children: [] };
+      }
+      const localName = template.as ?? "item";
+      return {
+        type: template.type,
+        children: value
+          .map((item, index) =>
+            buildRendererPreviewNodes(template.item as RendererUiTemplateNode, data, {
+              ...locals,
+              [localName]: item,
+              index,
+            }),
+          )
+          .filter((node): node is RenderedViewUiNode => Boolean(node)),
+      };
+    }
+    return {
+      type: template.type,
+      children: (template.children ?? [])
+        .map((child) => buildRendererPreviewNodes(child, data, locals))
+        .filter((node): node is RenderedViewUiNode => Boolean(node)),
+    };
+  }
+  if (template.type === "text") {
+    return {
+      type: "text",
+      value: resolvePreviewTemplateString(template.value, data, locals),
+      ...(template.variant ? { variant: template.variant } : {}),
+    };
+  }
+  if (template.type === "markdown") {
+    return {
+      type: "markdown",
+      value: resolvePreviewTemplateString(template.value, data, locals),
+    };
+  }
+  if (template.type === "input") {
+    return {
+      type: "input",
+      value: resolvePreviewTemplateString(template.value, data, locals),
+      ...(template.label
+        ? { label: resolvePreviewTemplateString(template.label, data, locals) }
+        : {}),
+      readOnly: template.readOnly ?? true,
+    };
+  }
+  if (template.type === "button") {
+    const action = resolvePreviewAction(template.action, data, locals);
+    return {
+      type: "button",
+      label:
+        resolvePreviewTemplateString(template.label, data, locals) ||
+        action.label,
+      action,
+    };
+  }
+  if (template.type === "checkbox") {
+    return {
+      type: "checkbox",
+      name: template.name,
+      value: resolvePreviewTemplateString(template.value, data, locals),
+      label: resolvePreviewTemplateString(template.label, data, locals),
+    };
+  }
+  if (template.type === "submit") {
+    return {
+      type: "submit",
+      label:
+        resolvePreviewTemplateString(template.label, data, locals) || "Submit",
+    };
+  }
+  return null;
 }
 
 async function listRenderersApi(
@@ -486,7 +698,7 @@ function ViewRenderersManagerInner({
                       </div>
                       <p className="mt-1 truncate text-xs text-muted-foreground">
                         {renderer.slug} · {renderer.purpose} ·{" "}
-                        {renderer.blocks.length} blocks
+                        {Object.keys(renderer.data ?? {}).length} data keys
                       </p>
                     </div>
                   </div>
@@ -535,6 +747,10 @@ function RendererPreviewDetail({
   onDelete: () => void;
 }) {
   const previewData = buildRendererPreviewData(draft);
+  const previewUi = buildRendererPreviewNodes(
+    draft.ui as RendererUiTemplateNode,
+    previewData,
+  );
   return (
     <div className="min-h-full">
       <div className="sticky top-0 z-10 flex items-center justify-between gap-3 border-b border-border bg-background/95 px-4 py-3 backdrop-blur md:px-6">
@@ -578,15 +794,13 @@ function RendererPreviewDetail({
         <div className="mb-4 max-w-2xl rounded-md border border-cyan-400/15 bg-cyan-950/10 p-4">
           <p className="text-sm font-medium text-white/85">Preview</p>
           <div className="mt-3 rounded-md border border-white/[0.08] bg-black/20 p-4">
-            <div className="space-y-3">
-              {draft.blocks.map((block, index) => (
-                <RendererBlockPreview
-                  key={`${block.type}-${block.bind}-${index}`}
-                  block={block}
-                  value={previewData[block.bind]}
-                />
-              ))}
-            </div>
+            {previewUi ? (
+              <RendererPreviewNode node={previewUi} />
+            ) : (
+              <p className="text-sm text-muted-foreground">
+                No preview available.
+              </p>
+            )}
           </div>
         </div>
         {draft.rule ? (
@@ -610,60 +824,114 @@ function RendererPreviewDetail({
   );
 }
 
-function isPreviewAction(value: unknown): value is RendererPreviewAction {
-  if (!value || typeof value !== "object") return false;
-  const action = value as Record<string, unknown>;
-  const validVariant =
-    action.variant === undefined ||
-    action.variant === "primary" ||
-    action.variant === "secondary" ||
-    action.variant === "danger";
-  return (
-    typeof action.id === "string" &&
-    typeof action.label === "string" &&
-    typeof action.response === "string" &&
-    validVariant
-  );
-}
-
-function isPreviewActionList(value: unknown): value is RendererPreviewAction[] {
-  return Array.isArray(value) && value.every(isPreviewAction);
-}
-
-function clonePreviewValue(value: unknown): RendererPreviewValue | undefined {
-  if (value === null) return null;
-  if (
-    typeof value === "string" ||
-    typeof value === "number" ||
-    typeof value === "boolean"
-  ) {
-    return value;
+function RendererPreviewNode({
+  node,
+  layout = "row",
+}: {
+  node: RenderedViewUiNode;
+  layout?: "row" | "list";
+}) {
+  if (node.type === "stack") {
+    return (
+      <div className="space-y-3">
+        {node.children.map((child, index) => (
+          <RendererPreviewNode key={index} node={child} />
+        ))}
+      </div>
+    );
   }
-  if (isPreviewActionList(value)) {
-    return value.map((action) => ({ ...action }));
-  }
-  return undefined;
-}
-
-function buildRendererPreviewData(
-  renderer: RendererRow,
-): Record<string, RendererPreviewValue> {
-  const data: Record<string, RendererPreviewValue> = {};
-  for (const [key, value] of Object.entries(renderer.defaults ?? {})) {
-    const cloned = clonePreviewValue(value);
-    if (cloned !== undefined) data[key] = cloned;
-  }
-  for (const block of renderer.blocks) {
-    if (data[block.bind] !== undefined) continue;
-    if (block.type === "buttons") {
-      data[block.bind] = [];
-    } else if (block.type === "selection") {
-      data[block.bind] = SAMPLE_LIST_ITEMS.map((item) => ({ ...item }));
-    } else {
-      data[block.bind] = SAMPLE_VALUES[block.bind] ?? block.label ?? block.bind;
+  if (node.type === "row" || node.type === "list") {
+    if (node.children.length === 0) {
+      return (
+        <p className="text-sm text-muted-foreground">No actions configured.</p>
+      );
     }
+    const className =
+      node.type === "row" ? "flex flex-wrap gap-2" : "space-y-1.5";
+    return (
+      <div className={className}>
+        {node.children.map((child, index) => (
+          <RendererPreviewNode
+            key={index}
+            node={child}
+            layout={node.type === "list" ? "list" : "row"}
+          />
+        ))}
+      </div>
+    );
   }
-  return data;
+  if (node.type === "text") {
+    if (node.variant === "title") {
+      return (
+        <h3 className="text-base font-semibold leading-6 text-white/90">
+          {node.value}
+        </h3>
+      );
+    }
+    if (node.variant === "label") {
+      return (
+        <p className="text-xs font-medium text-muted-foreground">
+          {node.value}
+        </p>
+      );
+    }
+    return <p className="text-sm leading-6 text-muted-foreground">{node.value}</p>;
+  }
+  if (node.type === "markdown") {
+    return <p className="text-sm leading-6 text-muted-foreground">{node.value}</p>;
+  }
+  if (node.type === "input") {
+    return (
+      <label className="block space-y-1">
+        {node.label ? (
+          <span className="text-xs font-medium text-muted-foreground">
+            {node.label}
+          </span>
+        ) : null}
+        <input
+          value={node.value}
+          readOnly={node.readOnly ?? true}
+          className="h-8 w-full rounded-md border border-white/[0.08] bg-black/20 px-2 text-sm text-white/90"
+        />
+      </label>
+    );
+  }
+  if (node.type === "button") {
+    const tone =
+      node.action.variant === "primary"
+        ? "border-cyan-400/30 bg-cyan-400/15 text-cyan-100"
+        : node.action.variant === "danger"
+          ? "border-rose-400/30 bg-rose-400/10 text-rose-200"
+          : "border-white/[0.08] bg-white/[0.04] text-white/85";
+    const className =
+      layout === "list"
+        ? `flex w-full items-center rounded-md border px-3 py-2 text-left text-sm ${tone}`
+        : `inline-flex h-8 items-center rounded-md border px-2.5 text-sm ${tone}`;
+    return (
+      <button type="button" className={className}>
+        {node.label}
+      </button>
+    );
+  }
+  if (node.type === "checkbox") {
+    return (
+      <label className="flex w-full items-center gap-3 rounded-md border border-white/[0.08] bg-white/[0.04] px-3 py-2 text-sm text-white/85">
+        <input type="checkbox" readOnly className="h-4 w-4" />
+        <span>{node.label}</span>
+      </label>
+    );
+  }
+  if (node.type === "submit") {
+    return (
+      <button
+        type="button"
+        className="inline-flex h-8 items-center rounded-md border border-cyan-400/30 bg-cyan-400/15 px-2.5 text-sm text-cyan-100"
+      >
+        {node.label}
+      </button>
+    );
+  }
+  return null;
 }
 
 function RendererEditorDialog({
@@ -704,7 +972,8 @@ function RendererEditorDialog({
           />
           {!isValid ? (
             <p className="text-xs text-rose-300">
-              JSON must include slug, name, purpose, type "layout", and blocks.
+              JSON must include slug, name, type "layout", and either ui or
+              legacy blocks.
             </p>
           ) : null}
         </div>
@@ -727,102 +996,6 @@ function RendererEditorDialog({
         </div>
       </DialogContent>
     </Dialog>
-  );
-}
-
-function RendererBlockPreview({
-  block,
-  value,
-}: {
-  block: RendererRow["blocks"][number];
-  value: RendererPreviewValue | undefined;
-}) {
-  if (block.type === "title") {
-    return (
-      <h3 className="text-base font-semibold leading-6 text-white/90">
-        {String(value ?? "")}
-      </h3>
-    );
-  }
-  if (block.type === "text" || block.type === "markdown") {
-    return (
-      <p className="text-sm leading-6 text-muted-foreground">
-        {String(value ?? "")}
-      </p>
-    );
-  }
-  if (block.type === "buttons") {
-    const actions = isPreviewActionList(value) ? value : [];
-    return (
-      <div className="flex flex-wrap gap-2">
-        {actions.length > 0 ? (
-          actions.map((action) => (
-            <button
-              key={action.id}
-              type="button"
-              className={cn(
-                "rounded-md border px-3 py-2 text-sm font-medium transition-colors",
-                action.variant === "primary"
-                  ? "border-cyan-300 bg-cyan-300 text-black"
-                  : action.variant === "danger"
-                    ? "border-rose-400/50 bg-rose-500/15 text-rose-200"
-                    : "border-white/[0.12] bg-white/[0.05] text-white/75",
-              )}
-            >
-              {action.label}
-            </button>
-          ))
-        ) : (
-          <p className="text-xs text-muted-foreground">
-            No actions configured.
-          </p>
-        )}
-      </div>
-    );
-  }
-  if (block.type === "selection") {
-    const actions = isPreviewActionList(value) ? value : [];
-    return (
-      <div className="space-y-2">
-        {block.label ? (
-          <div className="text-xs font-medium text-muted-foreground">
-            {block.label}
-          </div>
-        ) : null}
-        <div className="space-y-1.5">
-          {actions.length > 0 ? (
-            actions.map((action) => (
-              <button
-                key={action.id}
-                type="button"
-                className="flex w-full items-center justify-between gap-3 rounded-md border border-white/[0.12] bg-white/[0.04] px-3 py-2 text-left text-sm text-white/85 transition-colors"
-              >
-                <span className="min-w-0 truncate font-medium">
-                  {action.label}
-                </span>
-                <span className="text-xs text-muted-foreground">Select</span>
-              </button>
-            ))
-          ) : (
-            <p className="text-xs text-muted-foreground">
-              No items configured.
-            </p>
-          )}
-        </div>
-      </div>
-    );
-  }
-  return (
-    <label className="block">
-      <span className="text-xs font-medium text-white/70">
-        {block.label ?? block.bind}
-      </span>
-      <input
-        className="mt-1 h-9 w-full rounded-md border border-white/[0.12] bg-black/20 px-3 text-sm text-white/80"
-        value={String(value ?? "")}
-        readOnly
-      />
-    </label>
   );
 }
 

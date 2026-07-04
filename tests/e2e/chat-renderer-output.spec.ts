@@ -137,11 +137,33 @@ function renderedApprovalView() {
     rendererSlug: "decision-fixture",
     rendererName: "Decision",
     resultTarget: "chat",
-    blocks: [
-      { type: "title", bind: "title" },
-      { type: "text", bind: "body" },
-      { type: "buttons", bind: "actions" },
-    ],
+    ui: {
+      type: "stack",
+      children: [
+        { type: "text", value: "Confirm this question?", variant: "title" },
+        { type: "text", value: "Should I continue?" },
+        {
+          type: "row",
+          children: [
+            {
+              type: "button",
+              label: "Approve",
+              action: {
+                id: "approve",
+                label: "Approve",
+                response: "approve",
+                variant: "primary",
+              },
+            },
+            {
+              type: "button",
+              label: "Cancel",
+              action: { id: "cancel", label: "Cancel", response: "cancel" },
+            },
+          ],
+        },
+      ],
+    },
     data: {
       title: "Confirm this question?",
       body: "Should I continue?",
@@ -166,17 +188,89 @@ function renderedSelectionView() {
     rendererSlug: "choice-fixture",
     rendererName: "Choice",
     resultTarget: "chat",
-    blocks: [
-      { type: "title", bind: "title" },
-      { type: "text", bind: "body" },
-      { type: "selection", bind: "items" },
-    ],
+    ui: {
+      type: "stack",
+      children: [
+        { type: "text", value: "Choose a report", variant: "title" },
+        { type: "text", value: "Pick one report to open." },
+        {
+          type: "list",
+          children: [
+            {
+              type: "button",
+              label: "CTO Report",
+              action: { id: "cto", label: "CTO Report", response: "cto" },
+            },
+            {
+              type: "button",
+              label: "Kody Health Check",
+              action: {
+                id: "health",
+                label: "Kody Health Check",
+                response: "health",
+              },
+            },
+          ],
+        },
+      ],
+    },
     data: {
       title: "Choose a report",
       body: "Pick one report to open.",
       items: [
         { id: "cto", label: "CTO Report", response: "cto" },
         { id: "health", label: "Kody Health Check", response: "health" },
+      ],
+    },
+  };
+}
+
+function renderedMultiSelectionView() {
+  return {
+    action: "render_view",
+    view: "renderer",
+    id: "view-multi-selection-e2e",
+    rendererSlug: "bulk-choice-fixture",
+    rendererName: "Bulk choice",
+    resultTarget: "chat",
+    ui: {
+      type: "stack",
+      children: [
+        { type: "text", value: "Choose reports", variant: "title" },
+        { type: "text", value: "Pick every report to open." },
+        {
+          type: "list",
+          children: [
+            {
+              type: "checkbox",
+              name: "selected",
+              value: "cto",
+              label: "CTO Report",
+            },
+            {
+              type: "checkbox",
+              name: "selected",
+              value: "health",
+              label: "Kody Health Check",
+            },
+            {
+              type: "checkbox",
+              name: "selected",
+              value: "security",
+              label: "Security Audit",
+            },
+          ],
+        },
+        { type: "submit", label: "Confirm reports" },
+      ],
+    },
+    data: {
+      title: "Choose reports",
+      body: "Pick every report to open.",
+      items: [
+        { id: "cto", label: "CTO Report", response: "cto" },
+        { id: "health", label: "Kody Health Check", response: "health" },
+        { id: "security", label: "Security Audit", response: "security" },
       ],
     },
   };
@@ -191,11 +285,13 @@ async function mockChatStream(page: Page): Promise<void> {
     };
     const latest = body.messages?.at(-1)?.content ?? "";
     const output =
-      latest.includes("reports") && latest.includes("select")
-        ? renderedSelectionView()
-        : turn === 1
-          ? renderedApprovalView()
-          : { content: "Recorded." };
+      latest.includes("multiple") && latest.includes("reports")
+        ? renderedMultiSelectionView()
+        : latest.includes("reports") && latest.includes("select")
+          ? renderedSelectionView()
+          : turn === 1
+            ? renderedApprovalView()
+            : { content: "Recorded." };
     await route.fulfill({
       status: 200,
       headers: {
@@ -284,6 +380,34 @@ test.describe("Kody chat renderer output", () => {
 
     await cto.click();
     await expect(cto).toBeDisabled();
+  });
+
+  test("multi-selection request uses checkbox and submit atoms then locks", async ({
+    page,
+  }) => {
+    await openChat(page);
+
+    await sendChatMessage(page, "let me select multiple reports");
+
+    await expect(page.getByText("Choose reports")).toBeVisible();
+    const cto = page.getByRole("checkbox", { name: "CTO Report" });
+    const health = page.getByRole("checkbox", { name: "Kody Health Check" });
+    const security = page.getByRole("checkbox", { name: "Security Audit" });
+    const confirm = page.getByRole("button", { name: "Confirm reports" });
+
+    await expect(cto).toBeVisible();
+    await cto.click();
+    await health.click();
+
+    await expect(cto).toBeChecked();
+    await expect(health).toBeChecked();
+    await expect(security).not.toBeChecked();
+
+    await confirm.click();
+
+    await expect(confirm).toBeDisabled();
+    await expect(cto).toBeDisabled();
+    await expect(health).toBeDisabled();
   });
 
   test("approval request uses renderer-capable Kody path when a model exists without a saved default", async ({

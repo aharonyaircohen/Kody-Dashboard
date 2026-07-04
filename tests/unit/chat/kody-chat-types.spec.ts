@@ -37,10 +37,17 @@ const renderedView: RenderedViewDirective = {
   rendererSlug: "my-renderer",
   rendererName: "My renderer",
   resultTarget: "chat",
-  blocks: [
-    { type: "title", bind: "title" },
-    { type: "buttons", bind: "actions" },
-  ],
+  ui: {
+    type: "stack",
+    children: [
+      { type: "text", value: "Choose next step", variant: "title" },
+      {
+        type: "button",
+        label: "Continue",
+        action: { id: "continue", label: "Continue", response: "continue" },
+      },
+    ],
+  },
   data: {
     title: "Choose next step",
     actions: [{ id: "continue", label: "Continue", response: "continue" }],

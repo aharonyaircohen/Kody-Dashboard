@@ -21,12 +21,29 @@ describe("isRenderedViewDirective", () => {
         rendererSlug: "my-renderer",
         rendererName: "My renderer",
         resultTarget: "chat",
-        blocks: [
-          { type: "title", bind: "title" },
-          { type: "text", bind: "body" },
-          { type: "buttons", bind: "actions" },
-          { type: "selection", bind: "items" },
-        ],
+        ui: {
+          type: "stack",
+          children: [
+            { type: "text", value: "Choose next step", variant: "title" },
+            {
+              type: "button",
+              label: "Continue",
+              action: {
+                id: "continue",
+                label: "Continue",
+                response: "continue",
+                variant: "primary",
+              },
+            },
+            {
+              type: "checkbox",
+              name: "selected",
+              value: "one",
+              label: "Option one",
+            },
+            { type: "submit", label: "Confirm" },
+          ],
+        },
         data: {
           title: "Choose next step",
           body: "Pick one option before continuing.",
@@ -59,13 +76,13 @@ describe("isRenderedViewDirective", () => {
         rendererSlug: "my-renderer",
         rendererName: "My renderer",
         resultTarget: "api",
-        blocks: [{ type: "script", bind: "code" }],
+        ui: { type: "text", value: "Unsafe target" },
         data: {},
       }),
     ).toBe(false);
   });
 
-  it("normalizes legacy renderer blocks into generic UI atoms", () => {
+  it("returns the generic UI atoms from the directive", () => {
     const ui = getRenderedViewUi({
       action: RENDER_VIEW_DIRECTIVE,
       view: "renderer",
@@ -73,12 +90,32 @@ describe("isRenderedViewDirective", () => {
       rendererSlug: "my-renderer",
       rendererName: "My renderer",
       resultTarget: "chat",
-      blocks: [
-        { type: "title", bind: "title" },
-        { type: "text", bind: "body" },
-        { type: "buttons", bind: "actions" },
-        { type: "selection", bind: "items", label: "Pick one" },
-      ],
+      ui: {
+        type: "stack",
+        children: [
+          { type: "text", value: "Choose next step", variant: "title" },
+          {
+            type: "text",
+            value: "Pick one option before continuing.",
+            variant: "body",
+          },
+          {
+            type: "row",
+            children: [
+              {
+                type: "button",
+                label: "Continue",
+                action: {
+                  id: "continue",
+                  label: "Continue",
+                  response: "continue",
+                  variant: "primary",
+                },
+              },
+            ],
+          },
+        ],
+      },
       data: {
         title: "Choose next step",
         body: "Pick one option before continuing.",
@@ -116,22 +153,6 @@ describe("isRenderedViewDirective", () => {
               type: "button",
               label: "Continue",
               action: { id: "continue" },
-            },
-          ],
-        },
-        {
-          type: "stack",
-          children: [
-            { type: "text", value: "Pick one", variant: "label" },
-            {
-              type: "list",
-              children: [
-                {
-                  type: "button",
-                  label: "Option one",
-                  action: { id: "one" },
-                },
-              ],
             },
           ],
         },

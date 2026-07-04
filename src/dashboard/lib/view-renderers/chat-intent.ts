@@ -5,6 +5,7 @@
  * @ai-summary Decides when a chat turn should end with a user-managed renderer.
  */
 import type { ViewRendererDefinition } from "./renderers";
+import type { RenderedViewUiNode } from "@dashboard/lib/chat-ui-actions";
 
 const RENDERER_INTENT_STOP_WORDS = new Set([
   "a",
@@ -65,7 +66,7 @@ function rendererIntentText(definition: ViewRendererDefinition): string {
     definition.purpose,
     ...(definition.aliases ?? []),
     definition.rule,
-    ...definition.blocks.flatMap((block) => [block.type, block.bind]),
+    ...uiNodeText(definition.ui),
     ...Object.entries(definition.data ?? {}).flatMap(([key, field]) => [
       key,
       field.type,
@@ -76,17 +77,42 @@ function rendererIntentText(definition: ViewRendererDefinition): string {
     .join(" ");
 }
 
-function rendererSupportsUserChoice(
+function uiNodeText(node: ViewRendererDefinition["ui"]): string[] {
+  if (node.type === "stack" || node.type === "row" || node.type === "list") {
+    return [
+      node.type,
+      node.for,
+      node.as,
+      ...(node.children ?? []).flatMap(uiNodeText),
+      ...(node.item ? uiNodeText(node.item) : []),
+    ].filter((value): value is string => typeof value === "string");
+  }
+  return Object.values(node).filter(
+    (value): value is string => typeof value === "string",
+  );
+}
+
+function uiHasInteractiveAtom(node: ViewRendererDefinition["ui"]): boolean {
+  if (
+    node.type === "button" ||
+    node.type === "checkbox" ||
+    node.type === "submit"
+  ) {
+    return true;
+  }
+  if (node.type !== "stack" && node.type !== "row" && node.type !== "list") {
+    return false;
+  }
+  return (
+    (node.children ?? []).some(uiHasInteractiveAtom) ||
+    Boolean(node.item && uiHasInteractiveAtom(node.item))
+  );
+}
+
+function rendererSupportsUserInteraction(
   definition: ViewRendererDefinition,
 ): boolean {
-  return (
-    definition.blocks.some(
-      (block) => block.type === "buttons" || block.type === "selection",
-    ) ||
-    Object.values(definition.data ?? {}).some(
-      (field) => field.type === "actions" || field.type === "selection",
-    )
-  );
+  return uiHasInteractiveAtom(definition.ui);
 }
 
 function looksLikeAssistantInteraction(text: string): boolean {
@@ -128,7 +154,7 @@ export function shouldRequireViewOutputForAssistantText({
   const text = assistantText?.trim();
   if (!text || definitions.length === 0) return false;
   if (!looksLikeAssistantInteraction(text)) return false;
-  return definitions.some(rendererSupportsUserChoice);
+  return definitions.some(rendererSupportsUserInteraction);
 }
 
 function isReadLikeToolName(toolName: string): boolean {

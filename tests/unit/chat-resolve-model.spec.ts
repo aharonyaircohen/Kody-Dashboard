@@ -83,11 +83,14 @@ describe("resolveChatModel", () => {
     expect(getSecret).toHaveBeenCalledWith("MINIMAX_API_KEY", {
       req: expect.any(NextRequest),
     });
-    expect(createOpenAICompatible).toHaveBeenCalledWith({
-      name: "minimax",
-      apiKey: "provider-key",
-      baseURL: "https://api.minimax.io/v1",
-    });
+    expect(createOpenAICompatible).toHaveBeenCalledWith(
+      expect.objectContaining({
+        name: "minimax",
+        apiKey: "provider-key",
+        baseURL: "https://api.minimax.io/v1",
+        transformRequestBody: expect.any(Function),
+      }),
+    );
   });
 
   it("keeps MiniMax M3 for ordinary text turns", async () => {
@@ -179,11 +182,14 @@ describe("resolveChatModel", () => {
       modelName: "MiniMax-M3",
       apiKeySecret: "MINIMAX_API_KEY",
     });
-    expect(createOpenAICompatible).toHaveBeenCalledWith({
-      name: "custom",
-      apiKey: "provider-key",
-      baseURL: "https://api.minimax.io/v1",
-    });
+    expect(createOpenAICompatible).toHaveBeenCalledWith(
+      expect.objectContaining({
+        name: "custom",
+        apiKey: "provider-key",
+        baseURL: "https://api.minimax.io/v1",
+        transformRequestBody: expect.any(Function),
+      }),
+    );
   });
 
   it("prefers a configured MiniMax vision sibling for image turns", async () => {

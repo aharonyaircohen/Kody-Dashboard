@@ -152,7 +152,9 @@ describe("POST /api/kody/chat/kody", () => {
     const { buildSystemPrompt } =
       await import("../../app/api/kody/chat/kody/system-prompt");
     const prompt = buildSystemPrompt("base", null, undefined);
-    expect(prompt).toBe("base");
+    expect(prompt).toContain("base");
+    expect(prompt).toContain("## Generic view rendering");
+    expect(prompt).not.toContain("## Connected repository");
   });
 
   it("treats preview make-page requests as issue-creation requests", async () => {

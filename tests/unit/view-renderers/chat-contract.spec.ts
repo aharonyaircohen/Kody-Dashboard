@@ -37,11 +37,19 @@ describe("view renderer chat contract", () => {
       ],
     },
     type: "layout",
-    blocks: [
-      { type: "title", bind: "title" },
-      { type: "text", bind: "body" },
-      { type: "buttons", bind: "actions" },
-    ],
+    ui: {
+      type: "stack",
+      children: [
+        { type: "text", value: "$title", variant: "title" },
+        { type: "text", value: "$body" },
+        {
+          type: "row",
+          for: "$actions",
+          as: "action",
+          item: { type: "button", label: "$action.label", action: "$action" },
+        },
+      ],
+    },
   };
 
   const choiceRenderer: ViewRendererDefinition = {
@@ -50,17 +58,33 @@ describe("view renderer chat contract", () => {
     purpose: "choice",
     rule: "Use this purpose when Kody presents choices.",
     data: {
+      title: {
+        type: "text",
+        description: "Short title.",
+      },
+      body: {
+        type: "text",
+        description: "Supporting text.",
+      },
       items: {
         type: "selection",
         description: "Choices the user can select from.",
       },
     },
     type: "layout",
-    blocks: [
-      { type: "title", bind: "title" },
-      { type: "text", bind: "body" },
-      { type: "selection", bind: "items" },
-    ],
+    ui: {
+      type: "stack",
+      children: [
+        { type: "text", value: "$title", variant: "title" },
+        { type: "text", value: "$body" },
+        {
+          type: "list",
+          for: "$items",
+          as: "item",
+          item: { type: "button", label: "$item.label", action: "$item" },
+        },
+      ],
+    },
   };
 
   it("builds a provider schema with renderer-specific required data keys", () => {
@@ -75,7 +99,13 @@ describe("view renderer chat contract", () => {
           data: {
             required: string[];
             additionalProperties: boolean;
-            properties: Record<string, { type?: string }>;
+            properties: Record<
+              string,
+              {
+                type?: string;
+                items?: { anyOf?: Array<Record<string, unknown>> };
+              }
+            >;
           };
         };
       }>;
@@ -103,6 +133,16 @@ describe("view renderer chat contract", () => {
         items: expect.objectContaining({ type: "array" }),
       },
     });
+    expect(
+      choiceVariant?.properties.data.properties.items.items?.anyOf,
+    ).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          type: "object",
+          additionalProperties: true,
+        }),
+      ]),
+    );
   });
 
   it("normalizes valid show_view input", () => {
@@ -148,6 +188,15 @@ describe("view renderer chat contract", () => {
         body: "aske me a q and ask for approval to confirm it",
       },
     });
+  });
+
+  it("does not invent fallback list items when selectable data is missing", () => {
+    const fallback = buildFallbackShowViewInput({
+      definitions: [choiceRenderer],
+      userText: "list reports and allow me to select a few",
+    });
+
+    expect(fallback).toBeNull();
   });
 
   it("repairs an invalid show_view tool call through the renderer contract", () => {

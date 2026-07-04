@@ -57,7 +57,7 @@ function toRow(definition: ViewRendererDefinition, htmlUrl = "") {
     data: definition.data ?? {},
     defaults: definition.defaults ?? {},
     type: definition.type,
-    blocks: definition.blocks,
+    ui: definition.ui,
     source: "repo" as const,
     htmlUrl,
     definition: serializeViewRendererDefinition(definition),

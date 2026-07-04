@@ -76,12 +76,6 @@ export type RenderedViewDataValue =
   | null
   | RenderedViewAction[];
 
-export interface RenderedViewBlock {
-  type: "title" | "text" | "markdown" | "buttons" | "selection" | "input";
-  bind: string;
-  label?: string;
-}
-
 export type RenderedViewUiNode =
   | {
       type: "stack" | "row" | "list";
@@ -106,6 +100,16 @@ export type RenderedViewUiNode =
       type: "button";
       label: string;
       action: RenderedViewAction;
+    }
+  | {
+      type: "checkbox";
+      name: string;
+      value: string;
+      label: string;
+    }
+  | {
+      type: "submit";
+      label: string;
     };
 
 export interface RenderedViewDirective {
@@ -115,8 +119,7 @@ export interface RenderedViewDirective {
   rendererSlug: string;
   rendererName: string;
   resultTarget: "chat";
-  blocks: RenderedViewBlock[];
-  ui?: RenderedViewUiNode;
+  ui: RenderedViewUiNode;
   data: Record<string, RenderedViewDataValue>;
 }
 
@@ -195,6 +198,16 @@ function isRenderedViewUiNode(value: unknown): value is RenderedViewUiNode {
   if (node.type === "button") {
     return typeof node.label === "string" && isRenderedViewAction(node.action);
   }
+  if (node.type === "checkbox") {
+    return (
+      typeof node.name === "string" &&
+      typeof node.value === "string" &&
+      typeof node.label === "string"
+    );
+  }
+  if (node.type === "submit") {
+    return typeof node.label === "string";
+  }
   return false;
 }
 
@@ -210,117 +223,22 @@ export function isRenderedViewDirective(
     typeof v.rendererSlug !== "string" ||
     typeof v.rendererName !== "string" ||
     v.resultTarget !== "chat" ||
-    !Array.isArray(v.blocks) ||
+    !isRenderedViewUiNode(v.ui) ||
     !v.data ||
     typeof v.data !== "object" ||
     Array.isArray(v.data)
   ) {
     return false;
   }
-  const validBlocks = v.blocks.every((block) => {
-    if (!block || typeof block !== "object") return false;
-    const b = block as Record<string, unknown>;
-    const validType =
-      b.type === "title" ||
-      b.type === "text" ||
-      b.type === "markdown" ||
-      b.type === "buttons" ||
-      b.type === "selection" ||
-      b.type === "input";
-    return (
-      validType &&
-      typeof b.bind === "string" &&
-      (b.label === undefined || typeof b.label === "string")
-    );
-  });
-  if (!validBlocks) return false;
-  if (v.ui !== undefined && !isRenderedViewUiNode(v.ui)) return false;
   return Object.values(v.data as Record<string, unknown>).every(
     isRenderedViewDataValue,
   );
 }
 
-function textValueForBind(view: RenderedViewDirective, bind: string): string {
-  const value = view.data[bind];
-  if (Array.isArray(value)) return "";
-  if (value === null || value === undefined) return "";
-  return String(value);
-}
-
-function actionNodesForBind(
-  view: RenderedViewDirective,
-  bind: string,
-): RenderedViewUiNode[] {
-  const actions = view.data[bind];
-  if (!Array.isArray(actions)) return [];
-  return actions.map((action) => ({
-    type: "button",
-    label: action.label,
-    action,
-  }));
-}
-
 export function getRenderedViewUi(
   view: RenderedViewDirective,
 ): RenderedViewUiNode {
-  if (view.ui) return view.ui;
-
-  const children: RenderedViewUiNode[] = [];
-  for (const block of view.blocks) {
-    if (block.type === "title") {
-      children.push({
-        type: "text",
-        value: textValueForBind(view, block.bind),
-        variant: "title",
-      });
-      continue;
-    }
-    if (block.type === "text") {
-      children.push({
-        type: "text",
-        value: textValueForBind(view, block.bind),
-        variant: "body",
-      });
-      continue;
-    }
-    if (block.type === "markdown") {
-      children.push({
-        type: "markdown",
-        value: textValueForBind(view, block.bind),
-      });
-      continue;
-    }
-    if (block.type === "input") {
-      children.push({
-        type: "input",
-        value: textValueForBind(view, block.bind),
-        ...(block.label ? { label: block.label } : {}),
-        readOnly: true,
-      });
-      continue;
-    }
-    const actionChildren = actionNodesForBind(view, block.bind);
-    if (block.type === "selection") {
-      children.push({
-        type: "stack",
-        children: [
-          ...(block.label
-            ? [
-                {
-                  type: "text" as const,
-                  value: block.label,
-                  variant: "label" as const,
-                },
-              ]
-            : []),
-          { type: "list", children: actionChildren },
-        ],
-      });
-      continue;
-    }
-    children.push({ type: "row", children: actionChildren });
-  }
-  return { type: "stack", children };
+  return view.ui;
 }
 
 export function isSwitchAgentDirective(

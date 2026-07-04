@@ -20,7 +20,12 @@ describe("view renderer chat intent", () => {
       items: { type: "selection", description: "Choices." },
     },
     type: "layout",
-    blocks: [{ type: "selection", bind: "items" }],
+    ui: {
+      type: "list",
+      for: "$items",
+      as: "item",
+      item: { type: "button", label: "$item.label", action: "$item" },
+    },
   };
 
   const okRenderer: ViewRendererDefinition = {
@@ -32,7 +37,7 @@ describe("view renderer chat intent", () => {
       title: { type: "text", description: "Short title." },
     },
     type: "layout",
-    blocks: [{ type: "title", bind: "title" }],
+    ui: { type: "text", value: "$title", variant: "title" },
   };
 
   const approvalRenderer: ViewRendererDefinition = {
@@ -57,11 +62,41 @@ describe("view renderer chat intent", () => {
       },
     },
     type: "layout",
-    blocks: [
-      { type: "title", bind: "title" },
-      { type: "text", bind: "body" },
-      { type: "buttons", bind: "actions" },
-    ],
+    ui: {
+      type: "stack",
+      children: [
+        { type: "text", value: "$title", variant: "title" },
+        { type: "text", value: "$body" },
+        {
+          type: "row",
+          for: "$actions",
+          as: "action",
+          item: { type: "button", label: "$action.label", action: "$action" },
+        },
+      ],
+    },
+  };
+
+  const multiChoiceRenderer: ViewRendererDefinition = {
+    slug: "bulk-choice",
+    name: "Bulk choice",
+    purpose: "bulk-choice",
+    rule: "Use when Kody asks the user to choose multiple, several, or a few items from a list.",
+    data: {
+      items: { type: "selection", description: "Choices." },
+    },
+    type: "layout",
+    ui: {
+      type: "list",
+      for: "$items",
+      as: "item",
+      item: {
+        type: "checkbox",
+        name: "selected",
+        value: "$item.id",
+        label: "$item.label",
+      },
+    },
   };
 
   it("requires a rendered view when the user asks to select from listed records", () => {
@@ -69,6 +104,15 @@ describe("view renderer chat intent", () => {
       shouldRequireViewOutputForTurn({
         userText: "list all reports allow me to select one",
         definitions: [choiceRenderer],
+      }),
+    ).toBe(true);
+  });
+
+  it("requires a rendered view when the user asks to select a few records", () => {
+    expect(
+      shouldRequireViewOutputForTurn({
+        userText: "list reports and allow me to select a few",
+        definitions: [multiChoiceRenderer],
       }),
     ).toBe(true);
   });

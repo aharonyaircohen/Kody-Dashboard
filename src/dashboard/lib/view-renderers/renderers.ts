@@ -9,9 +9,10 @@ import { z } from "zod";
 import type { Octokit } from "@octokit/rest";
 import {
   RENDER_VIEW_DIRECTIVE,
-  getRenderedViewUi,
+  type RenderedViewAction,
   type RenderedViewDataValue,
   type RenderedViewDirective,
+  type RenderedViewUiNode,
 } from "@dashboard/lib/chat-ui-actions";
 import {
   deleteStateFile,
@@ -19,88 +20,25 @@ import {
   readStateText,
   writeStateText,
 } from "@dashboard/lib/state-repo";
+import {
+  RendererActionDefaultSchema,
+  VIEW_RENDERER_SLUG_RE,
+  parseViewRendererDefinition,
+  serializeViewRendererDefinition,
+  type RendererUiTemplateNode,
+  type ViewRendererDefinition,
+} from "./definition";
 
 export const VIEW_RENDERERS_DIR = "views/renderers";
 
-const SLUG_RE = /^[a-z0-9][a-z0-9_-]{0,63}$/;
-
 export function isValidViewRendererSlug(slug: string): boolean {
-  return SLUG_RE.test(slug);
+  return VIEW_RENDERER_SLUG_RE.test(slug);
 }
-
-const RendererBlockSchema = z.discriminatedUnion("type", [
-  z.object({
-    type: z.literal("title"),
-    bind: z.string().trim().min(1).max(80),
-  }),
-  z.object({
-    type: z.literal("text"),
-    bind: z.string().trim().min(1).max(80),
-  }),
-  z.object({
-    type: z.literal("markdown"),
-    bind: z.string().trim().min(1).max(80),
-  }),
-  z.object({
-    type: z.literal("buttons"),
-    bind: z.string().trim().min(1).max(80),
-  }),
-  z.object({
-    type: z.literal("selection"),
-    bind: z.string().trim().min(1).max(80),
-    label: z.string().trim().min(1).max(80).optional(),
-  }),
-  z.object({
-    type: z.literal("input"),
-    bind: z.string().trim().min(1).max(80),
-    label: z.string().trim().min(1).max(80).optional(),
-  }),
-]);
-
-const RendererActionDefaultSchema = z.object({
-  id: z.string().trim().min(1).max(64),
-  label: z.string().trim().min(1).max(60),
-  response: z.string().trim().min(1).max(500),
-  variant: z.enum(["primary", "secondary", "danger"]).optional(),
-});
-
-const RendererDefaultValueSchema = z.union([
-  z.string().max(2_000),
-  z.number(),
-  z.boolean(),
-  z.null(),
-  z.array(RendererActionDefaultSchema).max(20),
-]);
-
-const RendererDataFieldSchema = z.object({
-  description: z.string().trim().min(1).max(300).optional(),
-  type: z
-    .enum(["text", "markdown", "actions", "selection", "input", "value"])
-    .optional(),
-  optional: z.boolean().optional(),
-});
-
-const ViewRendererDefinitionSchema = z
-  .object({
-    slug: z.string().regex(SLUG_RE),
-    name: z.string().trim().min(1).max(120),
-    description: z.string().trim().max(300).optional(),
-    purpose: z.string().regex(SLUG_RE).optional(),
-    aliases: z.array(z.string().regex(SLUG_RE)).max(20).optional(),
-    rule: z.string().trim().min(1).max(1_000).optional(),
-    data: z.record(z.string(), RendererDataFieldSchema).optional(),
-    defaults: z.record(z.string(), RendererDefaultValueSchema).optional(),
-    type: z.literal("layout"),
-    blocks: z.array(RendererBlockSchema).min(1).max(20),
-  })
-  .transform((definition) => ({
-    ...definition,
-    purpose: definition.purpose ?? definition.slug,
-  }));
-
-export type ViewRendererDefinition = z.infer<
-  typeof ViewRendererDefinitionSchema
->;
+export {
+  parseViewRendererDefinition,
+  serializeViewRendererDefinition,
+  type ViewRendererDefinition,
+};
 
 export interface ViewRendererDefinitionFile {
   definition: ViewRendererDefinition;
@@ -118,33 +56,6 @@ function filePathForSlug(slug: string): string {
   return `${VIEW_RENDERERS_DIR}/${slug}.json`;
 }
 
-export function parseViewRendererDefinition(
-  raw: string,
-): ViewRendererDefinition {
-  let parsed: unknown;
-  try {
-    parsed = JSON.parse(raw);
-  } catch {
-    throw new Error("Invalid view renderer: expected JSON");
-  }
-  const result = ViewRendererDefinitionSchema.safeParse(parsed);
-  if (!result.success) {
-    throw new Error(
-      `Invalid view renderer: ${result.error.issues
-        .map((issue) => issue.message)
-        .join("; ")}`,
-    );
-  }
-  return result.data;
-}
-
-export function serializeViewRendererDefinition(
-  definition: ViewRendererDefinition,
-): string {
-  const parsed = ViewRendererDefinitionSchema.parse(definition);
-  return `${JSON.stringify(parsed, null, 2)}\n`;
-}
-
 export function buildRenderedViewDirective({
   id,
   definition,
@@ -156,17 +67,169 @@ export function buildRenderedViewDirective({
 }): RenderedViewDirective {
   const normalizedData = normalizeViewRendererData(definition, data);
   const mergedData = mergeViewRendererDefaults(definition, normalizedData);
-  const directive: RenderedViewDirective = {
+  const ui = resolveRendererUiTemplate(definition.ui, { data: mergedData }) ?? {
+    type: "stack" as const,
+    children: [],
+  };
+  return {
     action: RENDER_VIEW_DIRECTIVE,
     view: "renderer",
     id,
     rendererSlug: definition.slug,
     rendererName: definition.name,
     resultTarget: "chat",
-    blocks: definition.blocks.map((block) => ({ ...block })),
+    ui,
     data: mergedData,
   };
-  return { ...directive, ui: getRenderedViewUi(directive) };
+}
+
+type RendererUiScope = {
+  data: Record<string, RenderedViewDataValue>;
+  locals?: Record<string, unknown>;
+};
+
+function scopeValue(scope: RendererUiScope, root: string): unknown {
+  if (root === "data") return scope.data;
+  if (Object.prototype.hasOwnProperty.call(scope.data, root)) {
+    return scope.data[root];
+  }
+  return scope.locals?.[root];
+}
+
+function resolvePath(scope: RendererUiScope, path: string): unknown {
+  const parts = path.split(".").filter(Boolean);
+  if (parts.length === 0) return undefined;
+  let value = scopeValue(scope, parts[0]);
+  for (const part of parts.slice(1)) {
+    if (value === null || value === undefined) return undefined;
+    if (Array.isArray(value) && /^\d+$/.test(part)) {
+      value = value[Number(part)];
+      continue;
+    }
+    if (typeof value !== "object") return undefined;
+    value = (value as Record<string, unknown>)[part];
+  }
+  return value;
+}
+
+function resolveTemplateValue(value: string, scope: RendererUiScope): unknown {
+  const exact = /^\$([a-zA-Z0-9_.-]+)$/.exec(value);
+  if (exact) return resolvePath(scope, exact[1]);
+  return value.replace(/\$([a-zA-Z0-9_.-]+)/g, (_match, path: string) => {
+    const resolved = resolvePath(scope, path);
+    return resolved === null || resolved === undefined ? "" : String(resolved);
+  });
+}
+
+function resolveTemplateString(value: string, scope: RendererUiScope): string {
+  const resolved = resolveTemplateValue(value, scope);
+  if (resolved === null || resolved === undefined) return "";
+  if (typeof resolved === "string") return resolved;
+  if (typeof resolved === "number" || typeof resolved === "boolean") {
+    return String(resolved);
+  }
+  return "";
+}
+
+function resolveTemplateAction(
+  value: string | RenderedViewAction,
+  scope: RendererUiScope,
+): RenderedViewAction {
+  const resolved =
+    typeof value === "string" ? resolveTemplateValue(value, scope) : value;
+  if (isRendererAction(resolved)) return normalizeRendererAction(resolved);
+  const label =
+    resolved === null || resolved === undefined ? "Submit" : String(resolved);
+  const id = actionIdFromLabel(label);
+  return { id, label, response: id };
+}
+
+function resolveRepeatedChildren(
+  template: Extract<RendererUiTemplateNode, { type: "stack" | "row" | "list" }>,
+  scope: RendererUiScope,
+): RenderedViewUiNode[] {
+  if (!template.for) {
+    return (template.children ?? [])
+      .map((child) => resolveRendererUiTemplate(child, scope))
+      .filter((child): child is RenderedViewUiNode => Boolean(child));
+  }
+  const value = resolveTemplateValue(template.for, scope);
+  if (!Array.isArray(value) || !template.item) return [];
+  const localName = template.as ?? "item";
+  return value
+    .map((item, index) =>
+      resolveRendererUiTemplate(template.item as RendererUiTemplateNode, {
+        data: scope.data,
+        locals: {
+          ...(scope.locals ?? {}),
+          [localName]: item,
+          index,
+        },
+      }),
+    )
+    .filter((child): child is RenderedViewUiNode => Boolean(child));
+}
+
+function resolveRendererUiTemplate(
+  template: RendererUiTemplateNode,
+  scope: RendererUiScope,
+): RenderedViewUiNode | null {
+  if (
+    template.type === "stack" ||
+    template.type === "row" ||
+    template.type === "list"
+  ) {
+    return {
+      type: template.type,
+      children: resolveRepeatedChildren(template, scope),
+    };
+  }
+  if (template.type === "text") {
+    return {
+      type: "text",
+      value: resolveTemplateString(template.value, scope),
+      ...(template.variant ? { variant: template.variant } : {}),
+    };
+  }
+  if (template.type === "markdown") {
+    return {
+      type: "markdown",
+      value: resolveTemplateString(template.value, scope),
+    };
+  }
+  if (template.type === "input") {
+    return {
+      type: "input",
+      value: resolveTemplateString(template.value, scope),
+      ...(template.label
+        ? { label: resolveTemplateString(template.label, scope) }
+        : {}),
+      readOnly: template.readOnly ?? true,
+    };
+  }
+  if (template.type === "button") {
+    const action = resolveTemplateAction(template.action, scope);
+    return {
+      type: "button",
+      label: resolveTemplateString(template.label, scope) || action.label,
+      action,
+    };
+  }
+  if (template.type === "checkbox") {
+    return {
+      type: "checkbox",
+      name: template.name,
+      value: resolveTemplateString(template.value, scope),
+      label: resolveTemplateString(template.label, scope),
+    };
+  }
+  if (template.type === "submit") {
+    return {
+      type: "submit",
+      label: resolveTemplateString(template.label, scope) || "Submit",
+    };
+  }
+  return null;
 }
 
 function cloneDefaultValue(
@@ -192,18 +255,8 @@ export function mergeViewRendererDefaults(
   return { ...merged, ...data };
 }
 
-function rendererBindSet(definition: ViewRendererDefinition): Set<string> {
-  return new Set(definition.blocks.map((block) => block.bind));
-}
-
-function blockTypeForBind(
-  definition: ViewRendererDefinition,
-  bind: string,
-): string {
-  const block = definition.blocks.find((candidate) => candidate.bind === bind);
-  if (!block) return "value";
-  if (block.type === "buttons") return "actions";
-  return block.type;
+function rendererDataKeySet(definition: ViewRendererDefinition): Set<string> {
+  return new Set(Object.keys(definition.data ?? {}));
 }
 
 function isRendererAction(
@@ -238,6 +291,75 @@ function normalizeRendererAction(
   return { id, label, response: id };
 }
 
+function firstStringField(
+  value: Record<string, unknown>,
+  keys: string[],
+): string | null {
+  for (const key of keys) {
+    const field = value[key];
+    if (typeof field === "string" && field.trim()) return field.trim();
+    if (typeof field === "number" || typeof field === "boolean") {
+      return String(field);
+    }
+  }
+  return null;
+}
+
+function firstStringValue(value: Record<string, unknown>): string | null {
+  for (const field of Object.values(value)) {
+    if (typeof field === "string" && field.trim()) return field.trim();
+    if (typeof field === "number" || typeof field === "boolean") {
+      return String(field);
+    }
+  }
+  return null;
+}
+
+function recordLooksLikeChoice(value: Record<string, unknown>): boolean {
+  return ["label", "title", "name", "slug", "id", "value", "response"].some(
+    (key) => Object.prototype.hasOwnProperty.call(value, key),
+  );
+}
+
+function normalizeRendererListItem(
+  value: unknown,
+): z.infer<typeof RendererActionDefaultSchema> | null {
+  if (typeof value === "string") return normalizeRendererAction(value);
+  if (typeof value === "number" || typeof value === "boolean") {
+    return normalizeRendererAction(String(value));
+  }
+  if (isRendererAction(value)) return normalizeRendererAction(value);
+  if (!isRecord(value)) return null;
+  const label =
+    firstStringField(value, [
+      "label",
+      "title",
+      "name",
+      "slug",
+      "id",
+      "value",
+      "response",
+    ]) ?? firstStringValue(value);
+  if (!label) return null;
+  const response =
+    firstStringField(value, [
+      "response",
+      "slug",
+      "id",
+      "value",
+      "title",
+      "label",
+      "name",
+    ]) ?? label;
+  const rawId =
+    firstStringField(value, ["id", "slug", "value", "response"]) ?? response;
+  return {
+    id: actionIdFromLabel(rawId),
+    label,
+    response,
+  };
+}
+
 function isRecord(value: unknown): value is Record<string, unknown> {
   return Boolean(value && typeof value === "object" && !Array.isArray(value));
 }
@@ -255,16 +377,17 @@ function primitiveRendererValue(
 
 function listItemsFromValue(
   value: unknown,
-): Array<string | z.infer<typeof RendererActionDefaultSchema>> | null {
+): Array<z.infer<typeof RendererActionDefaultSchema>> | null {
   if (Array.isArray(value)) {
-    const items = value.filter(
-      (item): item is string | z.infer<typeof RendererActionDefaultSchema> =>
-        typeof item === "string" || isRendererAction(item),
-    );
-    return items.length === value.length ? items : null;
+    const items = value.map(normalizeRendererListItem);
+    return items.every(Boolean)
+      ? (items as Array<z.infer<typeof RendererActionDefaultSchema>>)
+      : null;
   }
-  if (isRendererAction(value)) return [value];
-  if (!isRecord(value)) return null;
+  if (!isRecord(value)) {
+    const item = normalizeRendererListItem(value);
+    return item ? [item] : null;
+  }
 
   const keys = Object.keys(value);
   const numericKeys = keys.filter((key) => /^\d+$/.test(key));
@@ -280,6 +403,11 @@ function listItemsFromValue(
     return listItemsFromValue(value[keys[0]]);
   }
 
+  if (recordLooksLikeChoice(value)) {
+    const item = normalizeRendererListItem(value);
+    return item ? [item] : null;
+  }
+
   return listItemsFromValue(Object.values(value));
 }
 
@@ -287,8 +415,7 @@ function isListRendererField(
   definition: ViewRendererDefinition,
   bind: string,
 ): boolean {
-  const type =
-    definition.data?.[bind]?.type ?? blockTypeForBind(definition, bind);
+  const type = definition.data?.[bind]?.type ?? "value";
   return type === "actions" || type === "selection";
 }
 
@@ -308,7 +435,7 @@ function normalizeRendererFieldValue({
         `Invalid renderer data for "${bind}": expected a list of choices`,
       );
     }
-    return items.map(normalizeRendererAction);
+    return items;
   }
   const primitive = primitiveRendererValue(value);
   if (primitive !== undefined) return primitive;
@@ -322,7 +449,7 @@ export function normalizeViewRendererData(
   data: Record<string, unknown>,
 ): Record<string, RenderedViewDataValue> {
   const normalized: Record<string, RenderedViewDataValue> = {};
-  for (const bind of rendererBindSet(definition)) {
+  for (const bind of rendererDataKeySet(definition)) {
     if (!Object.prototype.hasOwnProperty.call(data, bind)) continue;
     const value = data[bind];
     if (value === undefined) continue;
@@ -337,9 +464,9 @@ export function normalizeViewRendererData(
 
 function dataKeyLines(definition: ViewRendererDefinition): string[] {
   const defaults = definition.defaults ?? {};
-  return [...rendererBindSet(definition)].map((bind) => {
+  return [...rendererDataKeySet(definition)].map((bind) => {
     const field = definition.data?.[bind];
-    const type = field?.type ?? blockTypeForBind(definition, bind);
+    const type = field?.type ?? "value";
     const markers = [
       type,
       Object.prototype.hasOwnProperty.call(defaults, bind)
@@ -383,7 +510,7 @@ export function matchViewRendererDefinition(
   if (purposeMatches.length === 0) return null;
   const matches = purposeMatches
     .map((definition, index) => {
-      const binds = rendererBindSet(definition);
+      const binds = rendererDataKeySet(definition);
       const matched = dataKeys.filter((key) => binds.has(key)).length;
       const missing = [...binds].filter(
         (bind) => !dataKeys.includes(bind),

@@ -61,11 +61,19 @@ const approvalRendererDefinition: ViewRendererDefinition = {
     ],
   },
   type: "layout",
-  blocks: [
-    { type: "title", bind: "title" },
-    { type: "text", bind: "body" },
-    { type: "buttons", bind: "actions" },
-  ],
+  ui: {
+    type: "stack",
+    children: [
+      { type: "text", value: "$title", variant: "title" },
+      { type: "text", value: "$body" },
+      {
+        type: "row",
+        for: "$actions",
+        as: "action",
+        item: { type: "button", label: "$action.label", action: "$action" },
+      },
+    ],
+  },
 };
 
 describe("show_view AI SDK contract", () => {
