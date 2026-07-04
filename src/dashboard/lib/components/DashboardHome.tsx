@@ -36,7 +36,6 @@ import {
 import { Card } from "@dashboard/ui/card";
 import { Button } from "@dashboard/ui/button";
 import { HappeningNow } from "./HappeningNow";
-import { KodyStatusBanner } from "./KodyStatusBanner";
 import { TriageStrip } from "./TriageStrip";
 import { useKodyTasks } from "../hooks";
 import { useReports } from "../hooks/useReports";
@@ -180,29 +179,50 @@ function AllClear({ message }: { message: string }) {
 function DashboardHeader({
   tasks,
   tasksLoading,
+  mainCi,
+  mainCiLoading,
   updatedAt,
 }: {
   tasks: KodyTask[];
   tasksLoading: boolean;
+  mainCi?: DefaultBranchCI;
+  mainCiLoading?: boolean;
   updatedAt?: number;
 }) {
   const active = countBy(tasks, ACTIVE_COLUMNS);
   const review = countBy(tasks, ["review"]);
   const failing = countBy(tasks, ["failed"]);
   const updated = updatedAt ? timeAgo(new Date(updatedAt).toISOString()) : "";
-  const statusTone =
-    failing > 0
-      ? "border-rose-400/20 bg-rose-500/10 text-rose-200"
-      : active > 0
-        ? "border-amber-400/20 bg-amber-500/10 text-amber-200"
-        : "border-emerald-400/20 bg-emerald-500/10 text-emerald-200";
-  const statusText = tasksLoading
-    ? "Loading"
-    : failing > 0
-      ? "Needs attention"
-      : active > 0
-        ? "In progress"
-        : "Quiet";
+  const ciState: DefaultBranchCI["state"] | "loading" = mainCi
+    ? mainCi.state
+    : mainCiLoading
+      ? "loading"
+      : "unknown";
+  const ciStatus =
+    ciState === "failure"
+      ? {
+          tone: "border-rose-400/20 bg-rose-500/10 text-rose-200",
+          text: "CI failing",
+        }
+      : ciState === "pending"
+        ? {
+            tone: "border-sky-400/20 bg-sky-500/10 text-sky-200",
+            text: "CI running",
+          }
+        : ciState === "success"
+          ? {
+              tone: "border-emerald-400/20 bg-emerald-500/10 text-emerald-200",
+              text: "CI green",
+            }
+          : ciState === "loading"
+            ? {
+                tone: "border-white/10 bg-white/[0.04] text-muted-foreground",
+                text: "Checking CI",
+              }
+            : {
+                tone: "border-white/10 bg-white/[0.04] text-muted-foreground",
+                text: "CI unknown",
+              };
 
   return (
     <header className="border-b border-white/[0.06] pb-4">
@@ -212,10 +232,11 @@ function DashboardHeader({
           <span
             className={cn(
               "inline-flex h-7 items-center rounded-md border px-2.5 text-body-xs font-medium",
-              statusTone,
+              ciStatus.tone,
             )}
+            title={mainCi ? `Main CI on ${mainCi.branch}` : "Main CI status"}
           >
-            {statusText}
+            {ciStatus.text}
           </span>
           <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-body-sm text-muted-foreground">
             <span className="tabular-nums text-amber-200">
@@ -1039,7 +1060,6 @@ export function DashboardHome() {
   const {
     data: tasks,
     isLoading: tasksLoading,
-    isFetching: tasksFetching,
     dataUpdatedAt,
   } = useKodyTasks({
     refetchInterval: "auto",
@@ -1057,18 +1077,10 @@ export function DashboardHome() {
         <DashboardHeader
           tasks={all}
           tasksLoading={tasksLoading}
+          mainCi={mainCi}
+          mainCiLoading={mainCiFetching && !mainCi}
           updatedAt={dataUpdatedAt}
         />
-
-        <div className="overflow-hidden rounded-md border border-white/[0.06]">
-          <KodyStatusBanner
-            tasks={all}
-            mainCi={mainCi}
-            mainCiLoading={mainCiFetching && !mainCi}
-            isFetching={tasksFetching}
-            dataUpdatedAt={dataUpdatedAt}
-          />
-        </div>
 
         <HappeningNow
           tasks={all}

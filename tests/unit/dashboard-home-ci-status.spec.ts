@@ -12,13 +12,16 @@ const dashboardHomeSource = () =>
   );
 
 describe("DashboardHome CI status", () => {
-  it("shows the shared CI banner on the main dashboard page", () => {
+  it("shows main CI in the compact header status chip", () => {
     const source = dashboardHomeSource();
 
-    expect(source).toContain('import { KodyStatusBanner } from "./KodyStatusBanner"');
     expect(source).toContain("useDefaultBranchCI()");
-    expect(source).toContain("<KodyStatusBanner");
+    expect(source).not.toContain("<KodyStatusBanner");
+    expect(source).toContain('text: "CI failing"');
+    expect(source).toContain('text: "CI running"');
+    expect(source).toContain('text: "CI green"');
     expect(source).toContain("mainCi={mainCi}");
+    expect(source).toContain("mainCiLoading={mainCiFetching && !mainCi}");
     expect(source).toContain("ci={mainCi}");
   });
 });
