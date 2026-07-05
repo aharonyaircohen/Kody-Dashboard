@@ -49,6 +49,7 @@ import {
   Pencil,
   Plus,
   RefreshCw,
+  RotateCw,
   Sparkles,
   Trash2,
   UserPlus,
@@ -118,6 +119,23 @@ type ItemEditorState =
 type TodoItemFilter = "all" | "open" | "done" | "mine" | "unassigned";
 type TodoListKind = "list" | "goal" | "loop";
 type TodoListFilter = TodoListKind;
+type ManagedGoalResultClass =
+  | "succeeded"
+  | "pending"
+  | "retryable"
+  | "needsFix"
+  | "fatal";
+
+interface ManagedGoalItemStatus {
+  resultClass: ManagedGoalResultClass;
+  label: string;
+  badgeClass: string;
+  reason: string | null;
+  nextAction: string | null;
+  attempts: number | null;
+  nextRetryAt: string | null;
+  issue: number | null;
+}
 
 const TODO_ITEM_FILTERS: TodoItemFilter[] = [
   "all",
@@ -188,6 +206,96 @@ function todoListKindClass(kind: TodoListKind): string {
   if (kind === "loop")
     return "border-violet-400/25 bg-violet-400/10 text-violet-200";
   return "border-emerald-400/25 bg-emerald-400/10 text-emerald-200";
+}
+
+function stringMeta(meta: Record<string, unknown> | undefined, key: string) {
+  const value = meta?.[key];
+  return typeof value === "string" && value.trim() ? value.trim() : null;
+}
+
+function numberMeta(meta: Record<string, unknown> | undefined, key: string) {
+  const value = meta?.[key];
+  return typeof value === "number" && Number.isFinite(value) ? value : null;
+}
+
+function managedGoalResultClass(
+  value: string | null,
+): ManagedGoalResultClass | null {
+  if (
+    value === "succeeded" ||
+    value === "pending" ||
+    value === "retryable" ||
+    value === "needsFix" ||
+    value === "fatal"
+  ) {
+    return value;
+  }
+  return null;
+}
+
+function managedGoalStatusTone(resultClass: ManagedGoalResultClass): {
+  label: string;
+  badgeClass: string;
+} {
+  if (resultClass === "succeeded") {
+    return {
+      label: "Done",
+      badgeClass: "border-emerald-400/30 bg-emerald-500/10 text-emerald-200",
+    };
+  }
+  if (resultClass === "pending") {
+    return {
+      label: "Pending",
+      badgeClass: "border-sky-400/30 bg-sky-500/10 text-sky-200",
+    };
+  }
+  if (resultClass === "retryable") {
+    return {
+      label: "Retrying",
+      badgeClass: "border-amber-400/30 bg-amber-500/10 text-amber-200",
+    };
+  }
+  if (resultClass === "needsFix") {
+    return {
+      label: "Needs fix",
+      badgeClass: "border-orange-400/35 bg-orange-500/10 text-orange-200",
+    };
+  }
+  return {
+    label: "Blocked",
+    badgeClass: "border-red-400/35 bg-red-500/10 text-red-200",
+  };
+}
+
+function managedGoalItemStatus(item: TodoItem): ManagedGoalItemStatus | null {
+  const meta = item.meta;
+  const resultClass = managedGoalResultClass(stringMeta(meta, "resultClass"));
+  if (!resultClass) return null;
+  const tone = managedGoalStatusTone(resultClass);
+  const attempts = numberMeta(meta, "attempts");
+  const issue = numberMeta(meta, "issue");
+  return {
+    resultClass,
+    label: tone.label,
+    badgeClass: tone.badgeClass,
+    reason: stringMeta(meta, "reason"),
+    nextAction: stringMeta(meta, "nextAction"),
+    attempts:
+      attempts !== null && attempts >= 0 ? Math.floor(attempts) : null,
+    nextRetryAt: stringMeta(meta, "nextRetryAt"),
+    issue: issue !== null && issue > 0 ? Math.floor(issue) : null,
+  };
+}
+
+function formatRetryTime(value: string): string {
+  const time = Date.parse(value);
+  if (!Number.isFinite(time)) return value;
+  return new Date(time).toLocaleString();
+}
+
+function issueHref(connectedRepo: string | null, issue: number | null) {
+  if (!connectedRepo || !issue) return null;
+  return `https://github.com/${connectedRepo}/issues/${issue}`;
 }
 
 function normalizeAssignee(login: string | null | undefined): string | null {
@@ -691,7 +799,7 @@ function TodoListDetail({
   onBack: () => void;
   onSelectItem: (item: TodoItem | null, replace?: boolean) => void;
 }) {
-  const { githubUser } = useGitHubIdentity();
+  const { githubUser, connectedRepo } = useGitHubIdentity();
   const { setComposerInjection, openMobileChat } = useChatScope();
   const { data: collaborators = [], isLoading: isLoadingCollaborators } =
     useCollaborators();
@@ -1133,6 +1241,7 @@ function TodoListDetail({
                           ? setSelectedItemNode
                           : undefined
                       }
+                      connectedRepo={connectedRepo}
                       collaborators={collaborators}
                       isLoadingCollaborators={isLoadingCollaborators}
                       disabled={updateMutation.isPending}
@@ -1223,6 +1332,7 @@ function TodoItemCard({
   onAskKody,
   onDelete,
   onInitialSelectedItemNode,
+  connectedRepo,
   collaborators,
   isLoadingCollaborators,
   disabled,
@@ -1238,12 +1348,15 @@ function TodoItemCard({
   onAskKody: () => void;
   onDelete: () => void;
   onInitialSelectedItemNode?: (node: HTMLLIElement | null) => void;
+  connectedRepo: string | null;
   collaborators: GitHubCollaborator[];
   isLoadingCollaborators: boolean;
   disabled: boolean;
 }) {
   const assignee = normalizeAssignee(item.assignee);
   const itemTitleDirectionProps = textDirectionProps(item.title);
+  const managedStatus = managedGoalItemStatus(item);
+  const managedIssueHref = issueHref(connectedRepo, managedStatus?.issue ?? null);
   const {
     attributes,
     isDragging,
@@ -1382,6 +1495,59 @@ function TodoItemCard({
           ? `completed ${new Date(item.completedAt).toLocaleDateString()}`
           : `created ${new Date(item.createdAt).toLocaleDateString()}`}
       </p>
+      {managedStatus ? (
+        <div className="mt-2 flex min-w-0 flex-wrap items-center gap-1.5 text-[11px] text-muted-foreground">
+          <span
+            className={cn(
+              "inline-flex h-6 shrink-0 items-center gap-1 rounded border px-2 font-medium",
+              managedStatus.badgeClass,
+            )}
+          >
+            {managedStatus.resultClass === "retryable" ? (
+              <RotateCw className="h-3 w-3" />
+            ) : null}
+            <span>{managedStatus.label}</span>
+          </span>
+          {managedStatus.reason ? (
+            <span className="min-w-0 max-w-full break-words">
+              {managedStatus.reason}
+            </span>
+          ) : null}
+          {managedStatus.nextAction ? (
+            <span className="min-w-0 max-w-full break-words">
+              Next: {managedStatus.nextAction}
+            </span>
+          ) : null}
+          {managedStatus.attempts !== null ? (
+            <span className="shrink-0 font-mono">
+              {managedStatus.attempts} attempt
+              {managedStatus.attempts === 1 ? "" : "s"}
+            </span>
+          ) : null}
+          {managedStatus.nextRetryAt ? (
+            <span className="min-w-0 max-w-full break-words">
+              Retry: {formatRetryTime(managedStatus.nextRetryAt)}
+            </span>
+          ) : null}
+          {managedStatus.issue ? (
+            managedIssueHref ? (
+              <a
+                href={managedIssueHref}
+                target="_blank"
+                rel="noreferrer"
+                data-todo-item-control
+                className="inline-flex shrink-0 items-center gap-1 text-foreground underline-offset-2 hover:underline"
+                onClick={stopTodoItemActionClick}
+              >
+                Issue #{managedStatus.issue}
+                <ExternalLink className="h-3 w-3" />
+              </a>
+            ) : (
+              <span className="shrink-0">Issue #{managedStatus.issue}</span>
+            )
+          ) : null}
+        </div>
+      ) : null}
     </div>
   );
 

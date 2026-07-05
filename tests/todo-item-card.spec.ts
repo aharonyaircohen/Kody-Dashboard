@@ -113,6 +113,24 @@ describe("todo item cards", () => {
     expect(TODO_CONTROL_SOURCE).not.toContain("<span>Ask Kody</span>");
   });
 
+  it("renders managed goal item status from todo metadata", () => {
+    expect(TODO_CONTROL_SOURCE).toContain("function managedGoalItemStatus(");
+    expect(TODO_CONTROL_SOURCE).toContain('stringMeta(meta, "resultClass")');
+    expect(TODO_CONTROL_SOURCE).toContain('stringMeta(meta, "reason")');
+    expect(TODO_CONTROL_SOURCE).toContain('stringMeta(meta, "nextAction")');
+    expect(TODO_CONTROL_SOURCE).toContain('numberMeta(meta, "attempts")');
+    expect(TODO_CONTROL_SOURCE).toContain('stringMeta(meta, "nextRetryAt")');
+    expect(TODO_CONTROL_SOURCE).toContain('numberMeta(meta, "issue")');
+    expect(TODO_CONTROL_SOURCE).toContain("{managedStatus.label}");
+    expect(TODO_CONTROL_SOURCE).toContain(
+      "Next: {managedStatus.nextAction}",
+    );
+    expect(TODO_CONTROL_SOURCE).toContain(
+      "{formatRetryTime(managedStatus.nextRetryAt)}",
+    );
+    expect(TODO_CONTROL_SOURCE).toContain("Issue #{managedStatus.issue}");
+  });
+
   it("saves item deletes before clearing a selected item route", () => {
     const deleteItemBlock = TODO_CONTROL_SOURCE.match(
       /const deleteItem = \(item: TodoItem\) => \{([\s\S]*?)\n  \};/,
