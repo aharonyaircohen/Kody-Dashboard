@@ -15,9 +15,14 @@ import {
   prepareBrainRuntimeImage,
 } from "@dashboard/lib/brain/image-runtime";
 import {
+  brainImageCatalogFile,
+  discoverBrainPackageImages,
+  mergeBrainSavedImages,
+} from "@dashboard/lib/brain/image-catalog";
+import {
   readBrainApp,
   readBrainImage,
-  selectBrainImage,
+  writeBrainImage,
   writeBrainApp,
   type BrainImageFile,
 } from "@dashboard/lib/brain/store";
@@ -26,6 +31,7 @@ import {
   beginBrainRuntimeApply,
   completeBrainRuntimeApply,
   failBrainRuntimeApply,
+  readBrainRuntimeView,
 } from "@dashboard/lib/brain/runtime-manager";
 import type { BrainRuntimeStateFile } from "@dashboard/lib/brain/runtime-store";
 import { resolveBrainTarget } from "@dashboard/lib/brain/target";
@@ -62,17 +68,50 @@ export interface ApplyBrainImageResult {
 export async function applySelectedBrainImage(
   input: ApplyBrainImageInput,
 ): Promise<ApplyBrainImageResult> {
-  const image = await readBrainImage(input.account, input.githubToken);
-  if (!image) {
-    throw new Error("No Brain images saved");
-  }
-  const imageRef = input.imageRef ?? image.imageRef;
+  let image = await readBrainImage(input.account, input.githubToken);
+  const runtimeView = await readBrainRuntimeView(
+    input.account,
+    input.githubToken,
+  );
+  const imageRef =
+    input.imageRef ?? runtimeView.desiredImageRef ?? image?.imageRef;
   if (!imageRef) {
     throw new Error("No Brain image selected");
   }
-  const savedImage = image.images.find((saved) => saved.imageRef === imageRef);
+  const ghcr = brainGhcrAuth({
+    allSecrets: input.allSecrets,
+    githubToken: input.githubToken,
+    account: input.account,
+  });
+  let savedImage = image?.images.find((saved) => saved.imageRef === imageRef);
   if (!savedImage) {
-    throw new Error("Brain image is not saved");
+    const discoveredImages = await discoverBrainPackageImages({
+      owner: input.owner,
+      repo: input.repo,
+      account: input.account,
+      githubToken: ghcr.token,
+    });
+    const images = mergeBrainSavedImages(image, discoveredImages);
+    savedImage = images.find((saved) => saved.imageRef === imageRef);
+    if (savedImage) {
+      const now = new Date().toISOString();
+      image = brainImageCatalogFile({
+        previous: image,
+        createdAt: image?.createdAt ?? savedImage.createdAt,
+        updatedAt: now,
+        images,
+      });
+      await writeBrainImage(input.account, input.githubToken, image);
+    }
+  }
+  if (!savedImage) {
+    throw new Error(
+      image ? "Brain image is not saved" : "No Brain images saved",
+    );
+  }
+  const catalogImage = image;
+  if (!catalogImage) {
+    throw new Error("No Brain images saved");
   }
 
   await beginBrainRuntimeApply(input.account, input.githubToken, imageRef);
@@ -96,12 +135,6 @@ export async function applySelectedBrainImage(
     });
     const operationFlyToken = service.flyToken;
     const operationOrgSlug = service.orgSlug;
-    const ghcr = brainGhcrAuth({
-      allSecrets: input.allSecrets,
-      githubToken: input.githubToken,
-      account: input.account,
-    });
-
     const brain = await provisionBrain({
       flyToken: operationFlyToken,
       account: input.account,
@@ -145,11 +178,6 @@ export async function applySelectedBrainImage(
       );
     });
 
-    const selectedImage = await selectBrainImage(
-      input.account,
-      input.githubToken,
-      imageRef,
-    );
     const runtime = await completeBrainRuntimeApply(
       input.account,
       input.githubToken,
@@ -162,7 +190,7 @@ export async function applySelectedBrainImage(
       },
     );
 
-    return { image: selectedImage, brain, runtime };
+    return { image: catalogImage, brain, runtime };
   } catch (err) {
     await failBrainRuntimeApply(
       input.account,

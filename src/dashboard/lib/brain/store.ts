@@ -109,6 +109,18 @@ export interface BrainImageFile {
 export interface BrainImageSaveFile {
   version: 1;
   status: "running" | "completed" | "failed";
+  phase?:
+    | "starting"
+    | "uploading-script"
+    | "exporting-rootfs"
+    | "downloading-rootfs"
+    | "preparing-push"
+    | "pushing-image"
+    | "verifying"
+    | "completed"
+    | "failed";
+  message?: string;
+  lastOutput?: string;
   jobId: string;
   app: string;
   machineId: string;
@@ -194,13 +206,11 @@ function normalizeBrainImageFile(value: unknown): BrainImageFile | null {
   const visibleImages = merged.filter(
     (image) => !forgotten.has(image.imageRef),
   );
-  const selectedImageRef =
-    rawImageRef && !forgotten.has(rawImageRef)
-      ? rawImageRef
-      : visibleImages[0]?.imageRef;
   return {
     version: 1,
-    ...(selectedImageRef ? { imageRef: selectedImageRef } : {}),
+    ...(rawImageRef && !forgotten.has(rawImageRef)
+      ? { imageRef: rawImageRef }
+      : {}),
     createdAt,
     updatedAt,
     images: sortBrainSavedImages(visibleImages),
@@ -255,6 +265,20 @@ function isBrainImageSaveFile(value: unknown): value is BrainImageSaveFile {
     isValidBrainImageRef(v.expectedImageRef) &&
     typeof v.startedAt === "string" &&
     typeof v.updatedAt === "string" &&
+    (v.phase === undefined ||
+      v.phase === "starting" ||
+      v.phase === "uploading-script" ||
+      v.phase === "exporting-rootfs" ||
+      v.phase === "downloading-rootfs" ||
+      v.phase === "preparing-push" ||
+      v.phase === "pushing-image" ||
+      v.phase === "verifying" ||
+      v.phase === "completed" ||
+      v.phase === "failed") &&
+    (v.message === undefined ||
+      (typeof v.message === "string" && v.message.length <= 500)) &&
+    (v.lastOutput === undefined ||
+      (typeof v.lastOutput === "string" && v.lastOutput.length <= 2000)) &&
     (v.error === undefined || typeof v.error === "string")
   );
 }
@@ -442,13 +466,17 @@ export async function clearBrainApp(
 export async function readBrainImage(
   login: string,
   _token: string,
+  options: { bypassCache?: boolean } = {},
 ): Promise<BrainImageFile | null> {
   const owner = getOwner();
   const repo = getRepo();
   const path = imageFilePath(login);
   const key = cacheKey("image", login);
 
-  const cached = getCache<BrainImageFile | null>(key);
+  if (options.bypassCache) cache.delete(key);
+  const cached = options.bypassCache
+    ? null
+    : getCache<BrainImageFile | null>(key);
   const octokit = getOctokit();
 
   try {
@@ -564,7 +592,22 @@ export async function selectBrainImage(
   if (!current) {
     throw new Error("No Brain images saved");
   }
-  const selected = current.images.find((image) => image.imageRef === imageRef);
+  let selected = current.images.find((image) => image.imageRef === imageRef);
+  if (!selected) {
+    const fresh = await readBrainImage(login, token, { bypassCache: true });
+    if (!fresh) {
+      throw new Error("No Brain images saved");
+    }
+    current.images = fresh.images;
+    current.imageRef = fresh.imageRef;
+    current.updatedAt = fresh.updatedAt;
+    current.forgottenImageRefs = fresh.forgottenImageRefs;
+    current.runningImageRef = fresh.runningImageRef;
+    current.runningAt = fresh.runningAt;
+    current.runningApp = fresh.runningApp;
+    current.runningMachineId = fresh.runningMachineId;
+    selected = current.images.find((image) => image.imageRef === imageRef);
+  }
   if (!selected) {
     throw new Error("Brain image is not saved");
   }
@@ -615,9 +658,24 @@ export async function markBrainImageRunning(
   if (!current) {
     throw new Error("No Brain images saved");
   }
-  const selected = current.images.find(
+  let selected = current.images.find(
     (image) => image.imageRef === input.imageRef,
   );
+  if (!selected) {
+    const fresh = await readBrainImage(login, token, { bypassCache: true });
+    if (!fresh) {
+      throw new Error("No Brain images saved");
+    }
+    current.images = fresh.images;
+    current.imageRef = fresh.imageRef;
+    current.updatedAt = fresh.updatedAt;
+    current.forgottenImageRefs = fresh.forgottenImageRefs;
+    current.runningImageRef = fresh.runningImageRef;
+    current.runningAt = fresh.runningAt;
+    current.runningApp = fresh.runningApp;
+    current.runningMachineId = fresh.runningMachineId;
+    selected = current.images.find((image) => image.imageRef === input.imageRef);
+  }
   if (!selected) {
     throw new Error("Brain image is not saved");
   }

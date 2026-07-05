@@ -1328,6 +1328,12 @@ export function KodyChat({
         ? "Starting"
         : "Off";
   const [brainImageBusy, setBrainImageBusy] = useState(false);
+  const [brainImageSaveStatus, setBrainImageSaveStatus] = useState<{
+    phase?: string;
+    message?: string;
+    startedAt?: string;
+    updatedAt?: string;
+  } | null>(null);
   const [pendingTerminalRestore, setPendingTerminalRestore] =
     useState<TerminalCheckpoint | null>(null);
   const [pendingKodyTerminalPayload, setPendingKodyTerminalPayload] = useState<
@@ -1436,6 +1442,11 @@ export function KodyChat({
 
   const handleSaveBrainImage = useCallback(async () => {
     setBrainImageBusy(true);
+    setBrainImageSaveStatus({
+      phase: "starting",
+      message: "Starting Brain image save",
+      startedAt: new Date().toISOString(),
+    });
     try {
       const res = await fetch("/api/kody/brain/image", {
         method: "POST",
@@ -1444,8 +1455,11 @@ export function KodyChat({
       });
       const body = (await res.json().catch(() => ({}))) as {
         status?: string;
+        phase?: string;
         jobId?: string;
         imageRef?: string;
+        startedAt?: string;
+        updatedAt?: string;
         message?: string;
         error?: string;
       };
@@ -1453,6 +1467,12 @@ export function KodyChat({
         throw new Error(body.message ?? body.error ?? `HTTP ${res.status}`);
       }
       if (body.status === "completed" && body.imageRef) {
+        setBrainImageSaveStatus({
+          phase: body.phase ?? "completed",
+          message: body.message ?? "Brain image saved",
+          startedAt: body.startedAt,
+          updatedAt: body.updatedAt,
+        });
         toast.success("Brain image saved");
         return;
       }
@@ -1461,6 +1481,12 @@ export function KodyChat({
       }
 
       toast.success("Brain image save started");
+      setBrainImageSaveStatus({
+        phase: body.phase ?? "starting",
+        message: body.message ?? "Starting Brain image save",
+        startedAt: body.startedAt,
+        updatedAt: body.updatedAt,
+      });
       for (let attempt = 0; attempt < BRAIN_IMAGE_SAVE_MAX_POLLS; attempt++) {
         await new Promise((resolve) =>
           setTimeout(resolve, BRAIN_IMAGE_SAVE_POLL_INTERVAL_MS),
@@ -1472,11 +1498,28 @@ export function KodyChat({
         const status = (await poll.json().catch(() => ({}))) as {
           ok?: boolean;
           status?: string;
+          phase?: string;
           imageRef?: string;
+          startedAt?: string;
+          updatedAt?: string;
           message?: string;
           error?: string;
         };
+        if (poll.ok && status.status === "running") {
+          setBrainImageSaveStatus({
+            phase: status.phase ?? "starting",
+            message: status.message ?? "Saving Brain image",
+            startedAt: status.startedAt ?? body.startedAt,
+            updatedAt: status.updatedAt,
+          });
+        }
         if (poll.ok && status.status === "completed" && status.imageRef) {
+          setBrainImageSaveStatus({
+            phase: status.phase ?? "completed",
+            message: status.message ?? "Brain image saved",
+            startedAt: status.startedAt ?? body.startedAt,
+            updatedAt: status.updatedAt,
+          });
           toast.success("Brain image saved");
           return;
         }
@@ -1490,11 +1533,17 @@ export function KodyChat({
       }
       throw new Error("Brain image save is still running after 2 hours");
     } catch (err) {
+      setBrainImageSaveStatus({
+        phase: "failed",
+        message:
+          err instanceof Error ? err.message : "Failed to save Brain image",
+      });
       toast.error(
         err instanceof Error ? err.message : "Failed to save Brain image",
       );
     } finally {
       setBrainImageBusy(false);
+      window.setTimeout(() => setBrainImageSaveStatus(null), 4000);
     }
   }, []);
 
@@ -5292,6 +5341,10 @@ export function KodyChat({
       </div>
     ) : null;
 
+  const brainImageSaveLabel =
+    brainImageSaveStatus?.message ??
+    (brainImageBusy ? "Saving Brain image" : "Save Brain image");
+
   const terminalTopControls =
     chatMode === "terminal" ? (
       <div
@@ -5358,8 +5411,8 @@ export function KodyChat({
             onClick={() => void handleSaveBrainImage()}
             disabled={brainImageBusy}
             className="inline-flex h-8 w-8 items-center justify-center rounded text-zinc-300 transition-colors hover:bg-white/10 hover:text-white disabled:cursor-not-allowed disabled:opacity-50"
-            title="Save Brain image"
-            aria-label="Save Brain image"
+            title={brainImageSaveLabel}
+            aria-label={brainImageSaveLabel}
           >
             {brainImageBusy ? (
               <Loader2 className="h-4 w-4 animate-spin" />
@@ -5367,6 +5420,11 @@ export function KodyChat({
               <Save className="h-4 w-4" />
             )}
           </button>
+          {brainImageBusy && (
+            <span className="hidden max-w-40 truncate text-[11px] text-amber-100/80 lg:inline">
+              {brainImageSaveLabel}
+            </span>
+          )}
           <button
             type="button"
             onClick={() => void refreshChatTerminalFlyMachines()}

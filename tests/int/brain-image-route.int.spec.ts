@@ -280,13 +280,143 @@ describe("GET /api/kody/brain/image", () => {
       "aguyaharonyair",
       "gh-token",
       expect.objectContaining({
-        imageRef:
-          "ghcr.io/a-guy-educ/kody-brain-aguyaharonyair:brain-20260702-120000",
         forgottenImageRefs: [
           "ghcr.io/a-guy-educ/kody-brain-aguyaharonyair:brain-20260701-090000",
           "ghcr.io/a-guy-educ/kody-brain-aguyaharonyair:brain-20260701-100000",
         ],
       }),
+    );
+    expect(mocks.writeImage.mock.calls[0]?.[2]).not.toHaveProperty("imageRef");
+    expect(mocks.clearSave).toHaveBeenCalledWith("aguyaharonyair", "gh-token");
+  });
+
+  it("returns and persists running save phase progress", async () => {
+    mocks.readSave.mockResolvedValue({
+      version: 1,
+      status: "running",
+      phase: "starting",
+      message: "Starting Brain image save",
+      jobId: "0123456789abcdef0123456789abcdef",
+      app: "brain-1",
+      machineId: "machine-1",
+      bridgeApp: "kody-terminal-guy-koren",
+      orgSlug: "guy-koren",
+      defaultRegion: "fra",
+      expectedImageRef:
+        "ghcr.io/a-guy-educ/kody-brain-aguyaharonyair:brain-20260702-120000",
+      startedAt: "2026-07-02T12:00:00.000Z",
+      updatedAt: "2026-07-02T12:00:00.000Z",
+    });
+    mocks.getJob.mockResolvedValue({
+      id: "0123456789abcdef0123456789abcdef",
+      status: "running",
+      startedAt: "2026-07-02T12:00:00.000Z",
+      finishedAt: null,
+      code: null,
+      stdout: "__KODY_BRAIN_SAVE_STAGE=push-ghcr\n",
+      stderr: "pushing layer\n",
+      error: null,
+    });
+
+    const res = await GET(
+      request(
+        "GET",
+        "https://dash.test/api/kody/brain/image?jobId=0123456789abcdef0123456789abcdef",
+      ),
+    );
+    const body = (await res.json()) as {
+      phase?: string;
+      message?: string;
+      lastOutput?: string;
+    };
+
+    expect(res.status).toBe(200);
+    expect(body).toMatchObject({
+      phase: "pushing-image",
+      message: "Pushing the Brain image to GHCR",
+      lastOutput: "pushing layer",
+    });
+    expect(mocks.writeSave).toHaveBeenCalledWith(
+      "aguyaharonyair",
+      "gh-token",
+      expect.objectContaining({
+        phase: "pushing-image",
+        message: "Pushing the Brain image to GHCR",
+        lastOutput: "pushing layer",
+      }),
+    );
+  });
+
+  it("completes a running save when the expected GHCR image already exists", async () => {
+    mocks.readSave.mockResolvedValue({
+      version: 1,
+      status: "running",
+      jobId: "0123456789abcdef0123456789abcdef",
+      app: "brain-1",
+      machineId: "machine-1",
+      bridgeApp: "kody-terminal-guy-koren",
+      orgSlug: "guy-koren",
+      defaultRegion: "fra",
+      expectedImageRef:
+        "ghcr.io/a-guy-educ/kody-brain-aguyaharonyair:brain-20260702-120000",
+      startedAt: "2026-07-02T12:00:00.000Z",
+      updatedAt: "2026-07-02T12:00:00.000Z",
+    });
+    mocks.readImage.mockResolvedValue({
+      version: 1,
+      imageRef:
+        "ghcr.io/a-guy-educ/kody-brain-aguyaharonyair:brain-20260702-101010",
+      createdAt: "2026-06-30T00:00:00.000Z",
+      updatedAt: "2026-07-02T10:10:10.000Z",
+      images: [],
+    });
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () => {
+        return new Response(
+          JSON.stringify([
+            {
+              created_at: "2026-07-02T12:05:00.000Z",
+              updated_at: "2026-07-02T12:05:00.000Z",
+              metadata: {
+                container: {
+                  tags: ["brain-20260702-120000"],
+                },
+              },
+            },
+          ]),
+          { status: 200 },
+        );
+      }),
+    );
+
+    const res = await GET(
+      request(
+        "GET",
+        "https://dash.test/api/kody/brain/image?jobId=0123456789abcdef0123456789abcdef",
+      ),
+    );
+    const body = (await res.json()) as {
+      status?: string;
+      imageRef?: string;
+    };
+
+    expect(res.status).toBe(200);
+    expect(body).toMatchObject({
+      status: "completed",
+      imageRef:
+        "ghcr.io/a-guy-educ/kody-brain-aguyaharonyair:brain-20260702-120000",
+    });
+    expect(mocks.getJob).not.toHaveBeenCalled();
+    expect(mocks.writeImage).toHaveBeenCalledWith(
+      "aguyaharonyair",
+      "gh-token",
+      expect.not.objectContaining({ imageRef: expect.any(String) }),
+    );
+    expect(mocks.selectRuntimeImage).toHaveBeenCalledWith(
+      "aguyaharonyair",
+      "gh-token",
+      "ghcr.io/a-guy-educ/kody-brain-aguyaharonyair:brain-20260702-120000",
     );
     expect(mocks.clearSave).toHaveBeenCalledWith("aguyaharonyair", "gh-token");
   });
@@ -366,7 +496,7 @@ describe("PATCH /api/kody/brain/image", () => {
     });
   });
 
-  it("only changes the active image metadata", async () => {
+  it("selects the desired runtime image without mutating catalog metadata", async () => {
     const res = await PATCH(
       request("PATCH", "https://dash.test/api/kody/brain/image", {
         imageRef: "ghcr.io/a-guy-educ/kody-brain-aguyaharonyair:selected",
@@ -374,11 +504,7 @@ describe("PATCH /api/kody/brain/image", () => {
     );
 
     expect(res.status).toBe(200);
-    expect(mocks.selectImage).toHaveBeenCalledWith(
-      "aguyaharonyair",
-      "gh-token",
-      "ghcr.io/a-guy-educ/kody-brain-aguyaharonyair:selected",
-    );
+    expect(mocks.selectImage).not.toHaveBeenCalled();
     expect(mocks.selectRuntimeImage).toHaveBeenCalledWith(
       "aguyaharonyair",
       "gh-token",

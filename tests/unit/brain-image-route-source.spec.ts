@@ -90,13 +90,15 @@ describe("Brain image save route", () => {
     expect(APPLY_ROUTE_SOURCE).toContain("imageRef: body.imageRef");
     expect(APPLY_SERVICE_SOURCE).toContain("readBrainImage");
     expect(APPLY_SERVICE_SOURCE).toContain(
-      "const imageRef = input.imageRef ?? image.imageRef",
+      "input.imageRef ?? runtimeView.desiredImageRef ?? image?.imageRef",
     );
     expect(APPLY_SERVICE_SOURCE).toContain("imageRef,");
     expect(APPLY_SERVICE_SOURCE).toContain("prepareBrainRuntimeImage");
     expect(APPLY_SERVICE_SOURCE).toContain("resolveRuntimeImageRef");
     expect(APPLY_SERVICE_SOURCE).toContain("beginBrainRuntimeApply");
     expect(APPLY_SERVICE_SOURCE).toContain("completeBrainRuntimeApply");
+    expect(APPLY_SERVICE_SOURCE).toContain("brainImageCatalogFile");
+    expect(APPLY_SERVICE_SOURCE).not.toContain("selectBrainImage");
     expect(APPLY_SERVICE_SOURCE).not.toContain("markBrainImageRunning");
   });
 });

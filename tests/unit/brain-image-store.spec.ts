@@ -206,6 +206,38 @@ describe("Brain image store", () => {
     );
   });
 
+  it("writes catalog-only Brain images without inventing selected or running state", async () => {
+    state.readStateText.mockResolvedValue(null);
+    state.writeStateText.mockResolvedValue({ sha: "new-sha" });
+    const { writeBrainImage } = await import("@dashboard/lib/brain/store");
+
+    await writeBrainImage("Alice", "token", {
+      version: 1,
+      createdAt: "2026-06-25T10:00:00.000Z",
+      updatedAt: "2026-06-25T10:00:00.000Z",
+      images: [
+        {
+          imageRef: "ghcr.io/alice/kody-brain-snapshot:20260625",
+          createdAt: "2026-06-25T10:00:00.000Z",
+          updatedAt: "2026-06-25T10:00:00.000Z",
+        },
+      ],
+    });
+
+    const content = JSON.parse(
+      (state.writeStateText.mock.calls[0]?.[0] as { content: string }).content,
+    ) as {
+      imageRef?: string;
+      runningImageRef?: string;
+      runningApp?: string;
+      runningMachineId?: string;
+    };
+    expect(content.imageRef).toBeUndefined();
+    expect(content.runningImageRef).toBeUndefined();
+    expect(content.runningApp).toBeUndefined();
+    expect(content.runningMachineId).toBeUndefined();
+  });
+
   it("selects a saved Brain image without deleting the image list", async () => {
     state.readStateText
       .mockResolvedValueOnce({
@@ -247,6 +279,75 @@ describe("Brain image store", () => {
         }),
       ]),
     });
+  });
+
+  it("refreshes stale image cache before rejecting a selected image", async () => {
+    state.readStateText
+      .mockResolvedValueOnce({
+        content: JSON.stringify({
+          version: 1,
+          imageRef: "ghcr.io/alice/kody-brain-snapshot:old",
+          createdAt: "2026-06-25T10:00:00.000Z",
+          updatedAt: "2026-06-25T10:00:00.000Z",
+          images: [
+            {
+              imageRef: "ghcr.io/alice/kody-brain-snapshot:old",
+              createdAt: "2026-06-25T10:00:00.000Z",
+              updatedAt: "2026-06-25T10:00:00.000Z",
+            },
+          ],
+        }),
+        sha: "old-sha",
+        etag: "old-etag",
+      })
+      .mockRejectedValueOnce({ status: 304 })
+      .mockResolvedValueOnce({
+        content: JSON.stringify({
+          version: 1,
+          imageRef: "ghcr.io/alice/kody-brain-snapshot:old",
+          createdAt: "2026-06-25T10:00:00.000Z",
+          updatedAt: "2026-06-26T10:00:00.000Z",
+          images: [
+            {
+              imageRef: "ghcr.io/alice/kody-brain-snapshot:new",
+              createdAt: "2026-06-26T10:00:00.000Z",
+              updatedAt: "2026-06-26T10:00:00.000Z",
+            },
+            {
+              imageRef: "ghcr.io/alice/kody-brain-snapshot:old",
+              createdAt: "2026-06-25T10:00:00.000Z",
+              updatedAt: "2026-06-25T10:00:00.000Z",
+            },
+          ],
+        }),
+        sha: "new-sha",
+        etag: "new-etag",
+      })
+      .mockResolvedValueOnce({ sha: "new-sha", content: "{}" });
+    state.writeStateText.mockResolvedValue({ sha: "written-sha" });
+    const { readBrainImage, selectBrainImage } = await import(
+      "@dashboard/lib/brain/store"
+    );
+
+    await readBrainImage("Alice", "token");
+    await expect(
+      selectBrainImage(
+        "Alice",
+        "token",
+        "ghcr.io/alice/kody-brain-snapshot:new",
+      ),
+    ).resolves.toMatchObject({
+      imageRef: "ghcr.io/alice/kody-brain-snapshot:new",
+    });
+
+    expect(state.readStateText).toHaveBeenNthCalledWith(
+      3,
+      { id: "octokit" },
+      "aharonyaircohen",
+      "Kody-Dashboard",
+      "users/alice/data/brain-image.json",
+      { scope: "root", headers: undefined },
+    );
   });
 
   it("forgets a saved Brain image from dashboard metadata", async () => {
@@ -480,6 +581,9 @@ describe("Brain image store", () => {
     await writeBrainImageSave("Alice", "token", {
       version: 1,
       status: "running",
+      phase: "pushing-image",
+      message: "Pushing the Brain image to GHCR",
+      lastOutput: "layer upload",
       jobId: "0123456789abcdef0123456789abcdef",
       app: "brain-1",
       machineId: "m123",

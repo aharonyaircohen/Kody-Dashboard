@@ -33,6 +33,18 @@ interface BrainSavedImage {
 
 interface BrainImageSaveState {
   status: "running" | "completed" | "failed";
+  phase?:
+    | "starting"
+    | "uploading-script"
+    | "exporting-rootfs"
+    | "downloading-rootfs"
+    | "preparing-push"
+    | "pushing-image"
+    | "verifying"
+    | "completed"
+    | "failed";
+  message?: string;
+  lastOutput?: string;
   jobId: string;
   imageRef: string;
   startedAt: string;
@@ -86,6 +98,46 @@ function formatDate(value: string): string {
     dateStyle: "medium",
     timeStyle: "short",
   });
+}
+
+function phaseLabel(save: BrainImageSaveState): string {
+  if (save.message) return save.message;
+  switch (save.phase) {
+    case "uploading-script":
+      return "Preparing the Brain machine for export";
+    case "exporting-rootfs":
+      return "Exporting the Brain filesystem";
+    case "downloading-rootfs":
+      return "Downloading the Brain filesystem";
+    case "preparing-push":
+      return "Preparing the image upload";
+    case "pushing-image":
+      return "Pushing the Brain image to GHCR";
+    case "verifying":
+      return "Verifying saved image";
+    case "completed":
+      return "Brain image saved";
+    case "failed":
+      return "Brain image save failed";
+    case "starting":
+    default:
+      return "Starting Brain image save";
+  }
+}
+
+function elapsedLabel(startedAt: string, updatedAt?: string): string {
+  const start = new Date(startedAt).getTime();
+  const end = updatedAt ? new Date(updatedAt).getTime() : Date.now();
+  if (!Number.isFinite(start) || !Number.isFinite(end) || end < start) {
+    return "";
+  }
+  const seconds = Math.max(0, Math.round((end - start) / 1000));
+  if (seconds < 60) return `${seconds}s elapsed`;
+  const minutes = Math.floor(seconds / 60);
+  const rest = seconds % 60;
+  if (minutes < 60) return `${minutes}m ${rest}s elapsed`;
+  const hours = Math.floor(minutes / 60);
+  return `${hours}h ${minutes % 60}m elapsed`;
 }
 
 export function BrainImagesManager() {
@@ -174,6 +226,12 @@ export function BrainImagesManager() {
   useEffect(() => {
     void loadImages();
   }, [loadImages]);
+
+  useEffect(() => {
+    if (save?.status !== "running") return;
+    const interval = window.setInterval(() => void loadImages(), 5000);
+    return () => window.clearInterval(interval);
+  }, [loadImages, save?.status]);
 
   async function applyImage(imageRef: string) {
     if (!headers) return;
@@ -322,8 +380,20 @@ export function BrainImagesManager() {
               </div>
             </div>
             {save?.status === "running" && (
-              <div className="rounded-md border border-amber-400/20 bg-amber-400/[0.06] px-3 py-2 text-xs text-amber-200">
-                Save running: {imageTag(save.imageRef)}
+              <div className="rounded-md border border-amber-400/20 bg-amber-400/[0.06] px-3 py-2 text-xs text-amber-100">
+                <div className="flex items-center gap-2 font-medium">
+                  <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                  {phaseLabel(save)}
+                </div>
+                <div className="mt-1 text-amber-100/70">
+                  {imageTag(save.imageRef)} ·{" "}
+                  {elapsedLabel(save.startedAt, save.updatedAt)}
+                </div>
+                {save.lastOutput && (
+                  <pre className="mt-2 max-h-24 overflow-auto whitespace-pre-wrap rounded bg-black/25 p-2 font-mono text-[11px] text-amber-50/70">
+                    {save.lastOutput}
+                  </pre>
+                )}
               </div>
             )}
             {selectedNeedsApply && (

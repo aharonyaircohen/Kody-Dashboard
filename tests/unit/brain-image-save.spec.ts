@@ -8,6 +8,7 @@ import { describe, expect, it } from "vitest";
 import {
   brainGhcrImageRef,
   brainImageBuildCommand,
+  brainImageSaveProgressFromOutput,
   brainImageTag,
 } from "@dashboard/lib/brain/image-save";
 
@@ -146,5 +147,33 @@ describe("Brain image save helpers", () => {
         ghcrUser: "Alice",
       }),
     ).toThrow("Invalid Brain image tag");
+  });
+
+  it("reports truthful phase progress from bridge job output", () => {
+    expect(
+      brainImageSaveProgressFromOutput({
+        status: "running",
+        stdout: "__KODY_BRAIN_SAVE_STAGE=export-rootfs\n",
+        stderr: "",
+        error: null,
+      }),
+    ).toMatchObject({
+      phase: "exporting-rootfs",
+      message: "Exporting the Brain filesystem",
+    });
+
+    expect(
+      brainImageSaveProgressFromOutput({
+        status: "running",
+        stdout:
+          "__KODY_BRAIN_SAVE_STAGE=push-ghcr\n__KODY_BRAIN_SAVE_RETRY=push-ghcr:1\n",
+        stderr: "upload stalled once\n",
+        error: null,
+      }),
+    ).toMatchObject({
+      phase: "pushing-image",
+      message: "Retrying push ghcr",
+      lastOutput: "upload stalled once",
+    });
   });
 });

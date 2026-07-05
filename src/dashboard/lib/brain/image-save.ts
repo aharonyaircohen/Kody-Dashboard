@@ -31,6 +31,100 @@ export function brainImageTag(now = new Date()): string {
     .toLowerCase();
 }
 
+export type BrainImageSavePhase =
+  | "starting"
+  | "uploading-script"
+  | "exporting-rootfs"
+  | "downloading-rootfs"
+  | "preparing-push"
+  | "pushing-image"
+  | "verifying"
+  | "completed"
+  | "failed";
+
+export interface BrainImageSaveProgress {
+  phase: BrainImageSavePhase;
+  message: string;
+  lastOutput?: string;
+}
+
+const SAVE_STAGE_PROGRESS: Record<string, BrainImageSaveProgress> = {
+  "upload-export-script": {
+    phase: "uploading-script",
+    message: "Preparing the Brain machine for export",
+  },
+  "export-rootfs": {
+    phase: "exporting-rootfs",
+    message: "Exporting the Brain filesystem",
+  },
+  "download-rootfs": {
+    phase: "downloading-rootfs",
+    message: "Downloading the Brain filesystem",
+  },
+  "install-crane": {
+    phase: "preparing-push",
+    message: "Preparing the image upload",
+  },
+  "push-ghcr": {
+    phase: "pushing-image",
+    message: "Pushing the Brain image to GHCR",
+  },
+};
+
+export function brainImageSaveProgressFromOutput(input: {
+  status: "running" | "completed" | "failed";
+  stdout?: string | null;
+  stderr?: string | null;
+  error?: string | null;
+}): BrainImageSaveProgress {
+  const output = `${input.stdout ?? ""}\n${input.stderr ?? ""}`;
+  const lastOutput = cleanProgressOutput(output);
+  if (input.status === "completed") {
+    return {
+      phase: "completed",
+      message: "Brain image saved",
+      ...(lastOutput ? { lastOutput } : {}),
+    };
+  }
+  if (input.status === "failed") {
+    return {
+      phase: "failed",
+      message: input.error ?? "Brain image save failed",
+      ...(lastOutput ? { lastOutput } : {}),
+    };
+  }
+
+  const stages = [...output.matchAll(/__KODY_BRAIN_SAVE_STAGE=([^\s]+)/g)];
+  const stage = stages.at(-1)?.[1];
+  const progress = stage ? SAVE_STAGE_PROGRESS[stage] : null;
+  const retry = [...output.matchAll(/__KODY_BRAIN_SAVE_RETRY=([^\s]+)/g)].at(
+    -1,
+  )?.[1];
+  const message = retry
+    ? `Retrying ${retry.replace(/:\d+$/, "").replaceAll("-", " ")}`
+    : (progress?.message ?? "Starting Brain image save");
+  return {
+    phase: progress?.phase ?? "starting",
+    message,
+    ...(lastOutput ? { lastOutput } : {}),
+  };
+}
+
+function cleanProgressOutput(output: string): string {
+  return output
+    .split(/\r?\n/)
+    .map((line) => line.trim())
+    .filter(
+      (line) =>
+        line &&
+        !line.startsWith("__KODY_BRAIN_SAVE_STAGE=") &&
+        !line.startsWith("__KODY_BRAIN_SAVE_RETRY="),
+    )
+    .slice(-20)
+    .join("\n")
+    .slice(-2000);
+}
+
 export function brainGhcrImageRef(input: {
   owner: string;
   account: string;

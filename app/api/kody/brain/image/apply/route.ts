@@ -72,7 +72,10 @@ export async function POST(req: NextRequest) {
     });
     return NextResponse.json({
       ok: true,
-      imageRef: result.image.imageRef,
+      imageRef:
+        result.runtime.desiredImageRef ??
+        result.runtime.running?.imageRef ??
+        null,
       runningImageRef: result.runtime.running?.imageRef ?? null,
       runningAt: result.runtime.running?.appliedAt ?? null,
       runningApp: result.runtime.running?.app ?? null,

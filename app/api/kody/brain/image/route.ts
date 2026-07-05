@@ -23,7 +23,6 @@ import {
   deleteBrainImage,
   readBrainImage,
   readBrainImageSave,
-  selectBrainImage,
   writeBrainImage,
   writeBrainImageSave,
   type BrainImageFile,
@@ -33,8 +32,15 @@ import {
 import {
   brainGhcrImageRef,
   brainImageBuildCommand,
+  brainImageSaveProgressFromOutput,
   brainImageTag,
 } from "@dashboard/lib/brain/image-save";
+import {
+  brainImageCatalogFile,
+  discoverBrainPackageImages,
+  mergeBrainSavedImages,
+  upsertBrainCatalogImageFile,
+} from "@dashboard/lib/brain/image-catalog";
 import {
   BRAIN_IMAGE_JOB_OUTPUT_BYTES,
   brainImageJobTimeoutMs,
@@ -86,9 +92,13 @@ function savePollResponse(
   save: BrainImageSaveFile,
   job: TerminalBridgeExecJob,
 ) {
+  const progress = brainImageSaveProgressFromOutput(job);
   return {
     ok: true,
     status: job.status,
+    phase: progress.phase,
+    message: progress.message,
+    lastOutput: progress.lastOutput,
     jobId: save.jobId,
     app: save.app,
     machineId: save.machineId,
@@ -123,166 +133,52 @@ function imageManagementResponse(
   };
 }
 
-interface GitHubPackageVersion {
-  created_at?: unknown;
-  updated_at?: unknown;
-  metadata?: {
-    container?: {
-      tags?: unknown;
-    };
+async function recordCompletedBrainImageSave(input: {
+  account: string;
+  githubToken: string;
+  save: BrainImageSaveFile;
+  imageRef: string;
+  finishedAt?: string | null;
+  lastOutput?: string;
+}) {
+  const previous = await readBrainImage(
+    input.account,
+    input.githubToken,
+  ).catch(() => null);
+  const now = new Date().toISOString();
+  await writeBrainImage(
+    input.account,
+    input.githubToken,
+    upsertBrainCatalogImageFile(
+      previous,
+      {
+        imageRef: input.imageRef,
+        createdAt: input.save.startedAt,
+        updatedAt: now,
+      },
+      now,
+    ),
+  );
+  await selectBrainRuntimeImage(
+    input.account,
+    input.githubToken,
+    input.imageRef,
+  );
+  await clearBrainImageSave(input.account, input.githubToken);
+
+  return {
+    ok: true,
+    status: "completed",
+    phase: "completed",
+    message: "Brain image saved",
+    lastOutput: input.lastOutput,
+    jobId: input.save.jobId,
+    imageRef: input.imageRef,
+    app: input.save.app,
+    machineId: input.save.machineId,
+    startedAt: input.save.startedAt,
+    finishedAt: input.finishedAt ?? null,
   };
-}
-
-const IMAGE_TAG_RE = /^[A-Za-z0-9_][A-Za-z0-9_.-]{0,127}$/;
-
-function brainImagePackage(input: { owner: string; account: string }): {
-  baseRef: string;
-  packageName: string;
-} {
-  const ref = brainGhcrImageRef({
-    owner: input.owner,
-    account: input.account,
-    tag: "probe",
-  });
-  const baseRef = ref.replace(/:probe$/, "");
-  const packageName = baseRef.split("/").at(-1);
-  if (!packageName) {
-    throw new Error("Invalid Brain image package");
-  }
-  return { baseRef, packageName };
-}
-
-function packageVersionUrl(input: {
-  ownerKind: "orgs" | "users";
-  owner: string;
-  packageName: string;
-  page: number;
-}): string {
-  const owner = encodeURIComponent(input.owner);
-  const packageName = encodeURIComponent(input.packageName);
-  return `https://api.github.com/${input.ownerKind}/${owner}/packages/container/${packageName}/versions?per_page=100&page=${input.page}`;
-}
-
-function savedImagesFromPackageVersions(
-  versions: GitHubPackageVersion[],
-  baseRef: string,
-): BrainSavedImage[] {
-  const images: BrainSavedImage[] = [];
-  for (const version of versions) {
-    const tags = version.metadata?.container?.tags;
-    if (!Array.isArray(tags)) continue;
-    const createdAt =
-      typeof version.created_at === "string"
-        ? version.created_at
-        : new Date().toISOString();
-    const updatedAt =
-      typeof version.updated_at === "string" ? version.updated_at : createdAt;
-    for (const tag of tags) {
-      if (typeof tag !== "string" || !IMAGE_TAG_RE.test(tag)) continue;
-      images.push({
-        imageRef: `${baseRef}:${tag}`,
-        createdAt,
-        updatedAt,
-      });
-    }
-  }
-  return sortBrainSavedImages(images);
-}
-
-function sortBrainSavedImages(images: BrainSavedImage[]): BrainSavedImage[] {
-  return [...images].sort((a, b) => b.createdAt.localeCompare(a.createdAt));
-}
-
-function mergeBrainSavedImages(
-  image: BrainImageFile | null,
-  discoveredImages: BrainSavedImage[],
-): BrainSavedImage[] {
-  const merged = new Map<string, BrainSavedImage>();
-  const forgotten = new Set(image?.forgottenImageRefs ?? []);
-  for (const discovered of discoveredImages) {
-    if (forgotten.has(discovered.imageRef)) continue;
-    merged.set(discovered.imageRef, discovered);
-  }
-  for (const saved of image?.images ?? []) {
-    if (forgotten.has(saved.imageRef)) continue;
-    if (!merged.has(saved.imageRef)) {
-      merged.set(saved.imageRef, saved);
-    }
-  }
-  if (
-    image?.imageRef &&
-    !forgotten.has(image.imageRef) &&
-    !merged.has(image.imageRef)
-  ) {
-    merged.set(image.imageRef, {
-      imageRef: image.imageRef,
-      createdAt: image.createdAt,
-      updatedAt: image.updatedAt,
-    });
-  }
-  return sortBrainSavedImages([...merged.values()]);
-}
-
-async function fetchBrainPackageImages(input: {
-  owner: string;
-  account: string;
-  githubToken: string;
-}): Promise<BrainSavedImage[]> {
-  const { baseRef, packageName } = brainImagePackage(input);
-  for (const ownerKind of ["orgs", "users"] as const) {
-    const versions: GitHubPackageVersion[] = [];
-    let page = 1;
-    while (page <= 10) {
-      const res = await fetch(
-        packageVersionUrl({
-          ownerKind,
-          owner: input.owner,
-          packageName,
-          page,
-        }),
-        {
-          headers: {
-            Accept: "application/vnd.github+json",
-            Authorization: `Bearer ${input.githubToken}`,
-            "X-GitHub-Api-Version": "2022-11-28",
-          },
-        },
-      );
-      if (res.status === 404 && page === 1) {
-        break;
-      }
-      if (!res.ok) {
-        throw new Error(`GitHub package versions lookup failed: ${res.status}`);
-      }
-      const pageVersions = (await res.json()) as unknown;
-      if (!Array.isArray(pageVersions) || pageVersions.length === 0) {
-        return savedImagesFromPackageVersions(versions, baseRef);
-      }
-      versions.push(...(pageVersions as GitHubPackageVersion[]));
-      if (pageVersions.length < 100) {
-        return savedImagesFromPackageVersions(versions, baseRef);
-      }
-      page += 1;
-    }
-  }
-  return [];
-}
-
-async function discoverBrainPackageImages(input: {
-  owner: string;
-  repo: string;
-  account: string;
-  githubToken: string;
-}): Promise<BrainSavedImage[]> {
-  try {
-    return await fetchBrainPackageImages(input);
-  } catch (err) {
-    logger.warn(
-      { err, owner: input.owner, repo: input.repo },
-      "brain image GHCR history lookup failed",
-    );
-    return [];
-  }
 }
 
 export async function POST(req: NextRequest) {
@@ -382,6 +278,8 @@ export async function POST(req: NextRequest) {
     const save: BrainImageSaveFile = {
       version: 1,
       status: "running",
+      phase: "starting",
+      message: "Starting Brain image save",
       jobId: job.id,
       app,
       machineId,
@@ -402,6 +300,8 @@ export async function POST(req: NextRequest) {
       {
         ok: true,
         status: "running",
+        phase: "starting",
+        message: "Starting Brain image save",
         jobId: job.id,
         app,
         machineId,
@@ -488,6 +388,9 @@ export async function GET(req: NextRequest) {
         save: save
           ? {
               status: save.status,
+              phase: save.phase ?? "starting",
+              message: save.message,
+              lastOutput: save.lastOutput,
               jobId: save.jobId,
               imageRef: save.expectedImageRef,
               startedAt: save.startedAt,
@@ -517,6 +420,32 @@ export async function GET(req: NextRequest) {
       );
     }
 
+    const ghcr = brainGhcrAuth({
+      allSecrets: ctx.context.allSecrets,
+      githubToken: ctx.context.githubToken,
+      account: ctx.context.account,
+    });
+    const discoveredImages = await discoverBrainPackageImages({
+      owner: ctx.context.owner,
+      repo: ctx.context.repo,
+      account: ctx.context.account,
+      githubToken: ghcr.token,
+    });
+    const completedImage = discoveredImages.find(
+      (image) => image.imageRef === save.expectedImageRef,
+    );
+    if (completedImage) {
+      return NextResponse.json(
+        await recordCompletedBrainImageSave({
+          account: ctx.context.account,
+          githubToken: ctx.context.githubToken,
+          save,
+          imageRef: save.expectedImageRef,
+          finishedAt: completedImage.updatedAt,
+        }),
+      );
+    }
+
     const bridge = await ensureTerminalBridge({
       token: flyToken,
       orgSlug: save.orgSlug,
@@ -537,15 +466,37 @@ export async function GET(req: NextRequest) {
       token,
       jobId: save.jobId,
     });
+    const progress = brainImageSaveProgressFromOutput(job);
 
     if (job.status === "running") {
-      return NextResponse.json(savePollResponse(save, job));
+      const updatedSave: BrainImageSaveFile = {
+        ...save,
+        phase: progress.phase,
+        message: progress.message,
+        lastOutput: progress.lastOutput,
+        updatedAt: new Date().toISOString(),
+      };
+      if (
+        save.phase !== updatedSave.phase ||
+        save.message !== updatedSave.message ||
+        save.lastOutput !== updatedSave.lastOutput
+      ) {
+        await writeBrainImageSave(
+          ctx.context.account,
+          ctx.context.githubToken,
+          updatedSave,
+        );
+      }
+      return NextResponse.json(savePollResponse(updatedSave, job));
     }
 
     if (job.status === "failed") {
       const failed: BrainImageSaveFile = {
         ...save,
         status: "failed",
+        phase: "failed",
+        message: progress.message,
+        lastOutput: progress.lastOutput,
         updatedAt: new Date().toISOString(),
         error: jobMessage(job),
       };
@@ -558,8 +509,10 @@ export async function GET(req: NextRequest) {
         {
           ok: false,
           status: "failed",
+          phase: "failed",
           jobId: save.jobId,
           message: failed.error,
+          lastOutput: progress.lastOutput,
         },
         { status: 500 },
       );
@@ -569,40 +522,16 @@ export async function GET(req: NextRequest) {
     if (imageRef !== save.expectedImageRef) {
       throw new Error("Brain image build returned an unexpected image ref");
     }
-    const previous = await readBrainImage(
-      ctx.context.account,
-      ctx.context.githubToken,
-    ).catch(() => null);
-    const now = new Date().toISOString();
-    await writeBrainImage(ctx.context.account, ctx.context.githubToken, {
-      version: 1,
-      imageRef,
-      createdAt: previous?.createdAt ?? save.startedAt,
-      updatedAt: now,
-      images: [
-        {
-          imageRef,
-          createdAt: save.startedAt,
-          updatedAt: now,
-        },
-        ...(previous?.images ?? []),
-      ],
-      ...(previous?.forgottenImageRefs?.length
-        ? { forgottenImageRefs: previous.forgottenImageRefs }
-        : {}),
-    });
-    await clearBrainImageSave(ctx.context.account, ctx.context.githubToken);
-
-    return NextResponse.json({
-      ok: true,
-      status: "completed",
-      jobId: save.jobId,
-      imageRef,
-      app: save.app,
-      machineId: save.machineId,
-      startedAt: save.startedAt,
-      finishedAt: job.finishedAt,
-    });
+    return NextResponse.json(
+      await recordCompletedBrainImageSave({
+        account: ctx.context.account,
+        githubToken: ctx.context.githubToken,
+        save,
+        imageRef,
+        finishedAt: job.finishedAt,
+        lastOutput: progress.lastOutput,
+      }),
+    );
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
     logger.error(
@@ -643,11 +572,14 @@ export async function PATCH(req: NextRequest) {
         { status: 400 },
       );
     }
-    const current = await readBrainImage(
+    let image = await readBrainImage(
       ctx.context.account,
       ctx.context.githubToken,
     );
-    if (!current?.images.some((image) => image.imageRef === body.imageRef)) {
+    let requestedImage = image?.images.find(
+      (saved) => saved.imageRef === body.imageRef,
+    );
+    if (!requestedImage) {
       const ghcr = brainGhcrAuth({
         allSecrets: ctx.context.allSecrets,
         githubToken: ctx.context.githubToken,
@@ -659,35 +591,34 @@ export async function PATCH(req: NextRequest) {
         account: ctx.context.account,
         githubToken: ghcr.token,
       });
-      const images = mergeBrainSavedImages(current, discoveredImages);
-      const requestedImage = images.find(
+      const images = mergeBrainSavedImages(image, discoveredImages);
+      requestedImage = images.find(
         (image) => image.imageRef === body.imageRef,
       );
       if (requestedImage) {
         const now = new Date().toISOString();
-        await writeBrainImage(ctx.context.account, ctx.context.githubToken, {
-          version: 1,
-          imageRef: current?.imageRef ?? body.imageRef,
-          createdAt: current?.createdAt ?? requestedImage.createdAt,
-          updatedAt: current?.updatedAt ?? now,
+        image = brainImageCatalogFile({
+          previous: image,
+          createdAt: requestedImage.createdAt,
+          updatedAt: now,
           images,
-          ...(current?.forgottenImageRefs?.filter(
-            (ref) => ref !== body.imageRef,
-          ).length
-            ? {
-                forgottenImageRefs: current.forgottenImageRefs.filter(
-                  (ref) => ref !== body.imageRef,
-                ),
-              }
-            : {}),
         });
+        await writeBrainImage(
+          ctx.context.account,
+          ctx.context.githubToken,
+          image,
+        );
       }
     }
-    const image = await selectBrainImage(
-      ctx.context.account,
-      ctx.context.githubToken,
-      body.imageRef,
-    );
+    if (!requestedImage) {
+      return NextResponse.json(
+        {
+          error: "brain_image_not_saved",
+          message: image ? "Brain image is not saved" : "No Brain images saved",
+        },
+        { status: 400 },
+      );
+    }
     await selectBrainRuntimeImage(
       ctx.context.account,
       ctx.context.githubToken,
