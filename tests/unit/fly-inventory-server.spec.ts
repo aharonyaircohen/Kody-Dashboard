@@ -62,7 +62,10 @@ vi.mock("@dashboard/lib/logger", () => ({
   logger: { warn: vi.fn() },
 }));
 
-import { appendSavedBrainMachineToInventory } from "@dashboard/lib/runners/fly-inventory-server";
+import {
+  appendSavedBrainMachineToInventory,
+  resolveSavedBrainServiceForRequest,
+} from "@dashboard/lib/runners/fly-inventory-server";
 import type { FlyInventory } from "@dashboard/lib/runners/fly-machine-model";
 
 describe("appendSavedBrainMachineToInventory", () => {
@@ -220,5 +223,53 @@ describe("appendSavedBrainMachineToInventory", () => {
         machineId: "brain-1",
       }),
     ]);
+  });
+
+  it("returns the token that resolved the saved Brain machine", async () => {
+    vi.stubEnv("FLY_API_TOKEN", "env-fly-token");
+    brainResolver.resolveBrainService
+      .mockResolvedValueOnce({
+        app: "custom-brain",
+        orgSlug: "personal",
+        defaultRegion: "fra",
+        stored: {
+          version: 1,
+          appName: "custom-brain",
+          orgSlug: "personal",
+          createdAt: "2026-06-29T00:00:00.000Z",
+        },
+        state: "off",
+      } as never)
+      .mockResolvedValueOnce({
+        app: "custom-brain",
+        orgSlug: "personal",
+        defaultRegion: "fra",
+        stored: {
+          version: 1,
+          appName: "custom-brain",
+          orgSlug: "personal",
+          createdAt: "2026-06-29T00:00:00.000Z",
+        },
+        state: "suspended",
+        machineId: "brain-1",
+        machine: {
+          feature: "brain",
+          app: "custom-brain",
+          machineId: "brain-1",
+          state: "suspended",
+          region: "fra",
+          label: "custom-brain",
+          sizeLabel: "shared 2x",
+        },
+      } as never);
+
+    await expect(resolveSavedBrainServiceForRequest({} as never)).resolves
+      .toMatchObject({
+        flyToken: "env-fly-token",
+        brain: {
+          app: "custom-brain",
+          machineId: "brain-1",
+        },
+      });
   });
 });

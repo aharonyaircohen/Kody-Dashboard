@@ -1360,6 +1360,15 @@ function canReuseMachine(machine: FlyMachine): boolean {
   );
 }
 
+function isMachineNameConflict(err: unknown): boolean {
+  const error = err as { status?: number; body?: string } | undefined;
+  return (
+    error?.status === 409 &&
+    typeof error.body === "string" &&
+    error.body.includes("unique machine name violation")
+  );
+}
+
 async function createBridgeMachine(
   cfg: FlyPreviewConfig,
   app: string,
@@ -1475,7 +1484,25 @@ export async function ensureTerminalBridge(
     await allocateIpsIfMissing(cfg.token, app);
   }
   const secret = generateBridgeSecret();
-  const machine = await createBridgeMachine(cfg, app, secret);
+  let machine: FlyMachine;
+  try {
+    machine = await createBridgeMachine(cfg, app, secret);
+  } catch (err) {
+    if (!isMachineNameConflict(err)) throw err;
+    const existingAfterConflict = await findExistingMachine(cfg, app);
+    if (!existingAfterConflict || !canReuseMachine(existingAfterConflict)) {
+      throw err;
+    }
+    const existingSecret = machineSecret(existingAfterConflict)!;
+    const url = bridgeUrl(app);
+    await waitForBridgeHealth(url);
+    return {
+      app,
+      url,
+      machineId: existingAfterConflict.id,
+      secret: existingSecret,
+    };
+  }
   logger.info(
     { app, machineId: machine.id },
     "terminal bridge: machine provisioned",

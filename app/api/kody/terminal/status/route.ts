@@ -15,8 +15,16 @@ import {
   flyConfigFromContext,
   resolveFlyContext,
 } from "@dashboard/lib/runners/fly-context";
-import { appendSavedBrainMachineToInventory } from "@dashboard/lib/runners/fly-inventory-server";
-import { listFlyInventory } from "@dashboard/lib/runners/fly-inventory";
+import {
+  applySavedBrainMachineToInventory,
+  resolveSavedBrainServiceForRequest,
+  type SavedBrainServiceForRequest,
+} from "@dashboard/lib/runners/fly-inventory-server";
+import {
+  listFlyInventory,
+  type FlyInventory,
+  type FlyMachineRow,
+} from "@dashboard/lib/runners/fly-inventory";
 import type { FlyPreviewConfig } from "@dashboard/lib/previews/fly-previews";
 import { findTerminalBridge } from "@dashboard/lib/terminal/bridge-fly";
 import {
@@ -59,6 +67,34 @@ function terminalTargetFlyConfig(
   return orgSlug && orgSlug !== cfg.orgSlug ? { ...cfg, orgSlug } : cfg;
 }
 
+function terminalFlyConfigForMachine(
+  cfg: FlyPreviewConfig,
+  machine: FlyMachineRow,
+  savedBrain: SavedBrainServiceForRequest | null,
+): FlyPreviewConfig {
+  const savedBrainMachine = savedBrain?.brain.machine;
+  const usesSavedBrainToken =
+    machine.feature === "brain" &&
+    savedBrain &&
+    savedBrainMachine?.app === machine.app &&
+    savedBrainMachine.machineId === machine.machineId;
+  const baseCfg = usesSavedBrainToken
+    ? { ...cfg, token: savedBrain.flyToken }
+    : cfg;
+  return terminalTargetFlyConfig(baseCfg, machine.orgSlug);
+}
+
+async function appendSavedBrainForTerminal(
+  req: NextRequest,
+  inventory: FlyInventory,
+): Promise<SavedBrainServiceForRequest | null> {
+  const savedBrain = await resolveSavedBrainServiceForRequest(req);
+  if (savedBrain) {
+    applySavedBrainMachineToInventory(inventory, savedBrain.brain);
+  }
+  return savedBrain;
+}
+
 export async function POST(req: NextRequest) {
   const authError = await requireKodyAuth(req);
   if (authError) return authError;
@@ -94,7 +130,7 @@ export async function POST(req: NextRequest) {
     parsed.data.target === "brain" || parsed.data.feature === "brain";
   try {
     const inventory = await listFlyInventory(cfg);
-    await appendSavedBrainMachineToInventory(req, inventory);
+    const savedBrain = await appendSavedBrainForTerminal(req, inventory);
     let targetInput:
       | { app: string; machineId: string; feature?: "runner" | "brain" }
       | null =
@@ -120,7 +156,7 @@ export async function POST(req: NextRequest) {
         return NextResponse.json({ ok: true, alive: false });
       }
     } else {
-      targetCfg = terminalTargetFlyConfig(cfg, target.orgSlug);
+      targetCfg = terminalFlyConfigForMachine(cfg, target, savedBrain);
       targetApp = target.app;
       targetMachineId = target.machineId;
     }

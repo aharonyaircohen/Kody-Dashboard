@@ -9,13 +9,19 @@ import "server-only";
 
 import type { NextRequest } from "next/server";
 
-import { resolveBrainService } from "@dashboard/lib/brain/service-resolver";
+import {
+  resolveBrainService,
+  type BrainServiceResolution,
+} from "@dashboard/lib/brain/service-resolver";
 import {
   clearGitHubContext,
   setGitHubContext,
 } from "@dashboard/lib/github-client";
 import { logger } from "@dashboard/lib/logger";
-import { resolveFlyContext } from "@dashboard/lib/runners/fly-context";
+import {
+  resolveFlyContext,
+  type FlyContext,
+} from "@dashboard/lib/runners/fly-context";
 import type { FlyInventory } from "@dashboard/lib/runners/fly-inventory";
 import { isFlyMachineRunning } from "@dashboard/lib/runners/fly-machine-model";
 
@@ -40,12 +46,37 @@ function envFlyTokenFallback(primaryToken: string): string | undefined {
   return token && token !== primaryToken ? token : undefined;
 }
 
-export async function appendSavedBrainMachineToInventory(
-  req: NextRequest,
+export interface SavedBrainServiceForRequest {
+  brain: BrainServiceResolution;
+  context: FlyContext;
+  flyToken: string;
+}
+
+export function applySavedBrainMachineToInventory(
   inventory: FlyInventory,
-): Promise<boolean> {
+  brain: BrainServiceResolution,
+): boolean {
+  const app = brain.app;
+  if (!brain.machine) {
+    if (brain.stored) {
+      inventory.machines = inventory.machines.filter(
+        (m) => m.feature !== "brain" && m.app !== app,
+      );
+    }
+    return false;
+  }
+  inventory.machines = inventory.machines.filter(
+    (m) => m.feature !== "brain" && m.app !== app,
+  );
+  inventory.machines.push({ ...brain.machine, orgSlug: brain.orgSlug });
+  return true;
+}
+
+export async function resolveSavedBrainServiceForRequest(
+  req: NextRequest,
+): Promise<SavedBrainServiceForRequest | null> {
   const ctx = await resolveFlyContext(req);
-  if (!ctx.ok || !ctx.context.flyToken) return false;
+  if (!ctx.ok || !ctx.context.flyToken) return null;
 
   setGitHubContext(
     ctx.context.owner,
@@ -63,32 +94,34 @@ export async function appendSavedBrainMachineToInventory(
         orgSlug: ctx.context.flyOrgSlug,
         defaultRegion: ctx.context.flyDefaultRegion,
       });
-    let brain = await resolveBrain(ctx.context.flyToken);
+    let flyToken = ctx.context.flyToken;
+    let brain = await resolveBrain(flyToken);
     const fallbackToken = envFlyTokenFallback(ctx.context.flyToken);
     if (brain.stored && !brain.machine && fallbackToken) {
-      brain = await resolveBrain(fallbackToken);
-    }
-    const app = brain.app;
-    if (!brain.machine) {
-      if (brain.stored) {
-        inventory.machines = inventory.machines.filter(
-          (m) => m.feature !== "brain" && m.app !== app,
-        );
+      const fallbackBrain = await resolveBrain(fallbackToken);
+      if (fallbackBrain.machine) {
+        brain = fallbackBrain;
+        flyToken = fallbackToken;
       }
-      return false;
     }
-    inventory.machines = inventory.machines.filter(
-      (m) => m.feature !== "brain" && m.app !== app,
-    );
-    inventory.machines.push({ ...brain.machine, orgSlug: brain.orgSlug });
-    return true;
+    return { brain, context: ctx.context, flyToken };
   } catch (err) {
     logger.warn(
       { err, owner: ctx.context.owner },
       "fly-inventory: saved Brain machine lookup failed",
     );
-    return false;
+    return null;
   } finally {
     clearGitHubContext();
   }
+}
+
+export async function appendSavedBrainMachineToInventory(
+  req: NextRequest,
+  inventory: FlyInventory,
+): Promise<boolean> {
+  const resolved = await resolveSavedBrainServiceForRequest(req);
+  return resolved
+    ? applySavedBrainMachineToInventory(inventory, resolved.brain)
+    : false;
 }

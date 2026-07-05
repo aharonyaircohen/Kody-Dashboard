@@ -400,6 +400,68 @@ os.write(sys.stdout.fileno(), b"REMOTE:" + data)
     ).toBe(true);
   });
 
+  it("reuses the bridge machine after a concurrent create conflict", async () => {
+    const app = terminalBridgeAppName(CFG);
+    let machineListCalls = 0;
+    const calls = installFetchStub((call) => {
+      if (call.method === "GET" && call.url.endsWith(`/apps/${app}`)) {
+        return { json: { name: app } };
+      }
+      if (call.method === "GET" && call.url.endsWith(`/apps/${app}/machines`)) {
+        machineListCalls += 1;
+        return {
+          json:
+            machineListCalls === 1
+              ? []
+              : [
+                  {
+                    id: "bridge-winner",
+                    state: "started",
+                    region: "fra",
+                    config: {
+                      image: TERMINAL_BRIDGE_BASE_IMAGE,
+                      env: {
+                        BRIDGE_AUTH_SECRET: "winner-secret",
+                        KODY_TERMINAL_BRIDGE_VERSION:
+                          TERMINAL_BRIDGE_VERSION,
+                      },
+                    },
+                  },
+                ],
+        };
+      }
+      if (
+        call.method === "POST" &&
+        call.url.endsWith(`/apps/${app}/machines`)
+      ) {
+        return {
+          status: 409,
+          json: {
+            error:
+              'already_exists: unique machine name violation, machine ID bridge-winner already exists with name "terminal-fra"',
+          },
+        };
+      }
+      throw new Error(`unexpected call: ${call.method} ${call.url}`);
+    });
+
+    const out = await ensureTerminalBridge(CFG);
+
+    expect(out).toMatchObject({
+      app,
+      machineId: "bridge-winner",
+      secret: "winner-secret",
+      url: `https://${app}.fly.dev`,
+    });
+    expect(
+      calls.filter(
+        (call) =>
+          call.method === "POST" && call.url.endsWith(`/apps/${app}/machines`),
+      ),
+    ).toHaveLength(1);
+    expect(machineListCalls).toBe(2);
+  });
+
   it("reuses an existing current bridge machine", async () => {
     const app = terminalBridgeAppName(CFG);
     const calls = installFetchStub((call) => {

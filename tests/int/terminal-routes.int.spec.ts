@@ -74,9 +74,34 @@ const inventory = vi.hoisted(() => ({
 }));
 
 const inventoryServer = vi.hoisted(() => ({
-  appendSavedBrainMachineToInventory: vi.fn(
-    async (_req: unknown, _inv: { machines: Array<Record<string, unknown>> }) =>
-      false,
+  appendSavedBrainMachineToInventory: vi.fn(async () => false),
+  resolveSavedBrainServiceForRequest: vi.fn(async () => null),
+  applySavedBrainMachineToInventory: vi.fn(
+    (
+      inv: { machines: Array<Record<string, unknown>> },
+      brain: {
+        app: string;
+        orgSlug: string;
+        stored?: unknown;
+        machine?: Record<string, unknown>;
+      },
+    ) => {
+      if (!brain.machine) {
+        if (brain.stored) {
+          inv.machines = inv.machines.filter(
+            (machine) =>
+              machine.feature !== "brain" && machine.app !== brain.app,
+          );
+        }
+        return false;
+      }
+      inv.machines = inv.machines.filter(
+        (machine) =>
+          machine.feature !== "brain" && machine.app !== brain.app,
+      );
+      inv.machines.push({ ...brain.machine, orgSlug: brain.orgSlug });
+      return true;
+    },
   ),
 }));
 
@@ -229,27 +254,57 @@ function mockResolvedBrain(app: string, machineId: string, orgSlug: string) {
   });
 }
 
-function mockSavedBrainInventory(app: string, machineId: string, orgSlug: string) {
-  inventoryServer.appendSavedBrainMachineToInventory.mockImplementationOnce(
-    async (
-      _req: unknown,
-      inv: { machines: Array<Record<string, unknown>> },
-    ) => {
-      inv.machines = inv.machines.filter(
-        (machine) => machine.feature !== "brain" && machine.app !== app,
-      );
-      inv.machines.push({
+function savedBrainResolution(
+  app: string,
+  machineId: string,
+  orgSlug: string,
+  state = "started",
+  flyToken = "fly-token",
+) {
+  return {
+    flyToken,
+    context: {
+      owner: "acme",
+      repo: "widgets",
+      account: "octocat",
+      githubToken: "ghp_test",
+      octokit: { rest: {} },
+      flyToken: "fly-token",
+      flyOrgSlug: "personal",
+      flyDefaultRegion: "fra",
+    },
+    brain: {
+      app,
+      orgSlug,
+      defaultRegion: "fra",
+      stored: { app, orgSlug },
+      state,
+      url: `https://${app}.fly.dev`,
+      machineId,
+      machineImageRef: `registry.fly.io/${app}:running`,
+      machine: {
         feature: "brain",
         app,
         machineId,
-        state: "started",
+        state,
         region: "fra",
         label: app,
         sizeLabel: "perf 1x",
         orgSlug,
-      });
-      return true;
+      },
     },
+  };
+}
+
+function mockSavedBrainInventory(
+  app: string,
+  machineId: string,
+  orgSlug: string,
+  state = "started",
+  flyToken = "fly-token",
+) {
+  inventoryServer.resolveSavedBrainServiceForRequest.mockResolvedValueOnce(
+    savedBrainResolution(app, machineId, orgSlug, state, flyToken) as never,
   );
 }
 
@@ -281,6 +336,34 @@ beforeEach(() => {
     },
   });
   inventoryServer.appendSavedBrainMachineToInventory.mockResolvedValue(false);
+  inventoryServer.resolveSavedBrainServiceForRequest.mockResolvedValue(null);
+  inventoryServer.applySavedBrainMachineToInventory.mockImplementation(
+    (
+      inv: { machines: Array<Record<string, unknown>> },
+      brain: {
+        app: string;
+        orgSlug: string;
+        stored?: unknown;
+        machine?: Record<string, unknown>;
+      },
+    ) => {
+      if (!brain.machine) {
+        if (brain.stored) {
+          inv.machines = inv.machines.filter(
+            (machine) =>
+              machine.feature !== "brain" && machine.app !== brain.app,
+          );
+        }
+        return false;
+      }
+      inv.machines = inv.machines.filter(
+        (machine) =>
+          machine.feature !== "brain" && machine.app !== brain.app,
+      );
+      inv.machines.push({ ...brain.machine, orgSlug: brain.orgSlug });
+      return true;
+    },
+  );
   token.mintTerminalBridgeToken.mockReturnValue("opaque-token");
   brainStore.readBrainImage.mockResolvedValue(null);
   runtimeManager.readBrainRuntimeView.mockResolvedValue({ source: "empty" });
@@ -605,24 +688,7 @@ describe("POST /api/kody/terminal/session", () => {
       total: 0,
       machines: [],
     });
-    inventoryServer.appendSavedBrainMachineToInventory.mockImplementationOnce(
-      async (
-        _req: unknown,
-        inv: { machines: Array<Record<string, unknown>> },
-      ) => {
-        inv.machines.push({
-          feature: "brain",
-          app: "local-2",
-          machineId: "brain-current",
-          state: "started",
-          region: "fra",
-          label: "local-2",
-          sizeLabel: "perf 1x",
-          orgSlug: "guy-koren",
-        });
-        return true;
-      },
-    );
+    mockSavedBrainInventory("local-2", "brain-current", "guy-koren");
 
     const res = await sessionPOST(
       makeSessionReq({
@@ -668,26 +734,7 @@ describe("POST /api/kody/terminal/session", () => {
         },
       ],
     });
-    inventoryServer.appendSavedBrainMachineToInventory.mockImplementationOnce(
-      async (
-        _req: unknown,
-        inv: { machines: Array<Record<string, unknown>> },
-      ) => {
-        inv.machines = [
-          {
-            feature: "brain",
-            app: "brain-1",
-            machineId: "brain-current",
-            state: "started",
-            region: "fra",
-            label: "brain-1",
-            sizeLabel: "perf 1x",
-            orgSlug: "guy-koren",
-          },
-        ];
-        return true;
-      },
-    );
+    mockSavedBrainInventory("brain-1", "brain-current", "guy-koren");
 
     const res = await sessionPOST(
       makeSessionReq({
@@ -709,7 +756,7 @@ describe("POST /api/kody/terminal/session", () => {
     );
   });
 
-  it("wakes saved Brain machines through their stored org", async () => {
+  it("wakes saved Brain machines through their stored org and token", async () => {
     let started = false;
     flyPreview.startMachine.mockImplementationOnce(async () => {
       started = true;
@@ -719,23 +766,15 @@ describe("POST /api/kody/terminal/session", () => {
       total: 0,
       machines: [],
     }));
-    inventoryServer.appendSavedBrainMachineToInventory.mockImplementation(
-      async (
-        _req: unknown,
-        inv: { machines: Array<Record<string, unknown>> },
-      ) => {
-        inv.machines.push({
-          feature: "brain",
-          app: "local-2",
-          machineId: "brain-current",
-          state: started ? "started" : "stopped",
-          region: "fra",
-          label: "local-2",
-          sizeLabel: "perf 1x",
-          orgSlug: "guy-koren",
-        });
-        return true;
-      },
+    inventoryServer.resolveSavedBrainServiceForRequest.mockImplementation(
+      async () =>
+        savedBrainResolution(
+          "local-2",
+          "brain-current",
+          "guy-koren",
+          started ? "started" : "stopped",
+          "env-fly-token",
+        ) as never,
     );
 
     const res = await sessionPOST(
@@ -750,7 +789,19 @@ describe("POST /api/kody/terminal/session", () => {
     expect(flyPreview.startMachine).toHaveBeenCalledWith(
       "local-2",
       "brain-current",
-      expect.objectContaining({ orgSlug: "guy-koren" }),
+      expect.objectContaining({
+        orgSlug: "guy-koren",
+        token: "env-fly-token",
+      }),
+    );
+    expect(bridge.ensureTerminalBridge).toHaveBeenCalledWith(
+      expect.objectContaining({
+        orgSlug: "guy-koren",
+        token: "env-fly-token",
+      }),
+    );
+    expect(token.mintTerminalBridgeToken).toHaveBeenCalledWith(
+      expect.objectContaining({ flyToken: "env-fly-token" }),
     );
   });
 
@@ -766,27 +817,19 @@ describe("POST /api/kody/terminal/session", () => {
       total: 0,
       machines: [],
     }));
-    inventoryServer.appendSavedBrainMachineToInventory.mockImplementation(
-      async (
-        _req: unknown,
-        inv: { machines: Array<Record<string, unknown>> },
-      ) => {
+    inventoryServer.resolveSavedBrainServiceForRequest.mockImplementation(
+      async () => {
         const state = !started
           ? "stopped"
           : postStartPolls++ < 12
             ? "starting"
             : "started";
-        inv.machines.push({
-          feature: "brain",
-          app: "local-2",
-          machineId: "brain-current",
+        return savedBrainResolution(
+          "local-2",
+          "brain-current",
+          "guy-koren",
           state,
-          region: "fra",
-          label: "local-2",
-          sizeLabel: "perf 1x",
-          orgSlug: "guy-koren",
-        });
-        return true;
+        ) as never;
       },
     );
 
@@ -877,23 +920,12 @@ describe("POST /api/kody/terminal/status", () => {
       total: 0,
       machines: [],
     });
-    inventoryServer.appendSavedBrainMachineToInventory.mockImplementationOnce(
-      async (
-        _req: unknown,
-        inv: { machines: Array<Record<string, unknown>> },
-      ) => {
-        inv.machines.push({
-          feature: "brain",
-          app: "local-2",
-          machineId: "brain-current",
-          state: "started",
-          region: "fra",
-          label: "local-2",
-          sizeLabel: "perf 1x",
-          orgSlug: "guy-koren",
-        });
-        return true;
-      },
+    mockSavedBrainInventory(
+      "local-2",
+      "brain-current",
+      "guy-koren",
+      "started",
+      "env-fly-token",
     );
     vi.stubGlobal(
       "fetch",
@@ -916,10 +948,16 @@ describe("POST /api/kody/terminal/status", () => {
 
     expect(res.status).toBe(200);
     expect(bridge.findTerminalBridge).toHaveBeenCalledWith(
-      expect.objectContaining({ orgSlug: "guy-koren" }),
+      expect.objectContaining({
+        orgSlug: "guy-koren",
+        token: "env-fly-token",
+      }),
     );
     expect(token.mintTerminalBridgeToken).toHaveBeenCalledWith(
-      expect.objectContaining({ orgSlug: "guy-koren" }),
+      expect.objectContaining({
+        orgSlug: "guy-koren",
+        flyToken: "env-fly-token",
+      }),
     );
   });
 
