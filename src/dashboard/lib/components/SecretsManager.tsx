@@ -590,7 +590,11 @@ function SecretEditor({
         if (!o) onClose();
       }}
     >
-      <DialogContent className="max-w-md">
+      <DialogContent
+        modalSize="wide"
+        modalHeight="viewport"
+        className="min-w-0"
+      >
         <DialogHeader>
           <DialogTitle>
             {isUpdate ? `Edit ${initialName}` : "New secret"}
@@ -601,7 +605,7 @@ function SecretEditor({
             value.
           </DialogDescription>
         </DialogHeader>
-        <div className="space-y-3 mt-2">
+        <div className="mt-2 flex min-h-0 min-w-0 flex-col gap-3 overflow-visible">
           <div>
             <Label htmlFor="secret-name" className="text-xs">
               Name
@@ -637,29 +641,34 @@ function SecretEditor({
               autoFocus
             />
           </div>
-        </div>
-        <div className="flex justify-end gap-2 mt-4">
-          <Button variant="ghost" size="sm" onClick={onClose} disabled={saving}>
-            Cancel
-          </Button>
-          <Button
-            size="sm"
-            disabled={!canSave}
-            onClick={() => {
-              if (canSave) onSave(name, value);
-            }}
-          >
-            {saving ? (
-              <>
-                <Loader2 className="w-3.5 h-3.5 animate-spin mr-1" />
-                Saving…
-              </>
-            ) : isUpdate ? (
-              "Update"
-            ) : (
-              "Create"
-            )}
-          </Button>
+          <div className="mt-auto flex justify-end gap-2">
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={onClose}
+              disabled={saving}
+            >
+              Cancel
+            </Button>
+            <Button
+              size="sm"
+              disabled={!canSave}
+              onClick={() => {
+                if (canSave) onSave(name, value);
+              }}
+            >
+              {saving ? (
+                <>
+                  <Loader2 className="w-3.5 h-3.5 animate-spin mr-1" />
+                  Saving…
+                </>
+              ) : isUpdate ? (
+                "Update"
+              ) : (
+                "Create"
+              )}
+            </Button>
+          </div>
         </div>
       </DialogContent>
     </Dialog>

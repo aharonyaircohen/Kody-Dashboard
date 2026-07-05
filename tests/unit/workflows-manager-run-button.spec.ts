@@ -40,4 +40,10 @@ describe("WorkflowsManager run button", () => {
     expect(SOURCE).toContain("applyRunModeToCapabilities(");
     expect(SOURCE).toContain("runWorkflow.mutateAsync(selectedWorkflow.id)");
   });
+
+  it("gives the workflow capability picker enough dialog room", () => {
+    expect(SOURCE).toContain('modalSize="wide"');
+    expect(SOURCE).toContain('modalHeight="viewport"');
+    expect(SOURCE).toContain("SearchableMultiSelect");
+  });
 });

@@ -14,7 +14,7 @@ const source = readFileSync(
 );
 
 describe("ManagedModelsView model form", () => {
-  it("keeps agentGoal creation evidence-driven while sharing the capabilities control", () => {
+  it("keeps agentGoal creation workflow-first with capabilities as the fallback", () => {
     const dialog = source.slice(
       source.indexOf("function NewGoalDialog"),
       source.indexOf("function EditManagedGoalDialog"),
@@ -28,7 +28,18 @@ describe("ManagedModelsView model form", () => {
     expect(source).toContain('kindLabel: "",');
     expect(source).toContain("{copy.kindLabel ? (");
     expect(dialog).toContain(
-      "Define the finish line and attach the capabilities Kody should use.",
+      "Define the finish line and choose the workflow Kody should run.",
+    );
+    expect(dialog).toContain("agentGoalExecutionTarget");
+    expect(dialog).toContain('modalSize="wide"');
+    expect(dialog).toContain('modalHeight="viewport"');
+    expect(dialog).toContain(
+      'className="flex min-h-0 min-w-0 flex-col gap-4 overflow-visible"',
+    );
+    expect(dialog).toContain('id="agentGoal-execution-target"');
+    expect(dialog).toContain('id="agentGoal-workflow"');
+    expect(dialog).toContain(
+      "workflowRef: isRoutine ? undefined : workflowRef",
     );
     expect(dialog).toContain("Capabilities");
     expect(dialog).toContain("SearchableMultiSelect");
@@ -125,7 +136,7 @@ describe("ManagedModelsView model form", () => {
     expect(source).toContain('"/agent-goals"');
   });
 
-  it("keeps agentGoal edits capability-driven without exposing type labels", () => {
+  it("keeps agentGoal edits workflow-aware without exposing type labels", () => {
     const dialog = source.slice(
       source.indexOf("function EditManagedGoalDialog"),
       source.indexOf("function GoalRow"),
@@ -134,10 +145,19 @@ describe("ManagedModelsView model form", () => {
     expect(dialog).toContain(
       'const intentLabel = isRoutine ? "Scope" : "Finish line"',
     );
+    expect(dialog).toContain('modalSize="wide"');
+    expect(dialog).toContain('modalHeight="viewport"');
+    expect(dialog).toContain(
+      'className="flex min-h-0 min-w-0 flex-col gap-4 overflow-visible"',
+    );
     expect(dialog).toContain(
       "Update the finish line and attached capabilities.",
     );
     expect(dialog).toContain("const objectiveGoalType =");
+    expect(dialog).toContain('id="edit-agentGoal-execution-target"');
+    expect(dialog).toContain('id="edit-agentGoal-workflow"');
+    expect(dialog).toContain("goal.state.workflowRef?.id");
+    expect(dialog).toContain("workflowRef:");
     expect(dialog).toContain('"edit-agentGoal-capabilities"');
     expect(dialog).toContain("options={capabilityOptions}");
     expect(dialog).toContain(
@@ -145,9 +165,9 @@ describe("ManagedModelsView model form", () => {
     );
     expect(dialog).toContain("mergeOrderedSlugs(current, next)");
     expect(dialog).toContain("moveSelectedCapability");
-    expect(dialog).toContain("capabilities: selectedCapabilitySlugs");
-    expect(dialog).toContain("evidence: evidenceForRoute(routeSteps)");
-    expect(dialog).toContain("route: routeWithReportPreference");
+    expect(dialog).toContain(": selectedCapabilitySlugs");
+    expect(dialog).toContain(": evidenceForRoute(routeSteps)");
+    expect(dialog).toContain(": routeWithReportPreference");
     expect(dialog).toContain(
       "setSaveReport(routeSavesReport(goal.state.route))",
     );
@@ -180,8 +200,7 @@ describe("ManagedModelsView model form", () => {
     expect(dialog).toContain("selectedCapabilitySlugs.length > 0");
     expect(dialog).toContain('loopTarget?.type === "capability"');
     expect(dialog).toContain("saveReport");
-    expect(dialog).toContain('selectedHeading="Selected capabilities"');
-    expect(dialog).toContain('selectedTone="info"');
+    expect(dialog).toContain("showSelectedSummary={false}");
     expect(dialog).toContain('idPrefix="edit-loop"');
     expect(source).toContain('className="grid min-w-0 grid-cols-2 gap-2"');
     expect(dialog).toContain("time={preferredRunAt}");

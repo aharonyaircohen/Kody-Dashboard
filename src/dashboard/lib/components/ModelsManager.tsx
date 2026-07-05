@@ -484,7 +484,11 @@ function ModelEditor({
 
   return (
     <Dialog open onOpenChange={(o) => !o && onClose()}>
-      <DialogContent className="max-w-md">
+      <DialogContent
+        modalSize="wide"
+        modalHeight="viewport"
+        className="min-w-0"
+      >
         <DialogHeader>
           <DialogTitle>
             {editingIdx !== null ? "Edit model" : "Add model"}
@@ -495,7 +499,7 @@ function ModelEditor({
           </DialogDescription>
         </DialogHeader>
 
-        <div className="space-y-3 mt-2">
+        <div className="mt-2 flex min-h-0 min-w-0 flex-col gap-3 overflow-visible">
           <div>
             <Label className="text-xs">Provider</Label>
             <select
@@ -701,30 +705,34 @@ function ModelEditor({
               </div>
             </div>
           )}
-        </div>
-
-        <div className="flex justify-end gap-2 mt-4">
-          <Button variant="ghost" size="sm" onClick={onClose} disabled={saving}>
-            Cancel
-          </Button>
-          <Button
-            size="sm"
-            disabled={!canSave}
-            onClick={handleSave}
-            className="gap-1"
-          >
-            {saving ? (
-              <>
-                <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                Saving…
-              </>
-            ) : (
-              <>
-                <Save className="w-3.5 h-3.5" />
-                {editingIdx !== null ? "Save" : "Add"}
-              </>
-            )}
-          </Button>
+          <div className="mt-auto flex justify-end gap-2">
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={onClose}
+              disabled={saving}
+            >
+              Cancel
+            </Button>
+            <Button
+              size="sm"
+              disabled={!canSave}
+              onClick={handleSave}
+              className="gap-1"
+            >
+              {saving ? (
+                <>
+                  <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                  Saving…
+                </>
+              ) : (
+                <>
+                  <Save className="w-3.5 h-3.5" />
+                  {editingIdx !== null ? "Save" : "Add"}
+                </>
+              )}
+            </Button>
+          </div>
         </div>
       </DialogContent>
     </Dialog>

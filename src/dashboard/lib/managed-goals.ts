@@ -17,6 +17,10 @@ export interface ManagedLoopTarget {
   type: ManagedLoopTargetType;
   id: string;
 }
+export interface ManagedGoalWorkflowRef {
+  id: string;
+  source?: "local" | "store";
+}
 export type ManagedGoalTypeId =
   | "improve"
   | "agentLoop"
@@ -224,6 +228,7 @@ export interface ManagedGoalState {
   loopTarget?: ManagedLoopTarget;
   saveReport?: boolean;
   scheduleState?: ManagedGoalCapabilityScheduleState;
+  workflowRef?: ManagedGoalWorkflowRef;
   latestInstanceId?: string;
   instanceCount?: number;
   instanceIds?: string[];
@@ -409,6 +414,7 @@ export interface CreateManagedGoalInput {
   schedule?: ManagedGoalSchedule;
   preferredRunTime?: ManagedGoalPreferredRunTime | null;
   loopTarget?: ManagedLoopTarget;
+  workflowRef?: ManagedGoalWorkflowRef;
   saveReport?: boolean;
   capabilities?: string[];
   evidence?: string[];
@@ -422,6 +428,7 @@ export interface SimpleManagedGoalCreateFields {
   preferredRunTime?: ManagedGoalPreferredRunTime | null;
   prompt: string;
   loopTarget?: ManagedLoopTarget;
+  workflowRef?: ManagedGoalWorkflowRef;
   saveReport?: boolean;
   capabilities?: string[];
   evidence?: string[];
@@ -436,6 +443,7 @@ export interface UpdateManagedGoalInput {
   schedule?: ManagedGoalSchedule;
   preferredRunTime?: ManagedGoalPreferredRunTime | null;
   loopTarget?: ManagedLoopTarget;
+  workflowRef?: ManagedGoalWorkflowRef | null;
   saveReport?: boolean;
   capabilities?: string[];
   evidence?: string[];
@@ -504,6 +512,20 @@ function normalizeManagedLoopTarget(
   const id = target.id.trim();
   if (!id) return undefined;
   return { type: target.type, id };
+}
+
+function normalizeManagedGoalWorkflowRef(
+  ref: ManagedGoalWorkflowRef | null | undefined,
+): ManagedGoalWorkflowRef | undefined {
+  if (!ref) return undefined;
+  const id = ref.id.trim();
+  if (!id) return undefined;
+  return {
+    id,
+    ...(ref.source === "local" || ref.source === "store"
+      ? { source: ref.source }
+      : {}),
+  };
 }
 
 function isWebReleaseGoal(goal: Partial<ManagedGoalState>): boolean {
@@ -660,6 +682,7 @@ export function buildSimpleManagedGoalCreateInput(
       : {}),
     outcome: fields.prompt.trim(),
     ...(fields.loopTarget ? { loopTarget: fields.loopTarget } : {}),
+    ...(fields.workflowRef ? { workflowRef: fields.workflowRef } : {}),
     ...(typeof fields.saveReport === "boolean"
       ? { saveReport: fields.saveReport }
       : {}),
@@ -710,6 +733,9 @@ export function buildManagedGoalState(
   const loopTarget = isRoutine
     ? normalizeManagedLoopTarget(input.loopTarget)
     : undefined;
+  const workflowRef = !isRoutine
+    ? normalizeManagedGoalWorkflowRef(input.workflowRef)
+    : undefined;
   const preferredRunTime = isRoutine
     ? normalizeManagedGoalPreferredRunTime(input.preferredRunTime)
     : undefined;
@@ -718,11 +744,13 @@ export function buildManagedGoalState(
   const capabilityInput =
     input.capabilities !== undefined
       ? input.capabilities
-      : loopTarget?.type === "capability"
-        ? [loopTarget.id]
-        : isRoutine
-          ? []
-          : (selectedGoalType?.capabilities ?? []);
+      : workflowRef
+        ? []
+        : loopTarget?.type === "capability"
+          ? [loopTarget.id]
+          : isRoutine
+            ? []
+            : (selectedGoalType?.capabilities ?? []);
   const evidence = evidenceInput.map(normalizeEvidenceKey).filter(Boolean);
   const evidenceSet = new Set(evidence);
   const route = routeInput
@@ -768,6 +796,7 @@ export function buildManagedGoalState(
     route,
     stage: route[0]?.stage,
     facts: selectedGoalType ? { goalType: selectedGoalType.id } : {},
+    ...(workflowRef ? { workflowRef } : {}),
     blockers: [],
   };
 }

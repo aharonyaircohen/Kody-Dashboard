@@ -21,4 +21,22 @@ describe("SearchableSelect", () => {
     );
     expect(SOURCE).toContain("setOpen(false)");
   });
+
+  it("lets multi-select menus open upward when space below is tight", () => {
+    const multiSelect = SOURCE.slice(
+      SOURCE.indexOf("export function SearchableMultiSelect"),
+    );
+
+    expect(multiSelect).toContain('useState<"top" | "bottom">("bottom")');
+    expect(multiSelect).toContain("const [menuMaxHeight, setMenuMaxHeight]");
+    expect(multiSelect).toContain("const updatePlacement = useCallback");
+    expect(multiSelect).toContain("spaceBelow < minUsableMenuHeight");
+    expect(multiSelect).toContain("setMenuMaxHeight(");
+    expect(multiSelect).toContain(
+      'window.addEventListener("scroll", updatePlacement, true)',
+    );
+    expect(multiSelect).toContain(
+      'placement === "top" ? "bottom-full mb-1" : "top-full mt-1"',
+    );
+  });
 });

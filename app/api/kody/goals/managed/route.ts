@@ -94,6 +94,10 @@ const loopTargetSchema = z.object({
   type: z.enum(["capability", "goal", "workflow"]),
   id: z.string().min(1).max(80),
 });
+const workflowRefSchema = z.object({
+  id: z.string().min(1).max(80),
+  source: z.enum(["local", "store"]).optional(),
+});
 
 const createManagedGoalSchema = z.object({
   id: z.string().min(1).max(80).optional(),
@@ -103,6 +107,7 @@ const createManagedGoalSchema = z.object({
   schedule: managedGoalScheduleSchema.default("manual"),
   preferredRunTime: preferredRunTimeSchema.nullable().optional(),
   loopTarget: loopTargetSchema.optional(),
+  workflowRef: workflowRefSchema.optional(),
   saveReport: z.boolean().optional(),
   capabilities: z.array(z.string().min(1).max(80)).optional(),
   evidence: z.array(z.string().min(1).max(80)).default([]),
@@ -201,8 +206,10 @@ export async function POST(req: NextRequest) {
       ? managedGoalTypeDefinition(parsed.data.type)
       : null;
     const routeFreeRoutine = selectedType?.model === "agentLoop";
+    const workflowBackedGoal = Boolean(parsed.data.workflowRef);
     if (
       !routeFreeRoutine &&
+      !workflowBackedGoal &&
       !usesTemplate &&
       (parsed.data.evidence.length === 0 || parsed.data.route.length === 0)
     ) {

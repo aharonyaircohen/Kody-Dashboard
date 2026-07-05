@@ -299,6 +299,33 @@ describe("simple managed goal creation", () => {
     });
   });
 
+  it("builds a workflow-backed goal without copying workflow capabilities", () => {
+    const state = buildManagedGoalState(
+      buildSimpleManagedGoalCreateInput({
+        goalType: "improve",
+        schedule: "manual",
+        prompt: "Ship the web release.",
+        workflowRef: { id: "web-release", source: "store" },
+        capabilities: [],
+        evidence: [],
+        route: [],
+      }),
+    );
+
+    expect(state).toMatchObject({
+      type: "improve",
+      schedule: "manual",
+      destination: {
+        outcome: "Ship the web release.",
+        evidence: [],
+      },
+      workflowRef: { id: "web-release", source: "store" },
+      capabilities: [],
+      route: [],
+      facts: { goalType: "improve" },
+    });
+  });
+
   it("builds route-free targetless agentLoop structure", () => {
     const state = buildManagedGoalState(
       buildSimpleManagedGoalCreateInput({

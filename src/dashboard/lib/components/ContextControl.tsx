@@ -818,7 +818,11 @@ function CreateEntryDialog({
 
   return (
     <Dialog open={open} onOpenChange={(o) => (!o ? onClose() : null)}>
-      <DialogContent className="max-w-2xl">
+      <DialogContent
+        modalSize="wide"
+        modalHeight="viewport"
+        className="min-w-0"
+      >
         <DialogHeader>
           <DialogTitle>New context entry</DialogTitle>
           <DialogDescription>
@@ -829,7 +833,7 @@ function CreateEntryDialog({
           </DialogDescription>
         </DialogHeader>
 
-        <div className="space-y-4 mt-2">
+        <div className="mt-2 flex min-h-0 min-w-0 flex-col gap-4 overflow-visible">
           <div className="space-y-1.5">
             <Label htmlFor="entry-slug">Slug (entry name)</Label>
             <Input
@@ -860,15 +864,14 @@ function CreateEntryDialog({
               <p className="text-xs text-rose-300">{bodyError}</p>
             ) : null}
           </div>
-        </div>
-
-        <div className="flex justify-end gap-2 mt-4">
-          <Button variant="ghost" size="sm" onClick={onClose}>
-            Cancel
-          </Button>
-          <Button size="sm" onClick={handleSubmit} disabled={!canSave}>
-            {createMutation.isPending ? "Creating…" : "Create entry"}
-          </Button>
+          <div className="mt-auto flex justify-end gap-2">
+            <Button variant="ghost" size="sm" onClick={onClose}>
+              Cancel
+            </Button>
+            <Button size="sm" onClick={handleSubmit} disabled={!canSave}>
+              {createMutation.isPending ? "Creating…" : "Create entry"}
+            </Button>
+          </div>
         </div>
       </DialogContent>
     </Dialog>
@@ -916,7 +919,11 @@ function EditEntryDialog({
 
   return (
     <Dialog open onOpenChange={(o) => (!o ? onClose() : null)}>
-      <DialogContent className="max-w-2xl">
+      <DialogContent
+        modalSize="wide"
+        modalHeight="viewport"
+        className="min-w-0"
+      >
         <DialogHeader>
           <DialogTitle>Edit entry `{entry.slug}`</DialogTitle>
           <DialogDescription>
@@ -925,7 +932,7 @@ function EditEntryDialog({
           </DialogDescription>
         </DialogHeader>
 
-        <div className="space-y-4 mt-2">
+        <div className="mt-2 flex min-h-0 min-w-0 flex-col gap-4 overflow-visible">
           <div className="rounded-md border border-white/[0.08] bg-white/[0.03] p-3">
             <div className="flex items-center justify-between gap-3 text-xs">
               <span className="font-medium text-white/70">Active file</span>
@@ -957,19 +964,18 @@ function EditEntryDialog({
               <p className="text-xs text-rose-300">{bodyError}</p>
             ) : null}
           </div>
-        </div>
-
-        <div className="flex justify-end gap-2 mt-4">
-          <Button variant="ghost" size="sm" onClick={onClose}>
-            Cancel
-          </Button>
-          <Button
-            size="sm"
-            onClick={handleSubmit}
-            disabled={!!bodyError || updateMutation.isPending}
-          >
-            {updateMutation.isPending ? "Saving…" : "Save changes"}
-          </Button>
+          <div className="mt-auto flex justify-end gap-2">
+            <Button variant="ghost" size="sm" onClick={onClose}>
+              Cancel
+            </Button>
+            <Button
+              size="sm"
+              onClick={handleSubmit}
+              disabled={!!bodyError || updateMutation.isPending}
+            >
+              {updateMutation.isPending ? "Saving…" : "Save changes"}
+            </Button>
+          </div>
         </div>
       </DialogContent>
     </Dialog>

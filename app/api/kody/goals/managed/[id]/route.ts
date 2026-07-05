@@ -122,6 +122,10 @@ const loopTargetSchema = z.object({
   type: z.enum(["capability", "goal", "workflow"]),
   id: z.string().min(1).max(80),
 });
+const workflowRefSchema = z.object({
+  id: z.string().min(1).max(80),
+  source: z.enum(["local", "store"]).optional(),
+});
 
 const updateManagedGoalSchema = z.object({
   state: z.enum(["inactive", "active", "paused"]).optional(),
@@ -131,6 +135,7 @@ const updateManagedGoalSchema = z.object({
   schedule: managedGoalScheduleSchema.optional(),
   preferredRunTime: preferredRunTimeSchema.nullable().optional(),
   loopTarget: loopTargetSchema.optional(),
+  workflowRef: workflowRefSchema.nullable().optional(),
   saveReport: z.boolean().optional(),
   capabilities: z.array(z.string().min(1).max(80)).optional(),
   evidence: z.array(z.string().min(1).max(80)).optional(),
@@ -350,6 +355,12 @@ export async function PATCH(
     const nextLoopTarget =
       parsed.data.loopTarget ??
       (shouldUseTypeDefaults ? undefined : existing.state.loopTarget);
+    const nextWorkflowRef =
+      parsed.data.workflowRef === undefined
+        ? shouldUseTypeDefaults
+          ? undefined
+          : existing.state.workflowRef
+        : (parsed.data.workflowRef ?? undefined);
     const nextPreferredRunTime =
       parsed.data.preferredRunTime === undefined
         ? existing.state.preferredRunTime
@@ -370,6 +381,7 @@ export async function PATCH(
       schedule: parsed.data.schedule ?? existing.state.schedule ?? "manual",
       preferredRunTime: nextPreferredRunTime,
       loopTarget: nextLoopTarget,
+      workflowRef: nextWorkflowRef,
       saveReport: nextSaveReport,
       capabilities: nextCapabilities,
       evidence: nextEvidence,
@@ -383,6 +395,7 @@ export async function PATCH(
       destination: rebuilt.destination,
       schedule: rebuilt.schedule,
       loopTarget: rebuilt.loopTarget,
+      workflowRef: rebuilt.workflowRef,
       ...(rebuilt.preferredRunTime
         ? { preferredRunTime: rebuilt.preferredRunTime }
         : {}),

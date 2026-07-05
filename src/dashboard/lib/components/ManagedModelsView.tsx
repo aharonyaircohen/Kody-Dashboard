@@ -91,6 +91,7 @@ import {
   type ManagedGoalSchedule,
   type ManagedGoalTypeDefinition,
   type ManagedGoalTypeId,
+  type ManagedGoalWorkflowRef,
 } from "../managed-goals";
 import type { WorkflowDefinitionRecord } from "../workflow-definitions";
 import { scheduleEveryLabel, type ScheduleEvery } from "../ticked/frontmatter";
@@ -107,6 +108,7 @@ import {
 
 const defaultGoalType = MANAGED_GOAL_TYPES[0]!;
 const USER_VISIBLE_OBJECTIVE_TYPE_IDS = new Set<ManagedGoalTypeId>(["improve"]);
+type AgentGoalExecutionTarget = "workflow" | "capabilities";
 
 function userVisibleObjectiveGoalTypes(): ManagedGoalTypeDefinition[] {
   return MANAGED_GOAL_TYPES.filter(
@@ -571,6 +573,18 @@ function workflowTargetOptions(
     .sort((a, b) => a.label.localeCompare(b.label));
 }
 
+function workflowRefForSelection(
+  workflows: WorkflowDefinitionRecord[],
+  id: string | null,
+): ManagedGoalWorkflowRef | undefined {
+  if (!id) return undefined;
+  const workflow = workflows.find((item) => item.id === id);
+  return {
+    id,
+    ...(workflow?.source ? { source: workflow.source } : {}),
+  };
+}
+
 function isManagedLoopTarget(value: unknown): value is ManagedLoopTarget {
   if (!value || typeof value !== "object" || Array.isArray(value)) return false;
   const target = value as Partial<ManagedLoopTarget>;
@@ -826,6 +840,8 @@ function NewGoalDialog({
   const [outcome, setOutcome] = useState("");
   const [loopTargetType, setLoopTargetType] =
     useState<ManagedLoopTarget["type"]>("goal");
+  const [agentGoalExecutionTarget, setAgentGoalExecutionTarget] =
+    useState<AgentGoalExecutionTarget>("workflow");
   const [selectedLoopGoalId, setSelectedLoopGoalId] = useState<string | null>(
     null,
   );
@@ -849,16 +865,24 @@ function NewGoalDialog({
     () => workflowTargetOptions(workflows),
     [workflows],
   );
+  const workflowRef = !isRoutine
+    ? workflowRefForSelection(workflows, selectedWorkflowId)
+    : undefined;
   const capabilityOptions = useMemo(
     () => capabilitySelectOptions(capabilities, selectedGoalType.capabilities),
     [capabilities, selectedGoalType.capabilities],
   );
   const routeSteps = useMemo(
     () =>
-      isRoutine
+      isRoutine || agentGoalExecutionTarget === "workflow"
         ? []
         : routeStepsForCapabilities(selectedGoalType, selectedCapabilitySlugs),
-    [isRoutine, selectedCapabilitySlugs, selectedGoalType],
+    [
+      agentGoalExecutionTarget,
+      isRoutine,
+      selectedCapabilitySlugs,
+      selectedGoalType,
+    ],
   );
   const selectedLoopCapabilitySlug = selectedCapabilitySlugs[0] ?? null;
   const preferredRunTime = buildPreferredRunTime(
@@ -883,14 +907,18 @@ function NewGoalDialog({
     : undefined;
   const canSubmit =
     outcome.trim().length > 0 &&
-    (isRoutine ? !!loopTarget : selectedCapabilitySlugs.length > 0) &&
+    (isRoutine
+      ? !!loopTarget
+      : agentGoalExecutionTarget === "workflow"
+        ? !!workflowRef
+        : selectedCapabilitySlugs.length > 0) &&
     (!isRoutine ||
       !preferredRunAt.trim() ||
       preferredRunTimeZone.trim().length > 0);
   const intentLabel = isRoutine ? "Scope" : "Finish line";
   const dialogDescription = isRoutine
     ? "Create one ongoing loop with a clear scope, cadence, and capabilities."
-    : "Define the finish line and attach the capabilities Kody should use.";
+    : "Define the finish line and choose the workflow Kody should run.";
   const intentPlaceholder = isRoutine
     ? "Example: Keep codebase healthy and surface drift."
     : selectedGoalType.promptPlaceholder;
@@ -928,6 +956,7 @@ function NewGoalDialog({
     setPreferredRunTimeZone(defaultTimeZone);
     setOutcome("");
     setLoopTargetType("goal");
+    setAgentGoalExecutionTarget("workflow");
     setSelectedLoopGoalId(null);
     setSelectedWorkflowId(null);
     setSelectedCapabilitySlugs([]);
@@ -937,6 +966,27 @@ function NewGoalDialog({
   useEffect(() => {
     if (open) reset();
   }, [open, reset]);
+
+  useEffect(() => {
+    if (isRoutine || agentGoalExecutionTarget !== "workflow") return;
+    if (workflowOptions.length === 0 && !workflowsLoading) {
+      setAgentGoalExecutionTarget("capabilities");
+      return;
+    }
+    if (
+      selectedWorkflowId &&
+      workflowOptions.some((option) => option.value === selectedWorkflowId)
+    ) {
+      return;
+    }
+    setSelectedWorkflowId(workflowOptions[0]?.value ?? null);
+  }, [
+    agentGoalExecutionTarget,
+    isRoutine,
+    selectedWorkflowId,
+    workflowOptions,
+    workflowsLoading,
+  ]);
 
   const selectCapabilities = (next: string[]) => {
     setSelectedCapabilitySlugs((current) => mergeOrderedSlugs(current, next));
@@ -965,13 +1015,22 @@ function NewGoalDialog({
         prompt: outcome,
         loopTarget,
         saveReport: isRoutine ? saveReport : undefined,
+        workflowRef: isRoutine ? undefined : workflowRef,
         capabilities: isRoutine
           ? loopTarget?.type === "capability"
             ? [loopTarget.id]
             : []
-          : selectedCapabilitySlugs,
-        evidence: isRoutine ? [] : evidenceForRoute(routeSteps),
-        route: isRoutine ? [] : routeWithReportPreference,
+          : agentGoalExecutionTarget === "workflow"
+            ? []
+            : selectedCapabilitySlugs,
+        evidence:
+          isRoutine || agentGoalExecutionTarget === "workflow"
+            ? []
+            : evidenceForRoute(routeSteps),
+        route:
+          isRoutine || agentGoalExecutionTarget === "workflow"
+            ? []
+            : routeWithReportPreference,
       }),
     );
     reset();
@@ -981,13 +1040,17 @@ function NewGoalDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="w-[calc(100vw-2rem)] max-w-[calc(100vw-2rem)] overflow-x-hidden sm:w-full sm:max-w-2xl">
+      <DialogContent
+        modalSize="wide"
+        modalHeight="viewport"
+        className="min-w-0"
+      >
         <DialogHeader>
           <DialogTitle>New {label}</DialogTitle>
           <DialogDescription>{dialogDescription}</DialogDescription>
         </DialogHeader>
 
-        <div className="min-w-0 space-y-4">
+        <div className="flex min-h-0 min-w-0 flex-col gap-4 overflow-visible">
           <div className="space-y-2">
             <Label htmlFor="goal-outcome">{intentLabel}</Label>
             <Textarea
@@ -1099,34 +1162,94 @@ function NewGoalDialog({
                 </div>
               </>
             ) : (
-              <div className="min-w-0 space-y-2 md:col-span-2">
-                <Label htmlFor="agentGoal-capabilities">Capabilities</Label>
-                <SearchableMultiSelect
-                  id="agentGoal-capabilities"
-                  options={capabilityOptions}
-                  value={selectedCapabilitySlugs}
-                  onChange={selectCapabilities}
-                  placeholder={
-                    capabilitiesLoading
-                      ? "Loading capabilities..."
-                      : "Select capabilities"
-                  }
-                  searchPlaceholder="Search capabilities..."
-                  emptyLabel="No capabilities found"
-                  disabled={capabilitiesLoading}
-                  selectedLabel="capabilities selected"
-                  selectedSingularLabel="capability selected"
-                  selectedHeading="Selected capabilities"
-                  selectedTone="info"
-                  maxVisibleSelected={4}
-                />
-                <OrderedPathSection
-                  title="Route"
-                  hint="The ordered path Kody follows to collect evidence."
-                  route={routeSteps}
-                  capabilitySlugs={selectedCapabilitySlugs}
-                  onMove={moveSelectedCapability}
-                />
+              <div className="min-w-0 space-y-3 md:col-span-2">
+                <div className="grid min-w-0 gap-3 md:grid-cols-2">
+                  <div className="space-y-2">
+                    <Label htmlFor="agentGoal-execution-target">
+                      Execution target
+                    </Label>
+                    <Select
+                      value={agentGoalExecutionTarget}
+                      onValueChange={(value) => {
+                        const next = value as AgentGoalExecutionTarget;
+                        setAgentGoalExecutionTarget(next);
+                        if (next === "workflow") {
+                          setSelectedCapabilitySlugs([]);
+                        } else {
+                          setSelectedWorkflowId(null);
+                        }
+                      }}
+                    >
+                      <SelectTrigger id="agentGoal-execution-target">
+                        <SelectValue placeholder="Choose target" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem
+                          value="workflow"
+                          disabled={workflowOptions.length === 0}
+                        >
+                          Workflow
+                        </SelectItem>
+                        <SelectItem value="capabilities">
+                          Capabilities
+                        </SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+
+                  {agentGoalExecutionTarget === "workflow" ? (
+                    <div className="min-w-0 space-y-2">
+                      <Label htmlFor="agentGoal-workflow">Workflow</Label>
+                      <SearchableSelect
+                        id="agentGoal-workflow"
+                        options={workflowOptions}
+                        value={selectedWorkflowId}
+                        onChange={setSelectedWorkflowId}
+                        placeholder={
+                          workflowsLoading
+                            ? "Loading workflows..."
+                            : "Select workflow"
+                        }
+                        searchPlaceholder="Search workflows..."
+                        emptyLabel="No workflows found"
+                        disabled={workflowsLoading}
+                      />
+                    </div>
+                  ) : (
+                    <div className="min-w-0 space-y-2">
+                      <Label htmlFor="agentGoal-capabilities">
+                        Capabilities
+                      </Label>
+                      <SearchableMultiSelect
+                        id="agentGoal-capabilities"
+                        options={capabilityOptions}
+                        value={selectedCapabilitySlugs}
+                        onChange={selectCapabilities}
+                        placeholder={
+                          capabilitiesLoading
+                            ? "Loading capabilities..."
+                            : "Select capabilities"
+                        }
+                        searchPlaceholder="Search capabilities..."
+                        emptyLabel="No capabilities found"
+                        disabled={capabilitiesLoading}
+                        selectedLabel="capabilities selected"
+                        selectedSingularLabel="capability selected"
+                        showSelectedSummary={false}
+                      />
+                    </div>
+                  )}
+                </div>
+
+                {agentGoalExecutionTarget === "capabilities" ? (
+                  <OrderedPathSection
+                    title="Route"
+                    hint="The ordered path Kody follows to collect evidence."
+                    route={routeSteps}
+                    capabilitySlugs={selectedCapabilitySlugs}
+                    onMove={moveSelectedCapability}
+                  />
+                ) : null}
               </div>
             )}
           </div>
@@ -1142,7 +1265,7 @@ function NewGoalDialog({
             }
           />
 
-          <div className="flex justify-end gap-2">
+          <div className="mt-auto flex justify-end gap-2">
             <Button
               type="button"
               variant="ghost"
@@ -1213,6 +1336,8 @@ function EditManagedGoalDialog({
   );
   const [loopTargetType, setLoopTargetType] =
     useState<ManagedLoopTarget["type"]>("goal");
+  const [agentGoalExecutionTarget, setAgentGoalExecutionTarget] =
+    useState<AgentGoalExecutionTarget>("capabilities");
   const [selectedLoopGoalId, setSelectedLoopGoalId] = useState<string | null>(
     null,
   );
@@ -1234,20 +1359,29 @@ function EditManagedGoalDialog({
     () => workflowTargetOptions(workflows),
     [workflows],
   );
+  const workflowRef = !isRoutine
+    ? workflowRefForSelection(workflows, selectedWorkflowId)
+    : undefined;
   const capabilityOptions = useMemo(
     () => capabilitySelectOptions(capabilities, goal?.state.capabilities ?? []),
     [capabilities, goal?.state.capabilities],
   );
   const routeSteps = useMemo(
     () =>
-      !goal || isRoutine
+      !goal || isRoutine || agentGoalExecutionTarget === "workflow"
         ? []
         : routeStepsForCapabilities(
             objectiveGoalType,
             selectedCapabilitySlugs,
             goal.state.route,
           ),
-    [goal, isRoutine, objectiveGoalType, selectedCapabilitySlugs],
+    [
+      agentGoalExecutionTarget,
+      goal,
+      isRoutine,
+      objectiveGoalType,
+      selectedCapabilitySlugs,
+    ],
   );
   const selectedLoopCapabilitySlug = selectedCapabilitySlugs[0] ?? null;
   const preferredRunTime = buildPreferredRunTime(
@@ -1307,9 +1441,37 @@ function EditManagedGoalDialog({
     setPreferredRunTimeZone(defaultTimeZone);
     setSaveReport(routeSavesReport(goal.state.route));
     setSelectedLoopGoalId(null);
-    setSelectedWorkflowId(null);
-    setSelectedCapabilitySlugs(goal.state.capabilities);
+    if (goal.state.workflowRef?.id) {
+      setAgentGoalExecutionTarget("workflow");
+      setSelectedWorkflowId(goal.state.workflowRef.id);
+      setSelectedCapabilitySlugs([]);
+    } else {
+      setAgentGoalExecutionTarget("capabilities");
+      setSelectedWorkflowId(null);
+      setSelectedCapabilitySlugs(goal.state.capabilities);
+    }
   }, [defaultTimeZone, goal, isRoutine, open]);
+
+  useEffect(() => {
+    if (isRoutine || agentGoalExecutionTarget !== "workflow") return;
+    if (workflowOptions.length === 0 && !workflowsLoading) {
+      setAgentGoalExecutionTarget("capabilities");
+      return;
+    }
+    if (
+      selectedWorkflowId &&
+      workflowOptions.some((option) => option.value === selectedWorkflowId)
+    ) {
+      return;
+    }
+    setSelectedWorkflowId(workflowOptions[0]?.value ?? null);
+  }, [
+    agentGoalExecutionTarget,
+    isRoutine,
+    selectedWorkflowId,
+    workflowOptions,
+    workflowsLoading,
+  ]);
 
   const selectCapabilities = (next: string[]) => {
     setSelectedCapabilitySlugs((current) => mergeOrderedSlugs(current, next));
@@ -1328,7 +1490,11 @@ function EditManagedGoalDialog({
   const canSubmit =
     !!goal &&
     outcome.trim().length > 0 &&
-    (isRoutine ? !!loopTarget : selectedCapabilitySlugs.length > 0) &&
+    (isRoutine
+      ? !!loopTarget
+      : agentGoalExecutionTarget === "workflow"
+        ? !!workflowRef
+        : selectedCapabilitySlugs.length > 0) &&
     (!isRoutine ||
       !preferredRunAt.trim() ||
       preferredRunTimeZone.trim().length > 0);
@@ -1352,9 +1518,20 @@ function EditManagedGoalDialog({
               loopTarget?.type === "capability" ? [loopTarget.id] : [],
           }
         : {
-            capabilities: selectedCapabilitySlugs,
-            evidence: evidenceForRoute(routeSteps),
-            route: routeWithReportPreference,
+            workflowRef:
+              agentGoalExecutionTarget === "workflow" ? workflowRef : null,
+            capabilities:
+              agentGoalExecutionTarget === "workflow"
+                ? []
+                : selectedCapabilitySlugs,
+            evidence:
+              agentGoalExecutionTarget === "workflow"
+                ? []
+                : evidenceForRoute(routeSteps),
+            route:
+              agentGoalExecutionTarget === "workflow"
+                ? []
+                : routeWithReportPreference,
           }),
     });
     onOpenChange(false);
@@ -1362,12 +1539,16 @@ function EditManagedGoalDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="w-[calc(100vw-2rem)] max-w-[calc(100vw-2rem)] overflow-x-hidden sm:w-full sm:max-w-2xl">
+      <DialogContent
+        modalSize="wide"
+        modalHeight="viewport"
+        className="min-w-0"
+      >
         <DialogHeader>
           <DialogTitle>Edit {label}</DialogTitle>
           <DialogDescription>{editDescription}</DialogDescription>
         </DialogHeader>
-        <div className="space-y-4">
+        <div className="flex min-h-0 min-w-0 flex-col gap-4 overflow-visible">
           <div className="space-y-2">
             <Label htmlFor="edit-goal-outcome">{intentLabel}</Label>
             <Textarea
@@ -1473,31 +1654,89 @@ function EditManagedGoalDialog({
                 </div>
               </>
             ) : (
-              <div className="min-w-0 space-y-2 md:col-span-2">
-                <Label htmlFor="edit-agentGoal-capabilities">
-                  Capabilities
-                </Label>
-                <SearchableMultiSelect
-                  id="edit-agentGoal-capabilities"
-                  options={capabilityOptions}
-                  value={selectedCapabilitySlugs}
-                  onChange={selectCapabilities}
-                  placeholder="Select capabilities"
-                  searchPlaceholder="Search capabilities..."
-                  emptyLabel="No capabilities found"
-                  selectedLabel="capabilities selected"
-                  selectedSingularLabel="capability selected"
-                  selectedHeading="Selected capabilities"
-                  selectedTone="info"
-                  maxVisibleSelected={4}
-                />
-                <OrderedPathSection
-                  title="Route"
-                  hint="The ordered path Kody follows to collect evidence."
-                  route={routeSteps}
-                  capabilitySlugs={selectedCapabilitySlugs}
-                  onMove={moveSelectedCapability}
-                />
+              <div className="min-w-0 space-y-3 md:col-span-2">
+                <div className="grid min-w-0 gap-3 md:grid-cols-2">
+                  <div className="space-y-2">
+                    <Label htmlFor="edit-agentGoal-execution-target">
+                      Execution target
+                    </Label>
+                    <Select
+                      value={agentGoalExecutionTarget}
+                      onValueChange={(value) => {
+                        const next = value as AgentGoalExecutionTarget;
+                        setAgentGoalExecutionTarget(next);
+                        if (next === "workflow") {
+                          setSelectedCapabilitySlugs([]);
+                        } else {
+                          setSelectedWorkflowId(null);
+                        }
+                      }}
+                    >
+                      <SelectTrigger id="edit-agentGoal-execution-target">
+                        <SelectValue placeholder="Choose target" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem
+                          value="workflow"
+                          disabled={workflowOptions.length === 0}
+                        >
+                          Workflow
+                        </SelectItem>
+                        <SelectItem value="capabilities">
+                          Capabilities
+                        </SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+
+                  {agentGoalExecutionTarget === "workflow" ? (
+                    <div className="min-w-0 space-y-2">
+                      <Label htmlFor="edit-agentGoal-workflow">Workflow</Label>
+                      <SearchableSelect
+                        id="edit-agentGoal-workflow"
+                        options={workflowOptions}
+                        value={selectedWorkflowId}
+                        onChange={setSelectedWorkflowId}
+                        placeholder={
+                          workflowsLoading
+                            ? "Loading workflows..."
+                            : "Select workflow"
+                        }
+                        searchPlaceholder="Search workflows..."
+                        emptyLabel="No workflows found"
+                        disabled={workflowsLoading}
+                      />
+                    </div>
+                  ) : (
+                    <div className="min-w-0 space-y-2">
+                      <Label htmlFor="edit-agentGoal-capabilities">
+                        Capabilities
+                      </Label>
+                      <SearchableMultiSelect
+                        id="edit-agentGoal-capabilities"
+                        options={capabilityOptions}
+                        value={selectedCapabilitySlugs}
+                        onChange={selectCapabilities}
+                        placeholder="Select capabilities"
+                        searchPlaceholder="Search capabilities..."
+                        emptyLabel="No capabilities found"
+                        selectedLabel="capabilities selected"
+                        selectedSingularLabel="capability selected"
+                        showSelectedSummary={false}
+                      />
+                    </div>
+                  )}
+                </div>
+
+                {agentGoalExecutionTarget === "capabilities" ? (
+                  <OrderedPathSection
+                    title="Route"
+                    hint="The ordered path Kody follows to collect evidence."
+                    route={routeSteps}
+                    capabilitySlugs={selectedCapabilitySlugs}
+                    onMove={moveSelectedCapability}
+                  />
+                ) : null}
               </div>
             )}
           </div>
@@ -1515,7 +1754,7 @@ function EditManagedGoalDialog({
             }
           />
 
-          <div className="flex justify-end gap-2">
+          <div className="mt-auto flex justify-end gap-2">
             <Button
               type="button"
               variant="ghost"

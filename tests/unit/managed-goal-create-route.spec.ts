@@ -220,6 +220,49 @@ describe("POST /api/kody/goals/managed", () => {
     expect(write.state.capabilities).toEqual([]);
     expect(write.state.scheduleMode).toBe("agentLoop");
   });
+
+  it("creates a workflow-backed goal without requiring a capability route", async () => {
+    h.readManagedGoalFile.mockResolvedValue(null);
+    h.writeManagedGoalFile.mockResolvedValue(undefined);
+    h.getUserOctokit.mockResolvedValue({
+      rest: {
+        repos: {
+          get: vi.fn(async () => ({ data: { default_branch: "main" } })),
+        },
+        actions: {
+          createWorkflowDispatch: vi.fn(async () => undefined),
+        },
+      },
+    });
+
+    const res = await POST(
+      createRequest({
+        type: "improve",
+        schedule: "manual",
+        outcome: "Release the web app.",
+        workflowRef: { id: "web-release", source: "store" },
+        evidence: [],
+        capabilities: [],
+        route: [],
+      }),
+    );
+    const json = await res.json();
+
+    expect(res.status).toBe(201);
+    expect(json.error).toBeUndefined();
+    expect(h.writeManagedGoalFile).toHaveBeenCalledTimes(1);
+    const write = h.writeManagedGoalFile.mock.calls[0]![0];
+    expect(write.state).toMatchObject({
+      type: "improve",
+      workflowRef: { id: "web-release", source: "store" },
+      capabilities: [],
+      route: [],
+      destination: {
+        outcome: "Release the web app.",
+        evidence: [],
+      },
+    });
+  });
 });
 
 describe("GET /api/kody/goals/managed", () => {

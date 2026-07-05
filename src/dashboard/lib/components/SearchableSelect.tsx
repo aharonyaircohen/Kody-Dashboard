@@ -225,6 +225,8 @@ export function SearchableMultiSelect({
   const rootRef = useRef<HTMLDivElement | null>(null);
   const inputRef = useRef<HTMLInputElement | null>(null);
   const [open, setOpen] = useState(false);
+  const [placement, setPlacement] = useState<"top" | "bottom">("bottom");
+  const [menuMaxHeight, setMenuMaxHeight] = useState(320);
   const [query, setQuery] = useState("");
   const selected = useMemo(() => new Set(value), [value]);
   const selectableOptions = useMemo(
@@ -258,8 +260,28 @@ export function SearchableMultiSelect({
       ? `1 ${selectedSingularLabel}`
       : `${value.length} ${selectedLabel}`;
 
+  const updatePlacement = useCallback(() => {
+    const rect = rootRef.current?.getBoundingClientRect();
+    if (!rect) return;
+    const viewportGap = 16;
+    const minUsableMenuHeight = 180;
+    const maxMenuHeight = 320;
+    const spaceBelow = window.innerHeight - rect.bottom - viewportGap;
+    const spaceAbove = rect.top - viewportGap;
+    const nextPlacement =
+      spaceBelow < minUsableMenuHeight && spaceAbove > spaceBelow
+        ? "top"
+        : "bottom";
+    const availableSpace = nextPlacement === "top" ? spaceAbove : spaceBelow;
+    setPlacement(nextPlacement);
+    setMenuMaxHeight(
+      Math.max(minUsableMenuHeight, Math.min(maxMenuHeight, availableSpace)),
+    );
+  }, []);
+
   useEffect(() => {
     if (!open) return;
+    updatePlacement();
     inputRef.current?.focus();
 
     const onPointerDown = (event: PointerEvent) => {
@@ -274,11 +296,15 @@ export function SearchableMultiSelect({
     };
     document.addEventListener("pointerdown", onPointerDown);
     window.addEventListener("keydown", onKeyDown, true);
+    window.addEventListener("resize", updatePlacement);
+    window.addEventListener("scroll", updatePlacement, true);
     return () => {
       document.removeEventListener("pointerdown", onPointerDown);
       window.removeEventListener("keydown", onKeyDown, true);
+      window.removeEventListener("resize", updatePlacement);
+      window.removeEventListener("scroll", updatePlacement, true);
     };
-  }, [open]);
+  }, [open, updatePlacement]);
 
   const toggle = (optionValue: string) => {
     onChange(
@@ -310,6 +336,7 @@ export function SearchableMultiSelect({
         aria-haspopup="listbox"
         disabled={disabled}
         onClick={() => {
+          if (!open) updatePlacement();
           setOpen((next) => !next);
           setQuery("");
         }}
@@ -380,7 +407,10 @@ export function SearchableMultiSelect({
 
       {open ? (
         <div
-          className="absolute left-0 right-0 top-full z-[80] mt-1 min-w-0 max-w-full overflow-hidden rounded-md border bg-popover text-popover-foreground shadow-elevation-3"
+          className={cn(
+            "absolute left-0 right-0 z-[80] min-w-0 max-w-full overflow-hidden rounded-md border bg-popover text-popover-foreground shadow-elevation-3",
+            placement === "top" ? "bottom-full mb-1" : "top-full mt-1",
+          )}
           data-searchable-multi-select-menu
         >
           <div className="relative border-b p-2">
@@ -401,7 +431,8 @@ export function SearchableMultiSelect({
             />
           </div>
           <div
-            className="max-h-80 overflow-y-auto overflow-x-hidden p-1"
+            className="overflow-y-auto overflow-x-hidden p-1"
+            style={{ maxHeight: menuMaxHeight }}
             role="listbox"
           >
             {filtered.length === 0 ? (

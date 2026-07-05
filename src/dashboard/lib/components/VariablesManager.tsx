@@ -390,7 +390,11 @@ function VariableEditor({
         if (!o) onClose();
       }}
     >
-      <DialogContent className="max-w-md">
+      <DialogContent
+        modalSize="wide"
+        modalHeight="viewport"
+        className="min-w-0"
+      >
         <DialogHeader>
           <DialogTitle>
             {isUpdate ? `Edit ${initialName}` : "New variable"}
@@ -400,27 +404,27 @@ function VariableEditor({
             Use this page for non-sensitive config only.
           </DialogDescription>
         </DialogHeader>
-        <div className="rounded-md border border-white/[0.08] bg-white/[0.03] p-3 text-xs">
-          <div className="flex items-center justify-between gap-3">
-            <span className="font-medium text-white/70">Active file</span>
-            <code className="font-mono text-sky-200">variables.json</code>
-          </div>
-          <div className="mt-2 flex items-center justify-between gap-3">
-            <span className="font-medium text-white/70">Active variable</span>
-            <code className="font-mono text-white/70">
-              {isUpdate ? initialName : name || "New variable"}
-            </code>
-          </div>
-          {isUpdate ? (
-            <div className="mt-3 space-y-1.5">
-              <p className="font-medium text-white/70">Current saved value</p>
-              <pre className="max-h-32 overflow-auto whitespace-pre-wrap rounded border border-white/[0.06] bg-black/30 p-2 font-mono text-[11px] leading-relaxed text-white/65">
-                {initialValue}
-              </pre>
+        <div className="mt-2 flex min-h-0 min-w-0 flex-col gap-3 overflow-visible">
+          <div className="rounded-md border border-white/[0.08] bg-white/[0.03] p-3 text-xs">
+            <div className="flex items-center justify-between gap-3">
+              <span className="font-medium text-white/70">Active file</span>
+              <code className="font-mono text-sky-200">variables.json</code>
             </div>
-          ) : null}
-        </div>
-        <div className="space-y-3 mt-3">
+            <div className="mt-2 flex items-center justify-between gap-3">
+              <span className="font-medium text-white/70">Active variable</span>
+              <code className="font-mono text-white/70">
+                {isUpdate ? initialName : name || "New variable"}
+              </code>
+            </div>
+            {isUpdate ? (
+              <div className="mt-3 space-y-1.5">
+                <p className="font-medium text-white/70">Current saved value</p>
+                <pre className="max-h-32 overflow-auto whitespace-pre-wrap rounded border border-white/[0.06] bg-black/30 p-2 font-mono text-[11px] leading-relaxed text-white/65">
+                  {initialValue}
+                </pre>
+              </div>
+            ) : null}
+          </div>
           <div>
             <Label htmlFor="var-name" className="text-xs">
               Name
@@ -452,29 +456,34 @@ function VariableEditor({
               autoFocus={!isUpdate}
             />
           </div>
-        </div>
-        <div className="flex justify-end gap-2 mt-4">
-          <Button variant="ghost" size="sm" onClick={onClose} disabled={saving}>
-            Cancel
-          </Button>
-          <Button
-            size="sm"
-            disabled={!canSave}
-            onClick={() => {
-              if (canSave) onSave(name, value);
-            }}
-          >
-            {saving ? (
-              <>
-                <Loader2 className="w-3.5 h-3.5 animate-spin mr-1" />
-                Saving…
-              </>
-            ) : isUpdate ? (
-              "Update"
-            ) : (
-              "Create"
-            )}
-          </Button>
+          <div className="mt-auto flex justify-end gap-2">
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={onClose}
+              disabled={saving}
+            >
+              Cancel
+            </Button>
+            <Button
+              size="sm"
+              disabled={!canSave}
+              onClick={() => {
+                if (canSave) onSave(name, value);
+              }}
+            >
+              {saving ? (
+                <>
+                  <Loader2 className="w-3.5 h-3.5 animate-spin mr-1" />
+                  Saving…
+                </>
+              ) : isUpdate ? (
+                "Update"
+              ) : (
+                "Create"
+              )}
+            </Button>
+          </div>
         </div>
       </DialogContent>
     </Dialog>

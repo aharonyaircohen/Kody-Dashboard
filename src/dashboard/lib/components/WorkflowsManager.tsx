@@ -640,13 +640,17 @@ function WorkflowDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-h-[92vh] w-[calc(100vw-2rem)] min-w-0 max-w-[calc(100vw-2rem)] overflow-y-auto overflow-x-hidden sm:w-[42rem]">
+      <DialogContent
+        modalSize="wide"
+        modalHeight="viewport"
+        className="min-w-0"
+      >
         <DialogHeader>
           <DialogTitle>{title}</DialogTitle>
           <DialogDescription>{description}</DialogDescription>
         </DialogHeader>
         <form
-          className="min-w-0 max-w-full space-y-5 overflow-x-hidden"
+          className="flex min-h-0 min-w-0 max-w-full flex-col gap-5 overflow-visible"
           onSubmit={submit}
         >
           <div className="min-w-0 space-y-2">
@@ -707,7 +711,7 @@ function WorkflowDialog({
             }
           />
 
-          <div className="flex justify-end gap-2 pt-1">
+          <div className="mt-auto flex justify-end gap-2 pt-1">
             <Button
               type="button"
               variant="ghost"
