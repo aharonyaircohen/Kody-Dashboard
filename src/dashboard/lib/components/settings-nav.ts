@@ -27,6 +27,7 @@ import {
   MessageSquare,
   MonitorPlay,
   Package,
+  Route,
   ScrollText,
   Settings as SettingsIcon,
   Settings2,
@@ -257,6 +258,13 @@ export const SETTINGS_NAV_SECTIONS: readonly SettingsNavSection[] = [
     title: "AI Agency",
     items: [
       TODOS_NAV_ITEM,
+      {
+        href: "/agency-runs",
+        label: "Agency Runs",
+        icon: Route,
+        description: "Kody runs for goals, loops, and workflows.",
+        tint: "text-sky-300 bg-sky-500/10",
+      },
       {
         href: "/agents",
         label: "Agents",
@@ -494,6 +502,7 @@ export const VIBE_MODE_SECTIONS: readonly SettingsNavSection[] = [
     title: "AI Agency",
     items: [
       TODOS_NAV_ITEM,
+      navItemForHref("/agency-runs"),
       navItemForHref("/agent-goals"),
       navItemForHref("/agent-loops"),
     ],
@@ -531,7 +540,12 @@ export const ENGINEER_MODE_SECTIONS: readonly SettingsNavSection[] = [
 export const MOBILE_NAV_SECTIONS: readonly SettingsNavSection[] = [
   {
     title: PRIMARY_VIEW_TITLE,
-    items: [DASHBOARD_NAV_ITEM, TASKS_NAV_ITEM, VIBE_NAV_ITEM, PREVIEW_NAV_ITEM],
+    items: [
+      DASHBOARD_NAV_ITEM,
+      TASKS_NAV_ITEM,
+      VIBE_NAV_ITEM,
+      PREVIEW_NAV_ITEM,
+    ],
   },
   ...ENGINEER_MODE_SECTIONS.filter(
     (section) => section.title !== PRIMARY_VIEW_TITLE,

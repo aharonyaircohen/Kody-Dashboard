@@ -16,6 +16,7 @@ import {
   CheckCircle2,
   CircleDot,
   Clock3,
+  ExternalLink,
   FileText,
   ListTodo,
   Loader2,
@@ -70,6 +71,7 @@ import { useMediaQuery } from "../hooks/useMediaQuery";
 import {
   useCreateManagedGoal,
   useDeleteManagedGoal,
+  useManagedGoalRunHistory,
   useManagedGoals,
   useRunManagedGoal,
   useSetManagedGoalState,
@@ -2171,6 +2173,8 @@ function GoalDetail({
       </div>
 
       <div className="max-w-4xl mx-auto p-4 md:p-8 space-y-6">
+        {isRoutine ? <GoalLoopStatusSection goal={goal} /> : null}
+
         {isRoutine ? (
           <ContentSection
             icon={Target}
@@ -2487,6 +2491,217 @@ function GoalCapabilitiesSection({
         </div>
       ) : (
         <EmptyHint text="No capabilities are attached to this goal." />
+      )}
+    </ContentSection>
+  );
+}
+
+function runStatusClass(status: string | null): string {
+  if (status === "dispatch")
+    return "border-sky-400/25 bg-sky-400/10 text-sky-200";
+  if (status === "success" || status === "completed") {
+    return "border-emerald-400/25 bg-emerald-400/10 text-emerald-200";
+  }
+  if (status === "failure" || status === "failed") {
+    return "border-rose-400/25 bg-rose-400/10 text-rose-200";
+  }
+  return "border-white/10 bg-white/[0.04] text-white/60";
+}
+
+function GoalLoopStatusSection({ goal }: { goal: ManagedGoalRecord }) {
+  const { data, isLoading, error } = useManagedGoalRunHistory(
+    goal.id,
+    managedGoalModel(goal) === "agentLoop",
+  );
+  const runs = data?.runs ?? [];
+  const latestRun = runs[0] ?? null;
+  const scheduleState = goal.state.scheduleState;
+  const capabilityStatuses = Object.values(scheduleState?.capabilities ?? {});
+  const dueCount = capabilityStatuses.filter(
+    (status) => status.state === "due",
+  ).length;
+  const blockedCount = capabilityStatuses.filter(
+    (status) => status.state === "blocked",
+  ).length;
+  const nextEligibleAt =
+    capabilityStatuses
+      .map((status) => status.nextEligibleAt)
+      .filter((value): value is string => Boolean(value))
+      .sort((a, b) => Date.parse(a) - Date.parse(b))[0] ?? null;
+  const lastDecision = scheduleState?.lastDecision ?? null;
+  const latestRunStatus = latestRun?.status ?? latestRun?.decisionKind ?? null;
+  const latestRunLabel =
+    latestRun?.summary ?? latestRun?.decisionReason ?? latestRun?.event ?? null;
+  const headline = error
+    ? "Status unavailable"
+    : blockedCount > 0
+      ? `${blockedCount} blocked`
+      : dueCount > 0
+        ? `${dueCount} due`
+        : latestRunStatus
+          ? `Last run ${latestRunStatus}`
+          : goal.state.state;
+  const recentRuns = runs.slice(0, 3);
+
+  return (
+    <ContentSection
+      icon={Clock3}
+      title="Status"
+      subtitle="Current loop state from schedule data and recent runs"
+      count={capabilityStatuses.length}
+    >
+      {error ? (
+        <div className="rounded-md border border-rose-500/30 bg-rose-500/[0.06] px-3 py-2 text-xs text-rose-200">
+          {error instanceof Error ? error.message : "Failed to load runs"}
+        </div>
+      ) : (
+        <div className="space-y-3">
+          <div className="grid gap-2 md:grid-cols-4">
+            <div className="rounded-md border border-white/[0.08] bg-black/20 px-3 py-2">
+              <div className="text-[10px] uppercase tracking-wide text-white/35">
+                Status
+              </div>
+              <div className="mt-1 flex items-center gap-2">
+                <span
+                  className={cn(
+                    "rounded border px-1.5 py-0.5 text-[10px] uppercase tracking-wide",
+                    runStatusClass(latestRunStatus),
+                  )}
+                >
+                  {headline}
+                </span>
+              </div>
+              <div className="mt-1 text-xs text-muted-foreground">
+                {scheduleSummary(goal)}
+              </div>
+            </div>
+            <div className="rounded-md border border-white/[0.08] bg-black/20 px-3 py-2">
+              <div className="text-[10px] uppercase tracking-wide text-white/35">
+                Last tick
+              </div>
+              <div className="mt-1 text-sm text-white/80">
+                {compactDateTime(scheduleState?.lastGoalTickAt)}
+              </div>
+              <div className="mt-1 truncate text-xs text-muted-foreground">
+                {lastDecision?.kind ?? "no decision"}
+              </div>
+            </div>
+            <div className="rounded-md border border-white/[0.08] bg-black/20 px-3 py-2">
+              <div className="text-[10px] uppercase tracking-wide text-white/35">
+                Next due
+              </div>
+              <div className="mt-1 text-sm text-white/80">
+                {compactDateTime(nextEligibleAt)}
+              </div>
+              <div className="mt-1 text-xs text-muted-foreground">
+                {dueCount} due, {blockedCount} blocked
+              </div>
+            </div>
+            <div className="rounded-md border border-white/[0.08] bg-black/20 px-3 py-2">
+              <div className="text-[10px] uppercase tracking-wide text-white/35">
+                Latest run
+              </div>
+              {isLoading ? (
+                <div className="mt-1 text-sm text-muted-foreground">
+                  <Loader2 className="mr-1 inline h-3.5 w-3.5 animate-spin" />
+                  Loading
+                </div>
+              ) : latestRun ? (
+                <>
+                  <div className="mt-1 truncate text-sm text-white/80">
+                    {latestRunStatus ?? "recorded"}
+                  </div>
+                  <div className="mt-1 truncate text-xs text-muted-foreground">
+                    {latestRunLabel ?? compactDateTime(latestRun.startedAt)}
+                  </div>
+                </>
+              ) : (
+                <div className="mt-1 text-sm text-muted-foreground">none</div>
+              )}
+            </div>
+          </div>
+
+          {lastDecision ? (
+            <div className="rounded-md border border-white/[0.08] bg-black/20 px-3 py-2 text-xs">
+              <span className="font-medium text-white/75">
+                {lastDecision.kind}
+              </span>
+              <span className="mx-2 text-white/25">-</span>
+              <span className="text-muted-foreground">
+                {lastDecision.reason}
+              </span>
+            </div>
+          ) : null}
+
+          {isLoading ? (
+            <p className="text-xs text-muted-foreground">
+              <Loader2 className="mr-1 inline h-3.5 w-3.5 animate-spin" />
+              Loading recent loop runs...
+            </p>
+          ) : null}
+
+          {recentRuns.length ? (
+            <div className="divide-y divide-white/[0.06] overflow-hidden rounded-md border border-white/[0.08] bg-black/20">
+              {recentRuns.map((run) => {
+                const label =
+                  run.summary ??
+                  run.decisionReason ??
+                  run.event ??
+                  "recorded run";
+                const status = run.status ?? run.decisionKind ?? "recorded";
+                return (
+                  <div
+                    key={run.path}
+                    className="flex min-w-0 flex-wrap items-center justify-between gap-2 px-3 py-2 text-xs"
+                  >
+                    <div className="min-w-0 flex flex-wrap items-center gap-2">
+                      <span
+                        className={cn(
+                          "rounded border px-1.5 py-0.5 text-[10px] uppercase tracking-wide",
+                          runStatusClass(run.status),
+                        )}
+                      >
+                        {status}
+                      </span>
+                      <span className="max-w-xl truncate text-white/70">
+                        {label}
+                      </span>
+                      <span className="text-muted-foreground">
+                        {compactDateTime(run.startedAt)}
+                      </span>
+                    </div>
+                    <div className="flex shrink-0 items-center gap-2">
+                      {run.githubRunUrl ? (
+                        <a
+                          href={run.githubRunUrl}
+                          target="_blank"
+                          rel="noreferrer"
+                          className="inline-flex items-center gap-1 text-white/45 hover:text-white"
+                        >
+                          <ExternalLink className="h-3 w-3" />
+                          Run
+                        </a>
+                      ) : null}
+                      {run.htmlUrl ? (
+                        <a
+                          href={run.htmlUrl}
+                          target="_blank"
+                          rel="noreferrer"
+                          className="inline-flex items-center gap-1 text-white/45 hover:text-white"
+                        >
+                          <ExternalLink className="h-3 w-3" />
+                          Log
+                        </a>
+                      ) : null}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          ) : !isLoading ? (
+            <EmptyHint text="No loop runs recorded yet." />
+          ) : null}
+        </div>
       )}
     </ContentSection>
   );

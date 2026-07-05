@@ -1639,6 +1639,7 @@ import type {
   CreateManagedGoalInput,
   ManagedGoalRecord,
 } from "./managed-goals";
+import type { ManagedGoalRunLogsPayload } from "./managed-goal-run-logs";
 
 export const goalsApi = {
   list: async (): Promise<Goal[]> => {
@@ -1725,6 +1726,21 @@ export const goalsApi = {
       },
     );
     return handleResponse(res);
+  },
+
+  runHistory: async (
+    id: string,
+    limit = 8,
+  ): Promise<ManagedGoalRunLogsPayload> => {
+    const params = new URLSearchParams({ limit: String(limit) });
+    const res = await fetch(
+      `${API_BASE}/goals/managed/${encodeURIComponent(id)}/runs?${params}`,
+      {
+        headers: buildHeaders(),
+        cache: "no-store",
+      },
+    );
+    return handleResponse<ManagedGoalRunLogsPayload>(res);
   },
 
   fetchDiscussion: async (id: string): Promise<GoalDiscussionPayload> => {
@@ -2289,6 +2305,30 @@ export const activityApi = {
   },
 };
 
+// ============ Agency Runs API ============
+
+/** Kody-native run monitor for AI Agency goals, loops, and workflows. */
+export const agencyRunsApi = {
+  list: async (
+    limit = 50,
+  ): Promise<import("./agency-runs").AgencyRunsPayload> => {
+    const params = new URLSearchParams({ limit: String(limit) });
+    const res = await fetch(`${API_BASE}/agency-runs?${params}`, {
+      headers: buildHeaders(),
+    });
+    return handleResponse(res);
+  },
+  detail: async (
+    sourcePath: string,
+  ): Promise<import("./agency-runs").AgencyRunDetailPayload> => {
+    const params = new URLSearchParams({ path: sourcePath });
+    const res = await fetch(`${API_BASE}/agency-runs/detail?${params}`, {
+      headers: buildHeaders(),
+    });
+    return handleResponse(res);
+  },
+};
+
 // ============ Messaging channels (team chat over Discussions) ============
 
 export interface MessageChannel {
@@ -2649,5 +2689,6 @@ export const kodyApi = {
   vibe: vibeApi,
   cto: ctoApi,
   activity: activityApi,
+  agencyRuns: agencyRunsApi,
   kodyBugs: kodyBugsApi,
 };

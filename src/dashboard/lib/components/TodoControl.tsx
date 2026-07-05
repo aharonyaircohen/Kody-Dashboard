@@ -280,8 +280,7 @@ function managedGoalItemStatus(item: TodoItem): ManagedGoalItemStatus | null {
     badgeClass: tone.badgeClass,
     reason: stringMeta(meta, "reason"),
     nextAction: stringMeta(meta, "nextAction"),
-    attempts:
-      attempts !== null && attempts >= 0 ? Math.floor(attempts) : null,
+    attempts: attempts !== null && attempts >= 0 ? Math.floor(attempts) : null,
     nextRetryAt: stringMeta(meta, "nextRetryAt"),
     issue: issue !== null && issue > 0 ? Math.floor(issue) : null,
   };
@@ -318,6 +317,31 @@ function todoDescriptionPreview(description: string): string {
     .trim();
   if (!compact) return "Saved list description";
   return compact.length > 140 ? `${compact.slice(0, 137)}...` : compact;
+}
+
+function displayMetaValue(value: unknown): string | null {
+  if (typeof value === "string" && value.trim()) return value.trim();
+  if (typeof value === "number" || typeof value === "boolean") {
+    return String(value);
+  }
+  return null;
+}
+
+function todoStateBadges(
+  list: TodoEntry,
+): Array<{ label: string; value: string }> {
+  const fm = list.frontmatter ?? {};
+  if (fm.managedModel !== "agentGoal" && fm.managedModel !== "agentLoop") {
+    return [];
+  }
+  const rows: Array<{ label: string; value: string | null }> = [
+    { label: "Version", value: displayMetaValue(fm.version) },
+    { label: "State", value: displayMetaValue(fm.state) },
+    { label: "Stage", value: displayMetaValue(fm.stage) },
+  ];
+  return rows.filter((row): row is { label: string; value: string } =>
+    Boolean(row.value),
+  );
 }
 
 function buildAskCodeContext(list: TodoEntry, item: TodoItem): string {
@@ -826,6 +850,7 @@ function TodoListDetail({
     ? todoDescriptionPreview(list.description)
     : "";
   const listKind = todoListKind(list);
+  const stateBadges = todoStateBadges(list);
   const progressPercent =
     stats.total > 0 ? Math.round((stats.done / stats.total) * 100) : 0;
   const filterCounts = useMemo<Record<TodoItemFilter, number>>(
@@ -1121,6 +1146,15 @@ function TodoListDetail({
                 <span>
                   {stats.done}/{stats.total} items complete
                 </span>
+                {stateBadges.map((badge) => (
+                  <span
+                    key={badge.label}
+                    className="inline-flex items-center gap-1 rounded border border-white/[0.08] bg-black/20 px-1.5 py-0.5 font-mono text-[10px] text-white/50"
+                  >
+                    <span className="text-white/30">{badge.label}</span>
+                    <span>{badge.value}</span>
+                  </span>
+                ))}
                 <span className="inline-flex items-center gap-1">
                   <Calendar className="w-3 h-3" />
                   updated {new Date(list.updatedAt).toLocaleDateString()}
@@ -1356,7 +1390,10 @@ function TodoItemCard({
   const assignee = normalizeAssignee(item.assignee);
   const itemTitleDirectionProps = textDirectionProps(item.title);
   const managedStatus = managedGoalItemStatus(item);
-  const managedIssueHref = issueHref(connectedRepo, managedStatus?.issue ?? null);
+  const managedIssueHref = issueHref(
+    connectedRepo,
+    managedStatus?.issue ?? null,
+  );
   const {
     attributes,
     isDragging,

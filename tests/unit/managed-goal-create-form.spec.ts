@@ -137,6 +137,21 @@ describe("ManagedModelsView model form", () => {
     expect(source).toContain('"/agent-goals"');
   });
 
+  it("shows compact runtime status on agentLoop detail pages", () => {
+    expect(source).toContain("useManagedGoalRunHistory");
+    expect(source).toContain("function GoalLoopStatusSection");
+    expect(source).toContain(
+      "{isRoutine ? <GoalLoopStatusSection goal={goal} /> : null}",
+    );
+    expect(source).toContain(
+      "Current loop state from schedule data and recent runs",
+    );
+    expect(source).toContain("Last tick");
+    expect(source).toContain("Next due");
+    expect(source).toContain("href={run.githubRunUrl}");
+    expect(source).toContain("href={run.htmlUrl}");
+  });
+
   it("keeps agentGoal edits workflow-aware without exposing type labels", () => {
     const dialog = source.slice(
       source.indexOf("function EditManagedGoalDialog"),

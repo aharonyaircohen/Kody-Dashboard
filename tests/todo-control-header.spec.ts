@@ -99,6 +99,18 @@ describe("todo list header", () => {
     );
   });
 
+  it("shows managed todo state as compact header badges", () => {
+    expect(TODO_CONTROL_SOURCE).toContain("function todoStateBadges");
+    expect(TODO_CONTROL_SOURCE).toContain("const stateBadges =");
+    expect(TODO_CONTROL_SOURCE).toContain('{ label: "Version"');
+    expect(TODO_CONTROL_SOURCE).toContain('{ label: "State"');
+    expect(TODO_CONTROL_SOURCE).toContain('{ label: "Stage"');
+    expect(TODO_CONTROL_SOURCE).toContain("stateBadges.map");
+    expect(TODO_CONTROL_SOURCE).not.toContain("function TodoStatePanel");
+    expect(TODO_CONTROL_SOURCE).not.toContain('label: "Last decision"');
+    expect(TODO_CONTROL_SOURCE).not.toContain("scheduleState?.lastGoalTickAt");
+  });
+
   it("defaults the list-type filter to lists without an all button", () => {
     const listFilterBlock = TODO_CONTROL_SOURCE.match(
       /const TODO_LIST_FILTERS[\s\S]*?];/,

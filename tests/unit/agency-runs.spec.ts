@@ -1,0 +1,154 @@
+import { beforeEach, describe, expect, it, vi } from "vitest";
+
+const stateRepo = vi.hoisted(() => ({
+  readStateText: vi.fn(),
+}));
+
+vi.mock("../../src/dashboard/lib/state-repo", () => stateRepo);
+
+import {
+  listAgencyRuns,
+  readAgencyRunDetail,
+} from "../../src/dashboard/lib/agency-runs";
+
+describe("agency runs", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it("projects the engine run index without scanning goals or logs", async () => {
+    stateRepo.readStateText.mockResolvedValue({
+      path: "A-Guy-Web/runs/index.json",
+      sha: "sha",
+      etag: '"runs-v1"',
+      content: JSON.stringify({
+        version: 1,
+        updatedAt: "2026-07-05T10:03:00.000Z",
+        runs: [
+          {
+            version: 1,
+            id: "workflow:release-queue:run-workflow-1",
+            subjectType: "workflow",
+            subjectId: "release-queue",
+            subjectLabel: "Release queue",
+            status: "running",
+            title: "Release queue",
+            summary: "Planning workflow",
+            currentStep: "plan",
+            startedAt: "2026-07-05T10:00:00.000Z",
+            updatedAt: "2026-07-05T10:02:00.000Z",
+            kodyRunId: "run-workflow-1",
+            model: "claude/claude-haiku-4-5-20251001",
+            modelProvider: "claude",
+            modelName: "claude-haiku-4-5-20251001",
+            executable: "release-prepare",
+            workflow: "release-queue",
+            triggerMode: "manual",
+          },
+          {
+            version: 1,
+            id: "loop:ci-health:gh-123-1",
+            subjectType: "loop",
+            subjectId: "ci-health",
+            subjectModel: "agentLoop",
+            status: "running",
+            title: "ci-health",
+            currentStep: "loop.tick.dispatch",
+            startedAt: "2026-07-05T10:00:00.000Z",
+            updatedAt: "2026-07-05T10:01:00.000Z",
+            kodyRunId: "gh-123-1",
+            githubRunId: "123",
+            githubRunUrl: "https://github.com/test/repo/actions/runs/123",
+            detailUrl: "https://github.com/test/state/ci-health.jsonl",
+            sourcePath: "logs/goals/ci-health/runs/run.jsonl",
+            model: "claude/claude-haiku-4-5-20251001",
+            triggerMode: "scheduled",
+          },
+          {
+            version: 1,
+            id: "capability:ignored:run-1",
+            subjectType: "capability",
+            subjectId: "ignored",
+            status: "running",
+            title: "Ignored",
+            updatedAt: "2026-07-05T10:03:00.000Z",
+          },
+        ],
+      }),
+    });
+
+    const payload = await listAgencyRuns({
+      octokit: {} as never,
+      owner: "test-owner",
+      repo: "test-repo",
+    });
+
+    expect(stateRepo.readStateText).toHaveBeenCalledOnce();
+    expect(stateRepo.readStateText).toHaveBeenCalledWith(
+      {} as never,
+      "test-owner",
+      "test-repo",
+      "runs/index.json",
+      { headers: undefined },
+    );
+    expect(payload.counts).toEqual({ goal: 0, loop: 1, workflow: 1 });
+    expect(payload.source).toEqual({
+      path: "runs/index.json",
+      updatedAt: "2026-07-05T10:03:00.000Z",
+      etag: '"runs-v1"',
+    });
+    expect(payload.runs.map((run) => `${run.kind}:${run.targetId}`)).toEqual([
+      "workflow:release-queue",
+      "loop:ci-health",
+    ]);
+    expect(payload.runs[0]).toMatchObject({
+      model: "claude/claude-haiku-4-5-20251001",
+      executable: "release-prepare",
+      origin: "manual",
+    });
+  });
+
+  it("reads one selected run detail file", async () => {
+    stateRepo.readStateText.mockResolvedValue({
+      path: "A-Guy-Web/logs/goals/ci-health/runs/run.jsonl",
+      sha: "sha",
+      htmlUrl: "https://github.com/test/state/run.jsonl",
+      content: [
+        JSON.stringify({
+          time: "2026-07-05T10:00:00.000Z",
+          event: "loop.tick.dispatch",
+          status: "dispatch",
+        }),
+        JSON.stringify({
+          time: "2026-07-05T10:01:00.000Z",
+          event: "loop.tick.done",
+          status: "completed",
+        }),
+      ].join("\n"),
+    });
+
+    const payload = await readAgencyRunDetail({
+      octokit: {} as never,
+      owner: "test-owner",
+      repo: "test-repo",
+      sourcePath: "logs/goals/ci-health/runs/run.jsonl",
+    });
+
+    expect(payload.events).toHaveLength(2);
+    expect(payload.events[1]).toMatchObject({
+      event: "loop.tick.done",
+      status: "completed",
+    });
+  });
+
+  it("rejects unsupported detail paths", async () => {
+    await expect(
+      readAgencyRunDetail({
+        octokit: {} as never,
+        owner: "test-owner",
+        repo: "test-repo",
+        sourcePath: "../secret.json",
+      }),
+    ).rejects.toThrow("unsupported_run_detail_path");
+  });
+});
