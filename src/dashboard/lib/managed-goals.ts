@@ -78,11 +78,11 @@ export const MANAGED_GOAL_TYPES: ManagedGoalTypeDefinition[] = [
     model: "agentLoop",
     label: "AgentLoop",
     description:
-      "Run recurring capabilities on schedule and surface health or drift.",
+      "Wake a goal, workflow, or capability on schedule and surface health or drift.",
     bestFor:
       "Ongoing health, maintenance, QA sweeps, monitoring, and repo hygiene.",
     systemSummary:
-      "Kody runs agentLoop capabilities on selected schedule and records findings.",
+      "Kody wakes the selected target on schedule and records findings.",
     promptPlaceholder: "Example: Keep codebase healthy and report drift.",
     evidence: [],
     capabilities: [
