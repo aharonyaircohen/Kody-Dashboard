@@ -90,6 +90,36 @@ export function resolveTerminalTargetMachine(
   return brainMachinesForApp.length === 1 ? brainMachinesForApp[0] : null;
 }
 
+export function resolveBrainTerminalTargetInput(
+  inventory: FlyInventory,
+  input?: { app?: string; machineId?: string; feature?: FlyFeature } | null,
+): { app: string; machineId: string; feature: "brain" } | null {
+  if (input?.app && input.machineId) {
+    const target = resolveTerminalTargetMachine(inventory, {
+      app: input.app,
+      machineId: input.machineId,
+      feature: "brain",
+    });
+    if (target?.feature === "brain") {
+      return {
+        app: target.app,
+        machineId: target.machineId,
+        feature: "brain",
+      };
+    }
+  }
+
+  const brainMachines = inventory.machines.filter(
+    (machine) => machine.feature === "brain",
+  );
+  if (brainMachines.length !== 1) return null;
+  return {
+    app: brainMachines[0].app,
+    machineId: brainMachines[0].machineId,
+    feature: "brain",
+  };
+}
+
 export function selectTerminalTarget(
   inventory: FlyInventory,
   input: { app: string; machineId: string; feature?: FlyFeature },

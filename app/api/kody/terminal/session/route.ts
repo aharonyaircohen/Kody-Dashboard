@@ -14,7 +14,6 @@ import { z } from "zod";
 
 import { requireKodyAuth } from "@dashboard/lib/auth";
 import { readBrainRuntimeView } from "@dashboard/lib/brain/runtime-manager";
-import { resolveBrainService } from "@dashboard/lib/brain/service-resolver";
 import {
   clearGitHubContext,
   setGitHubContext,
@@ -34,10 +33,10 @@ import {
   isTerminalFeatureAllowed,
   isTerminalMachineLive,
   isTerminalMachineStartable,
+  resolveBrainTerminalTargetInput,
   resolveTerminalTargetMachine,
   selectTerminalTarget,
   terminalActivityLimitForTarget,
-  upsertTerminalTargetMachine,
 } from "@dashboard/lib/terminal/session";
 import { mintTerminalBridgeToken } from "@dashboard/lib/terminal/terminal-token";
 
@@ -186,23 +185,7 @@ export async function POST(req: NextRequest) {
             runtimeSource: runtime.source,
           };
         }
-        const brain = await resolveBrainService({
-          flyToken: cfg.token,
-          account: ctx.context.account,
-          githubToken: ctx.context.githubToken,
-          orgSlug: cfg.orgSlug,
-          defaultRegion: cfg.defaultRegion,
-        });
-        if (brain.machine) {
-          upsertTerminalTargetMachine(inventory, brain.machine, brain.orgSlug);
-        }
-        if (brain.machineId) {
-          targetInput = {
-            app: brain.app,
-            machineId: brain.machineId,
-            feature: "brain",
-          };
-        }
+        targetInput = resolveBrainTerminalTargetInput(inventory, targetInput);
       } finally {
         clearGitHubContext();
       }

@@ -11,11 +11,6 @@ import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 
 import { requireKodyAuth } from "@dashboard/lib/auth";
-import { resolveBrainService } from "@dashboard/lib/brain/service-resolver";
-import {
-  clearGitHubContext,
-  setGitHubContext,
-} from "@dashboard/lib/github-client";
 import {
   flyConfigFromContext,
   resolveFlyContext,
@@ -25,8 +20,8 @@ import { listFlyInventory } from "@dashboard/lib/runners/fly-inventory";
 import type { FlyPreviewConfig } from "@dashboard/lib/previews/fly-previews";
 import { findTerminalBridge } from "@dashboard/lib/terminal/bridge-fly";
 import {
+  resolveBrainTerminalTargetInput,
   resolveTerminalTargetMachine,
-  upsertTerminalTargetMachine,
 } from "@dashboard/lib/terminal/session";
 import { mintTerminalBridgeToken } from "@dashboard/lib/terminal/terminal-token";
 
@@ -111,34 +106,7 @@ export async function POST(req: NextRequest) {
           }
         : null;
     if (brainRequested) {
-      setGitHubContext(
-        ctx.context.owner,
-        ctx.context.repo,
-        ctx.context.githubToken,
-        ctx.context.storeRepoUrl,
-        ctx.context.storeRef,
-      );
-      try {
-        const brain = await resolveBrainService({
-          flyToken: cfg.token,
-          account: ctx.context.account,
-          githubToken: ctx.context.githubToken,
-          orgSlug: cfg.orgSlug,
-          defaultRegion: cfg.defaultRegion,
-        });
-        if (brain.machine) {
-          upsertTerminalTargetMachine(inventory, brain.machine, brain.orgSlug);
-        }
-        if (brain.machineId) {
-          targetInput = {
-            app: brain.app,
-            machineId: brain.machineId,
-            feature: "brain",
-          };
-        }
-      } finally {
-        clearGitHubContext();
-      }
+      targetInput = resolveBrainTerminalTargetInput(inventory, targetInput);
     }
     if (!targetInput) {
       return NextResponse.json({ ok: true, alive: false });
