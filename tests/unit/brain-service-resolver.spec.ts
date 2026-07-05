@@ -95,6 +95,40 @@ describe("resolveBrainService", () => {
     expect(resolved.machine?.machineId).toBe("m-runtime");
   });
 
+  it("does not let stale runtime app state replace the stored Brain app", async () => {
+    runtimeManager.readBrainRuntimeView.mockResolvedValueOnce({
+      source: "runtime",
+      runningApp: "old-brain",
+      runningMachineId: "m-runtime",
+      runningOrgSlug: "old-org",
+      runningUrl: "https://old-brain.fly.dev",
+    });
+    const { resolveBrainService } = await import(
+      "@dashboard/lib/brain/service-resolver"
+    );
+
+    const resolved = await resolveBrainService({
+      flyToken: "fly-token",
+      account: "octocat",
+      githubToken: "github-token",
+      orgSlug: "personal",
+      defaultRegion: "fra",
+    });
+
+    expect(brainFly.brainStatus).toHaveBeenCalledWith(
+      expect.objectContaining({
+        appNameOverride: "brain-1",
+        machineIdOverride: undefined,
+        orgSlug: "personal",
+      }),
+    );
+    expect(flyPreviews.listMachines).toHaveBeenCalledWith(
+      "brain-1",
+      expect.objectContaining({ orgSlug: "personal" }),
+    );
+    expect(resolved.app).toBe("brain-1");
+  });
+
   it("does not silently fall back when the runtime machine is missing", async () => {
     runtimeManager.readBrainRuntimeView.mockResolvedValueOnce({
       source: "runtime",

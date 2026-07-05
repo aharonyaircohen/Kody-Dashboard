@@ -63,8 +63,11 @@ export async function resolveBrainService(input: {
     stored,
     appNameOverride: input.appNameOverride,
   });
-  const app = input.appNameOverride ?? runtime?.runningApp ?? target.app;
-  const orgSlug = runtime?.runningOrgSlug ?? target.orgSlug;
+  const app = input.appNameOverride ?? target.app;
+  const orgSlug =
+    runtime?.runningApp === app && runtime.runningOrgSlug
+      ? runtime.runningOrgSlug
+      : target.orgSlug;
   const runtimeMachineId =
     runtime?.runningApp === app ? runtime.runningMachineId : undefined;
   const targetMachineId = input.machineIdOverride ?? runtimeMachineId;

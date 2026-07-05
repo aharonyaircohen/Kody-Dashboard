@@ -11,7 +11,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 
 import { requireKodyAuth } from "@dashboard/lib/auth";
-import { readBrainRuntimeView } from "@dashboard/lib/brain/runtime-manager";
+import { resolveBrainService } from "@dashboard/lib/brain/service-resolver";
 import {
   clearGitHubContext,
   setGitHubContext,
@@ -24,7 +24,10 @@ import { appendSavedBrainMachineToInventory } from "@dashboard/lib/runners/fly-i
 import { listFlyInventory } from "@dashboard/lib/runners/fly-inventory";
 import type { FlyPreviewConfig } from "@dashboard/lib/previews/fly-previews";
 import { findTerminalBridge } from "@dashboard/lib/terminal/bridge-fly";
-import { resolveTerminalTargetMachine } from "@dashboard/lib/terminal/session";
+import {
+  resolveTerminalTargetMachine,
+  upsertTerminalTargetMachine,
+} from "@dashboard/lib/terminal/session";
 import { mintTerminalBridgeToken } from "@dashboard/lib/terminal/terminal-token";
 
 export const runtime = "nodejs";
@@ -116,20 +119,20 @@ export async function POST(req: NextRequest) {
         ctx.context.storeRef,
       );
       try {
-        const runtime = await readBrainRuntimeView(
-          ctx.context.account,
-          ctx.context.githubToken,
-        );
-        if (
-          runtime?.desiredImageRef &&
-          runtime.desiredImageRef !== runtime.runningImageRef
-        ) {
-          return NextResponse.json({ ok: true, alive: false });
+        const brain = await resolveBrainService({
+          flyToken: cfg.token,
+          account: ctx.context.account,
+          githubToken: ctx.context.githubToken,
+          orgSlug: cfg.orgSlug,
+          defaultRegion: cfg.defaultRegion,
+        });
+        if (brain.machine) {
+          upsertTerminalTargetMachine(inventory, brain.machine, brain.orgSlug);
         }
-        if (runtime?.runningApp && runtime.runningMachineId) {
+        if (brain.machineId) {
           targetInput = {
-            app: runtime.runningApp,
-            machineId: runtime.runningMachineId,
+            app: brain.app,
+            machineId: brain.machineId,
             feature: "brain",
           };
         }

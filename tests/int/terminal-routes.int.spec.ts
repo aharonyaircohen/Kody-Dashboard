@@ -121,6 +121,29 @@ const runtimeManager = vi.hoisted(() => ({
   ),
 }));
 
+const brainService = vi.hoisted(() => ({
+  resolveBrainService: vi.fn(async () => ({
+    app: "kody-brain-octocat",
+    orgSlug: "personal",
+    defaultRegion: "fra",
+    stored: { app: "kody-brain-octocat", orgSlug: "personal" },
+    state: "running",
+    url: "https://kody-brain-octocat.fly.dev",
+    machineId: "brain-1",
+    machineImageRef: "registry.fly.io/kody-brain-octocat:running",
+    machine: {
+      feature: "brain",
+      app: "kody-brain-octocat",
+      machineId: "brain-1",
+      state: "started",
+      region: "fra",
+      label: "kody-brain-octocat",
+      sizeLabel: "perf 1x",
+      orgSlug: "personal",
+    },
+  })),
+}));
+
 const brainFly = vi.hoisted(() => ({
   provisionBrain: vi.fn(async () => ({
     app: "kody-brain-octocat",
@@ -151,6 +174,7 @@ vi.mock("@dashboard/lib/runners/fly-inventory-server", () => inventoryServer);
 vi.mock("@dashboard/lib/runners/brain-fly", () => brainFly);
 vi.mock("@dashboard/lib/brain/store", () => brainStore);
 vi.mock("@dashboard/lib/brain/runtime-manager", () => runtimeManager);
+vi.mock("@dashboard/lib/brain/service-resolver", () => brainService);
 vi.mock("@dashboard/lib/brain/image-runtime", () => imageRuntime);
 vi.mock("@dashboard/lib/previews/fly-previews", () => flyPreview);
 vi.mock("@dashboard/lib/terminal/bridge-fly", () => bridge);
@@ -179,6 +203,29 @@ function makeStatusReq(body: unknown): NextRequest {
     method: "POST",
     headers: { "content-type": "application/json" },
     body: JSON.stringify(body),
+  });
+}
+
+function mockResolvedBrain(app: string, machineId: string, orgSlug: string) {
+  brainService.resolveBrainService.mockResolvedValueOnce({
+    app,
+    orgSlug,
+    defaultRegion: "fra",
+    stored: { app, orgSlug },
+    state: "running",
+    url: `https://${app}.fly.dev`,
+    machineId,
+    machineImageRef: `registry.fly.io/${app}:running`,
+    machine: {
+      feature: "brain",
+      app,
+      machineId,
+      state: "started",
+      region: "fra",
+      label: app,
+      sizeLabel: "perf 1x",
+      orgSlug,
+    },
   });
 }
 
@@ -213,6 +260,26 @@ beforeEach(() => {
   token.mintTerminalBridgeToken.mockReturnValue("opaque-token");
   brainStore.readBrainImage.mockResolvedValue(null);
   runtimeManager.readBrainRuntimeView.mockResolvedValue({ source: "empty" });
+  brainService.resolveBrainService.mockResolvedValue({
+    app: "kody-brain-octocat",
+    orgSlug: "personal",
+    defaultRegion: "fra",
+    stored: { app: "kody-brain-octocat", orgSlug: "personal" },
+    state: "running",
+    url: "https://kody-brain-octocat.fly.dev",
+    machineId: "brain-1",
+    machineImageRef: "registry.fly.io/kody-brain-octocat:running",
+    machine: {
+      feature: "brain",
+      app: "kody-brain-octocat",
+      machineId: "brain-1",
+      state: "started",
+      region: "fra",
+      label: "kody-brain-octocat",
+      sizeLabel: "perf 1x",
+      orgSlug: "personal",
+    },
+  });
   brainStore.writeBrainApp.mockResolvedValue(undefined);
   brainFly.provisionBrain.mockResolvedValue({
     app: "kody-brain-octocat",
@@ -271,7 +338,7 @@ describe("POST /api/kody/terminal/session", () => {
     expect(brainFly.provisionBrain).not.toHaveBeenCalled();
   });
 
-  it("rejects a selected Brain image that has not been applied", async () => {
+  it("warns when the selected Brain image has not been applied", async () => {
     runtimeManager.readBrainRuntimeView.mockResolvedValueOnce({
       desiredImageRef: "ghcr.io/acme/kody-brain-octocat:selected",
       source: "runtime",
@@ -286,15 +353,21 @@ describe("POST /api/kody/terminal/session", () => {
       }),
     );
 
-    expect(res.status).toBe(409);
+    expect(res.status).toBe(200);
     expect(await res.json()).toMatchObject({
-      error: "selected_image_not_running",
+      ok: true,
+      app: "kody-brain-octocat",
+      machineId: "brain-1",
+      imageWarning: {
+        type: "selected_image_not_running",
+        imageRef: "ghcr.io/acme/kody-brain-octocat:selected",
+      },
     });
     expect(brainFly.provisionBrain).not.toHaveBeenCalled();
-    expect(bridge.ensureTerminalBridge).not.toHaveBeenCalled();
+    expect(bridge.ensureTerminalBridge).toHaveBeenCalled();
   });
 
-  it("rejects a selected Brain image before checking an old waking machine", async () => {
+  it("checks the resolved Brain machine even when image metadata is stale", async () => {
     inventory.listFlyInventory.mockResolvedValueOnce({
       running: 0,
       total: 1,
@@ -315,6 +388,26 @@ describe("POST /api/kody/terminal/session", () => {
       desiredImageRef: "ghcr.io/acme/kody-brain-octocat:selected",
       source: "runtime",
     });
+    brainService.resolveBrainService.mockResolvedValueOnce({
+      app: "kody-brain-octocat",
+      orgSlug: "personal",
+      defaultRegion: "fra",
+      stored: { app: "kody-brain-octocat", orgSlug: "personal" },
+      state: "running",
+      url: "https://kody-brain-octocat.fly.dev",
+      machineId: "brain-1",
+      machineImageRef: "registry.fly.io/kody-brain-octocat:running",
+      machine: {
+        feature: "brain",
+        app: "kody-brain-octocat",
+        machineId: "brain-1",
+        state: "started",
+        region: "fra",
+        label: "kody-brain-octocat",
+        sizeLabel: "perf 1x",
+        orgSlug: "personal",
+      },
+    });
 
     const res = await sessionPOST(
       makeSessionReq({
@@ -325,9 +418,10 @@ describe("POST /api/kody/terminal/session", () => {
       }),
     );
 
-    expect(res.status).toBe(409);
+    expect(res.status).toBe(200);
     expect(await res.json()).toMatchObject({
-      error: "selected_image_not_running",
+      ok: true,
+      imageWarning: { type: "selected_image_not_running" },
     });
     expect(brainFly.provisionBrain).not.toHaveBeenCalled();
     expect(flyPreview.startMachine).not.toHaveBeenCalled();
@@ -362,6 +456,7 @@ describe("POST /api/kody/terminal/session", () => {
   });
 
   it("connects semantic Brain terminal requests through the recorded running machine", async () => {
+    mockResolvedBrain("brain-1", "brain-current", "guy-koren");
     inventory.listFlyInventory.mockResolvedValueOnce({
       running: 1,
       total: 1,
@@ -410,6 +505,7 @@ describe("POST /api/kody/terminal/session", () => {
   });
 
   it("uses the recorded running Brain machine when the UI sends a stale Brain target", async () => {
+    mockResolvedBrain("brain-1", "brain-current", "guy-koren");
     inventory.listFlyInventory.mockResolvedValueOnce({
       running: 2,
       total: 2,
@@ -550,6 +646,7 @@ describe("POST /api/kody/terminal/session", () => {
   });
 
   it("maps stale Brain terminal requests to the resolved Brain machine", async () => {
+    mockResolvedBrain("brain-1", "brain-current", "guy-koren");
     inventory.listFlyInventory.mockResolvedValueOnce({
       running: 1,
       total: 1,
@@ -822,6 +919,7 @@ describe("POST /api/kody/terminal/status", () => {
   });
 
   it("uses the recorded running Brain machine for stale Brain status checks", async () => {
+    mockResolvedBrain("brain-1", "brain-current", "guy-koren");
     inventory.listFlyInventory.mockResolvedValueOnce({
       running: 2,
       total: 2,
@@ -888,6 +986,7 @@ describe("POST /api/kody/terminal/status", () => {
   });
 
   it("checks semantic Brain terminal status through the recorded running machine", async () => {
+    mockResolvedBrain("brain-1", "brain-current", "guy-koren");
     inventory.listFlyInventory.mockResolvedValueOnce({
       running: 1,
       total: 1,

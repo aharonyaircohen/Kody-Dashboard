@@ -788,8 +788,29 @@ export const ChatTerminalSurface = forwardRef<
           throw new Error(body.message ?? body.error ?? `HTTP ${res.status}`);
         }
         flyConnectFailureKeyRef.current = null;
-        const session = (await res.json()) as { webSocketUrl: string };
+        const session = (await res.json()) as {
+          webSocketUrl: string;
+          imageWarning?: {
+            type?: string;
+            imageRef?: string;
+            runningImageRef?: string | null;
+          };
+        };
         if (!isCurrentFlyConnect()) return;
+        if (
+          session.imageWarning?.type === "selected_image_not_running" &&
+          typeof session.imageWarning.imageRef === "string"
+        ) {
+          const selectedLabel = shortBrainImageLabel(
+            session.imageWarning.imageRef,
+          );
+          const runningLabel = shortBrainImageLabel(
+            session.imageWarning.runningImageRef,
+          );
+          terminal.writeln(
+            `\x1b[33mSelected image is not running. Selected: ${selectedLabel}; running: ${runningLabel}. Connecting to the active Brain machine.\x1b[0m`,
+          );
+        }
         const ws = new WebSocket(session.webSocketUrl);
         if (!isCurrentFlyConnect()) {
           ws.close(1000, "stale terminal connection");

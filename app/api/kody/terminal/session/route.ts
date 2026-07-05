@@ -14,6 +14,7 @@ import { z } from "zod";
 
 import { requireKodyAuth } from "@dashboard/lib/auth";
 import { readBrainRuntimeView } from "@dashboard/lib/brain/runtime-manager";
+import { resolveBrainService } from "@dashboard/lib/brain/service-resolver";
 import {
   clearGitHubContext,
   setGitHubContext,
@@ -36,6 +37,7 @@ import {
   resolveTerminalTargetMachine,
   selectTerminalTarget,
   terminalActivityLimitForTarget,
+  upsertTerminalTargetMachine,
 } from "@dashboard/lib/terminal/session";
 import { mintTerminalBridgeToken } from "@dashboard/lib/terminal/terminal-token";
 
@@ -142,6 +144,14 @@ export async function POST(req: NextRequest) {
     await appendSavedBrainMachineToInventory(req, inventory);
     const brainRequested =
       parsed.data.target === "brain" || parsed.data.feature === "brain";
+    let imageWarning:
+      | {
+          type: "selected_image_not_running";
+          imageRef: string;
+          runningImageRef?: string | null;
+          runtimeSource?: string;
+        }
+      | undefined;
     let targetInput:
       | { app: string; machineId: string; feature?: "runner" | "brain" }
       | null =
@@ -169,21 +179,27 @@ export async function POST(req: NextRequest) {
           runtime?.desiredImageRef &&
           runtime.desiredImageRef !== runtime.runningImageRef
         ) {
-          return NextResponse.json(
-            {
-              error: "selected_image_not_running",
-              message: TARGET_MESSAGE.selected_image_not_running,
-              imageRef: runtime.desiredImageRef,
-              runningImageRef: runtime.runningImageRef,
-              runtimeSource: runtime.source,
-            },
-            { status: TARGET_STATUS.selected_image_not_running },
-          );
+          imageWarning = {
+            type: "selected_image_not_running",
+            imageRef: runtime.desiredImageRef,
+            runningImageRef: runtime.runningImageRef,
+            runtimeSource: runtime.source,
+          };
         }
-        if (runtime?.runningApp && runtime.runningMachineId) {
+        const brain = await resolveBrainService({
+          flyToken: cfg.token,
+          account: ctx.context.account,
+          githubToken: ctx.context.githubToken,
+          orgSlug: cfg.orgSlug,
+          defaultRegion: cfg.defaultRegion,
+        });
+        if (brain.machine) {
+          upsertTerminalTargetMachine(inventory, brain.machine, brain.orgSlug);
+        }
+        if (brain.machineId) {
           targetInput = {
-            app: runtime.runningApp,
-            machineId: runtime.runningMachineId,
+            app: brain.app,
+            machineId: brain.machineId,
             feature: "brain",
           };
         }
@@ -295,6 +311,7 @@ export async function POST(req: NextRequest) {
       bridgeApp: bridge.app,
       expiresAt: new Date((now + 120) * 1000).toISOString(),
       webSocketUrl,
+      ...(imageWarning ? { imageWarning } : {}),
     });
   } catch (err) {
     logger.error(

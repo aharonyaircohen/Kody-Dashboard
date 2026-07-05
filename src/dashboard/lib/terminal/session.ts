@@ -43,6 +43,22 @@ export function isTerminalMachineStartable(state: string): boolean {
   return STARTABLE_STATES.has(state);
 }
 
+export function upsertTerminalTargetMachine(
+  inventory: FlyInventory,
+  machine: FlyMachineRow,
+  orgSlug: string,
+): void {
+  inventory.machines = inventory.machines.filter(
+    (item) =>
+      item.app !== machine.app || item.machineId !== machine.machineId,
+  );
+  inventory.machines.push({ ...machine, orgSlug: machine.orgSlug ?? orgSlug });
+  inventory.total = inventory.machines.length;
+  inventory.running = inventory.machines.filter((item) =>
+    isTerminalMachineLive(item.state),
+  ).length;
+}
+
 export function findTerminalTargetMachine(
   inventory: FlyInventory,
   input: { app: string; machineId: string; feature?: FlyFeature },
