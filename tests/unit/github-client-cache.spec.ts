@@ -21,15 +21,29 @@
  */
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 
-const { issuesGet, listForRepo } = vi.hoisted(() => ({
+const {
+  issuesGet,
+  listForRepo,
+  listWorkflowRuns,
+  listWorkflowRunArtifacts,
+  downloadArtifact,
+} = vi.hoisted(() => ({
   issuesGet: vi.fn(),
   listForRepo: vi.fn(),
+  listWorkflowRuns: vi.fn(),
+  listWorkflowRunArtifacts: vi.fn(),
+  downloadArtifact: vi.fn(),
 }));
 
 vi.mock("@octokit/plugin-throttling", () => ({ throttling: () => ({}) }));
 vi.mock("@octokit/rest", () => {
   class FakeOctokit {
     issues = { get: issuesGet, listForRepo: listForRepo };
+    actions = {
+      listWorkflowRuns,
+      listWorkflowRunArtifacts,
+      downloadArtifact,
+    };
     static plugin() {
       return FakeOctokit;
     }
@@ -50,7 +64,10 @@ import {
   invalidateCommandsCache,
   invalidateMemoryCache,
   setCache,
+  fetchWorkflowRuns,
+  fetchKodyRunLogArtifact,
 } from "@dashboard/lib/github-client";
+import type { WorkflowRun } from "@dashboard/lib/types";
 
 // Minimal shapes matching what the mappers in github-client read.
 function issuePayload(number: number, overrides: Record<string, unknown> = {}) {
@@ -91,6 +108,21 @@ function listPayload(numbers: number[], etag = '"list-v1"') {
       html_url: `https://github.com/acme/widgets/issues/${n}`,
     })),
     headers: { etag },
+  };
+}
+
+function workflowRunPayload(id: number): WorkflowRun {
+  return {
+    id,
+    status: "completed",
+    conclusion: "success",
+    created_at: "2026-01-01T00:00:00Z",
+    updated_at: "2026-01-01T00:01:00Z",
+    html_url: `https://github.com/acme/widgets/actions/runs/${id}`,
+    display_title: `run-${id}`,
+    run_number: id,
+    run_attempt: 1,
+    actor: "kody",
   };
 }
 
@@ -167,6 +199,40 @@ describe("fetchIssue caching", () => {
     const cached = await fetchIssue(42);
     expect(cached?.title).toBe("issue-42");
     expect(issuesGet).toHaveBeenCalledTimes(2);
+  });
+});
+
+describe("workflow and run-log artifact caching", () => {
+  it("collapses concurrent workflow-run reads into one GitHub call", async () => {
+    listWorkflowRuns.mockResolvedValueOnce({
+      data: { workflow_runs: [workflowRunPayload(123)] },
+      headers: { etag: '"runs-v1"' },
+    });
+
+    const [a, b] = await Promise.all([
+      fetchWorkflowRuns({ perPage: 10 }),
+      fetchWorkflowRuns({ perPage: 10 }),
+    ]);
+
+    expect(a).toEqual(b);
+    expect(listWorkflowRuns).toHaveBeenCalledTimes(1);
+  });
+
+  it("collapses concurrent missing run-log artifact reads into one artifact listing", async () => {
+    listWorkflowRunArtifacts.mockResolvedValueOnce({
+      data: { artifacts: [] },
+    });
+
+    const run = workflowRunPayload(456);
+    const [a, b] = await Promise.all([
+      fetchKodyRunLogArtifact(run),
+      fetchKodyRunLogArtifact(run),
+    ]);
+
+    expect(a).toEqual(b);
+    expect(a.artifactStatus).toBe("missing");
+    expect(listWorkflowRunArtifacts).toHaveBeenCalledTimes(1);
+    expect(downloadArtifact).not.toHaveBeenCalled();
   });
 });
 

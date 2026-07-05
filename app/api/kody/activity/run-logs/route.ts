@@ -19,9 +19,9 @@ import {
 import { buildRunLogsSnapshot } from "@dashboard/lib/activity/run-logs";
 
 function parseLimit(req: NextRequest): number {
-  const raw = Number(req.nextUrl.searchParams.get("limit") ?? 20);
-  if (!Number.isFinite(raw)) return 20;
-  return Math.max(1, Math.min(50, Math.floor(raw)));
+  const raw = Number(req.nextUrl.searchParams.get("limit") ?? 10);
+  if (!Number.isFinite(raw)) return 10;
+  return Math.max(1, Math.min(25, Math.floor(raw)));
 }
 
 async function mapWithConcurrency<T, R>(

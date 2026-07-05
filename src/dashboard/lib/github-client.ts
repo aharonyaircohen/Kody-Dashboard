@@ -997,74 +997,86 @@ export async function fetchKodyRunLogArtifact(
   const cached = getCached<KodyRunLogsRun>(cacheKey);
   if (cached) return cached;
 
+  const existing = inflightRunLogArtifacts.get(cacheKey);
+  if (existing) return existing;
+
   const octokit = getOctokit();
 
-  try {
-    const { data } = await octokit.actions.listWorkflowRunArtifacts({
-      owner: getOwner(),
-      repo: getRepo(),
-      run_id: run.id,
-      per_page: 100,
-    });
+  const promise = (async () => {
+    try {
+      const { data } = await octokit.actions.listWorkflowRunArtifacts({
+        owner: getOwner(),
+        repo: getRepo(),
+        run_id: run.id,
+        per_page: 100,
+      });
 
-    const artifact = data.artifacts.find((a) => a.name === artifactName);
-    if (!artifact) {
-      setCache(cacheKey, CACHE_TTL.pipeline, base);
-      return base;
-    }
+      const artifact = data.artifacts.find((a) => a.name === artifactName);
+      if (!artifact) {
+        setCache(cacheKey, CACHE_TTL.pipeline, base);
+        return base;
+      }
 
-    if (artifact.expired) {
-      const expired = {
+      if (artifact.expired) {
+        const expired = {
+          ...base,
+          artifactStatus: "expired" as const,
+          artifactUrl: artifact.archive_download_url ?? null,
+        };
+        setCache(cacheKey, CACHE_TTL.pipeline, expired);
+        return expired;
+      }
+
+      const response = await octokit.actions.downloadArtifact({
+        owner: getOwner(),
+        repo: getRepo(),
+        artifact_id: artifact.id,
+        archive_format: "zip",
+      });
+      const parsed = parseKodyRunLogZip(
+        await artifactResponseToBuffer(response.data),
+        run.id,
+      );
+
+      const result: KodyRunLogsRun = {
         ...base,
-        artifactStatus: "expired" as const,
+        artifactStatus: parsed ? "available" : "error",
         artifactUrl: artifact.archive_download_url ?? null,
-      };
-      setCache(cacheKey, CACHE_TTL.pipeline, expired);
-      return expired;
-    }
-
-    const response = await octokit.actions.downloadArtifact({
-      owner: getOwner(),
-      repo: getRepo(),
-      artifact_id: artifact.id,
-      archive_format: "zip",
-    });
-    const parsed = parseKodyRunLogZip(
-      await artifactResponseToBuffer(response.data),
-      run.id,
-    );
-
-    const result: KodyRunLogsRun = {
-      ...base,
-      artifactStatus: parsed ? "available" : "error",
-      artifactUrl: artifact.archive_download_url ?? null,
-      message: parsed
-        ? null
-        : "Run log artifact did not contain .kody/agent-runs/<runId>/events.jsonl.",
-      events: parsed?.events ?? [],
-      timeline: parsed?.timeline ?? [],
-      agencyBoundaryEvals: parsed?.agencyBoundaryEvals ?? [],
-    };
-    setCache(cacheKey, CACHE_TTL.pipeline, result);
-    return result;
-  } catch (error: any) {
-    if (error.status !== 404 && error.status !== 410) {
-      console.warn("[Kody] Error fetching run log artifact:", error);
-      const result = {
-        ...base,
-        artifactStatus: "error" as const,
-        message:
-          error?.message ??
-          "Run log artifact could not be downloaded from GitHub Actions.",
-        agencyBoundaryEvals: [],
+        message: parsed
+          ? null
+          : "Run log artifact did not contain .kody/agent-runs/<runId>/events.jsonl.",
+        events: parsed?.events ?? [],
+        timeline: parsed?.timeline ?? [],
+        agencyBoundaryEvals: parsed?.agencyBoundaryEvals ?? [],
       };
       setCache(cacheKey, CACHE_TTL.pipeline, result);
       return result;
+    } catch (error: any) {
+      if (error.status !== 404 && error.status !== 410) {
+        console.warn("[Kody] Error fetching run log artifact:", error);
+        const result = {
+          ...base,
+          artifactStatus: "error" as const,
+          message:
+            error?.message ??
+            "Run log artifact could not be downloaded from GitHub Actions.",
+          agencyBoundaryEvals: [],
+        };
+        setCache(cacheKey, CACHE_TTL.pipeline, result);
+        return result;
+      }
+      setCache(cacheKey, CACHE_TTL.pipeline, base);
+      return base;
     }
-    setCache(cacheKey, CACHE_TTL.pipeline, base);
-    return base;
-  }
+  })().finally(() => {
+    inflightRunLogArtifacts.delete(cacheKey);
+  });
+
+  inflightRunLogArtifacts.set(cacheKey, promise);
+  return promise;
 }
+
+const inflightRunLogArtifacts = new Map<string, Promise<KodyRunLogsRun>>();
 
 async function artifactResponseToBuffer(data: unknown): Promise<Buffer> {
   if (Buffer.isBuffer(data)) return data;
@@ -1526,49 +1538,63 @@ export async function fetchWorkflowRuns(options?: {
   const cached = getCached<WorkflowRun[]>(cacheKey);
   if (cached) return cached;
 
+  const existing = inflightWorkflowRuns.get(cacheKey);
+  if (existing) return existing;
+
   const stale = getStale<WorkflowRun[]>(cacheKey);
   const octokit = getOctokit();
 
-  let response;
-  try {
-    response = await octokit.actions.listWorkflowRuns({
-      owner: getOwner(),
-      repo: getRepo(),
-      workflow_id: WORKFLOW_ID,
-      status: options?.status,
-      per_page: options?.perPage || 20,
-      headers: stale?.etag ? { "If-None-Match": stale.etag } : undefined,
-    });
-  } catch (err: any) {
-    if (err.status === 304 && stale) {
-      setCache(cacheKey, CACHE_TTL.pipeline, stale.data, { etag: stale.etag });
-      return stale.data;
+  const promise = (async () => {
+    let response;
+    try {
+      response = await octokit.actions.listWorkflowRuns({
+        owner: getOwner(),
+        repo: getRepo(),
+        workflow_id: WORKFLOW_ID,
+        status: options?.status,
+        per_page: options?.perPage || 20,
+        headers: stale?.etag ? { "If-None-Match": stale.etag } : undefined,
+      });
+    } catch (err: any) {
+      if (err.status === 304 && stale) {
+        setCache(cacheKey, CACHE_TTL.pipeline, stale.data, {
+          etag: stale.etag,
+        });
+        return stale.data;
+      }
+      throw err;
     }
-    throw err;
-  }
 
-  const data = response.data;
-  const newEtag = (response.headers as Record<string, string | undefined>)
-    ?.etag;
+    const data = response.data;
+    const newEtag = (response.headers as Record<string, string | undefined>)
+      ?.etag;
 
-  const runs: WorkflowRun[] = data.workflow_runs.map((run) => ({
-    id: run.id,
-    status: run.status as "queued" | "in_progress" | "completed",
-    conclusion: run.conclusion,
-    created_at: run.created_at,
-    updated_at: run.updated_at,
-    html_url: run.html_url,
-    display_title: (run as any).display_title ?? "",
-    head_branch: (run as any).head_branch ?? undefined,
-    event: (run as any).event ?? undefined,
-    run_number: (run as any).run_number ?? undefined,
-    run_attempt: (run as any).run_attempt ?? undefined,
-    actor: (run as any).triggering_actor?.login ?? (run as any).actor?.login,
-  }));
+    const runs: WorkflowRun[] = data.workflow_runs.map((run) => ({
+      id: run.id,
+      status: run.status as "queued" | "in_progress" | "completed",
+      conclusion: run.conclusion,
+      created_at: run.created_at,
+      updated_at: run.updated_at,
+      html_url: run.html_url,
+      display_title: (run as any).display_title ?? "",
+      head_branch: (run as any).head_branch ?? undefined,
+      event: (run as any).event ?? undefined,
+      run_number: (run as any).run_number ?? undefined,
+      run_attempt: (run as any).run_attempt ?? undefined,
+      actor: (run as any).triggering_actor?.login ?? (run as any).actor?.login,
+    }));
 
-  setCache(cacheKey, CACHE_TTL.pipeline, runs, { etag: newEtag });
-  return runs;
+    setCache(cacheKey, CACHE_TTL.pipeline, runs, { etag: newEtag });
+    return runs;
+  })().finally(() => {
+    inflightWorkflowRuns.delete(cacheKey);
+  });
+
+  inflightWorkflowRuns.set(cacheKey, promise);
+  return promise;
 }
+
+const inflightWorkflowRuns = new Map<string, Promise<WorkflowRun[]>>();
 
 // ============ Default-branch CI roll-up ============
 //
