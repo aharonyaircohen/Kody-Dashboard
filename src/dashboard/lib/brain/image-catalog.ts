@@ -9,6 +9,8 @@
  */
 import "server-only";
 
+import { createHash } from "node:crypto";
+
 import { logger } from "@dashboard/lib/logger";
 import { createServerTtlCache } from "@dashboard/lib/server-ttl-cache";
 import { brainGhcrImageRef } from "./image-save";
@@ -29,6 +31,10 @@ const DISCOVERED_IMAGES_TTL_MS = 60_000;
 const discoveredImagesCache = createServerTtlCache<BrainSavedImage[]>({
   ttlMs: DISCOVERED_IMAGES_TTL_MS,
 });
+
+function tokenKey(token: string): string {
+  return createHash("sha256").update(token).digest("hex").slice(0, 16);
+}
 
 function brainImagePackage(input: { owner: string; account: string }): {
   baseRef: string;
@@ -207,14 +213,20 @@ async function fetchBrainPackageImages(input: {
   return [];
 }
 
-export async function discoverBrainPackageImages(input: {
-  owner: string;
-  repo: string;
-  account: string;
-  githubToken: string;
-}): Promise<BrainSavedImage[]> {
-  const cacheKey = `${input.owner}/${input.repo}:${input.account}`;
+export async function discoverBrainPackageImages(
+  input: {
+    owner: string;
+    repo: string;
+    account: string;
+    githubToken: string;
+  },
+  options: { refresh?: boolean; scope?: string } = {},
+): Promise<BrainSavedImage[]> {
+  const cacheKey = `${input.owner}/${input.repo}:${input.account}:${options.scope ?? "catalog"}:${tokenKey(
+    input.githubToken,
+  )}`;
   try {
+    if (options.refresh) discoveredImagesCache.delete(cacheKey);
     return await discoveredImagesCache.get(cacheKey, () =>
       fetchBrainPackageImages(input),
     );

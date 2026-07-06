@@ -32,14 +32,9 @@ import { isFlyMachineRunning } from "@dashboard/lib/runners/fly-machine-model";
 import { createServerTtlCache } from "@dashboard/lib/server-ttl-cache";
 
 const FLY_INVENTORY_TTL_MS = 15_000;
-const SAVED_BRAIN_SERVICE_TTL_MS = 15_000;
 const flyInventoryCache = createServerTtlCache<FlyInventory>({
   ttlMs: FLY_INVENTORY_TTL_MS,
 });
-const savedBrainServiceCache =
-  createServerTtlCache<SavedBrainServiceForRequest | null>({
-    ttlMs: SAVED_BRAIN_SERVICE_TTL_MS,
-  });
 
 export function emptyFlyInventory(): FlyInventory {
   return { machines: [], running: 0, total: 0 };
@@ -68,16 +63,6 @@ function tokenKey(token: string): string {
 
 function flyInventoryKey(cfg: FlyPreviewConfig): string {
   return `${cfg.orgSlug ?? ""}:${tokenKey(cfg.token)}`;
-}
-
-function savedBrainServiceKey(context: FlyContext): string {
-  return [
-    context.owner,
-    context.repo,
-    context.account,
-    context.flyOrgSlug ?? "",
-    tokenKey(context.flyToken ?? ""),
-  ].join(":");
 }
 
 export interface SavedBrainServiceForRequest {
@@ -109,7 +94,9 @@ export function applySavedBrainMachineToInventory(
 export async function listFlyInventoryCached(
   cfg: FlyPreviewConfig,
 ): Promise<FlyInventory> {
-  return flyInventoryCache.get(flyInventoryKey(cfg), () => listFlyInventory(cfg));
+  return flyInventoryCache.get(flyInventoryKey(cfg), () =>
+    listFlyInventory(cfg),
+  );
 }
 
 export async function resolveSavedBrainServiceForRequest(
@@ -124,44 +111,42 @@ export async function resolveSavedBrainServiceForRequest(
   const initialFlyToken = resolvedContext.flyToken;
   if (!initialFlyToken) return null;
 
-  return savedBrainServiceCache.get(savedBrainServiceKey(resolvedContext), async () => {
-    setGitHubContext(
-      resolvedContext.owner,
-      resolvedContext.repo,
-      resolvedContext.githubToken,
-      resolvedContext.storeRepoUrl,
-      resolvedContext.storeRef,
-    );
-    try {
-      const resolveBrain = (flyToken: string) =>
-        resolveBrainService({
-          flyToken,
-          account: resolvedContext.account,
-          githubToken: resolvedContext.githubToken,
-          orgSlug: resolvedContext.flyOrgSlug,
-          defaultRegion: resolvedContext.flyDefaultRegion,
-        });
-      let flyToken = initialFlyToken;
-      let brain = await resolveBrain(flyToken);
-      const fallbackToken = envFlyTokenFallback(initialFlyToken);
-      if (brain.stored && !brain.machine && fallbackToken) {
-        const fallbackBrain = await resolveBrain(fallbackToken);
-        if (fallbackBrain.machine) {
-          brain = fallbackBrain;
-          flyToken = fallbackToken;
-        }
+  setGitHubContext(
+    ctx.context.owner,
+    ctx.context.repo,
+    ctx.context.githubToken,
+    ctx.context.storeRepoUrl,
+    ctx.context.storeRef,
+  );
+  try {
+    const resolveBrain = (flyToken: string) =>
+      resolveBrainService({
+        flyToken,
+        account: resolvedContext.account,
+        githubToken: resolvedContext.githubToken,
+        orgSlug: resolvedContext.flyOrgSlug,
+        defaultRegion: resolvedContext.flyDefaultRegion,
+      });
+    let flyToken = initialFlyToken;
+    let brain = await resolveBrain(flyToken);
+    const fallbackToken = envFlyTokenFallback(initialFlyToken);
+    if (brain.stored && !brain.machine && fallbackToken) {
+      const fallbackBrain = await resolveBrain(fallbackToken);
+      if (fallbackBrain.machine) {
+        brain = fallbackBrain;
+        flyToken = fallbackToken;
       }
-      return { brain, context: resolvedContext, flyToken };
-    } catch (err) {
-      logger.warn(
-        { err, owner: resolvedContext.owner },
-        "fly-inventory: saved Brain machine lookup failed",
-      );
-      return null;
-    } finally {
-      clearGitHubContext();
     }
-  });
+    return { brain, context: resolvedContext, flyToken };
+  } catch (err) {
+    logger.warn(
+      { err, owner: resolvedContext.owner },
+      "fly-inventory: saved Brain machine lookup failed",
+    );
+    return null;
+  } finally {
+    clearGitHubContext();
+  }
 }
 
 export async function appendSavedBrainMachineToInventory(

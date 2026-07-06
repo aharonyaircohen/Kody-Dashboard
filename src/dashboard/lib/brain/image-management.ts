@@ -119,18 +119,24 @@ function imageManagementResponse(
   };
 }
 
-async function discoverImages(context: FlyContext): Promise<BrainSavedImage[]> {
+async function discoverImages(
+  context: FlyContext,
+  options: { refresh?: boolean; scope?: string } = {},
+): Promise<BrainSavedImage[]> {
   const ghcr = brainGhcrAuth({
     allSecrets: context.allSecrets,
     githubToken: context.githubToken,
     account: context.account,
   });
-  return discoverBrainPackageImages({
-    owner: context.owner,
-    repo: context.repo,
-    account: context.account,
-    githubToken: ghcr.token,
-  });
+  return discoverBrainPackageImages(
+    {
+      owner: context.owner,
+      repo: context.repo,
+      account: context.account,
+      githubToken: ghcr.token,
+    },
+    options,
+  );
 }
 
 async function recordCompletedBrainImageSave(input: {
@@ -141,10 +147,9 @@ async function recordCompletedBrainImageSave(input: {
   finishedAt?: string | null;
   lastOutput?: string;
 }) {
-  const previous = await readBrainImage(
-    input.account,
-    input.githubToken,
-  ).catch(() => null);
+  const previous = await readBrainImage(input.account, input.githubToken).catch(
+    () => null,
+  );
   const now = new Date().toISOString();
   await writeBrainImage(
     input.account,
@@ -181,9 +186,7 @@ async function recordCompletedBrainImageSave(input: {
   };
 }
 
-export async function readBrainImageManagement(input: {
-  context: FlyContext;
-}) {
+export async function readBrainImageManagement(input: { context: FlyContext }) {
   const { context } = input;
   const image = await readBrainImage(context.account, context.githubToken);
   const discoveredImages = await discoverImages(context);
@@ -250,7 +253,10 @@ export async function pollBrainImageSave(input: {
     );
   }
 
-  const discoveredImages = await discoverImages(context);
+  const discoveredImages = await discoverImages(context, {
+    refresh: true,
+    scope: save.expectedImageRef,
+  });
   const completedImage = discoveredImages.find(
     (image) => image.imageRef === save.expectedImageRef,
   );
@@ -299,12 +305,34 @@ export async function pollBrainImageSave(input: {
       save.message !== updatedSave.message ||
       save.lastOutput !== updatedSave.lastOutput
     ) {
-      await writeBrainImageSave(context.account, context.githubToken, updatedSave);
+      await writeBrainImageSave(
+        context.account,
+        context.githubToken,
+        updatedSave,
+      );
     }
     return savePollResponse(updatedSave, job);
   }
 
   if (job.status === "failed") {
+    const refreshedImages = await discoverImages(context, {
+      refresh: true,
+      scope: save.expectedImageRef,
+    });
+    const completedImageAfterFailure = refreshedImages.find(
+      (image) => image.imageRef === save.expectedImageRef,
+    );
+    if (completedImageAfterFailure) {
+      return recordCompletedBrainImageSave({
+        account: context.account,
+        githubToken: context.githubToken,
+        save,
+        imageRef: save.expectedImageRef,
+        finishedAt: completedImageAfterFailure.updatedAt,
+        lastOutput: progress.lastOutput,
+      });
+    }
+
     const failed: BrainImageSaveFile = {
       ...save,
       status: "failed",
@@ -371,7 +399,10 @@ export async function selectBrainImageRef(input: {
     );
   }
   await selectBrainRuntimeImage(context.account, context.githubToken, imageRef);
-  const runtime = await readBrainRuntimeView(context.account, context.githubToken);
+  const runtime = await readBrainRuntimeView(
+    context.account,
+    context.githubToken,
+  );
   return imageManagementResponse(image, runtime);
 }
 
@@ -385,6 +416,9 @@ export async function forgetBrainImageRef(input: {
     context.githubToken,
     imageRef,
   );
-  const runtime = await readBrainRuntimeView(context.account, context.githubToken);
+  const runtime = await readBrainRuntimeView(
+    context.account,
+    context.githubToken,
+  );
   return imageManagementResponse(image, runtime);
 }

@@ -13,14 +13,14 @@ import "server-only";
 import type { NextRequest } from "next/server";
 
 import type { FlyPreviewConfig } from "@dashboard/lib/previews/fly-previews";
-import type {
+import {
+  listFlyInventory,
   FlyInventory,
   FlyMachineRow,
 } from "@dashboard/lib/runners/fly-inventory";
 import {
   applySavedBrainMachineToInventory,
   emptyFlyInventory,
-  listFlyInventoryCached,
   refreshFlyInventoryCounts,
   resolveSavedBrainServiceForRequest,
   type SavedBrainServiceForRequest,
@@ -126,7 +126,7 @@ export async function loadTerminalInventoryAuthority(
 
   let inventory: FlyInventory;
   try {
-    inventory = await listFlyInventoryCached(cfg);
+    inventory = await listFlyInventory(cfg);
   } catch (err) {
     if (savedBrainTargetsRequest(savedBrain, target)) {
       return {
