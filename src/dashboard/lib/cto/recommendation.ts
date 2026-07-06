@@ -73,7 +73,7 @@ const FALLBACK_COMMAND: Partial<Record<CtoAction, string>> = {
 const MAX_COMMAND_LEN = 300;
 
 /**
- * Verbs the engine has no executable for. A `kody-cmd` naming one is an agentIdentity
+ * Verbs the engine has no implementation for. A `kody-cmd` naming one is an agentIdentity
  * bug — e.g. the QA capability emitting `@kody approve` for a PASS/CONCERNS result.
  * `approve`/`reject`/`dismiss` are human inbox gates, not engine commands, so
  * posting them verbatim makes the engine reply "I don't recognize approve."

@@ -37,9 +37,9 @@ export interface KodyWorkflowDispatchInputRequest {
 const KODY_WORKFLOW_PATH = ".github/workflows/kody.yml";
 const ACTION_INPUT_KEYS = [
   "capability",
-  "executable",
+  "implementation",
   "capability",
-  "executable",
+  "implementation",
 ] as const;
 
 function indentation(line: string): number {
@@ -163,11 +163,11 @@ function buildInputsForNames(
   if (request.action) {
     const actionInput =
       inputNames === null
-        ? "executable"
+        ? "implementation"
         : ACTION_INPUT_KEYS.find((key) => inputNames.has(key));
     if (!actionInput) {
       throw new Error(
-        "kody.yml workflow_dispatch must declare capability, executable, capability, or executable input.",
+        "kody.yml workflow_dispatch must declare capability, implementation, capability, or implementation input.",
       );
     }
     inputs[actionInput] = request.action;

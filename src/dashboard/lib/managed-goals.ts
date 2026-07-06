@@ -204,7 +204,6 @@ export interface ManagedGoalCapabilityScheduleState {
         action?: string;
         workflow?: string;
         implementation?: string;
-        executable?: string;
         reason: string;
         at: string;
       }
@@ -297,7 +296,7 @@ export function canDeleteManagedGoal(goal: ManagedGoalRecord): boolean {
 export function managedGoalModel(goal: ManagedGoalRecord): ManagedGoalModel {
   if (
     goal.state.scheduleMode === "agentLoop" ||
-    goal.state.scheduleMode === "duty-cadence"
+    goal.state.scheduleMode === "capability-cadence"
   ) {
     return "agentLoop";
   }
@@ -601,7 +600,6 @@ function normalizeManagedGoalScheduleState(
           action?: unknown;
           workflow?: unknown;
           implementation?: unknown;
-          executable?: unknown;
           reason?: unknown;
           at?: unknown;
         })
@@ -623,8 +621,8 @@ function normalizeManagedGoalScheduleState(
               ? rawDecision.workflow
               : typeof rawDecision.implementation === "string"
                 ? rawDecision.implementation
-                : typeof rawDecision.executable === "string"
-                  ? rawDecision.executable
+                : typeof rawDecision.implementation === "string"
+                  ? rawDecision.implementation
                   : undefined;
     lastDecision = {
       kind: "dispatch",
@@ -644,11 +642,11 @@ function normalizeManagedGoalScheduleState(
         : {}),
       ...(typeof rawDecision.implementation === "string"
         ? { implementation: rawDecision.implementation }
-        : typeof rawDecision.executable === "string"
-          ? { implementation: rawDecision.executable }
+        : typeof rawDecision.implementation === "string"
+          ? { implementation: rawDecision.implementation }
           : {}),
-      ...(typeof rawDecision.executable === "string"
-        ? { executable: rawDecision.executable }
+      ...(typeof rawDecision.implementation === "string"
+        ? { implementation: rawDecision.implementation }
         : {}),
       reason: typeof rawDecision.reason === "string" ? rawDecision.reason : "",
       at: typeof rawDecision.at === "string" ? rawDecision.at : "",
@@ -859,8 +857,7 @@ export function normalizeManagedGoalState(
       if (!step || typeof step !== "object" || Array.isArray(step)) return null;
       const legacyStep = step as ManagedGoalRouteStep & {
         capability?: unknown;
-        executable?: unknown;
-        duty?: unknown;
+        implementation?: unknown;
       };
       const stage =
         typeof legacyStep.stage === "string" ? legacyStep.stage : "";
@@ -869,11 +866,9 @@ export function normalizeManagedGoalState(
       const rawCapability =
         typeof legacyStep.capability === "string"
           ? legacyStep.capability
-          : typeof legacyStep.executable === "string"
-            ? legacyStep.executable
-            : typeof legacyStep.duty === "string"
-              ? legacyStep.duty
-              : "";
+          : typeof legacyStep.implementation === "string"
+            ? legacyStep.implementation
+            : "";
 
       if (!stage || !evidence || !rawCapability) return null;
       const capability = normalizeManagedGoalCapability(goal, rawCapability);
@@ -889,12 +884,6 @@ export function normalizeManagedGoalState(
     })
     .filter((step): step is ManagedGoalRouteStep => !!step);
 
-  const legacyDuties = (goal as { duties?: unknown }).duties;
-  const legacyResponsibilities = (
-    goal as {
-      capabilities?: unknown;
-    }
-  ).capabilities;
   const scheduleState = normalizeManagedGoalScheduleState(
     (goal as { scheduleState?: unknown }).scheduleState,
   );
@@ -902,18 +891,6 @@ export function normalizeManagedGoalState(
     [
       ...(Array.isArray(goal.capabilities)
         ? goal.capabilities.filter(
-            (capability): capability is string =>
-              typeof capability === "string",
-          )
-        : []),
-      ...(Array.isArray(legacyResponsibilities)
-        ? legacyResponsibilities.filter(
-            (capability): capability is string =>
-              typeof capability === "string",
-          )
-        : []),
-      ...(Array.isArray(legacyDuties)
-        ? legacyDuties.filter(
             (capability): capability is string =>
               typeof capability === "string",
           )

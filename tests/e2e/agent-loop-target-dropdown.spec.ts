@@ -80,7 +80,7 @@ async function mockDashboardApis(page: Page): Promise<void> {
                 stage: "release",
                 evidence: "releasePrExists",
                 capability: "release-prepare",
-                executable: "release-prepare",
+                implementation: "release-prepare",
               },
             ],
             schedule: "manual",

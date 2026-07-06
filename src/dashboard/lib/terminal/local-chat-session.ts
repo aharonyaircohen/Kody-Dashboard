@@ -267,7 +267,7 @@ function detachedTmuxSessionInfo(
   };
 }
 
-function ensureNodePtyHelperExecutable(): void {
+function ensureNodePtyHelperImplementation(): void {
   if (process.platform !== "darwin" && process.platform !== "linux") return;
 
   try {
@@ -394,7 +394,7 @@ export async function startLocalTerminalSession(input: {
   }
 
   const pty = await loadNodePty();
-  ensureNodePtyHelperExecutable();
+  ensureNodePtyHelperImplementation();
   const cwd = process.cwd();
   const defaultShell =
     process.env.SHELL ||

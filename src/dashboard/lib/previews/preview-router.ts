@@ -60,13 +60,13 @@ export interface RoutePreviewBuildOutcome {
 
 /**
  * Workflow inputs the existing kody.yml ALREADY declares. The engine's
- * dispatch.ts binds `issue_number` to the resolved executable's
+ * dispatch.ts binds `issue_number` to the resolved implementation's
  * primary numeric input — for the `preview-build` profile that's
  * `pr`, so `ctx.args.pr` ends up = the PR number. Reusing the
  * declared schema means no kody.yml edits in any consumer repo.
  */
 interface PreviewBuildWorkflowInputs {
-  executable: "preview-build";
+  implementation: "preview-build";
   issue_number: string;
 }
 
@@ -163,9 +163,9 @@ export async function routePreviewBuild(
   }
 
   // No Fly token (or the Fly arm threw) → GitHub Actions runs kody.yml's
-  // preview-build executable.
+  // preview-build implementation.
   await dispatchWorkflowDispatch(octokit, owner, repo, workflowId, {
-    executable: "preview-build",
+    implementation: "preview-build",
     issue_number: String(input.prNumber),
   });
   logger.info(

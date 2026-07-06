@@ -78,8 +78,8 @@ Verify = confirm pass/fail evidence
 
 ## Storage names
 
-The public model has no separate "executable" concept. Capability is the
-operator-facing concept. Some files and config keys still say `executable` for
+The public model has no separate "implementation" concept. Capability is the
+operator-facing concept. Some files and config keys still say `implementation` for
 compatibility; read that as "capability implementation", not as a new model.
 
 ```text
@@ -117,7 +117,7 @@ Good Context reminder:
 ```text
 Follow docs/concepts/company-model.md.
 Use Intent/Goal/Loop/Agent/Capability/Workflow as the agency model.
-Treat `executable` as an old storage/config word for capability implementation.
+Treat `implementation` as an old storage/config word for capability implementation.
 ```
 
 ## Dependency graph

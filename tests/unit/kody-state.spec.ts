@@ -167,19 +167,19 @@ describe("parseKodyStateComment", () => {
     expect(parsed?.core.attempts).toEqual({});
   });
 
-  it("normalizes legacy currentExecutable and history executable to capability", () => {
+  it("normalizes legacy currentImplementation and history implementation to capability", () => {
     const legacy = {
       schemaVersion: 1 as const,
       core: {
         phase: "planning" as const,
         status: "running" as const,
-        currentExecutable: "plan",
+        currentImplementation: "plan",
         attempts: {},
       },
       history: [
         {
           timestamp: "2026-05-10T14:00:00Z",
-          executable: "plan",
+          implementation: "plan",
           action: "PLAN_STARTED",
         },
       ],

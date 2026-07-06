@@ -56,6 +56,6 @@ describe("capability creation guide wiring", () => {
     expect(createCapability!.body).toContain("`read_capability_creation_guide`");
     expect(createCapability!.body).toContain("`create_or_update_capability`");
     expect(DEFAULT_CHAT_CAPABILITY.skills).toContain("create-capability");
-    expect(DEFAULT_CHAT_CAPABILITY.skills).not.toContain("create-executable");
+    expect(DEFAULT_CHAT_CAPABILITY.skills).not.toContain("create-implementation");
   });
 });

@@ -2093,7 +2093,7 @@ function derivePRCi(input: {
 //   Tracking-Issue: #1352
 // The release-prepare script writes this so the dashboard can preview the
 // release PR on the originating issue's task without auto-closing the issue
-// on merge (see kody2/src/executables/release-prepare/prepare.sh).
+// on merge (see kody2/src/implementations/release-prepare/prepare.sh).
 const TRACKING_ISSUE_RE = /(?:^|\n)\s*Tracking-Issue\s*:\s*#(\d+)\b/gi;
 
 function parseTrackingIssueRefs(body: string | null | undefined): number[] {

@@ -313,7 +313,7 @@ describe("chat-defaults bundle", () => {
 
   it("capability's tool names match the chat registry naming (no camelCase drift)", () => {
     // Guard against future renames that don't update the bundle — known
-    // drift: `remoteExec` vs registry's `remote_exec`, old capability/executable names
+    // drift: `remoteImplementation` vs registry's `remote_implementation`, old capability/implementation names
     // vs the real `read_capability_creation_guide`, etc.
     const known = new Set([
       "remote_read",

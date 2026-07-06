@@ -188,8 +188,8 @@ function workflowStepsFromProfile(profile: Record<string, unknown>): string[] {
     const slug =
       typeof record.capability === "string"
         ? record.capability.trim()
-        : typeof record.executable === "string"
-          ? record.executable.trim()
+        : typeof record.implementation === "string"
+          ? record.implementation.trim()
           : "";
     if (slug) out.push(slug);
   }

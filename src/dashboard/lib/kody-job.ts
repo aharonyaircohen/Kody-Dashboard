@@ -11,7 +11,7 @@
 /** Run once now (`@kody`) or on a cron cadence (the tick path). */
 export type KodyJobFlavor = "instant" | "scheduled";
 
-/** Mirror of the engine `Job` (kody2/src/executables/types.ts:457). */
+/** Mirror of the engine `Job` (kody2/src/implementations/types.ts:457). */
 export interface KodyJob {
   /** Public capability slug/action whose intent drives the run. Required. */
   capability?: string;
@@ -23,7 +23,7 @@ export interface KodyJob {
   schedule?: string;
   /** The issue/PR number this job acts on, when applicable. */
   target?: number;
-  /** Args passed through to the executable. */
+  /** Args passed through to the implementation. */
   cliArgs: Record<string, unknown>;
   /** Run once now ("instant") or on the schedule ("scheduled"). */
   flavor: KodyJobFlavor;

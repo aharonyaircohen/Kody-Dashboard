@@ -52,7 +52,7 @@ One doc per dashboard-managed store / capability.
 - ✅ [Commands](commands.md) — slash commands, built-ins + repo commands.
 - ✅ [Workflows](workflows.md) — simple capability queues, local definitions,
   Store links, and `company.activeWorkflows`.
-- ✅ [Capability implementation storage](executables.md) — compatibility notes
+- ✅ [Capability implementation storage](implementations.md) — compatibility notes
   for legacy implementation folders and config field names.
 - ✅ [Engine config](engine-config.md) — the `/config` page editing
   `kody.config.json` (operators, quality commands, access gate, aliases);

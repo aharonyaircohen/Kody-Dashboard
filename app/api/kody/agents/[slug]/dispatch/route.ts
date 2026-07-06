@@ -7,7 +7,7 @@
  *   `@kody agent-ask --agent <slug> --thread issue:<control>` directive on
  *   the repo's "Kody control" issue (followed by the message verbatim); the
  *   engine's `issue_comment` trigger routes to the stateless `agent-ask`
- *   executable, which runs the agentIdentity and replies on the control issue.
+ *   implementation, which runs the agentIdentity and replies on the control issue.
  *
  *   This is the explicit-button sibling of the `@agent`-mention path
  *   (`dispatchAgentMentions`): same `dispatchAgentAsk` dispatch shape, just

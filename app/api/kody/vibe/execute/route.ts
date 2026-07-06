@@ -5,7 +5,7 @@
  *
  * POST /api/kody/vibe/execute
  *
- * Spawns a Fly Machine that runs the engine in agent mode (run-executable)
+ * Spawns a Fly Machine that runs the engine in agent mode (run-implementation)
  * against a specific issue. The engine reads ISSUE_NUMBER from env (via
  * runner/entrypoint.sh translating it to `kody run --issue N`), then
  * branches, codes, commits, and opens a PR — using the issue body as the

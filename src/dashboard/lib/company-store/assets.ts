@@ -12,7 +12,7 @@ import { getStoreRef, getStoreRepoUrl } from "../github-client";
 
 export type StoreAssetKind =
   | "capabilities"
-  | "executables"
+  | "implementations"
   | "workflows"
   | "commands"
   | "goals"
@@ -20,7 +20,7 @@ export type StoreAssetKind =
   | "agents";
 type StoreManifestKind =
   | "capabilities"
-  | "executables"
+  | "implementations"
   | "workflows"
   | "commands"
   | "goals"

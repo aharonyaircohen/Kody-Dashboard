@@ -145,7 +145,7 @@ describe("terminal checkpoint UI", () => {
   it("can execute multiline Kody output in the terminal surface", () => {
     expect(SURFACE_SOURCE).toContain("executeText: (text: string) => boolean");
     expect(CHAT_SOURCE).toContain("terminal?.executeText");
-    expect(SURFACE_SOURCE).toContain("sendExecutableInput");
+    expect(SURFACE_SOURCE).toContain("sendImplementationInput");
     expect(SURFACE_SOURCE).toContain('replace(/\\n/g, "\\r")');
   });
 });

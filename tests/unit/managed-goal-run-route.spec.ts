@@ -7,7 +7,7 @@ const h = vi.hoisted(() => ({
   listCompanyStoreGoalTemplateFiles: vi.fn(async () => []),
   writeManagedGoalFile: vi.fn(),
   buildKodyWorkflowDispatchInputs: vi.fn(async () => ({
-    executable: "goal-manager",
+    implementation: "goal-manager",
     message: "web-release",
   })),
 }));
@@ -121,7 +121,7 @@ describe("managed goal run route", () => {
       workflow_id: "kody.yml",
       ref: "dev",
       inputs: {
-        executable: "goal-manager",
+        implementation: "goal-manager",
         message: "web-release",
       },
     });

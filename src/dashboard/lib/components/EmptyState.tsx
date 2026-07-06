@@ -3,7 +3,7 @@
  * @domain layout
  * @pattern empty-state
  * @ai-summary Shared empty/placeholder state for list panes and detail panes.
- *   One source of truth so Jobs, Capabilities, and Executables render identical
+ *   One source of truth so Jobs, Capabilities, and Implementations render identical
  *   "nothing here / select one / loading" blocks instead of three local copies.
  */
 "use client";

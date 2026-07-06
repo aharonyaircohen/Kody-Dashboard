@@ -63,8 +63,7 @@ export interface AgencyRunSummary {
   action: string | null;
   capability: string | null;
   workflow: string | null;
-  implementation?: string | null;
-  executable: string | null;
+  implementation: string | null;
   agent: string | null;
   model: string | null;
   modelProvider: string | null;
@@ -131,7 +130,6 @@ interface RunIndexRow {
   capability?: unknown;
   workflow?: unknown;
   implementation?: unknown;
-  executable?: unknown;
   agent?: unknown;
   model?: unknown;
   modelProvider?: unknown;
@@ -758,9 +756,7 @@ function rowToAgencyRun(row: RunIndexRow): AgencyRunSummary | null {
     action: stringValue(row.action),
     capability: stringValue(row.capability),
     workflow: stringValue(row.workflow),
-    implementation:
-      stringValue(row.implementation) ?? stringValue(row.executable),
-    executable: stringValue(row.executable),
+    implementation: stringValue(row.implementation),
     agent: stringValue(row.agent),
     model: stringValue(row.model),
     modelProvider: stringValue(row.modelProvider),

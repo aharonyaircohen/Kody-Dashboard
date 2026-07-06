@@ -87,7 +87,7 @@ describe("startKodyTask", () => {
       workflow_id: "kody.yml",
       ref: "dev",
       inputs: {
-        executable: "run",
+        implementation: "run",
         issue_number: "42",
         storeRepoUrl: "https://github.com/owner/store",
         storeRef: "main",

@@ -16,7 +16,7 @@ on:
       message:
         type: string
         default: ""
-      executable:
+      implementation:
         type: string
         default: ""
       storeRepoUrl:
@@ -49,14 +49,14 @@ describe("kody workflow dispatch input mapping", () => {
       new Set([
         "issue_number",
         "message",
-        "executable",
+        "implementation",
         "storeRepoUrl",
         "storeRef",
       ]),
     );
   });
 
-  it("uses executable when the target workflow declares it", async () => {
+  it("uses implementation when the target workflow declares it", async () => {
     const octokit = octokitWithWorkflow(executableWorkflow);
 
     await expect(
@@ -70,14 +70,14 @@ describe("kody workflow dispatch input mapping", () => {
         storeRef: "main",
       }),
     ).resolves.toEqual({
-      executable: "goal-manager",
+      implementation: "goal-manager",
       message: "web-release",
       storeRepoUrl: "https://github.com/acme/kody-store",
       storeRef: "main",
     });
   });
 
-  it("falls back to executable when workflow inputs cannot be read", async () => {
+  it("falls back to implementation when workflow inputs cannot be read", async () => {
     const octokit = {
       rest: {
         repos: {
@@ -95,6 +95,6 @@ describe("kody workflow dispatch input mapping", () => {
         ref: "main",
         action: "repo-graph",
       }),
-    ).resolves.toEqual({ executable: "repo-graph" });
+    ).resolves.toEqual({ implementation: "repo-graph" });
   });
 });

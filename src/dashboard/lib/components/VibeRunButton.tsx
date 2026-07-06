@@ -43,7 +43,7 @@ export function VibeRunButton({
     }
   }, [issueNumber, onDispatched]);
 
-  // Once any lifecycle has started, the engine's run executable has set
+  // Once any lifecycle has started, the engine's run implementation has set
   // a label that moves the task off `open`. Hide the button — repeat
   // execution would just stomp on an existing branch / PR.
   if (column && column !== "open") return null;

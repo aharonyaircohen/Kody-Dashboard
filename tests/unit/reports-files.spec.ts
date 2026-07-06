@@ -9,7 +9,7 @@ vi.mock("@dashboard/lib/github-client", () => ({
 vi.mock("@dashboard/lib/engine/config", () => ({
   getEngineConfig: vi.fn().mockResolvedValue({
     config: {
-      executables: { default: "run" },
+      implementations: { default: "run" },
       state: { repo: "https://github.com/acme/kody-state", path: "widgets" },
     },
     sha: null,

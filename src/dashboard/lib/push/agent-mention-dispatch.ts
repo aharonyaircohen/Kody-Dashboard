@@ -8,7 +8,7 @@
  *   tasks, previews, PR/issue comments, and reviews, from one place. The
  *   agent's reply is posted back into the exact thread it was
  *   mentioned in. Never throws; logs and swallows so the webhook still ACKs.
- *   (`agent-ask` is the unchanged engine executable name; the dashboard
+ *   (`agent-ask` is the unchanged engine implementation name; the dashboard
  *   feature noun is "agent".)
  *
  *   Why server-side (not per-surface client wiring): every listed surface

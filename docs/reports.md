@@ -31,7 +31,7 @@ suggestedActions:
   - id: fix-ci-42
     type: dispatch
     label: Run fix-ci on PR #42
-    executable: fix-ci
+    implementation: fix-ci
     target: 42
     reason: The latest CI run failed on the PR head.
   - id: task-flaky-test
@@ -68,7 +68,7 @@ Supported action types:
 
 | Type          | Required fields                               | What the dashboard does                                                                                    |
 | ------------- | --------------------------------------------- | ---------------------------------------------------------------------------------------------------------- |
-| `dispatch`    | `id`, `type`, `label`, `executable`, `target` | Runs an instant job for the named capability/action against the issue/PR number. The field name is legacy. |
+| `dispatch`    | `id`, `type`, `label`, `implementation`, `target` | Runs an instant job for the named capability/action against the issue/PR number. The field name is legacy. |
 | `create-task` | `id`, `type`, `label`, `title`                | Opens the existing task dialog prefilled from the action and source report.                                |
 | `dismiss`     | `id`, `type`, `label`                         | Hides that suggested action locally for the current browser.                                               |
 

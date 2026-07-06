@@ -41,7 +41,7 @@ describe("agency runs", () => {
             model: "claude/claude-haiku-4-5-20251001",
             modelProvider: "claude",
             modelName: "claude-haiku-4-5-20251001",
-            executable: "release-prepare",
+            implementation: "release-prepare",
             workflow: "release-queue",
             triggerMode: "manual",
           },
@@ -103,7 +103,7 @@ describe("agency runs", () => {
     ]);
     expect(payload.runs[0]).toMatchObject({
       model: "claude/claude-haiku-4-5-20251001",
-      executable: "release-prepare",
+      implementation: "release-prepare",
       origin: "manual",
     });
   });

@@ -84,9 +84,9 @@ export interface KodyAuth {
   brainSuspension?: BrainSuspensionMode;
   /** Legacy browser key from the previous terminal-activity UI. */
   brainTerminalActivityLimit?: BrainTerminalActivityLimit;
-  /** Shared Kody store repository URL used for company-level capabilities/executables. */
+  /** Shared Kody store repository URL used for company-level capabilities/implementations. */
   storeRepoUrl?: string;
-  /** Shared Kody store ref used for company-level capabilities/executables. */
+  /** Shared Kody store ref used for company-level capabilities/implementations. */
   storeRef?: string;
 }
 

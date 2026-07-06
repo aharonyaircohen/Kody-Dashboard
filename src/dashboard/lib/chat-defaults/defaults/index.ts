@@ -27,7 +27,7 @@ export {
 } from "./skills-analyzer";
 export {
   DEFAULT_SKILL_CREATE_ISSUE,
-  DEFAULT_SKILL_CREATE_DUTY,
+  DEFAULT_SKILL_CREATE_CAPABILITY,
   DEFAULT_SKILL_CREATE_AGENT,
 } from "./skills-operator";
 export { DEFAULT_SKILL_VIBE } from "./skills-vibe";
@@ -38,7 +38,7 @@ import { DEFAULT_SKILL_DIAGNOSE_PR } from "./skills-analyzer";
 import { DEFAULT_SKILL_REPORT_ADVISE } from "./skills-analyzer";
 import { DEFAULT_SKILL_GOAL_PLANNER } from "./skills-analyzer";
 import { DEFAULT_SKILL_CREATE_ISSUE } from "./skills-operator";
-import { DEFAULT_SKILL_CREATE_DUTY } from "./skills-operator";
+import { DEFAULT_SKILL_CREATE_CAPABILITY } from "./skills-operator";
 import { DEFAULT_SKILL_CREATE_AGENT } from "./skills-operator";
 import { DEFAULT_SKILL_VIBE } from "./skills-vibe";
 import { DEFAULT_SKILL_MEMORY } from "./skills-mem";
@@ -49,7 +49,7 @@ export const DEFAULT_SKILLS: Record<string, SkillEntry> = {
   [DEFAULT_SKILL_REPORT_ADVISE.slug]: DEFAULT_SKILL_REPORT_ADVISE,
   [DEFAULT_SKILL_GOAL_PLANNER.slug]: DEFAULT_SKILL_GOAL_PLANNER,
   [DEFAULT_SKILL_CREATE_ISSUE.slug]: DEFAULT_SKILL_CREATE_ISSUE,
-  [DEFAULT_SKILL_CREATE_DUTY.slug]: DEFAULT_SKILL_CREATE_DUTY,
+  [DEFAULT_SKILL_CREATE_CAPABILITY.slug]: DEFAULT_SKILL_CREATE_CAPABILITY,
   [DEFAULT_SKILL_CREATE_AGENT.slug]: DEFAULT_SKILL_CREATE_AGENT,
   [DEFAULT_SKILL_VIBE.slug]: DEFAULT_SKILL_VIBE,
   [DEFAULT_SKILL_MEMORY.slug]: DEFAULT_SKILL_MEMORY,

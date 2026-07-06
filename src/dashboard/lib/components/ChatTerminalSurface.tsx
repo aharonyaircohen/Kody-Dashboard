@@ -502,7 +502,7 @@ export const ChatTerminalSurface = forwardRef<
     [canSendInput, sendRawInput],
   );
 
-  const sendExecutableInput = useCallback(
+  const sendImplementationInput = useCallback(
     (text: string) => {
       const normalizedInput = text.replace(/\r\n/g, "\n").replace(/\r/g, "\n");
       if (!normalizedInput.trim() || !canSendInput()) return false;
@@ -1111,7 +1111,7 @@ export const ChatTerminalSurface = forwardRef<
     () => ({
       sendLine: (line: string) => sendTerminalText(line),
       sendText: (text: string) => sendTerminalText(text),
-      executeText: (text: string) => sendExecutableInput(text),
+      executeText: (text: string) => sendImplementationInput(text),
       addToChat,
       clear,
       restart,
@@ -1144,7 +1144,7 @@ export const ChatTerminalSurface = forwardRef<
       clear,
       getTerminalSnapshot,
       restart,
-      sendExecutableInput,
+      sendImplementationInput,
       sendTerminalText,
       updateFlyConnectionState,
     ],

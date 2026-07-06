@@ -20,7 +20,6 @@ export interface KodyRunLogEvent {
   runId?: string;
   capability?: string;
   implementation?: string;
-  executable?: string;
   kind?: string;
   name?: string;
   durationMs?: number;
@@ -103,7 +102,7 @@ function textOf(event: KodyRunLogEvent): string {
     event.name,
     event.capability,
     event.implementation,
-    event.executable,
+    event.implementation,
   ]
     .filter(Boolean)
     .join(" ")
@@ -155,7 +154,7 @@ function labelFor(event: KodyRunLogEvent): string {
     event.name ||
     event.capability ||
     event.implementation ||
-    event.executable ||
+    event.implementation ||
     event.kind ||
     "event"
   );
@@ -246,7 +245,7 @@ export function buildRunTimeline(
         ts: event.ts ?? null,
         runId: event.runId ?? null,
         capability:
-          event.capability ?? event.implementation ?? event.executable ?? null,
+          event.capability ?? event.implementation ?? event.implementation ?? null,
         kind: event.kind ?? "event",
         name: event.name ?? null,
         durationMs: numberOrNull(event.durationMs),

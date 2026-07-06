@@ -106,8 +106,8 @@ export function parseReportSuggestedActions(
         ...(raw.reason ? { reason: raw.reason } : {}),
         ...(raw.capability
           ? { capability: raw.capability }
-          : raw.executable
-            ? { capability: raw.executable }
+          : raw.implementation
+            ? { capability: raw.implementation }
             : {}),
         ...(parseTarget(raw.target) ? { target: parseTarget(raw.target) } : {}),
         ...(raw.title ? { title: raw.title } : {}),

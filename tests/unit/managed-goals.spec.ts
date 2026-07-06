@@ -86,7 +86,7 @@ describe("normalizeManagedGoalState", () => {
     expect(state?.route[0]?.stage).toBe("plan");
   });
 
-  it("accepts legacy duty goal state as capabilities", () => {
+  it("accepts legacy capability goal state as capabilities", () => {
     const state = normalizeManagedGoalState({
       version: 1,
       state: "active",
@@ -96,14 +96,14 @@ describe("normalizeManagedGoalState", () => {
         evidence: ["companyGraphRefreshed"],
       },
       schedule: "1h",
-      scheduleMode: "duty-cadence",
-      duties: ["company-graph"],
+      scheduleMode: "capability-cadence",
+      capabilities: ["company-graph"],
       route: [
         {
           stage: "refresh-company-graph",
           evidence: "companyGraphRefreshed",
-          duty: "company-graph",
-          executable: "company-graph",
+          capability: "company-graph",
+          implementation: "company-graph",
           args: { goal: { fact: "goalId" } },
         },
       ],

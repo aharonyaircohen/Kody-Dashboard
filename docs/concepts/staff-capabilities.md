@@ -11,7 +11,7 @@ Current storage has three related pieces:
   public action name, owner, cadence, safety, inputs, outputs,
   tools/data/instructions, and execution binding.
 - **Legacy implementation roots** -
-  `.kody/capabilities/<slug>/` and `.kody/executables/<slug>/`.
+  `.kody/capabilities/<slug>/` and `.kody/implementations/<slug>/`.
   These are compatibility roots while older repos migrate.
 
 A capability folder always contains:
@@ -43,7 +43,7 @@ So in storage terms:
 
 |                         | Agents (who)             | Capability (how)                                | Legacy roots                                              |
 | ----------------------- | ------------------------ | ----------------------------------------------- | --------------------------------------------------------- |
-| Path                    | `.kody/agents/<slug>.md` | `.kody/capabilities/<slug>/`                    | `.kody/capabilities/<slug>/`, `.kody/executables/<slug>/` |
+| Path                    | `.kody/agents/<slug>.md` | `.kody/capabilities/<slug>/`                    | `.kody/capabilities/<slug>/`, `.kody/implementations/<slug>/` |
 | Answers                 | Who is acting?           | What capability is available?                   | How is older stored implementation found?                 |
 | Owns the schedule?      | No                       | Only the capability cadence, via `profile.json` | Compatibility only                                        |
 | Owns the action name?   | No                       | Yes, `profile.json.action`                      | No                                                        |
@@ -60,7 +60,7 @@ The profile is JSON, not markdown frontmatter:
   "name": "security-audit",
   "describe": "Security Audit",
   "action": "security-audit",
-  "executable": "security-audit",
+  "implementation": "security-audit",
   "every": "1d",
   "agent": "kody",
   "reviewer": "cto",
@@ -74,8 +74,8 @@ Important fields:
 - `name` - capability slug; should match the folder name.
 - `describe` - human-readable dashboard title.
 - `action` - public `@kody <action>` command owned by this capability.
-- `executable` - legacy field name for the implementation reference.
-- `executables` - optional legacy field name for a multi-step implementation list.
+- `implementation` - legacy field name for the implementation reference.
+- `implementations` - optional legacy field name for a multi-step implementation list.
 - `every` - cadence between auto-runs: `15m`, `30m`, `1h`, `2h`, `6h`, `12h`,
   `1d`, `3d`, `7d`, or `manual`.
 - `disabled` - `true` makes the scheduler skip autonomous execution.

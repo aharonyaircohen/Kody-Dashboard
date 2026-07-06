@@ -4,7 +4,7 @@
  * @pattern parser
  *
  * Pure parser for ui-review's verdict marker. The engine's `ui-review`
- * executable always emits a `## Verdict: PASS|CONCERNS|FAIL` line in
+ * implementation always emits a `## Verdict: PASS|CONCERNS|FAIL` line in
  * the review comment it posts on the PR (see kody2/src/scripts/
  * postReviewResult.ts). This module is the dashboard-side reader.
  *

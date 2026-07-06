@@ -61,7 +61,7 @@ export function createRemoteTools(actorLogin: string | null | undefined) {
   if (!cfg) return {};
 
   return {
-    remote_exec: tool({
+    remote_implementation: tool({
       description:
         "Execute a shell command on the user's remote Mac dev environment. " +
         "30s timeout, 512KB stdout cap. Use for read-only diagnostics by default " +
@@ -77,7 +77,7 @@ export function createRemoteTools(actorLogin: string | null | undefined) {
           .describe("Optional working directory for the command"),
       }),
       execute: async ({ command, cwd }) => {
-        logger.info({ actorLogin, action: "exec", command }, "remote_exec");
+        logger.info({ actorLogin, action: "exec", command }, "remote_implementation");
         return callAgent(cfg.funnelUrl, cfg.key, "exec", { command, cwd });
       },
     }),

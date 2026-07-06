@@ -39,8 +39,8 @@ across three pages by concern — /config owns the repo-wide behavior fields:
 | `git.defaultBranch`                         | Base branch new work branches off and targets. Blank = engine default (`main`).                                                 | **/config** → Default branch   |
 | `aliases`                                   | Word → subcommand map, e.g. `{ "build": "run" }` lets `@kody build` dispatch `run`.                                             | **/config** → Comment aliases  |
 | `agent.model`                               | The `provider/model` the engine runs. **The only key the engine reads for its model.**                                          | /models (synced on save)       |
-| `agent.perExecutable`                       | Legacy config field for per-capability model overrides, e.g. `{ "research": "anthropic/claude-opus-4-7" }`.                     | /models                        |
-| `defaultExecutable` / `defaultPrExecutable` | Legacy config fields for the bare `@kody` capability action on an issue / PR (engine defaults: `classify` / `fix`).             | /config                        |
+| `agent.perImplementation`                       | Legacy config field for per-capability model overrides, e.g. `{ "research": "anthropic/claude-opus-4-7" }`.                     | /models                        |
+| `defaultImplementation` / `defaultPrImplementation` | Legacy config fields for the bare `@kody` capability action on an issue / PR (engine defaults: `classify` / `fix`).             | /config                        |
 | `company.activeWorkflows`                   | Store workflow slugs linked into this repo. Removing a Store workflow clears this link, not the Store asset.                    | /workflows and /store-catalog  |
 
 ## The Operators card — inbox routing
@@ -104,10 +104,10 @@ edited in the same session never clobber each other.
 ```
 
 Every writer — `writeConfigPatch`, `writeOperators`, `writeEngineModel`,
-`writeDefaultExecutable` — funnels through `mutateConfig`, so the
+`writeDefaultImplementation` — funnels through `mutateConfig`, so the
 merge-not-overwrite rule (never clobber the engine's required keys: `github`,
-`executables`, `quality`, …) lives in exactly one place. A fresh file is
-seeded with the engine's minimum (`executables`, `github`). Reads cache for
+`implementations`, `quality`, …) lives in exactly one place. A fresh file is
+seeded with the engine's minimum (`implementations`, `github`). Reads cache for
 60s; writes invalidate the cache immediately so a follow-up read sees the
 change.
 
@@ -136,7 +136,7 @@ correctly:
 
 See [./models.md](./models.md) for the full model picker. The link between the
 two pages is one-directional: editing /config never touches the model;
-saving /models writes `agent.model` (and the legacy `agent.perExecutable`
+saving /models writes `agent.model` (and the legacy `agent.perImplementation`
 override map).
 
 ## File reference
@@ -149,7 +149,7 @@ override map).
 | [`../src/dashboard/lib/components/EngineConfigCards.tsx`](../src/dashboard/lib/components/EngineConfigCards.tsx) | Quality / access / branch / aliases cards                                 |
 | [`../src/dashboard/lib/engine/config.ts`](../src/dashboard/lib/engine/config.ts)                                 | Read/cache/merge-write of `kody.config.json`; `engineModelSpec` consumers |
 | [`../src/dashboard/lib/engine/useEngineConfig.ts`](../src/dashboard/lib/engine/useEngineConfig.ts)               | Hook: load slice + partial-patch save                                     |
-| [`../app/api/kody/company/config/route.ts`](../app/api/kody/company/config/route.ts)                             | GET/PATCH for quality, aliases, access, branch, perExecutable             |
+| [`../app/api/kody/company/config/route.ts`](../app/api/kody/company/config/route.ts)                             | GET/PATCH for quality, aliases, access, branch, perImplementation             |
 | [`../app/api/kody/company/operators/route.ts`](../app/api/kody/company/operators/route.ts)                       | GET/PUT for `github.operators`                                            |
 | [`../app/api/kody/models/route.ts`](../app/api/kody/models/route.ts)                                             | /models route; syncs `agent.model` on save                                |
 | [`../src/dashboard/lib/variables/models.ts`](../src/dashboard/lib/variables/models.ts)                           | `engineModelSpec` / `pickEngineDefaultModel`                              |

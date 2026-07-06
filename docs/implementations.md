@@ -1,7 +1,7 @@
 # Capability implementation storage
 
 Capability is the product word. This page exists because older storage, APIs,
-and config keys still use `executable` in names. Treat that word as a legacy
+and config keys still use `implementation` in names. Treat that word as a legacy
 storage name for a capability implementation.
 
 The operator-facing model is:
@@ -29,7 +29,7 @@ The current dashboard creates capabilities under:
 Some repos still have implementation folders under the legacy path:
 
 ```text
-.kody/executables/<slug>/
+.kody/implementations/<slug>/
   profile.json
   prompt.md
   skills/
@@ -67,11 +67,11 @@ Keep these names when editing config or engine-compatible JSON:
 
 | Field                 | Meaning                                                  |
 | --------------------- | -------------------------------------------------------- |
-| `executable`          | Implementation slug for a capability.                    |
-| `executables`         | Ordered implementation list for a multi-step capability. |
-| `agent.perExecutable` | Legacy config map for per-capability model overrides.    |
-| `defaultExecutable`   | Legacy config field for the bare issue action.           |
-| `defaultPrExecutable` | Legacy config field for the bare PR action.              |
+| `implementation`          | Implementation slug for a capability.                    |
+| `implementations`         | Ordered implementation list for a multi-step capability. |
+| `agent.perImplementation` | Legacy config map for per-capability model overrides.    |
+| `defaultImplementation`   | Legacy config field for the bare issue action.           |
+| `defaultPrImplementation` | Legacy config field for the bare PR action.              |
 
 In prose, explain those fields as implementation/action configuration, not as a
 separate model.
@@ -118,8 +118,8 @@ contract.
 
 | File                                                                                                               | Purpose                               |
 | ------------------------------------------------------------------------------------------------------------------ | ------------------------------------- |
-| [`../src/dashboard/lib/executables/files.ts`](../src/dashboard/lib/executables/files.ts)                           | Legacy implementation folder CRUD.    |
-| [`../src/dashboard/lib/executables/profile.ts`](../src/dashboard/lib/executables/profile.ts)                       | Profile validation and form mapping.  |
-| [`../src/dashboard/lib/components/ExecutablesManager.tsx`](../src/dashboard/lib/components/ExecutablesManager.tsx) | Compatibility UI implementation.      |
+| [`../src/dashboard/lib/implementations/files.ts`](../src/dashboard/lib/implementations/files.ts)                           | Legacy implementation folder CRUD.    |
+| [`../src/dashboard/lib/implementations/profile.ts`](../src/dashboard/lib/implementations/profile.ts)                       | Profile validation and form mapping.  |
+| [`../src/dashboard/lib/components/ImplementationsManager.tsx`](../src/dashboard/lib/components/ImplementationsManager.tsx) | Compatibility UI implementation.      |
 | [`../app/api/kody/capabilities/`](../app/api/kody/capabilities/)                                                   | Current capability API.               |
 | [`./capabilities.md`](./capabilities.md)                                                                           | Canonical capability authoring guide. |

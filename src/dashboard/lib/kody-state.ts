@@ -79,7 +79,6 @@ export interface KodyTaskState {
 type RawKodyState = Partial<Omit<KodyTaskState, "core" | "history">> & {
   core?: Partial<KodyTaskState["core"]> & {
     currentImplementation?: unknown;
-    currentExecutable?: unknown;
   };
   history?: unknown;
 };
@@ -99,10 +98,8 @@ function normalizeHistoryEntry(raw: unknown): KodyHistoryEntry | null {
     capability:
       rawString(entry.capability) ??
       rawString(entry.implementation) ??
-      rawString(entry.executable) ??
       null,
-    implementation:
-      rawString(entry.implementation) ?? rawString(entry.executable) ?? null,
+    implementation: rawString(entry.implementation) ?? null,
     action: rawString(entry.action) ?? "",
     note: rawString(entry.note),
     agent: rawString(entry.agent),
@@ -155,7 +152,6 @@ export function parseKodyStateComment(body: string): KodyTaskState | null {
         currentCapability:
           rawString(parsed.core.currentCapability) ??
           rawString(parsed.core.currentImplementation) ??
-          rawString(parsed.core.currentExecutable) ??
           null,
         lastOutcome: parsed.core.lastOutcome ?? null,
         attempts: parsed.core.attempts ?? {},

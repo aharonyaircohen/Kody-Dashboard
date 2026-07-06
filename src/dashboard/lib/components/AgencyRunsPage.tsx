@@ -202,7 +202,7 @@ function operatorHappened(
 function runtimeLabel(run: AgencyRunSummary): string | null {
   return (
     run.implementation ??
-    run.executable ??
+    run.implementation ??
     run.capability ??
     run.workflow ??
     run.action

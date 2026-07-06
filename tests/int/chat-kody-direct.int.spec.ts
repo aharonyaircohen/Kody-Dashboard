@@ -20,7 +20,7 @@ vi.mock("@dashboard/lib/engine/config", async (importOriginal) => {
   return {
     ...actual,
     getEngineConfig: vi.fn(async () => ({
-      config: { executables: { default: "run" } },
+      config: { implementations: { default: "run" } },
       sha: null,
     })),
   };

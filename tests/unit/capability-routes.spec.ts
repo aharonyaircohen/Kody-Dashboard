@@ -119,7 +119,7 @@ describe("GET /api/kody/capabilities", () => {
     expect(
       json.capabilities.map((entry: { slug: string }) => entry.slug),
     ).toEqual(["local-one", "store-on"]);
-    expect(json.executables).toBeUndefined();
+    expect(json.implementations).toBeUndefined();
     expect(h.listCapabilityFiles).toHaveBeenCalledTimes(1);
   });
 });
@@ -162,7 +162,7 @@ describe("POST /api/kody/capabilities", () => {
     expect(res.status).toBe(200);
     const json = await res.json();
     expect(json).toMatchObject({ capability: { slug: "ship-feature" } });
-    expect(json).not.toHaveProperty("executable");
+    expect(json).not.toHaveProperty("implementation");
     expect(h.writeCapabilityFile).toHaveBeenCalledWith(
       expect.objectContaining({
         fields: expect.objectContaining({

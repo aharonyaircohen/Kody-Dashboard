@@ -44,7 +44,7 @@ describe("managed goal run logs", () => {
           trace: {
             capability: {
               capability: "ci-health",
-              executable: "goal-manager",
+              implementation: "goal-manager",
             },
             result: { status: "success" },
           },
@@ -73,7 +73,7 @@ describe("managed goal run logs", () => {
       event: "decision",
       summary: "CI health loop checked the repo.",
       capability: "ci-health",
-      executable: "goal-manager",
+      implementation: "goal-manager",
       decisionKind: "noop",
       decisionReason: "Nothing to fix.",
       goalState: "active",

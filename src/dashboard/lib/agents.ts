@@ -74,7 +74,7 @@ export const REMOTE_SYSTEM_PROMPT_EXTENSION = `
 You have access to four additional tools for interacting with the user's remote Mac dev environment:
 
 **Remote Tools** (only available when remote dev is configured):
-- remoteExec: Execute shell commands on the remote Mac (30s timeout, 512KB output cap)
+- remoteImplementation: Execute shell commands on the remote Mac (30s timeout, 512KB output cap)
 - remoteRead: Read file contents from the remote Mac (1MB limit)
 - remoteWrite: Write files to the remote Mac
 - remoteLs: List directory contents on the remote Mac

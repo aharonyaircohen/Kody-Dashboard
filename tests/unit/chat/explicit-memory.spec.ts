@@ -5,15 +5,15 @@ import { buildExplicitMemoryDraft } from "../../../app/api/kody/chat/kody/explic
 describe("explicit memory requests", () => {
   it("turns Remember: repo guidance into a project memory draft", () => {
     const draft = buildExplicitMemoryDraft(
-      "Remember: for this repo, chat prompt workflows should live as capabilities that use executables",
+      "Remember: for this repo, chat prompt workflows should live as capabilities that use implementations",
     );
 
     expect(draft).toMatchObject({
-      id: "for-this-repo-chat-prompt-workflows-should-live-37713e57",
+      id: "for-this-repo-chat-prompt-workflows-should-live-f89dd2b4",
       type: "project",
     });
     expect(draft?.body).toContain(
-      "chat prompt workflows should live as capabilities that use executables",
+      "chat prompt workflows should live as capabilities that use implementations",
     );
     expect(draft?.body).toContain("**How apply:**");
   });

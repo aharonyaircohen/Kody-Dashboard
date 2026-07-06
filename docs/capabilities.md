@@ -15,7 +15,7 @@ Capabilities are stored as one folder:
 Kody chat creates capabilities with `create_or_update_capability`.
 
 New UI/API work should create capabilities directly. Capability is the product
-word. Older config and storage may still use `executable`, but user-facing text
+word. Older config and storage may still use `implementation`, but user-facing text
 should call that the capability implementation.
 
 ## What a capability contract owns
@@ -67,7 +67,7 @@ Use this shape:
   "name": "broken-links",
   "describe": "Broken link report",
   "action": "broken-links",
-  "executable": "broken-link-report",
+  "implementation": "broken-link-report",
   "every": "1d",
   "agent": "qa",
   "reviewer": "cto",
@@ -114,13 +114,13 @@ Do not put metadata frontmatter in `capability.md`. Metadata belongs in
 | `name`        | Capability slug. Must match the folder name.                                                                  |
 | `describe`    | Human-readable title shown in the dashboard.                                                                  |
 | `action`      | Public action token. `@kody <action>` runs this capability. Usually the capability slug.                      |
-| `executable`  | Legacy field name for the implementation slug. Use this when one implementation performs the work.            |
+| `implementation`  | Legacy field name for the implementation slug. Use this when one implementation performs the work.            |
 | `workflow`    | Ordered capability steps for one run, when the public action composes capabilities.                           |
 | `every`       | Optional cadence: `manual`, `1h`, `1d`, `7d`, etc.                                                            |
 | `agent`       | Agent identity slug that performs the capability. A capability without an agent should not auto-run.          |
 | `reviewer`    | Optional agent identity slug responsible for reviewing or handling the capability output.                     |
 | `mentions`    | Optional GitHub logins to notify, without `@`.                                                                |
-| `executables` | Legacy field name for a multi-step implementation list. Prefer singular `executable` for normal capabilities. |
+| `implementations` | Legacy field name for a multi-step implementation list. Prefer singular `implementation` for normal capabilities. |
 | `tools`       | Optional capability tool names exposed to the tick agent.                                                     |
 | `tickScript`  | Optional deterministic script path for a scripted capability agent.                                           |
 | `readsFrom`   | Context, report, or capability slugs this capability reads.                                                   |

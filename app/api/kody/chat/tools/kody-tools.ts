@@ -231,7 +231,7 @@ const ISSUE_NUMBER_SCHEMA = z
   .positive()
   .describe("The GitHub issue number to dispatch on.");
 
-const DUTY_SCHEMA = z
+const CAPABILITY_SCHEMA = z
   .string()
   .max(64)
   .optional()
@@ -361,7 +361,7 @@ export function createKodyTools(ctx: Ctx) {
         "tool in the same turn. Use `notes` to pass the plan inline.",
       inputSchema: z.object({
         issueNumber: ISSUE_NUMBER_SCHEMA,
-        capability: DUTY_SCHEMA,
+        capability: CAPABILITY_SCHEMA,
         notes: NOTES_SCHEMA,
       }),
       execute: ({ issueNumber, capability, notes }) =>

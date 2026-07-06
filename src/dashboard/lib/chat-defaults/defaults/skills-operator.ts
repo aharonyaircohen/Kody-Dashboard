@@ -19,7 +19,7 @@ Never call \`create_*\` / \`report_bug\` on first turn.
 4. \`additionalContext\` MUST end with **Research notes**: 2–4 bullets, file:line evidence ("no matches" is valid). Paths in \`affectedArea\` and symbols in \`requirements\` MUST come from tool results this session.`,
 };
 
-export const DEFAULT_SKILL_CREATE_DUTY: SkillEntry = {
+export const DEFAULT_SKILL_CREATE_CAPABILITY: SkillEntry = {
   slug: "create-capability",
   title: "create-capability",
   body: `State-repo \`capabilities/<slug>/\` is a callable agency capability: \`profile.json\` holds execution settings and \`capability.md\` holds the instructions. First call \`read_capability_creation_guide\`. Never first turn.

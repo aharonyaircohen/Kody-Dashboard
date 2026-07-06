@@ -29,7 +29,6 @@ export interface ManagedGoalRunLogSummary {
   summary: string | null;
   capability: string | null;
   implementation: string | null;
-  executable: string | null;
   decisionKind: string | null;
   decisionReason: string | null;
   goalState: string | null;
@@ -148,10 +147,7 @@ export function summarizeManagedGoalRunLog(
       stringValue(dispatch?.capability) ??
       stringValue(dispatch?.implementation) ??
       nestedString(last, "dispatchContext", "capability"),
-    implementation:
-      stringValue(dispatch?.implementation) ??
-      stringValue(dispatch?.executable),
-    executable: stringValue(dispatch?.executable),
+    implementation: stringValue(dispatch?.implementation),
     decisionKind: nestedString(last, "decision", "kind"),
     decisionReason:
       nestedString(last, "decision", "reason") ?? stringValue(last.reason),

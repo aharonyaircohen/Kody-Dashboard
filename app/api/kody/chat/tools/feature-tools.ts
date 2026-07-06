@@ -209,7 +209,7 @@ clearly corrected/confirmed something.`,
     details: `When a user has configured a remote dev environment, the chat exposes four
 extra tools that run against the user's own Mac:
 
-- \`remote_exec\` — shell commands (30s timeout, 512KB output cap)
+- \`remote_implementation\` — shell commands (30s timeout, 512KB output cap)
 - \`remote_read\` — read file contents (1MB limit)
 - \`remote_write\` — write files (destructive — assistant must confirm first)
 - \`remote_ls\` — list directory contents
