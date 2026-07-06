@@ -165,6 +165,11 @@ describe("ensureTerminalBridge", () => {
     );
     expect(TERMINAL_BRIDGE_SCRIPT).toContain('url.pathname === "/status"');
     expect(TERMINAL_BRIDGE_SCRIPT).toContain("Reattached terminal session.");
+    expect(TERMINAL_BRIDGE_SCRIPT).not.toContain("RESTORE_PROBE_TIMEOUT_MS");
+    expect(TERMINAL_BRIDGE_SCRIPT).not.toContain("startRestoreProbe");
+    expect(TERMINAL_BRIDGE_SCRIPT).not.toContain(
+      "Terminal did not answer the restore check.",
+    );
     expect(TERMINAL_BRIDGE_SCRIPT).toContain(
       "Terminal did not answer the keyboard self-test.",
     );
@@ -214,7 +219,26 @@ describe("ensureTerminalBridge", () => {
     expect(attachSession).toBeTruthy();
     expect(attachSession).not.toContain("session.outputBuffer");
     expect(attachSession).not.toContain("session.pendingOutput");
+    expect(attachSession).toContain("Reattached terminal session.");
+    expect(attachSession).not.toContain("startRestoreProbe");
+    expect(attachSession).not.toContain('type: "restoring"');
+    expect(attachSession).not.toContain('type: "restore-failed"');
     expect(attachSession).toContain('type: "ready"');
+  });
+
+  it("binds browser input before sending reattach readiness", () => {
+    const attachSession = TERMINAL_BRIDGE_SCRIPT.match(
+      /function attachSocketToSession[\s\S]*?\n}\n\nfunction startFlyConsole/,
+    )?.[0];
+
+    expect(attachSession).toBeTruthy();
+    expect(attachSession!.indexOf("parseFrames(socket")).toBeGreaterThan(-1);
+    expect(attachSession!.indexOf("Reattached terminal session.")).toBeGreaterThan(
+      -1,
+    );
+    expect(attachSession!.indexOf("parseFrames(socket")).toBeLessThan(
+      attachSession!.indexOf("Reattached terminal session."),
+    );
   });
 
   it("acknowledges accepted terminal input and rejects unwritable stdin", () => {

@@ -87,4 +87,14 @@ describe("ChatTerminalSurface timeout guard", () => {
       "reconnectFlyRef.current({ force: true, resetSession: false });",
     );
   });
+
+  it("does not block remote input behind a restore-only browser state", () => {
+    expect(SOURCE).not.toContain("flyRestorePending");
+    expect(SOURCE).not.toContain('message.type === "restoring"');
+    expect(SOURCE).not.toContain('message.type === "restore-failed"');
+    expect(SOURCE).not.toContain('label: "Restoring terminal"');
+    expect(SOURCE).not.toContain(
+      "reconnectFlyRef.current({ force: true, resetSession: true });",
+    );
+  });
 });

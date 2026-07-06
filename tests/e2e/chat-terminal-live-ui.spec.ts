@@ -143,6 +143,22 @@ test.describe("Brain terminal live UI", () => {
     await typeCommand(page, `printf "${firstMarker}\\n"`);
     await waitForTerminalText(page, firstMarker);
 
+    await page.reload({ waitUntil: "domcontentloaded" });
+    await page.getByRole("button", { name: /Terminal/ }).first().click();
+    const restoredTarget = page.getByLabel("Terminal target");
+    await expect(restoredTarget).toBeVisible({ timeout: 20_000 });
+    await restoredTarget.selectOption("brain");
+    await expect
+      .poll(() => documentBodyText(page), {
+        timeout: 120_000,
+        intervals: [1000, 2500],
+      })
+      .toContain("Brain terminal · connected");
+
+    const restoredMarker = `KODY_UI_RESTORED_${Date.now()}`;
+    await typeCommand(page, `printf "${restoredMarker}\\n"`);
+    await waitForTerminalText(page, restoredMarker);
+
     await page.waitForTimeout(WAIT_MS);
     await expect
       .poll(() => documentBodyText(page), { timeout: 15_000 })

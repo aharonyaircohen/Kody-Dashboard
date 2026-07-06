@@ -17,7 +17,7 @@ const REQUEST_TIMEOUT_MS = 90_000;
 const BRIDGE_HEALTH_TIMEOUT_MS = 90_000;
 const BRIDGE_HEALTH_INTERVAL_MS = 2_000;
 
-export const TERMINAL_BRIDGE_VERSION = "2026-07-02.4";
+export const TERMINAL_BRIDGE_VERSION = "2026-07-06.1";
 export const TERMINAL_BRIDGE_BASE_IMAGE =
   process.env.KODY_TERMINAL_BRIDGE_BASE_IMAGE ?? "node:22-bookworm";
 
@@ -901,13 +901,6 @@ function createFlyConsoleSession(claims, key) {
 function attachSocketToSession(socket, session) {
   session.sockets.add(socket);
   session.lastTouched = Date.now();
-  sendJson(socket, {
-    type: "output",
-    data: session.ready ? "Reattached terminal session.\r\n" : "Opening real terminal...\r\n",
-  });
-  if (session.ready) {
-    sendJson(socket, { type: "ready" });
-  }
 
   function detach() {
     session.sockets.delete(socket);
@@ -963,6 +956,14 @@ function attachSocketToSession(socket, session) {
       console.log("terminal resize cols=" + msg.cols + " rows=" + msg.rows);
     }
   });
+
+  sendJson(socket, {
+    type: "output",
+    data: session.ready ? "Reattached terminal session.\r\n" : "Opening real terminal...\r\n",
+  });
+  if (session.ready) {
+    sendJson(socket, { type: "ready" });
+  }
 }
 
 function startFlyConsole(socket, claims) {
