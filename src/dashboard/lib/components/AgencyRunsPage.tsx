@@ -284,13 +284,6 @@ function operatorNext(
   return latestReason ?? "No next action was recorded.";
 }
 
-function operatorOutcome(run: AgencyRunSummary): string {
-  if (run.status === "waiting" && run.summary?.startsWith("waiting on goal ")) {
-    return "Waiting on dispatched goal";
-  }
-  return humanStatus(run.status);
-}
-
 function RunEvidenceLine({ line }: { line: string }) {
   const formatted = formatRunEvidenceLine(line);
   if (!formatted.label) {
@@ -400,19 +393,7 @@ function RunRow({
       </button>
       {expanded ? (
         <div className="space-y-4 border-t border-white/[0.05] bg-black/20 px-3 py-3 text-xs">
-          <div className="grid gap-3 md:grid-cols-[180px_minmax(0,1fr)_minmax(0,1fr)]">
-            <div className="space-y-1">
-              <div className="text-white/35">Outcome</div>
-              <div
-                className={cn(
-                  "inline-flex items-center gap-1 rounded border px-2 py-1 text-sm font-medium",
-                  statusTone(run.status),
-                )}
-              >
-                <StatusIcon status={run.status} />
-                {operatorOutcome(run)}
-              </div>
-            </div>
+          <div className="grid gap-3 md:grid-cols-2">
             <div className="space-y-1">
               <div className="text-white/35">What happened</div>
               {happened.length > 1 ? (

@@ -33,8 +33,8 @@ describe("Agency Runs page", () => {
     expect(navSource).toContain("Kody runs for goals, loops, and workflows.");
   });
 
-  it("opens run details with operator outcome before raw events", () => {
-    const outcomeIndex = pageSource.indexOf("What happened");
+  it("opens run details with run story before raw events", () => {
+    const happenedIndex = pageSource.indexOf("What happened");
     const nextIndex = pageSource.indexOf("Next state");
     const rawIndex = pageSource.indexOf("Raw event timeline");
     const evidenceIndex = pageSource.indexOf("Run evidence");
@@ -45,8 +45,9 @@ describe("Agency Runs page", () => {
     expect(pageSource).toContain("Run evidence");
     expect(pageSource).toContain("Next state");
     expect(pageSource).toContain("Raw event timeline");
-    expect(outcomeIndex).toBeGreaterThan(-1);
-    expect(nextIndex).toBeGreaterThan(outcomeIndex);
+    expect(pageSource).not.toContain(">Outcome<");
+    expect(happenedIndex).toBeGreaterThan(-1);
+    expect(nextIndex).toBeGreaterThan(happenedIndex);
     expect(rawIndex).toBeGreaterThan(nextIndex);
     expect(evidenceIndex).toBeGreaterThan(rawIndex);
   });
