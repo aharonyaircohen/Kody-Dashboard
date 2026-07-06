@@ -194,6 +194,61 @@ describe("agency runs", () => {
     });
   });
 
+  it("formats noisy agency health summaries into readable lines", async () => {
+    stateRepo.readStateText.mockResolvedValue({
+      path: "A-Guy-Web/logs/goals/ai-agency-health/runs/run.jsonl",
+      sha: "sha",
+      htmlUrl: "https://github.com/test/state/run.jsonl",
+      content: "",
+    });
+    const noisyLine = [
+      "Added A-Guy-Web/reports/ai-agency-health-matrix/runs/2026-07-05T23-37-00Z.md in A-Guy-educ/kody-state.",
+      "AI Agency Health: YELLOW (80 rows).",
+      'KODY_AGENCY_BOUNDARY_EVAL={"version":1,"status":"pass","findings":[{"rule":"observe-does-not-act"},{"rule":"verify-does-not-fix"},{"rule":"capability-does-not-own-goal-progress"}]}',
+      "→ kody: in-process hand-off → dev-ci-health (hop 1/60)",
+    ].join(" ");
+    const octokit = {
+      request: vi
+        .fn()
+        .mockResolvedValueOnce({
+          data: { jobs: [{ id: 43, name: "run" }] },
+        })
+        .mockResolvedValueOnce({
+          data: noisyLine,
+        }),
+    };
+
+    const payload = await readAgencyRunDetail({
+      octokit: octokit as never,
+      owner: "test-owner",
+      repo: "test-repo",
+      sourcePath: "logs/goals/ai-agency-health/runs/run.jsonl",
+      githubRunId: "456",
+    });
+
+    expect(payload.workflowLog?.lines).toEqual([
+      "Added report: A-Guy-Web/reports/ai-agency-health-matrix/runs/2026-07-05T23-37-00Z.md (A-Guy-educ/kody-state).",
+      "AI Agency Health: YELLOW (80 rows).",
+      "Agency boundary eval: pass (3 checks).",
+      "Hand-off: kody -> dev-ci-health (hop 1/60).",
+    ]);
+    expect(payload.workflowLog?.evidenceLines).toEqual(
+      expect.arrayContaining([
+        "Report file: A-Guy-Web/reports/ai-agency-health-matrix/runs/2026-07-05T23-37-00Z.md.",
+        "State repo: A-Guy-educ/kody-state.",
+        "Health matrix: YELLOW (80 rows).",
+        "Boundary eval: version 1, status pass.",
+        "Raw boundary eval: KODY_AGENCY_BOUNDARY_EVAL={\"version\":1,\"status\":\"pass\",\"findings\":[{\"rule\":\"observe-does-not-act\"},{\"rule\":\"verify-does-not-fix\"},{\"rule\":\"capability-does-not-own-goal-progress\"}]}",
+      ]),
+    );
+    expect(payload.workflowLog?.evidenceLines.join("\n")).toContain(
+      "Raw workflow line: Added A-Guy-Web/reports/ai-agency-health-matrix",
+    );
+    expect(payload.workflowLog?.summary).not.toContain(
+      "KODY_AGENCY_BOUNDARY_EVAL",
+    );
+  });
+
   it("rejects unsupported detail paths", async () => {
     await expect(
       readAgencyRunDetail({

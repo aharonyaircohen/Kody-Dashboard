@@ -34,6 +34,7 @@ describe("Agency Runs page", () => {
     expect(pageSource).toContain("function operatorHappened");
     expect(pageSource).toContain("function operatorNext");
     expect(pageSource).toContain("What happened");
+    expect(pageSource).toContain("Run evidence");
     expect(pageSource).toContain("Next state");
     expect(pageSource).toContain("Raw event timeline");
     expect(outcomeIndex).toBeGreaterThan(-1);

@@ -96,7 +96,13 @@ export interface AgencyRunWorkflowLogInsight {
   status: "completed" | "failed" | "recorded";
   summary: string | null;
   lines: string[];
+  evidenceLines: string[];
 }
+
+type OperatorSummaryFormat = {
+  lines: string[];
+  evidenceLines: string[];
+};
 
 interface RunIndexRow {
   version?: unknown;
@@ -307,16 +313,167 @@ function cleanLogLine(value: string): string {
     .trim();
 }
 
-function collectSummaryLines(lines: string[]): string[] {
+function collectSummaryInsight(lines: string[]): OperatorSummaryFormat {
   const start = lines.findIndex((line) => line === "PR_SUMMARY:");
-  if (start < 0) return [];
-  const summary: string[] = [];
+  if (start < 0) return { lines: [], evidenceLines: [] };
+  const summary: OperatorSummaryFormat = { lines: [], evidenceLines: [] };
   for (const line of lines.slice(start + 1)) {
     if (!line || line.startsWith("===") || line.startsWith("##[")) break;
-    summary.push(line.replace(/^-\s*/, ""));
-    if (summary.length >= 4) break;
+    const formatted = formatOperatorSummaryLine(line.replace(/^-\s*/, ""));
+    summary.lines.push(...formatted.lines);
+    summary.evidenceLines.push(...formatted.evidenceLines);
+    if (summary.lines.length >= 4) break;
   }
   return summary;
+}
+
+function jsonPayloadAfterKey(line: string, key: string): string | null {
+  const start = line.indexOf(`${key}=`);
+  if (start < 0) return null;
+  const braceStart = line.indexOf("{", start);
+  if (braceStart < 0) return null;
+  let depth = 0;
+  let inString = false;
+  let escaped = false;
+  for (let index = braceStart; index < line.length; index += 1) {
+    const char = line[index];
+    if (escaped) {
+      escaped = false;
+      continue;
+    }
+    if (char === "\\") {
+      escaped = true;
+      continue;
+    }
+    if (char === '"') {
+      inString = !inString;
+      continue;
+    }
+    if (inString) continue;
+    if (char === "{") depth += 1;
+    if (char === "}") {
+      depth -= 1;
+      if (depth === 0) return line.slice(braceStart, index + 1);
+    }
+  }
+  return null;
+}
+
+function compactEvidence(value: unknown): string | null {
+  const record = asRecord(value);
+  if (!record) return null;
+  const parts = Object.entries(record)
+    .map(([key, entry]) => {
+      if (
+        typeof entry === "string" ||
+        typeof entry === "number" ||
+        typeof entry === "boolean"
+      ) {
+        return `${key}: ${String(entry)}`;
+      }
+      return null;
+    })
+    .filter((entry): entry is string => entry !== null);
+  return parts.length > 0 ? parts.join(", ") : null;
+}
+
+function boundaryEvalInsight(line: string): OperatorSummaryFormat | null {
+  const payload = jsonPayloadAfterKey(line, "KODY_AGENCY_BOUNDARY_EVAL");
+  if (!payload) return null;
+  try {
+    const parsed = asRecord(JSON.parse(payload));
+    const status = stringValue(parsed?.status);
+    const version =
+      typeof parsed?.version === "number" || typeof parsed?.version === "string"
+        ? String(parsed.version)
+        : null;
+    const capability = stringValue(parsed?.capability);
+    const capabilityKind = stringValue(parsed?.capabilityKind);
+    const findings = Array.isArray(parsed?.findings)
+      ? parsed.findings.length
+      : null;
+    const summary = !status
+      ? "Agency boundary eval recorded."
+      : findings
+        ? `Agency boundary eval: ${status} (${findings} checks).`
+        : `Agency boundary eval: ${status}.`;
+    const meta = [
+      version ? `version ${version}` : null,
+      status ? `status ${status}` : null,
+      capability ? `capability ${capability}` : null,
+      capabilityKind ? `kind ${capabilityKind}` : null,
+    ].filter((entry): entry is string => entry !== null);
+    const evidenceLines = [
+      meta.length > 0
+        ? `Boundary eval: ${meta.join(", ")}.`
+        : "Boundary eval recorded.",
+    ];
+    if (Array.isArray(parsed?.findings)) {
+      for (const item of parsed.findings) {
+        const finding = asRecord(item);
+        if (!finding) continue;
+        const rule = stringValue(finding.rule) ?? "check";
+        const findingStatus = stringValue(finding.status);
+        const message = stringValue(finding.message);
+        const evidence = compactEvidence(finding.evidence);
+        evidenceLines.push(
+          [
+            `${rule}${findingStatus ? `: ${findingStatus}` : ""}`,
+            message ? `- ${message}` : null,
+            evidence ? `(${evidence})` : null,
+          ]
+            .filter((entry): entry is string => entry !== null)
+            .join(" "),
+        );
+      }
+    }
+    evidenceLines.push(`Raw boundary eval: KODY_AGENCY_BOUNDARY_EVAL=${payload}`);
+    return { lines: [summary], evidenceLines };
+  } catch {
+    return {
+      lines: ["Agency boundary eval recorded."],
+      evidenceLines: [`Raw boundary eval: KODY_AGENCY_BOUNDARY_EVAL=${payload}`],
+    };
+  }
+}
+
+function formatOperatorSummaryLine(line: string): OperatorSummaryFormat {
+  const out: string[] = [];
+  const evidenceLines: string[] = [];
+  const report = line.match(/\bAdded\s+(.+?\.md)\s+in\s+([A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+)/);
+  if (report?.[1] && report[2]) {
+    const repo = report[2].replace(/\.$/, "");
+    out.push(`Added report: ${report[1]} (${repo}).`);
+    evidenceLines.push(`Report file: ${report[1]}.`);
+    evidenceLines.push(`State repo: ${repo}.`);
+  }
+
+  const health = line.match(/\bAI Agency Health:\s*([A-Za-z]+)\s*\(([^)]+)\)/);
+  if (health?.[1] && health[2]) {
+    out.push(`AI Agency Health: ${health[1].toUpperCase()} (${health[2]}).`);
+    evidenceLines.push(
+      `Health matrix: ${health[1].toUpperCase()} (${health[2]}).`,
+    );
+  }
+
+  const boundary = boundaryEvalInsight(line);
+  if (boundary) {
+    out.push(...boundary.lines);
+    evidenceLines.push(...boundary.evidenceLines);
+  }
+
+  const handoff = line.match(
+    /→\s+([A-Za-z0-9_.-]+):\s+in-process hand-off\s+→\s+([A-Za-z0-9_.-]+)(?:\s+\(hop\s+([^)]+)\))?/i,
+  );
+  if (handoff?.[1] && handoff[2]) {
+    const hop = handoff[3] ? ` (hop ${handoff[3]})` : "";
+    out.push(`Hand-off: ${handoff[1]} -> ${handoff[2]}${hop}.`);
+    evidenceLines.push(`Hand-off: ${handoff[1]} -> ${handoff[2]}${hop}.`);
+  }
+
+  if (out.length === 0) return { lines: [line], evidenceLines: [] };
+  evidenceLines.push(`Raw workflow line: ${line}`);
+  return { lines: out, evidenceLines };
 }
 
 function summarizeWorkflowLog(
@@ -329,26 +486,39 @@ function summarizeWorkflowLog(
     .map(cleanLogLine)
     .filter(Boolean);
   const failed = lines.find((line) => line.startsWith("PR_URL=FAILED:"));
-  const summaryLines = collectSummaryLines(lines);
+  const summaryInsight = collectSummaryInsight(lines);
   const usefulLine =
     [...lines]
       .reverse()
       .find((line) =>
-        /already tracks|already exists|no duplicate|Dev CI|CI is red|DONE/i.test(
+        /already tracks|already exists|no duplicate|Dev CI|CI is red|AI Agency Health|KODY_AGENCY_BOUNDARY_EVAL|in-process hand-off|Added .+reports/i.test(
           line,
         ),
       ) ?? null;
   const summary =
-    summaryLines.length > 0
-      ? summaryLines.join(" ")
+    summaryInsight.lines.length > 0
+      ? summaryInsight.lines.join(" ")
       : failed?.replace(/^PR_URL=FAILED:\s*/, "") ?? usefulLine;
+  const operatorLines =
+    summaryInsight.lines.length > 0
+      ? summaryInsight.lines
+      : usefulLine
+        ? formatOperatorSummaryLine(usefulLine).lines
+        : [];
+  const evidenceLines =
+    summaryInsight.evidenceLines.length > 0
+      ? summaryInsight.evidenceLines
+      : usefulLine
+        ? formatOperatorSummaryLine(usefulLine).evidenceLines
+        : [];
 
   return {
     jobId,
     jobName,
     status: failed ? "failed" : lines.includes("DONE") ? "completed" : "recorded",
-    summary,
-    lines: summaryLines.length > 0 ? summaryLines : usefulLine ? [usefulLine] : [],
+    summary: operatorLines.length > 0 ? operatorLines.join(" ") : summary,
+    lines: operatorLines,
+    evidenceLines,
   };
 }
 

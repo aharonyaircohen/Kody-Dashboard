@@ -176,6 +176,16 @@ function operatorHappened(
   );
 }
 
+function operatorHappenedLines(
+  run: AgencyRunSummary,
+  events: Record<string, unknown>[],
+  workflowSummary: string | null,
+  workflowLines: string[],
+): string[] {
+  if (workflowLines.length > 0) return workflowLines;
+  return [operatorHappened(run, events, workflowSummary)];
+}
+
 function operatorNext(
   run: AgencyRunSummary,
   events: Record<string, unknown>[],
@@ -227,8 +237,15 @@ function RunRow({
   );
   const rawEvents = detail.data?.events ?? [];
   const workflowSummary = detail.data?.workflowLog?.summary ?? null;
+  const workflowLines = detail.data?.workflowLog?.lines ?? [];
+  const evidenceLines = detail.data?.workflowLog?.evidenceLines ?? [];
   const events = rawEvents.slice(-4).reverse();
-  const happened = operatorHappened(run, rawEvents, workflowSummary);
+  const happened = operatorHappenedLines(
+    run,
+    rawEvents,
+    workflowSummary,
+    workflowLines,
+  );
   const next = operatorNext(run, rawEvents, workflowSummary);
   return (
     <article className="border-b border-white/[0.06] last:border-b-0">
@@ -292,7 +309,34 @@ function RunRow({
             </div>
             <div className="space-y-1">
               <div className="text-white/35">What happened</div>
-              <div className="text-sm leading-5 text-white/80">{happened}</div>
+              {happened.length > 1 ? (
+                <ul className="space-y-1 text-sm leading-5 text-white/80">
+                  {happened.map((line, index) => (
+                    <li key={`${line}-${index}`} className="flex gap-2">
+                      <span className="mt-2 h-1 w-1 shrink-0 rounded-full bg-white/35" />
+                      <span>{line}</span>
+                    </li>
+                  ))}
+                </ul>
+              ) : (
+                <div className="text-sm leading-5 text-white/80">
+                  {happened[0]}
+                </div>
+              )}
+              {evidenceLines.length > 0 ? (
+                <details className="group mt-2 rounded-md border border-white/[0.06] bg-white/[0.02] px-2 py-1.5">
+                  <summary className="cursor-pointer select-none text-xs text-white/45 hover:text-white/70">
+                    Run evidence
+                  </summary>
+                  <ul className="mt-2 space-y-1 text-xs leading-5 text-white/60">
+                    {evidenceLines.map((line, index) => (
+                      <li key={`${line}-${index}`} className="break-words">
+                        {line}
+                      </li>
+                    ))}
+                  </ul>
+                </details>
+              ) : null}
             </div>
             <div className="space-y-1">
               <div className="text-white/35">Next state</div>
