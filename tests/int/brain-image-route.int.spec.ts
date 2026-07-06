@@ -16,7 +16,6 @@ const mocks = vi.hoisted(() => ({
   selectImage: vi.fn(),
   startJob: vi.fn(),
   clearSave: vi.fn(),
-  updateImageMetadata: vi.fn(),
   writeImage: vi.fn(),
   writeSave: vi.fn(),
 }));
@@ -83,7 +82,6 @@ vi.mock("@dashboard/lib/brain/store", () => ({
   readBrainImage: mocks.readImage,
   readBrainImageSave: mocks.readSave,
   selectBrainImage: mocks.selectImage,
-  updateBrainImageMetadata: mocks.updateImageMetadata,
   writeBrainImage: mocks.writeImage,
   writeBrainImageSave: mocks.writeSave,
   clearBrainImageSave: mocks.clearSave,
@@ -125,21 +123,6 @@ describe("GET /api/kody/brain/image", () => {
       source: "runtime",
     });
     mocks.selectRuntimeImage.mockResolvedValue(undefined);
-    mocks.updateImageMetadata.mockResolvedValue({
-      version: 1,
-      imageRef: "ghcr.io/a-guy-educ/kody-brain-aguyaharonyair:old",
-      createdAt: "2026-06-30T00:00:00.000Z",
-      updatedAt: "2026-07-02T10:10:10.000Z",
-      images: [
-        {
-          imageRef: "ghcr.io/a-guy-educ/kody-brain-aguyaharonyair:selected",
-          label: "Before terminal rewrite",
-          note: "Known good restore point.",
-          createdAt: "2026-07-02T10:10:10.000Z",
-          updatedAt: "2026-07-02T10:10:10.000Z",
-        },
-      ],
-    });
     mocks.readImage.mockResolvedValue({
       version: 1,
       imageRef:
@@ -587,36 +570,6 @@ describe("PATCH /api/kody/brain/image", () => {
       "ghcr.io/a-guy-educ/kody-brain-aguyaharonyair:selected",
     );
     expect(mocks.startJob).not.toHaveBeenCalled();
-  });
-
-  it("updates image label and note without selecting or running the image", async () => {
-    const res = await PATCH(
-      request("PATCH", "https://dash.test/api/kody/brain/image", {
-        imageRef: "ghcr.io/a-guy-educ/kody-brain-aguyaharonyair:selected",
-        label: "Before terminal rewrite",
-        note: "Known good restore point.",
-      }),
-    );
-    const body = (await res.json()) as {
-      images?: Array<{ label?: string; note?: string }>;
-    };
-
-    expect(res.status).toBe(200);
-    expect(mocks.updateImageMetadata).toHaveBeenCalledWith(
-      "aguyaharonyair",
-      "gh-token",
-      {
-        imageRef: "ghcr.io/a-guy-educ/kody-brain-aguyaharonyair:selected",
-        label: "Before terminal rewrite",
-        note: "Known good restore point.",
-      },
-    );
-    expect(mocks.selectRuntimeImage).not.toHaveBeenCalled();
-    expect(mocks.startJob).not.toHaveBeenCalled();
-    expect(body.images?.[0]).toMatchObject({
-      label: "Before terminal rewrite",
-      note: "Known good restore point.",
-    });
   });
 });
 

@@ -62,6 +62,7 @@ describe("BrainImagesManager", () => {
     expect(SOURCE).toContain("disabled={running || busy}");
     expect(SOURCE).not.toContain("selectImage(");
     expect(SOURCE).not.toContain('toast.success("Brain image selected")');
+    expect(SOURCE).not.toContain('method: "PATCH"');
     expect(SOURCE).not.toContain("disabled={!selected || running || busy}");
   });
 
@@ -77,26 +78,5 @@ describe("BrainImagesManager", () => {
     expect(SOURCE).toContain("machineImageRef");
     expect(SOURCE).toContain("Saved {formatDate(image.updatedAt)}");
     expect(SOURCE).toContain("`Applied ${formatDate(runningAt)}`");
-  });
-
-  it("lets users edit a human label and note without changing the GHCR ref", () => {
-    expect(SOURCE).toContain("const [editingRef, setEditingRef]");
-    expect(SOURCE).toContain("const [draftLabel, setDraftLabel]");
-    expect(SOURCE).toContain("const [draftNote, setDraftNote]");
-    expect(SOURCE).toContain("saveImageMetadata");
-    expect(SOURCE).toContain('method: "PATCH"');
-    expect(SOURCE).toContain("label: draftLabel");
-    expect(SOURCE).toContain("note: draftNote");
-    expect(SOURCE).toContain("imageTitle(image)");
-    expect(SOURCE).toContain("{image.note &&");
-    expect(SOURCE).toContain("Edit label and note");
-  });
-
-  it("shows restore status from the runtime operation", () => {
-    expect(SOURCE).toContain("runtime?: BrainRuntimeState | null;");
-    expect(SOURCE).toContain("restoreOperation");
-    expect(SOURCE).toContain("Last restore");
-    expect(SOURCE).toContain("Restore failed");
-    expect(SOURCE).toContain("Restore succeeded");
   });
 });

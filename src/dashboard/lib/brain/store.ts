@@ -88,8 +88,6 @@ export interface BrainAppFile {
 
 export interface BrainSavedImage {
   imageRef: string;
-  label?: string;
-  note?: string;
   createdAt: string;
   updatedAt: string;
 }
@@ -160,42 +158,8 @@ function isBrainSavedImage(value: unknown): value is BrainSavedImage {
     typeof v.imageRef === "string" &&
     isValidBrainImageRef(v.imageRef) &&
     typeof v.createdAt === "string" &&
-    typeof v.updatedAt === "string" &&
-    (v.label === undefined || isValidBrainImageLabel(v.label)) &&
-    (v.note === undefined || isValidBrainImageNote(v.note))
+    typeof v.updatedAt === "string"
   );
-}
-
-function isValidBrainImageLabel(value: unknown): value is string {
-  return typeof value === "string" && value.trim().length <= 80;
-}
-
-function isValidBrainImageNote(value: unknown): value is string {
-  return typeof value === "string" && value.trim().length <= 500;
-}
-
-function cleanBrainImageMetadataValue(
-  value: string | null | undefined,
-  limit: number,
-  field: "label" | "note",
-): string | undefined {
-  if (value == null) return undefined;
-  const cleaned = value.trim();
-  if (!cleaned) return undefined;
-  if (cleaned.length > limit) {
-    throw new Error(`Brain image ${field} is too long`);
-  }
-  return cleaned;
-}
-
-function normalizeBrainSavedImage(image: BrainSavedImage): BrainSavedImage {
-  return {
-    imageRef: image.imageRef,
-    ...(image.label?.trim() ? { label: image.label.trim() } : {}),
-    ...(image.note?.trim() ? { note: image.note.trim() } : {}),
-    createdAt: image.createdAt,
-    updatedAt: image.updatedAt,
-  };
 }
 
 function validBrainImageRefs(value: unknown): string[] {
@@ -265,9 +229,7 @@ function normalizeBrainImageFile(value: unknown): BrainImageFile | null {
 }
 
 function sortBrainSavedImages(images: BrainSavedImage[]): BrainSavedImage[] {
-  return [...images]
-    .map(normalizeBrainSavedImage)
-    .sort((a, b) => b.createdAt.localeCompare(a.createdAt));
+  return [...images].sort((a, b) => b.createdAt.localeCompare(a.createdAt));
 }
 
 function upsertBrainSavedImage(
@@ -665,81 +627,6 @@ export async function selectBrainImage(
             (ref) => ref !== imageRef,
           ),
         }
-      : {}),
-    ...(current.runningImageRef
-      ? { runningImageRef: current.runningImageRef }
-      : {}),
-    ...(current.runningAt ? { runningAt: current.runningAt } : {}),
-    ...(current.runningApp ? { runningApp: current.runningApp } : {}),
-    ...(current.runningMachineId
-      ? { runningMachineId: current.runningMachineId }
-      : {}),
-  };
-  await writeBrainImage(login, token, updated);
-  return updated;
-}
-
-export async function updateBrainImageMetadata(
-  login: string,
-  token: string,
-  input: {
-    imageRef: string;
-    label?: string | null;
-    note?: string | null;
-  },
-): Promise<BrainImageFile> {
-  if (!isValidBrainImageRef(input.imageRef)) {
-    throw new Error("Invalid Brain image ref");
-  }
-  const current = await readBrainImage(login, token);
-  if (!current) {
-    throw new Error("No Brain images saved");
-  }
-  let selected = current.images.find(
-    (image) => image.imageRef === input.imageRef,
-  );
-  if (!selected) {
-    const fresh = await readBrainImage(login, token, { bypassCache: true });
-    if (!fresh) {
-      throw new Error("No Brain images saved");
-    }
-    current.images = fresh.images;
-    current.imageRef = fresh.imageRef;
-    current.updatedAt = fresh.updatedAt;
-    current.forgottenImageRefs = fresh.forgottenImageRefs;
-    current.runningImageRef = fresh.runningImageRef;
-    current.runningAt = fresh.runningAt;
-    current.runningApp = fresh.runningApp;
-    current.runningMachineId = fresh.runningMachineId;
-    selected = current.images.find((image) => image.imageRef === input.imageRef);
-  }
-  if (!selected) {
-    throw new Error("Brain image is not saved");
-  }
-
-  const now = new Date().toISOString();
-  const nextImage: BrainSavedImage = {
-    ...selected,
-    ...(Object.hasOwn(input, "label")
-      ? {
-          label: cleanBrainImageMetadataValue(input.label, 80, "label"),
-        }
-      : {}),
-    ...(Object.hasOwn(input, "note")
-      ? {
-          note: cleanBrainImageMetadataValue(input.note, 500, "note"),
-        }
-      : {}),
-    updatedAt: now,
-  };
-  const updated: BrainImageFile = {
-    version: 1,
-    ...(current.imageRef ? { imageRef: current.imageRef } : {}),
-    createdAt: current.createdAt,
-    updatedAt: now,
-    images: upsertBrainSavedImage(current.images, nextImage),
-    ...(current.forgottenImageRefs?.length
-      ? { forgottenImageRefs: current.forgottenImageRefs }
       : {}),
     ...(current.runningImageRef
       ? { runningImageRef: current.runningImageRef }

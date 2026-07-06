@@ -76,41 +76,4 @@ describe("Brain image catalog", () => {
       "ghcr.io/acme/kody-brain-octocat:gone",
     ]);
   });
-
-  it("keeps saved human labels when merging GHCR-discovered images", async () => {
-    const { mergeBrainSavedImages } = await import(
-      "../../src/dashboard/lib/brain/image-catalog"
-    );
-
-    const images = mergeBrainSavedImages(
-      {
-        version: 1,
-        createdAt: "2026-07-01T00:00:00.000Z",
-        updatedAt: "2026-07-01T00:00:00.000Z",
-        images: [
-          {
-            imageRef: "ghcr.io/acme/kody-brain-octocat:new",
-            label: "Stable terminal image",
-            note: "Use before risky terminal tests.",
-            createdAt: "2026-07-01T00:00:00.000Z",
-            updatedAt: "2026-07-01T00:00:00.000Z",
-          },
-        ],
-      },
-      [
-        {
-          imageRef: "ghcr.io/acme/kody-brain-octocat:new",
-          createdAt: "2026-07-02T00:00:00.000Z",
-          updatedAt: "2026-07-02T00:00:00.000Z",
-        },
-      ],
-    );
-
-    expect(images[0]).toMatchObject({
-      imageRef: "ghcr.io/acme/kody-brain-octocat:new",
-      label: "Stable terminal image",
-      note: "Use before risky terminal tests.",
-      createdAt: "2026-07-02T00:00:00.000Z",
-    });
-  });
 });

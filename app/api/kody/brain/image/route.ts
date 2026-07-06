@@ -16,7 +16,6 @@ import {
   pollBrainImageSave,
   readBrainImageManagement,
   selectBrainImageRef,
-  updateBrainImageRefMetadata,
 } from "@dashboard/lib/brain/image-management";
 import {
   clearGitHubContext,
@@ -192,25 +191,11 @@ export async function PATCH(req: NextRequest) {
   );
 
   try {
-    const body = (await req.json().catch(() => ({}))) as {
-      imageRef?: string;
-      label?: string | null;
-      note?: string | null;
-    };
+    const body = (await req.json().catch(() => ({}))) as { imageRef?: string };
     if (!body.imageRef) {
       return NextResponse.json(
         { error: "image_ref_required", message: "Image ref is required." },
         { status: 400 },
-      );
-    }
-    if (Object.hasOwn(body, "label") || Object.hasOwn(body, "note")) {
-      return NextResponse.json(
-        await updateBrainImageRefMetadata({
-          context: ctx.context,
-          imageRef: body.imageRef,
-          ...(Object.hasOwn(body, "label") ? { label: body.label } : {}),
-          ...(Object.hasOwn(body, "note") ? { note: body.note } : {}),
-        }),
       );
     }
     return NextResponse.json(

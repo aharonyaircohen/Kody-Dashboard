@@ -13,27 +13,20 @@ import {
   CheckCircle2,
   ExternalLink,
   Loader2,
-  Pencil,
   Play,
   RefreshCw,
-  Save,
   Trash2,
-  X,
 } from "lucide-react";
 import { toast } from "sonner";
 
 import { Button } from "@dashboard/ui/button";
 import { Card, CardContent } from "@dashboard/ui/card";
-import { Input } from "@dashboard/ui/input";
-import { Textarea } from "@dashboard/ui/textarea";
 import { buildAuthHeaders, useAuth } from "../auth-context";
 import { ConfirmDialog } from "./ConfirmDialog";
 import { PageShell } from "./PageShell";
 
 interface BrainSavedImage {
   imageRef: string;
-  label?: string;
-  note?: string;
   createdAt: string;
   updatedAt: string;
 }
@@ -67,23 +60,6 @@ interface BrainRuntimeDrift {
   machineImageRef?: string | null;
 }
 
-interface BrainRuntimeOperation {
-  id: string;
-  type: "apply-image";
-  status: "running" | "completed" | "failed";
-  imageRef: string;
-  startedAt: string;
-  updatedAt: string;
-  error?: string;
-}
-
-interface BrainRuntimeState {
-  version: 1;
-  desiredImageRef?: string;
-  operation?: BrainRuntimeOperation;
-  updatedAt: string;
-}
-
 interface BrainImagesResponse {
   ok?: boolean;
   imageRef?: string | null;
@@ -93,7 +69,6 @@ interface BrainImagesResponse {
   runningMachineId?: string | null;
   machineImageRef?: string | null;
   machineState?: string | null;
-  runtime?: BrainRuntimeState | null;
   drift?: BrainRuntimeDrift | null;
   images?: BrainSavedImage[];
   save?: BrainImageSaveState | null;
@@ -114,10 +89,6 @@ function packageName(imageRef: string): string {
 
 function imageLabel(imageRef: string): string {
   return `${packageName(imageRef)}:${imageTag(imageRef)}`;
-}
-
-function imageTitle(image: BrainSavedImage): string {
-  return image.label?.trim() || imageLabel(image.imageRef);
 }
 
 function formatDate(value: string): string {
@@ -178,14 +149,10 @@ export function BrainImagesManager() {
   const [runningAt, setRunningAt] = useState<string | null>(null);
   const [machineImageRef, setMachineImageRef] = useState<string | null>(null);
   const [machineState, setMachineState] = useState<string | null>(null);
-  const [runtime, setRuntime] = useState<BrainRuntimeState | null>(null);
   const [drift, setDrift] = useState<BrainRuntimeDrift | null>(null);
   const [save, setSave] = useState<BrainImageSaveState | null>(null);
   const [loading, setLoading] = useState(true);
   const [busyRef, setBusyRef] = useState<string | null>(null);
-  const [editingRef, setEditingRef] = useState<string | null>(null);
-  const [draftLabel, setDraftLabel] = useState("");
-  const [draftNote, setDraftNote] = useState("");
   const [pendingApplyRef, setPendingApplyRef] = useState<string | null>(null);
   const [pendingForgetRef, setPendingForgetRef] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -198,7 +165,6 @@ export function BrainImagesManager() {
       setRunningAt(null);
       setMachineImageRef(null);
       setMachineState(null);
-      setRuntime(null);
       setDrift(null);
       setSave(null);
       setLoading(false);
@@ -223,7 +189,6 @@ export function BrainImagesManager() {
       setRunningAt(body.runningAt ?? null);
       setMachineImageRef(body.machineImageRef ?? null);
       setMachineState(body.machineState ?? null);
-      setRuntime(body.runtime ?? null);
       setDrift(body.drift ?? null);
       setSave(body.save ?? null);
     } catch (err) {
@@ -234,7 +199,6 @@ export function BrainImagesManager() {
       setRunningAt(null);
       setMachineImageRef(null);
       setMachineState(null);
-      setRuntime(null);
       setDrift(null);
       setSave(null);
     } finally {
@@ -258,7 +222,6 @@ export function BrainImagesManager() {
     activeImageRef !== null && activeImageRef !== runningImageRef;
   const runningNeedsMachineProof =
     runningImageRef !== null && machineImageRef === null;
-  const restoreOperation = runtime?.operation ?? null;
 
   useEffect(() => {
     void loadImages();
@@ -301,47 +264,6 @@ export function BrainImagesManager() {
       return;
     }
     void applyImage(imageRef);
-  }
-
-  function startEditingImage(image: BrainSavedImage) {
-    setEditingRef(image.imageRef);
-    setDraftLabel(image.label ?? "");
-    setDraftNote(image.note ?? "");
-  }
-
-  function cancelEditingImage() {
-    setEditingRef(null);
-    setDraftLabel("");
-    setDraftNote("");
-  }
-
-  async function saveImageMetadata(imageRef: string) {
-    if (!headers) return;
-    setBusyRef(imageRef);
-    try {
-      const res = await fetch("/api/kody/brain/image", {
-        method: "PATCH",
-        headers: { "content-type": "application/json", ...headers },
-        body: JSON.stringify({
-          imageRef,
-          label: draftLabel,
-          note: draftNote,
-        }),
-      });
-      const body = (await res.json().catch(() => ({}))) as BrainImagesResponse;
-      if (!res.ok) {
-        throw new Error(
-          body.message ?? body.error ?? `Save failed (${res.status})`,
-        );
-      }
-      await loadImages();
-      cancelEditingImage();
-      toast.success("Brain image details saved");
-    } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Save failed");
-    } finally {
-      setBusyRef(null);
-    }
   }
 
   async function forgetImage(imageRef: string) {
@@ -495,35 +417,6 @@ export function BrainImagesManager() {
                 Last save failed: {save.error ?? save.jobId}
               </div>
             )}
-            {restoreOperation && (
-              <div
-                className={
-                  restoreOperation.status === "failed"
-                    ? "rounded-md border border-rose-400/20 bg-rose-400/[0.06] px-3 py-2 text-xs text-rose-200"
-                    : restoreOperation.status === "running"
-                      ? "rounded-md border border-amber-400/20 bg-amber-400/[0.06] px-3 py-2 text-xs text-amber-100"
-                      : "rounded-md border border-emerald-400/20 bg-emerald-400/[0.06] px-3 py-2 text-xs text-emerald-100"
-                }
-              >
-                <div className="font-medium">
-                  Last restore:{" "}
-                  {restoreOperation.status === "failed"
-                    ? "Restore failed"
-                    : restoreOperation.status === "running"
-                      ? "Restore running"
-                      : "Restore succeeded"}
-                </div>
-                <div className="mt-1 truncate font-mono text-[11px] opacity-75">
-                  {imageLabel(restoreOperation.imageRef)} ·{" "}
-                  {formatDate(restoreOperation.updatedAt)}
-                </div>
-                {restoreOperation.error && (
-                  <div className="mt-1 text-[11px] opacity-75">
-                    {restoreOperation.error}
-                  </div>
-                )}
-              </div>
-            )}
             <div className="sr-only">
               <div className="text-sm font-semibold text-white">
                 Brain image state summary
@@ -560,121 +453,37 @@ export function BrainImagesManager() {
           ) : (
             images.map((image) => {
               const running = image.imageRef === runningImageRef;
-              const selected = image.imageRef === activeImageRef;
               const busy = busyRef === image.imageRef;
-              const editing = editingRef === image.imageRef;
               return (
                 <div
                   key={image.imageRef}
                   className="grid gap-3 rounded-md border border-white/[0.08] bg-white/[0.03] p-4 sm:grid-cols-[minmax(0,1fr)_auto]"
                 >
                   <div className="min-w-0 space-y-1">
-                    {editing ? (
-                      <div className="grid gap-2">
-                        <Input
-                          value={draftLabel}
-                          maxLength={80}
-                          placeholder={imageLabel(image.imageRef)}
-                          aria-label="Brain image label"
-                          onChange={(event) =>
-                            setDraftLabel(event.currentTarget.value)
-                          }
-                          className="h-9 border-white/[0.12] bg-black/25 text-sm text-white"
-                        />
-                        <Textarea
-                          value={draftNote}
-                          maxLength={500}
-                          placeholder="Note"
-                          aria-label="Brain image note"
-                          onChange={(event) =>
-                            setDraftNote(event.currentTarget.value)
-                          }
-                          className="min-h-16 border-white/[0.12] bg-black/25 text-sm text-white"
-                        />
-                      </div>
-                    ) : (
-                      <>
-                        <div className="flex min-w-0 items-center gap-2">
-                          {running && (
-                            <CheckCircle2 className="h-4 w-4 shrink-0 text-emerald-300" />
-                          )}
-                          <span className="truncate text-sm font-medium text-white">
-                            {imageTitle(image)}
-                          </span>
-                          {running && (
-                            <span className="shrink-0 rounded border border-emerald-300/20 bg-emerald-300/10 px-1.5 py-0.5 text-[11px] font-medium text-emerald-200">
-                              Running Brain image
-                            </span>
-                          )}
-                          {!running && selected && (
-                            <span className="shrink-0 rounded border border-amber-300/20 bg-amber-300/10 px-1.5 py-0.5 text-[11px] font-medium text-amber-100">
-                              Selected
-                            </span>
-                          )}
-                          <span className="shrink-0 rounded border border-white/10 bg-white/[0.04] px-1.5 py-0.5 text-[11px] font-medium text-white/45">
-                            Saved
-                          </span>
-                        </div>
-                        <div className="truncate font-mono text-xs text-white/35">
-                          {image.imageRef}
-                        </div>
-                        {image.note && (
-                          <div className="line-clamp-2 text-xs text-white/55">
-                            {image.note}
-                          </div>
-                        )}
-                        <div className="text-xs text-white/45">
-                          Saved {formatDate(image.updatedAt)}
-                          {image.updatedAt !== image.createdAt
-                            ? ` · Created ${formatDate(image.createdAt)}`
-                            : ""}
-                        </div>
-                      </>
-                    )}
+                    <div className="flex min-w-0 items-center gap-2">
+                      {running && (
+                        <CheckCircle2 className="h-4 w-4 shrink-0 text-emerald-300" />
+                      )}
+                      <span className="truncate font-mono text-sm text-white">
+                        {imageLabel(image.imageRef)}
+                      </span>
+                      {running && (
+                        <span className="shrink-0 rounded border border-emerald-300/20 bg-emerald-300/10 px-1.5 py-0.5 text-[11px] font-medium text-emerald-200">
+                          Running Brain image
+                        </span>
+                      )}
+                    </div>
+                    <div className="truncate font-mono text-xs text-white/35">
+                      {image.imageRef}
+                    </div>
+                    <div className="text-xs text-white/45">
+                      Saved {formatDate(image.updatedAt)}
+                      {image.updatedAt !== image.createdAt
+                        ? ` · Created ${formatDate(image.createdAt)}`
+                        : ""}
+                    </div>
                   </div>
-                  <div className="flex flex-wrap items-center gap-1 sm:justify-end">
-                    {editing ? (
-                      <>
-                        <Button
-                          type="button"
-                          size="sm"
-                          variant="default"
-                          title="Save label and note"
-                          aria-label="Save label and note"
-                          disabled={busy}
-                          onClick={() => void saveImageMetadata(image.imageRef)}
-                        >
-                          {busy ? (
-                            <Loader2 className="h-4 w-4 animate-spin" />
-                          ) : (
-                            <Save className="h-4 w-4" />
-                          )}
-                        </Button>
-                        <Button
-                          type="button"
-                          size="sm"
-                          variant="ghost"
-                          title="Cancel"
-                          aria-label="Cancel"
-                          disabled={busy}
-                          onClick={cancelEditingImage}
-                        >
-                          <X className="h-4 w-4" />
-                        </Button>
-                      </>
-                    ) : (
-                      <Button
-                        type="button"
-                        size="sm"
-                        variant="ghost"
-                        title="Edit label and note"
-                        aria-label="Edit label and note"
-                        disabled={busy}
-                        onClick={() => startEditingImage(image)}
-                      >
-                        <Pencil className="h-4 w-4" />
-                      </Button>
-                    )}
+                  <div className="flex items-center gap-1 sm:justify-end">
                     <Button
                       type="button"
                       size="sm"
