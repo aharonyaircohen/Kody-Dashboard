@@ -78,9 +78,9 @@ export interface CompanyConfigBundle {
   };
   aliases?: Record<string, string>;
   allowedAssociations?: string[];
-  defaultExecutable?: string;
-  defaultPrExecutable?: string;
-  perExecutable?: Record<string, string>;
+  defaultImplementation?: string;
+  defaultPrImplementation?: string;
+  perImplementation?: Record<string, string>;
 }
 
 /** The full portable bundle. */
@@ -188,9 +188,9 @@ const configBundleSchema = z.object({
     .optional(),
   aliases: z.record(z.string().max(64), z.string().max(64)).optional(),
   allowedAssociations: z.array(z.string().max(40)).max(16).optional(),
-  defaultExecutable: z.string().max(64).optional(),
-  defaultPrExecutable: z.string().max(64).optional(),
-  perExecutable: z.record(z.string().max(64), z.string().max(128)).optional(),
+  defaultImplementation: z.string().max(64).optional(),
+  defaultPrImplementation: z.string().max(64).optional(),
+  perImplementation: z.record(z.string().max(64), z.string().max(128)).optional(),
 });
 
 /**

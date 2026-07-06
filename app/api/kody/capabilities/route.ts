@@ -72,8 +72,8 @@ export async function GET(req: NextRequest) {
           headerAuth.repo,
         );
         defaults = {
-          issue: config.defaultExecutable ?? null,
-          pr: config.defaultPrExecutable ?? null,
+          issue: config.defaultImplementation ?? null,
+          pr: config.defaultPrImplementation ?? null,
         };
         for (const slug of activeCapabilitySlugs(config.company)) {
           activeCapabilities.add(slug);

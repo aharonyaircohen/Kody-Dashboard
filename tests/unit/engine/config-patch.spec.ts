@@ -7,7 +7,7 @@
  *   1. A patch that doesn't touch reasoning must preserve any pre-existing
  *      `agent.reasoningEffort` (and every other agent field).
  *   2. A patch with `reasoningEffort: null` must clear only that field,
- *      keeping `agent.model` and `agent.perExecutable` intact.
+ *      keeping `agent.model` and `agent.perImplementation` intact.
  *   3. A patch with a valid reasoning effort ("low"/"medium"/"high"/"off")
  *      must write the value to `agent.reasoningEffort`.
  *
@@ -65,7 +65,7 @@ function octokitWithConfig(config: unknown) {
 describe("getEngineConfig", () => {
   it("preserves active Store goal references", async () => {
     const { octokit } = octokitWithConfig({
-      executables: { default: "run" },
+      defaultImplementation: "run",
       github: { owner: "o", repo: "r" },
       company: {
         activeAgents: ["cto"],
@@ -90,11 +90,11 @@ describe("getEngineConfig", () => {
 describe("writeConfigPatch — reasoningEffort", () => {
   it("patch with only `quality` preserves the existing agent.reasoningEffort", async () => {
     const { octokit, lastWritten } = octokitWithConfig({
-      executables: { default: "run" },
+      defaultImplementation: "run",
       github: { owner: "o", repo: "r" },
       agent: {
         model: "minimax/MiniMax-M3",
-        perExecutable: { research: "anthropic/claude-opus-4-7" },
+        perImplementation: { research: "anthropic/claude-opus-4-7" },
         reasoningEffort: "medium",
       },
     });
@@ -108,19 +108,19 @@ describe("writeConfigPatch — reasoningEffort", () => {
     const written = lastWritten();
     expect(written.agent?.reasoningEffort).toBe("medium");
     expect(written.agent?.model).toBe("minimax/MiniMax-M3");
-    expect(written.agent?.perExecutable).toEqual({
+    expect(written.agent?.perImplementation).toEqual({
       research: "anthropic/claude-opus-4-7",
     });
     expect(written.quality).toEqual({ typecheck: "tsc --noEmit" });
   });
 
-  it("patch with reasoningEffort: null clears only that field, keeping model and perExecutable", async () => {
+  it("patch with reasoningEffort: null clears only that field, keeping model and perImplementation", async () => {
     const { octokit, lastWritten } = octokitWithConfig({
-      executables: { default: "run" },
+      defaultImplementation: "run",
       github: { owner: "o", repo: "r" },
       agent: {
         model: "minimax/MiniMax-M3",
-        perExecutable: { research: "anthropic/claude-opus-4-7" },
+        perImplementation: { research: "anthropic/claude-opus-4-7" },
         reasoningEffort: "high",
       },
     });
@@ -130,14 +130,14 @@ describe("writeConfigPatch — reasoningEffort", () => {
     const written = lastWritten();
     expect(written.agent?.reasoningEffort).toBeUndefined();
     expect(written.agent?.model).toBe("minimax/MiniMax-M3");
-    expect(written.agent?.perExecutable).toEqual({
+    expect(written.agent?.perImplementation).toEqual({
       research: "anthropic/claude-opus-4-7",
     });
   });
 
   it("patch with a valid reasoning effort writes agent.reasoningEffort", async () => {
     const { octokit, lastWritten } = octokitWithConfig({
-      executables: { default: "run" },
+      defaultImplementation: "run",
       github: { owner: "o", repo: "r" },
       agent: { model: "anthropic/claude-sonnet-4-6" },
     });
@@ -153,7 +153,7 @@ describe("writeConfigPatch — reasoningEffort", () => {
 describe("writeConfigPatch — store activation", () => {
   it("writes active store references under company without copying assets", async () => {
     const { octokit, lastWritten } = octokitWithConfig({
-      executables: { default: "run" },
+      defaultImplementation: "run",
       github: { owner: "o", repo: "r" },
       company: { ownerNote: "keep" },
     });
@@ -194,7 +194,7 @@ describe("writeConfigPatch — store activation", () => {
 
   it("clears active store references without clearing other company keys", async () => {
     const { octokit, lastWritten } = octokitWithConfig({
-      executables: { default: "run" },
+      defaultImplementation: "run",
       github: { owner: "o", repo: "r" },
       company: {
         ownerNote: "keep",
@@ -232,7 +232,7 @@ describe("writeConfigPatch — store activation", () => {
             .mockResolvedValueOnce(
               contentResponse(
                 {
-                  executables: { default: "run" },
+                  defaultImplementation: "run",
                   github: { owner: "o", repo: "r" },
                   company: {
                     ownerNote: "stale",
@@ -245,7 +245,7 @@ describe("writeConfigPatch — store activation", () => {
             .mockResolvedValueOnce(
               contentResponse(
                 {
-                  executables: { default: "run" },
+                  defaultImplementation: "run",
                   github: { owner: "o", repo: "r" },
                   aliases: { deploy: "run" },
                   company: {
@@ -297,7 +297,7 @@ describe("writeConfigPatch — store activation", () => {
 describe("writeConfigPatch — state repo", () => {
   it("writes external state repo config", async () => {
     const { octokit, lastWritten } = octokitWithConfig({
-      executables: { default: "run" },
+      defaultImplementation: "run",
       github: { owner: "o", repo: "r" },
     });
 
@@ -313,7 +313,7 @@ describe("writeConfigPatch — state repo", () => {
 
   it("clears state repo config", async () => {
     const { octokit, lastWritten } = octokitWithConfig({
-      executables: { default: "run" },
+      defaultImplementation: "run",
       github: { owner: "o", repo: "r" },
       state: { repo: "https://github.com/o/kody-state", path: "r" },
     });
@@ -325,7 +325,7 @@ describe("writeConfigPatch — state repo", () => {
 
   it("drops invalid direct writer state input", async () => {
     const { octokit, lastWritten } = octokitWithConfig({
-      executables: { default: "run" },
+      defaultImplementation: "run",
       github: { owner: "o", repo: "r" },
       state: { repo: "https://github.com/o/kody-state", path: "r" },
     });

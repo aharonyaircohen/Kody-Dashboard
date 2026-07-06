@@ -115,7 +115,7 @@ describe("POST /api/kody/company/workflows/:id/run", () => {
     vi.clearAllMocks();
     engineConfig.getEngineConfig.mockResolvedValue({
       config: {
-        executables: { default: "run" },
+        defaultImplementation: "run",
         company: {
           activeCapabilities: ["bug"],
           activeWorkflows: [],
@@ -168,7 +168,7 @@ describe("POST /api/kody/company/workflows/:id/run", () => {
     auth.getUserOctokit.mockResolvedValue(octokit);
     engineConfig.getEngineConfig.mockResolvedValue({
       config: {
-        executables: { default: "run" },
+        defaultImplementation: "run",
         company: {
           activeCapabilities: [],
           activeWorkflows: [],

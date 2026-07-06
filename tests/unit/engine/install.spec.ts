@@ -4,7 +4,7 @@
  * @domain engine-install
  *
  * Tests that installEngine creates kody.config.json with the resolved default
- * model and default executable.
+ * model and default implementation.
  */
 
 import { describe, expect, it, vi } from "vitest";
@@ -126,7 +126,7 @@ describe("installEngine", () => {
       expect(workflowFile!.content).toContain("kody-engine");
     });
 
-    it("kody.config.json contains executables.default set to run", async () => {
+    it("kody.config.json does not write a default implementation override", async () => {
       const octokit = createMockOctokit();
       const { getByPath } = captureFileWrites(octokit);
 
@@ -143,7 +143,7 @@ describe("installEngine", () => {
       const configFile = getByPath("kody.config.json");
       expect(configFile).toBeDefined();
       const parsed = JSON.parse(configFile!.content);
-      expect(parsed.executables?.default).toBe("run");
+      expect(parsed.defaultImplementation).toBeUndefined();
     });
 
     it("kody.config.json contains agent.model when variables.json exists with models", async () => {
@@ -306,7 +306,7 @@ describe("installEngine", () => {
       const configFile = getByPath("kody.config.json");
       expect(configFile).toBeDefined();
       const parsed = JSON.parse(configFile!.content);
-      expect(parsed.executables?.default).toBe("run");
+      expect(parsed.defaultImplementation).toBeUndefined();
       expect(parsed.agent).toBeUndefined();
     });
 
@@ -320,7 +320,7 @@ describe("installEngine", () => {
           if (params.path === "kody.config.json") {
             const existingConfig = JSON.stringify({
               model: { default: "old/model" },
-              executables: { default: "old-exec" },
+              defaultImplementation: "old-implementation",
               github: { owner: "example", repo: "my-repo" },
               quality: { typecheck: "tsc --noEmit" },
             });
@@ -348,9 +348,9 @@ describe("installEngine", () => {
       const configFile = getByPath("kody.config.json");
       expect(configFile).toBeDefined();
       const parsed = JSON.parse(configFile!.content);
-      // Merge preserves hand-authored fields (executables, quality) instead of
+      // Merge preserves hand-authored fields (defaultImplementation, quality) instead of
       // clobbering them, and drops the legacy top-level `model` key.
-      expect(parsed.executables?.default).toBe("old-exec");
+      expect(parsed.defaultImplementation).toBe("old-implementation");
       expect(parsed.quality?.typecheck).toBe("tsc --noEmit");
       expect(parsed.model).toBeUndefined();
     });

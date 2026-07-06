@@ -63,7 +63,7 @@ describe("resolveChatModel", () => {
     vi.mocked(getEngineConfig).mockResolvedValue({
       sha: "abc123",
       config: {
-        executables: { default: "run" },
+        defaultImplementation: "run",
         agent: { model: "minimax/MiniMax-M3" },
       },
     });
@@ -279,7 +279,7 @@ describe("resolveChatModel", () => {
   it("still returns no_models_configured when no configured or engine model exists", async () => {
     vi.mocked(getEngineConfig).mockResolvedValue({
       sha: "abc123",
-      config: { executables: { default: "run" } },
+      config: { defaultImplementation: "run" },
     });
 
     const result = await resolveChatModel(request());

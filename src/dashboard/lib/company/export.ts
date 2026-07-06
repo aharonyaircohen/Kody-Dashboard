@@ -99,13 +99,13 @@ async function buildConfigBundle(): Promise<CompanyConfigBundle | null> {
   }
   const assoc = config.access?.allowedAssociations;
   if (Array.isArray(assoc) && assoc.length > 0) out.allowedAssociations = assoc;
-  if (config.defaultExecutable)
-    out.defaultExecutable = config.defaultExecutable;
-  if (config.defaultPrExecutable) {
-    out.defaultPrExecutable = config.defaultPrExecutable;
+  if (config.defaultImplementation)
+    out.defaultImplementation = config.defaultImplementation;
+  if (config.defaultPrImplementation) {
+    out.defaultPrImplementation = config.defaultPrImplementation;
   }
-  const perExec = config.agent?.perExecutable;
-  if (perExec && Object.keys(perExec).length > 0) out.perExecutable = perExec;
+  const perExec = config.agent?.perImplementation;
+  if (perExec && Object.keys(perExec).length > 0) out.perImplementation = perExec;
 
   return Object.keys(out).length > 0 ? out : null;
 }

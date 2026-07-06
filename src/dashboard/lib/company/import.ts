@@ -283,11 +283,11 @@ async function importConfig(
       allowedAssociations:
         Array.isArray(existing?.access?.allowedAssociations) &&
         existing.access.allowedAssociations.length > 0,
-      defaultExecutable: !!existing?.defaultExecutable,
-      defaultPrExecutable: !!existing?.defaultPrExecutable,
-      perExecutable:
-        !!existing?.agent?.perExecutable &&
-        Object.keys(existing.agent.perExecutable).length > 0,
+      defaultImplementation: !!existing?.defaultImplementation,
+      defaultPrImplementation: !!existing?.defaultPrImplementation,
+      perImplementation:
+        !!existing?.agent?.perImplementation &&
+        Object.keys(existing.agent.perImplementation).length > 0,
     };
 
     const patch: ConfigPatch = {};
@@ -296,14 +296,14 @@ async function importConfig(
     if (config.allowedAssociations && !has.allowedAssociations) {
       patch.allowedAssociations = config.allowedAssociations;
     }
-    if (config.defaultExecutable && !has.defaultExecutable) {
-      patch.defaultExecutable = config.defaultExecutable;
+    if (config.defaultImplementation && !has.defaultImplementation) {
+      patch.defaultImplementation = config.defaultImplementation;
     }
-    if (config.defaultPrExecutable && !has.defaultPrExecutable) {
-      patch.defaultPrExecutable = config.defaultPrExecutable;
+    if (config.defaultPrImplementation && !has.defaultPrImplementation) {
+      patch.defaultPrImplementation = config.defaultPrImplementation;
     }
-    if (config.perExecutable && !has.perExecutable) {
-      patch.perExecutable = config.perExecutable;
+    if (config.perImplementation && !has.perImplementation) {
+      patch.perImplementation = config.perImplementation;
     }
 
     if (Object.keys(patch).length === 0) return "skipped";

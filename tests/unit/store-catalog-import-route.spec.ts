@@ -95,7 +95,7 @@ function req(body: unknown, method = "POST"): NextRequest {
 function baseConfig() {
   return {
     config: {
-      executables: { default: "run" },
+      defaultImplementation: "run",
       company: {
         activeAgents: [],
         activeCapabilities: [],
@@ -400,7 +400,7 @@ describe("store catalog import route", () => {
     auth.getUserOctokit.mockResolvedValue(octokit);
     engineConfig.getEngineConfig.mockResolvedValue({
       config: {
-        executables: { default: "run" },
+        defaultImplementation: "run",
         company: {
           activeAgents: ["atlas-agent"],
         },
@@ -424,7 +424,7 @@ describe("store catalog import route", () => {
     auth.getUserOctokit.mockResolvedValue(octokit);
     engineConfig.getEngineConfig.mockResolvedValue({
       config: {
-        executables: { default: "run" },
+        defaultImplementation: "run",
         company: {
           activeAgents: ["atlas-agent"],
           activeCapabilities: ["release-watch"],
@@ -451,7 +451,7 @@ describe("store catalog import route", () => {
     auth.getUserOctokit.mockResolvedValue(octokit);
     engineConfig.getEngineConfig.mockResolvedValue({
       config: {
-        executables: { default: "run" },
+        defaultImplementation: "run",
         company: {
           activeGoals: [{ template: "weekly-quality", every: "1w" }],
         },
@@ -505,7 +505,7 @@ describe("store catalog import route", () => {
     const octokit = makeOctokit();
     auth.getUserOctokit.mockResolvedValue(octokit);
 
-    const res = await POST(req({ kind: "executable", slug: "ship-feature" }));
+    const res = await POST(req({ kind: "implementation", slug: "ship-feature" }));
 
     expect(res.status).toBe(400);
     await expect(res.json()).resolves.toMatchObject({
@@ -519,7 +519,7 @@ describe("store catalog import route", () => {
     auth.getUserOctokit.mockResolvedValue(octokit);
     engineConfig.getEngineConfig.mockResolvedValue({
       config: {
-        executables: { default: "run" },
+        defaultImplementation: "run",
         company: {
           activeCommands: ["factory", "ship"],
         },
@@ -553,7 +553,7 @@ describe("store catalog import route", () => {
     auth.getUserOctokit.mockResolvedValue(octokit);
     engineConfig.getEngineConfig.mockResolvedValue({
       config: {
-        executables: { default: "run" },
+        defaultImplementation: "run",
         company: {
           activeGoals: [
             { template: "weekly-quality", every: "1w" },
@@ -590,7 +590,7 @@ describe("store catalog import route", () => {
     auth.getUserOctokit.mockResolvedValue(octokit);
     engineConfig.getEngineConfig.mockResolvedValue({
       config: {
-        executables: { default: "run" },
+        defaultImplementation: "run",
         company: {
           activeAgents: ["atlas-agent"],
           activeCapabilities: ["release-watch"],
@@ -616,7 +616,7 @@ describe("store catalog import route", () => {
     auth.getUserOctokit.mockResolvedValue(octokit);
     engineConfig.getEngineConfig.mockResolvedValue({
       config: {
-        executables: { default: "run" },
+        defaultImplementation: "run",
         company: {
           activeCapabilities: ["release-watch"],
           activeGoals: [{ template: "weekly-quality", every: "1w" }],
@@ -654,7 +654,7 @@ describe("store catalog import route", () => {
     auth.getUserOctokit.mockResolvedValue(octokit);
     engineConfig.getEngineConfig.mockResolvedValue({
       config: {
-        executables: { default: "run" },
+        defaultImplementation: "run",
         company: {
           activeAgents: ["atlas-agent"],
         },

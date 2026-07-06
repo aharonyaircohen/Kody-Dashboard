@@ -23,7 +23,7 @@ describe("state repo config", () => {
   it("defaults state repo to a full GitHub URL", () => {
     expect(
       resolveStateRepoConfig(
-        { executables: { default: "run" } },
+        { defaultImplementation: "run" },
         "acme",
         "widgets",
       ),

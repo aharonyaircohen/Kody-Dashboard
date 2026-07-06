@@ -16,7 +16,7 @@ const h = vi.hoisted(() => ({
 vi.mock("@dashboard/lib/engine/config", () => ({
   getEngineConfig: vi.fn().mockResolvedValue({
     config: {
-      executables: { default: "run" },
+      defaultImplementation: "run",
       state: { repo: "https://github.com/acme/kody-state", path: "widgets" },
     },
     sha: null,

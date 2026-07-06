@@ -108,7 +108,7 @@ const bugWorkflow = {
 function baseConfig() {
   return {
     config: {
-      executables: { default: "run" },
+      defaultImplementation: "run",
       company: {
         activeCapabilities: ["bug"],
         activeWorkflows: [],
@@ -208,7 +208,7 @@ describe("company workflows route", () => {
   it("removes an active Store workflow-capability from active capabilities", async () => {
     engineConfig.getEngineConfig.mockResolvedValue({
       config: {
-        executables: { default: "run" },
+        defaultImplementation: "run",
         company: {
           activeCapabilities: ["bug", "review"],
           activeWorkflows: [],

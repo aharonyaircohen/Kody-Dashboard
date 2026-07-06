@@ -65,7 +65,7 @@ beforeEach(() => {
   vi.clearAllMocks();
   engineConfig.getEngineConfig.mockResolvedValue({
     config: {
-      executables: { default: "run" },
+      defaultImplementation: "run",
       github: { owner: "acme", repo: "widgets" },
       company: {
         activeCapabilities: ["fix-ci"],

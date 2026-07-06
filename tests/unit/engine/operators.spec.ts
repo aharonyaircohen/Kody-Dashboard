@@ -65,7 +65,7 @@ describe("writeOperators", () => {
   it("sets github.operators without clobbering other fields", async () => {
     const { octokit, lastWritten } = octokitWithConfig({
       agent: { model: "minimax/MiniMax-M3" },
-      executables: { default: "run" },
+      defaultImplementation: "run",
       github: { owner: "o", repo: "r" },
       quality: { something: true },
     });
@@ -89,13 +89,13 @@ describe("writeOperators", () => {
 
 describe("readOperators", () => {
   it("returns a normalized list, empty when unset", async () => {
-    const a = octokitWithConfig({ executables: { default: "run" } });
+    const a = octokitWithConfig({ defaultImplementation: "run" });
     expect(await readOperators(a.octokit, "o", "r", { force: true })).toEqual(
       [],
     );
 
     const b = octokitWithConfig({
-      executables: { default: "run" },
+      defaultImplementation: "run",
       github: { operators: ["@alice", "alice"] },
     });
     expect(await readOperators(b.octokit, "o", "r", { force: true })).toEqual([

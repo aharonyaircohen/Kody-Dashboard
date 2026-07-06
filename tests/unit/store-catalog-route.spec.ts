@@ -105,7 +105,7 @@ describe("store catalog route", () => {
     workflows.listCompanyStoreWorkflowDefinitionFiles.mockResolvedValue([]);
     engineConfig.getEngineConfig.mockResolvedValue({
       config: {
-        executables: { default: "run" },
+        defaultImplementation: "run",
         company: {},
       },
       sha: "config-sha",
@@ -206,7 +206,7 @@ describe("store catalog route", () => {
     ]);
     engineConfig.getEngineConfig.mockResolvedValue({
       config: {
-        executables: { default: "run" },
+        defaultImplementation: "run",
         company: {
           activeAgents: ["atlas-agent"],
           activeCapabilities: ["release-watch"],

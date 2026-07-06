@@ -35,7 +35,7 @@ vi.mock("@dashboard/lib/auth", () => ({
 vi.mock("@dashboard/lib/engine/config", () => ({
   getEngineConfig: vi.fn().mockResolvedValue({
     config: {
-      executables: { default: "run" },
+      defaultImplementation: "run",
       state: {
         repo: "https://github.com/test-owner/kody-state",
         path: "test-repo",

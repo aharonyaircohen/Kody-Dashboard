@@ -38,11 +38,11 @@ export interface KodyStateConfig {
 export interface KodyConfig {
   /** The model the engine runs, as `provider/model`. This is the key the
    * kody-engine actually reads (`parseProviderModel(cfg.agent.model)`).
-   * `perExecutable` overrides the model for a specific executable slug
+   * `perImplementation` overrides the model for a specific implementation slug
    * (e.g. `{ "research": "anthropic/claude-opus-4-7" }`). */
   agent?: {
     model?: string;
-    perExecutable?: Record<string, string>;
+    perImplementation?: Record<string, string>;
     /**
      * Thinking level for the engine. Written by the dashboard's
      * `/engine` page and read by the engine's chat turn as the
@@ -51,17 +51,10 @@ export interface KodyConfig {
      */
     reasoningEffort?: string;
   };
-  executables: {
-    default: string;
-  };
-  /** Executable that runs for a bare `@kody` comment on an **issue**. This is
-   * the field the engine actually reads (`config.defaultExecutable`, defaults
-   * to `classify`) — distinct from the dashboard's `executables.default`
-   * seed, which the engine ignores for dispatch. */
-  defaultExecutable?: string;
-  /** Executable that runs for a bare `@kody` comment on a **PR**
-   * (`config.defaultPrExecutable`, defaults to `fix`). */
-  defaultPrExecutable?: string;
+  /** Implementation that runs for a bare `@kody` comment on an **issue**. */
+  defaultImplementation?: string;
+  /** Implementation that runs for a bare `@kody` comment on a **PR**. */
+  defaultPrImplementation?: string;
   /** Engine repo context plus the operator list. `operators` is the set of
    * GitHub logins that recommendation capabilities (pr-health/CTO) @-mention so the
    * comment routes into their dashboard inbox. Empty/absent = nobody is
@@ -76,7 +69,7 @@ export interface KodyConfig {
   /** Verification commands the engine runs (typecheck/lint/format/test). */
   quality?: KodyQuality;
   /** Comment subcommand aliases, e.g. `{ "build": "run" }` lets `@kody build`
-   * dispatch the `run` executable. */
+   * dispatch the `run` implementation. */
   aliases?: Record<string, string>;
   /** Who may trigger `@kody`. `allowedAssociations` gates by GitHub author
    * association (OWNER/MEMBER/COLLABORATOR/CONTRIBUTOR/NONE). Absent = engine
@@ -199,11 +192,7 @@ export function resolveFlyPreviews(cfg: KodyConfig): ResolvedFlyPreviews {
 }
 
 /** Default config when no kody.config.json exists in the repo. */
-export const defaultConfig: KodyConfig = {
-  executables: {
-    default: "run",
-  },
-};
+export const defaultConfig: KodyConfig = {};
 
 interface CacheEntry {
   config: KodyConfig;
@@ -265,7 +254,6 @@ async function fetchConfig(
     };
     return {
       config: {
-        executables: parsed.executables ?? { default: "run" },
         agent: parsed.agent,
         github: parsed.github,
         state:
@@ -279,8 +267,8 @@ async function fetchConfig(
                 branch: parsedWithStateAliases.stateBranch,
               }
             : undefined),
-        defaultExecutable: parsed.defaultExecutable,
-        defaultPrExecutable: parsed.defaultPrExecutable,
+        defaultImplementation: parsed.defaultImplementation,
+        defaultPrImplementation: parsed.defaultPrImplementation,
         quality: parsed.quality,
         aliases: parsed.aliases,
         access: parsed.access,
@@ -351,9 +339,9 @@ export function invalidateEngineConfigCache(owner: string, repo: string): void {
  * over a freshly read file.
  *
  * Every config writer goes through here so the merge-not-overwrite contract —
- * never clobber the engine's required keys (`github`, `executables`,
+ * never clobber the engine's required keys (`github`, `agent`,
  * `quality`, …) — lives in exactly one place. Mutators are responsible for
- * seeding the engine-required defaults (`executables`, `github`) on a fresh
+ * seeding the engine-required defaults (`github`) on a fresh
  * file; `mutate` always receives the full existing object to spread from.
  */
 function parseConfigForWrite(
@@ -405,7 +393,7 @@ async function mutateConfig(
  * other field. This is the ONLY key the engine reads for its model
  * (`parseProviderModel(cfg.agent.model)`), so writing anything else is a no-op
  * from the engine's perspective. When the file doesn't exist yet we seed the
- * minimum the engine needs (`github`, `executables`).
+ * minimum the engine needs (`github`).
  */
 export async function writeEngineModel(
   octokit: Octokit,
@@ -428,7 +416,6 @@ export async function writeEngineModel(
       const agent = modelSpec ? { ...prevAgent, model: modelSpec } : prevAgent;
       const next: Record<string, unknown> = {
         ...existing,
-        executables: existing.executables ?? { default: "run" },
         github: existing.github ?? { owner, repo },
       };
       if (Object.keys(agent).length > 0) next.agent = agent;
@@ -498,7 +485,6 @@ export async function writeOperators(
           : {};
       return {
         ...existing,
-        executables: existing.executables ?? { default: "run" },
         github: { owner, repo, ...prevGithub, operators: normalized },
       };
     },
@@ -508,23 +494,23 @@ export async function writeOperators(
 }
 
 /**
- * Set the bare-`@kody` default executable(s) in the consumer repo's
- * kody.config.json. `target: "issue"` writes `defaultExecutable`, `"pr"`
- * writes `defaultPrExecutable` — the two top-level fields the engine reads
+ * Set the bare-`@kody` default implementation(s) in the consumer repo's
+ * kody.config.json. `target: "issue"` writes `defaultImplementation`, `"pr"`
+ * writes `defaultPrImplementation` — the two top-level fields the engine reads
  * when a comment is just `@kody` with no verb (see kody2/src/dispatch.ts).
  * A `null` value clears the field, reverting to the engine's built-in default
  * (`classify` for issues, `fix` for PRs). Mirrors `writeOperators`'
  * read→merge→commit so it never clobbers other config keys.
  */
-export async function writeDefaultExecutable(
+export async function writeDefaultImplementation(
   octokit: Octokit,
   owner: string,
   repo: string,
   target: "issue" | "pr",
-  executable: string | null,
+  implementation: string | null,
   commitMessage?: string,
 ): Promise<{ sha: string | null }> {
-  const key = target === "issue" ? "defaultExecutable" : "defaultPrExecutable";
+  const key = target === "issue" ? "defaultImplementation" : "defaultPrImplementation";
   return mutateConfig(
     octokit,
     owner,
@@ -532,18 +518,17 @@ export async function writeDefaultExecutable(
     (existing) => {
       const next: Record<string, unknown> = {
         ...existing,
-        executables: existing.executables ?? { default: "run" },
         github: existing.github ?? { owner, repo },
       };
-      if (executable && executable.trim().length > 0) {
-        next[key] = executable.trim();
+      if (implementation && implementation.trim().length > 0) {
+        next[key] = implementation.trim();
       } else {
         delete next[key];
       }
       return next;
     },
     commitMessage ??
-      `chore(kody): set default ${target} executable${executable ? ` to ${executable}` : ""}`,
+      `chore(kody): set default ${target} implementation${implementation ? ` to ${implementation}` : ""}`,
   );
 }
 
@@ -767,12 +752,12 @@ export interface ConfigPatch {
   activeWorkflows?: string[] | null;
   state?: KodyStateConfig | null;
   defaultBranch?: string | null;
-  perExecutable?: Record<string, string> | null;
-  /** Bare-`@kody` issue default (`defaultExecutable`). Edited on /executables;
+  perImplementation?: Record<string, string> | null;
+  /** Bare-`@kody` issue default (`defaultImplementation`).
    * also carried by the company bundle. */
-  defaultExecutable?: string | null;
-  /** Bare-`@kody` PR default (`defaultPrExecutable`). */
-  defaultPrExecutable?: string | null;
+  defaultImplementation?: string | null;
+  /** Bare-`@kody` PR default (`defaultPrImplementation`). */
+  defaultPrImplementation?: string | null;
   /** Fly preview-machine knobs (size, idle-suspend, health-check, TTL). A
    * partial object merges field-by-field over what's stored; `null` clears
    * the whole `fly.previews` block (reverts to {@link DEFAULT_FLY_PREVIEWS}). */
@@ -806,7 +791,6 @@ export async function writeConfigPatch(
     (existing) => {
       const next: Record<string, unknown> = {
         ...existing,
-        executables: existing.executables ?? { default: "run" },
         github: existing.github ?? { owner, repo },
       };
 
@@ -895,24 +879,24 @@ export async function writeConfigPatch(
         }
       }
 
-      if (patch.perExecutable !== undefined) {
-        const cleaned = patch.perExecutable
-          ? cleanStringMap(patch.perExecutable)
+      if (patch.perImplementation !== undefined) {
+        const cleaned = patch.perImplementation
+          ? cleanStringMap(patch.perImplementation)
           : {};
         const prevAgent =
           typeof existing.agent === "object" && existing.agent !== null
             ? (existing.agent as Record<string, unknown>)
             : {};
         if (Object.keys(cleaned).length > 0) {
-          next.agent = { ...prevAgent, perExecutable: cleaned };
+          next.agent = { ...prevAgent, perImplementation: cleaned };
         } else {
-          const { perExecutable: _drop, ...rest } = prevAgent;
+          const { perImplementation: _drop, ...rest } = prevAgent;
           if (Object.keys(rest).length > 0) next.agent = rest;
           else delete next.agent;
         }
       }
 
-      for (const key of ["defaultExecutable", "defaultPrExecutable"] as const) {
+      for (const key of ["defaultImplementation", "defaultPrImplementation"] as const) {
         if (patch[key] === undefined) continue;
         const val = patch[key]?.trim();
         if (val) next[key] = val;

@@ -2,7 +2,7 @@
  * @fileType component
  * @domain variables
  * @pattern per-capability-model-card
- * @ai-summary /models card for the legacy `agent.perExecutable` config map.
+ * @ai-summary /models card for the `agent.perImplementation` config map.
  *   Public copy calls these per-capability model overrides.
  */
 "use client";
@@ -16,11 +16,11 @@ import { Input } from "@dashboard/ui/input";
 import { useEngineConfig } from "../engine/useEngineConfig";
 import { engineModelSpec, type ChatModel } from "../variables/models";
 
-export function PerExecutableModelCard({ models }: { models: ChatModel[] }) {
+export function PerImplementationModelCard({ models }: { models: ChatModel[] }) {
   const { config, loading, saving, save } = useEngineConfig();
   const [slug, setSlug] = useState("");
   const [spec, setSpec] = useState("");
-  const entries = Object.entries(config?.perExecutable ?? {});
+  const entries = Object.entries(config?.perImplementation ?? {});
 
   // Distinct engine specs from the configured models, for the dropdown.
   const specOptions = Array.from(
@@ -31,7 +31,7 @@ export function PerExecutableModelCard({ models }: { models: ChatModel[] }) {
 
   async function persist(next: Record<string, string>) {
     try {
-      await save({ perExecutable: next });
+      await save({ perImplementation: next });
     } catch {
       toast.error("Couldn't save model overrides");
     }
@@ -41,13 +41,13 @@ export function PerExecutableModelCard({ models }: { models: ChatModel[] }) {
     const s = slug.trim();
     const m = spec.trim();
     if (!s || !m) return;
-    await persist({ ...(config?.perExecutable ?? {}), [s]: m });
+    await persist({ ...(config?.perImplementation ?? {}), [s]: m });
     setSlug("");
     setSpec("");
   }
 
   async function handleRemove(key: string) {
-    const next = { ...(config?.perExecutable ?? {}) };
+    const next = { ...(config?.perImplementation ?? {}) };
     delete next[key];
     await persist(next);
   }
@@ -116,12 +116,12 @@ export function PerExecutableModelCard({ models }: { models: ChatModel[] }) {
                     void handleAdd();
                   }
                 }}
-                list="per-exec-model-specs"
+                list="per-implementation-model-specs"
                 placeholder="provider/model"
                 disabled={saving}
                 className="h-8 text-sm font-mono"
               />
-              <datalist id="per-exec-model-specs">
+            <datalist id="per-implementation-model-specs">
                 {specOptions.map(([s, label]) => (
                   <option key={s} value={s}>
                     {label}

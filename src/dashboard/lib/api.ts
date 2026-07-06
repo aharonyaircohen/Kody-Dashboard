@@ -2540,7 +2540,7 @@ export const companyApi = {
 };
 
 /** The dashboard-editable slice of kody.config.json (see /engine).
- * `perExecutable` (model routing) is edited on /models, the rest here. */
+ * `perImplementation` (model routing) is edited on /models, the rest here. */
 export interface EngineEditableConfig {
   quality: {
     typecheck?: string;
@@ -2568,7 +2568,7 @@ export interface EngineEditableConfig {
     path?: string;
   } | null;
   defaultBranch: string;
-  perExecutable: Record<string, string>;
+  perImplementation: Record<string, string>;
   /** Thinking level for the engine (off|low|medium|high). Null = unset.
    * Loose string here — the route validates the canonical vocabulary
    * via Zod, so the client only needs the string channel. */
@@ -2581,7 +2581,7 @@ import type { KodyJob } from "./kody-job";
 
 export const jobsApi = {
   /**
-   * Run an INSTANT job — assembles to an `@kody <executable> [why]` dispatch on
+   * Run an INSTANT job — assembles to an `@kody <capability> [why]` dispatch on
    * the job's target issue/PR. Scheduled jobs persist as a capability instead (see
    * `capabilitiesApi.create`), so this only accepts `flavor: "instant"`.
    */

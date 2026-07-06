@@ -51,7 +51,7 @@ export async function GET(req: NextRequest) {
       activeWorkflows: config.company?.activeWorkflows ?? [],
       state: config.state ?? null,
       defaultBranch: config.git?.defaultBranch ?? "",
-      perExecutable: config.agent?.perExecutable ?? {},
+      perImplementation: config.agent?.perImplementation ?? {},
       reasoningEffort: config.agent?.reasoningEffort ?? null,
     });
   } catch (err) {
@@ -139,9 +139,9 @@ const PatchSchema = z
     activeWorkflows: z.array(slugSchema).max(200).nullable().optional(),
     state: stateSchema.nullable().optional(),
     defaultBranch: z.string().max(255).nullable().optional(),
-    // Executable slug → `provider/model` override. Bounded so a paste can't
+    // Implementation slug -> `provider/model` override. Bounded so a paste can't
     // bloat the config blob.
-    perExecutable: z
+    perImplementation: z
       .record(z.string().max(64), z.string().max(128))
       .nullable()
       .optional(),
@@ -167,7 +167,7 @@ const PatchSchema = z
       b.activeWorkflows !== undefined ||
       b.state !== undefined ||
       b.defaultBranch !== undefined ||
-      b.perExecutable !== undefined ||
+      b.perImplementation !== undefined ||
       b.reasoningEffort !== undefined,
     { message: "no_fields" },
   );
@@ -215,7 +215,7 @@ export async function PATCH(req: NextRequest) {
     activeWorkflows,
     state,
     defaultBranch,
-    perExecutable,
+    perImplementation,
     reasoningEffort,
   } = parsed.data;
 
@@ -241,7 +241,7 @@ export async function PATCH(req: NextRequest) {
         activeWorkflows,
         state,
         defaultBranch,
-        perExecutable,
+        perImplementation,
         reasoningEffort,
       },
       `chore(kody): update config (${actorLogin})`,
@@ -261,7 +261,7 @@ export async function PATCH(req: NextRequest) {
       activeWorkflows: config.company?.activeWorkflows ?? [],
       state: config.state ?? null,
       defaultBranch: config.git?.defaultBranch ?? "",
-      perExecutable: config.agent?.perExecutable ?? {},
+      perImplementation: config.agent?.perImplementation ?? {},
       reasoningEffort: config.agent?.reasoningEffort ?? null,
     });
   } catch (err) {
