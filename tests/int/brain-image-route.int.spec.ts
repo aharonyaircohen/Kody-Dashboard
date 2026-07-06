@@ -97,6 +97,7 @@ vi.mock("@dashboard/lib/brain/image-runtime", () => ({
 }));
 
 import { DELETE, GET, PATCH, POST } from "../../app/api/kody/brain/image/route";
+import { resolveBrainService } from "../../src/dashboard/lib/brain/service-resolver";
 
 function request(
   method: "DELETE" | "GET" | "PATCH" | "POST" = "POST",
@@ -562,5 +563,35 @@ describe("POST /api/kody/brain/image", () => {
         orgSlug: "guy-koren",
       }),
     );
+  });
+
+  it("returns a Fly authorization error before starting a save job", async () => {
+    vi.mocked(resolveBrainService).mockResolvedValueOnce({
+      app: "brain-1",
+      orgSlug: "guy-koren",
+      defaultRegion: "fra",
+      flyToken: "fly-token",
+      state: "off",
+      stored: {
+        version: 1,
+        appName: "brain-1",
+        orgSlug: "guy-koren",
+        createdAt: "2026-07-06T10:00:00.000Z",
+      },
+      reason: "fly_access_denied",
+    });
+
+    const res = await POST(request());
+    const body = (await res.json()) as {
+      error?: string;
+      message?: string;
+    };
+
+    expect(res.status).toBe(403);
+    expect(body).toMatchObject({
+      error: "fly_access_denied",
+      message: "Fly token cannot access this Brain app.",
+    });
+    expect(mocks.startJob).not.toHaveBeenCalled();
   });
 });

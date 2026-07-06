@@ -8,8 +8,14 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const brainFly = vi.hoisted(() => ({
   destroyBrain: vi.fn(async () => undefined),
+  provisionBrain: vi.fn(async () => undefined),
   resumeBrain: vi.fn(async () => undefined),
   suspendBrain: vi.fn(async () => undefined),
+  updateBrainSuspension: vi.fn(async () => ({
+    app: "brain-1",
+    machineId: "machine-runtime",
+    suspendOnIdle: false,
+  })),
 }));
 
 const brainService = vi.hoisted(() => ({
@@ -68,6 +74,7 @@ vi.mock("@dashboard/lib/logger", () => ({
 import { POST as destroyPOST } from "../../app/api/kody/brain/destroy/route";
 import { POST as resumePOST } from "../../app/api/kody/brain/resume/route";
 import { POST as suspendPOST } from "../../app/api/kody/brain/suspend/route";
+import { POST as suspensionPOST } from "../../app/api/kody/brain/suspension/route";
 
 function req(path: string): NextRequest {
   return new NextRequest(`https://dash.test${path}`, { method: "POST" });
@@ -117,5 +124,26 @@ describe("Brain control routes", () => {
         orgSlug: "guy-koren",
       }),
     );
+  });
+
+  it("updates suspension on the stored Brain machine without provisioning", async () => {
+    const res = await suspensionPOST(
+      new NextRequest("https://dash.test/api/kody/brain/suspension", {
+        method: "POST",
+        headers: { "x-kody-brain-suspension": "never" },
+      }),
+    );
+
+    expect(res.status).toBe(200);
+    expect(brainFly.updateBrainSuspension).toHaveBeenCalledWith(
+      expect.objectContaining({
+        flyToken: "fallback-fly-token",
+        appNameOverride: "brain-1",
+        machineIdOverride: "machine-runtime",
+        orgSlug: "guy-koren",
+        suspendOnIdle: false,
+      }),
+    );
+    expect(brainFly.provisionBrain).not.toHaveBeenCalled();
   });
 });

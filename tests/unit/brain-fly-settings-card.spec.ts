@@ -27,4 +27,32 @@ describe("Brain on Fly settings card", () => {
       "Brain machine is running inside it",
     );
   });
+
+  it("saves Brain suspension through the machine-config route", () => {
+    const start = BRAIN_CARD_SOURCE.indexOf(
+      "async function saveBrainSuspension",
+    );
+    const end = BRAIN_CARD_SOURCE.indexOf(
+      "  // The dashboard has a stored record",
+      start,
+    );
+    const saveBrainSuspension = BRAIN_CARD_SOURCE.slice(start, end);
+
+    expect(saveBrainSuspension).toContain(
+      '"/api/kody/brain/suspension"',
+    );
+    expect(saveBrainSuspension).not.toContain(
+      '"/api/kody/brain/provision"',
+    );
+  });
+
+  it("shows Fly authorization failures as token access problems", () => {
+    expect(BRAIN_CARD_SOURCE).toContain('"fly_access_denied"');
+    expect(BRAIN_CARD_SOURCE).toContain(
+      "Fly token cannot access the stored Brain app",
+    );
+    expect(BRAIN_CARD_SOURCE).toContain(
+      "Update\n                  the repo Fly token",
+    );
+  });
 });

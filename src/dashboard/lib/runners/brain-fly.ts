@@ -211,6 +211,22 @@ export interface ResumeBrainInput {
   defaultRegion?: string;
 }
 
+export interface UpdateBrainSuspensionInput {
+  flyToken: string;
+  account: string;
+  appNameOverride?: string;
+  machineIdOverride?: string;
+  orgSlug?: string;
+  defaultRegion?: string;
+  suspendOnIdle?: boolean;
+}
+
+export interface UpdateBrainSuspensionResult {
+  app: string;
+  machineId: string;
+  suspendOnIdle: boolean;
+}
+
 export interface BrainStatusResult {
   app: string;
   /** "running" | "suspended" | "stopped" | "off" (= no app/machine yet) */
@@ -219,6 +235,7 @@ export interface BrainStatusResult {
   machineId?: string;
   machineImageRef?: string;
   org?: string;
+  accessDenied?: boolean;
 }
 
 /**
@@ -739,7 +756,7 @@ async function destroyMachine(
   );
 }
 
-function brainAutostop(input: ProvisionBrainInput): BrainAutostop {
+function brainAutostop(input: { suspendOnIdle?: boolean }): BrainAutostop {
   return input.suspendOnIdle === false ? false : "suspend";
 }
 
@@ -791,7 +808,7 @@ function brainImageRef(input: ProvisionBrainInput): string {
 
 function alignBrainSuspensionConfig(
   config: BrainMachineConfig | undefined,
-  input: ProvisionBrainInput,
+  input: { suspendOnIdle?: boolean },
 ): { changed: boolean; config?: BrainMachineConfig } {
   if (!config?.services?.length) return { changed: false };
   const targetAutostop = brainAutostop(input);
@@ -1252,6 +1269,64 @@ export async function suspendBrain(input: SuspendBrainInput): Promise<void> {
 }
 
 /**
+ * Update the idle auto-suspension policy on an existing Brain machine only.
+ *
+ * This deliberately does not call ensureApp/provisionBrain: settings changes
+ * must not create apps, allocate IPs, recreate machines, or rewrite boot env.
+ */
+export async function updateBrainSuspension(
+  input: UpdateBrainSuspensionInput,
+): Promise<UpdateBrainSuspensionResult> {
+  if (!input.flyToken?.trim()) {
+    throw new Error("brain-fly: flyToken required");
+  }
+  const app = input.appNameOverride ?? brainAppName(input.account);
+  const machine = await findExistingMachine(input.flyToken, app, {
+    machineId: input.machineIdOverride,
+  });
+  if (!machine) {
+    throw new Error(`brain-fly: app ${app} has no Brain machine to update`);
+  }
+  if (!machine.config?.services?.length) {
+    throw new Error(
+      `brain-fly: machine ${machine.id} in ${app} has no service config to update`,
+    );
+  }
+
+  const suspendOnIdle = input.suspendOnIdle !== false;
+  const alignedConfig = alignBrainSuspensionConfig(machine.config, {
+    suspendOnIdle,
+  });
+  if (alignedConfig.changed && alignedConfig.config) {
+    await updateMachineConfig(
+      input.flyToken,
+      app,
+      machine.id,
+      alignedConfig.config,
+    );
+    logger.info(
+      {
+        app,
+        machineId: machine.id,
+        autostop: brainAutostop({ suspendOnIdle }),
+      },
+      "brain-fly: updated suspension config",
+    );
+  } else {
+    logger.info(
+      { app, machineId: machine.id, autostop: brainAutostop({ suspendOnIdle }) },
+      "brain-fly: suspension config already current",
+    );
+  }
+
+  return {
+    app,
+    machineId: machine.id,
+    suspendOnIdle,
+  };
+}
+
+/**
  * Resume (wake) the per-user Brain machine.
  *
  * Implementation: hit the machine through Fly's edge proxy (`/healthz`) and
@@ -1320,7 +1395,8 @@ export async function brainStatus(
     });
   } catch (err) {
     const status = (err as { status?: number })?.status;
-    if (status !== 403) throw err;
+    if (status !== 401 && status !== 403) throw err;
+    return { app, state: "off", org: orgSlug, accessDenied: true };
   }
   if (!existing) {
     return { app, state: "off", org: orgSlug };

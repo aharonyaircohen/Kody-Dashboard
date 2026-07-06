@@ -96,6 +96,12 @@ describe("Brain image save route", () => {
     expect(APPLY_SERVICE_SOURCE).toContain("prepareBrainRuntimeImage");
     expect(APPLY_SERVICE_SOURCE).toContain("resolveRuntimeImageRef");
     expect(APPLY_SERVICE_SOURCE).toContain("beginBrainRuntimeApply");
+    expect(APPLY_SERVICE_SOURCE).toContain(
+      'service.reason === "fly_access_denied"',
+    );
+    expect(APPLY_SERVICE_SOURCE).toContain(
+      "Fly token cannot access this Brain app.",
+    );
     expect(APPLY_SERVICE_SOURCE).toContain("completeBrainRuntimeApply");
     expect(APPLY_SERVICE_SOURCE).toContain("brainImageCatalogFile");
     expect(APPLY_SERVICE_SOURCE).not.toContain("selectBrainImage");

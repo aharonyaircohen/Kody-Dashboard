@@ -296,4 +296,31 @@ describe("resolveBrainService", () => {
     expect(resolved.machineId).toBe("m-runtime");
     delete process.env.FLY_API_TOKEN;
   });
+
+  it("keeps Fly authorization failures separate from missing apps", async () => {
+    brainFly.brainStatus.mockResolvedValueOnce({
+      app: "brain-1",
+      state: "off",
+      org: "personal",
+      accessDenied: true,
+    });
+    flyPreviews.listMachines.mockRejectedValueOnce(
+      Object.assign(new Error("unauthorized"), { status: 403 }),
+    );
+    const { resolveBrainService } = await import(
+      "@dashboard/lib/brain/service-resolver"
+    );
+
+    const resolved = await resolveBrainService({
+      flyToken: "vault-token",
+      account: "octocat",
+      githubToken: "github-token",
+      orgSlug: "personal",
+      defaultRegion: "fra",
+    });
+
+    expect(resolved.reason).toBe("fly_access_denied");
+    expect(resolved.state).toBe("off");
+    expect(resolved.stored).toBeTruthy();
+  });
 });

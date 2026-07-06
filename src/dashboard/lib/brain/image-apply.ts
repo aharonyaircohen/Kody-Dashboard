@@ -133,6 +133,9 @@ export async function applySelectedBrainImage(
       defaultRegion: input.flyDefaultRegion,
       appNameOverride: target.app,
     });
+    if (service.reason === "fly_access_denied") {
+      throw new Error("Fly token cannot access this Brain app.");
+    }
     const operationFlyToken = service.flyToken;
     const operationOrgSlug = service.orgSlug;
     const brain = await provisionBrain({

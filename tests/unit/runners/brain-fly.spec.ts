@@ -21,6 +21,7 @@ import {
   provisionBrain,
   resumeBrain,
   sameImageRepoTag,
+  updateBrainSuspension,
 } from "@dashboard/lib/runners/brain-fly";
 
 const TOKEN = "fly-test-token";
@@ -1445,6 +1446,100 @@ describe("provisionBrain image-ref healing", () => {
   });
 });
 
+describe("updateBrainSuspension", () => {
+  it("updates an existing machine without creating or probing apps", async () => {
+    const calls = installFetchStub((call) => {
+      if (call.method === "GET" && call.url.endsWith("/machines")) {
+        return {
+          json: [
+            {
+              id: "m-existing",
+              state: "started",
+              region: "fra",
+              config: {
+                env: { BRAIN_API_KEY: "live-key" },
+                services: [
+                  {
+                    internal_port: 8080,
+                    autostop: "suspend",
+                    autostart: true,
+                    min_machines_running: 0,
+                  },
+                ],
+              },
+            },
+          ],
+        };
+      }
+      if (
+        call.method === "POST" &&
+        call.url.endsWith("/machines/m-existing")
+      ) {
+        return { json: { id: "m-existing", state: "started" } };
+      }
+      if (
+        call.url.endsWith("/apps") ||
+        call.url.endsWith("/apps/kody-brain-alice")
+      ) {
+        throw new Error(`must not provision from suspension update: ${call.url}`);
+      }
+      if (call.method === "DELETE") {
+        throw new Error(`must not recreate from suspension update: ${call.url}`);
+      }
+      throw new Error(`unexpected: ${call.method} ${call.url}`);
+    });
+
+    const out = await updateBrainSuspension({
+      flyToken: TOKEN,
+      account: "alice",
+      appNameOverride: "kody-brain-alice",
+      machineIdOverride: "m-existing",
+      suspendOnIdle: false,
+    });
+
+    expect(out).toEqual({
+      app: "kody-brain-alice",
+      machineId: "m-existing",
+      suspendOnIdle: false,
+    });
+    const update = calls.find(
+      (c) => c.method === "POST" && c.url.endsWith("/machines/m-existing"),
+    )!;
+    expect(
+      (
+        update.body as {
+          config: { services: Array<{ autostop: false | "suspend" }> };
+        }
+      ).config.services[0]!.autostop,
+    ).toBe(false);
+    expect(calls.some((c) => c.method === "POST" && c.url.endsWith("/apps"))).toBe(
+      false,
+    );
+  });
+
+  it("rejects suspension updates when no Brain machine exists", async () => {
+    const calls = installFetchStub((call) => {
+      if (call.method === "GET" && call.url.endsWith("/machines")) {
+        return { json: [] };
+      }
+      if (call.method === "POST") {
+        throw new Error(`must not mutate without a machine: ${call.url}`);
+      }
+      throw new Error(`unexpected: ${call.method} ${call.url}`);
+    });
+
+    await expect(
+      updateBrainSuspension({
+        flyToken: TOKEN,
+        account: "alice",
+        appNameOverride: "kody-brain-alice",
+        suspendOnIdle: false,
+      }),
+    ).rejects.toThrow(/has no Brain machine/);
+    expect(calls.some((c) => c.method === "POST")).toBe(false);
+  });
+});
+
 // ────────────────────────────────────────────────────────────────────────────
 // allocateIpsIfMissing: graphql IP allocation
 //
@@ -1618,7 +1713,7 @@ describe("brainStatus", () => {
     });
   });
 
-  it("returns state='off' when the Fly token cannot see the stored app", async () => {
+  it("returns state='off' with accessDenied when the Fly token cannot see the stored app", async () => {
     installFetchStub(() => ({ status: 403, text: "forbidden" }));
     const out = await brainStatus({
       flyToken: TOKEN,
@@ -1629,6 +1724,7 @@ describe("brainStatus", () => {
       app: "kody-brain-aguyaharonyair",
       state: "off",
       org: "personal",
+      accessDenied: true,
     });
   });
 

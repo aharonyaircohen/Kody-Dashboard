@@ -213,6 +213,7 @@ async function brainStatus() {
 
 async function ensureBrainMachine() {
   let status = await brainStatus();
+  assertBrainStatusUsable(status, "Brain status");
   if (status.app && status.machineId) {
     step("Brain found", `${status.app}/${status.machineId} (${status.state})`);
     return status;
@@ -234,6 +235,14 @@ async function ensureBrainMachine() {
   return status;
 }
 
+function assertBrainStatusUsable(status, label) {
+  if (status?.reason === "fly_access_denied") {
+    throw new Error(
+      `${label}: Fly token cannot access stored Brain app ${status.app ?? status.stored?.appName ?? "unknown"}. Update the repo vault FLY_API_TOKEN or run the verifier with a matching Fly token before testing terminal/image flows.`,
+    );
+  }
+}
+
 async function ensureBrainRunning(status) {
   if (status.state === "running") return status;
   step("Resuming Brain", `${status.app}/${status.machineId} is ${status.state}`);
@@ -252,6 +261,7 @@ async function waitForBrain(predicate, label, timeoutMs) {
   let last = null;
   while (Date.now() < deadline) {
     last = await brainStatus();
+    assertBrainStatusUsable(last, label);
     if (predicate(last)) return last;
     await sleep(5_000);
   }

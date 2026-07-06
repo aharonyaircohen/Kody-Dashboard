@@ -26,7 +26,8 @@ export type BrainServiceReason =
   | "stored_app_not_found"
   | "app_has_no_machine"
   | "runtime_machine_not_found"
-  | "machine_lookup_failed";
+  | "machine_lookup_failed"
+  | "fly_access_denied";
 
 export interface BrainServiceResolution {
   app: string;
@@ -58,6 +59,13 @@ function sameResolvedBrainMachine(
       b.machineId &&
       a.machineId === b.machineId,
   );
+}
+
+function flyAccessDenied(error: unknown): boolean {
+  const status = (error as { status?: number })?.status;
+  if (status === 401 || status === 403) return true;
+  const message = error instanceof Error ? error.message : String(error);
+  return /Fly Machines API (401|403)|unauthorized|forbidden/i.test(message);
 }
 
 export async function resolveBrainService(input: {
@@ -105,6 +113,7 @@ export async function resolveBrainService(input: {
 
     let machine: FlyMachineRow | undefined;
     let machineLookupFailed = false;
+    let machineAccessDenied = Boolean(status.accessDenied);
     try {
       const machines = await listMachines(app, {
         token: flyToken,
@@ -118,12 +127,15 @@ export async function resolveBrainService(input: {
       }).find((row) =>
         targetMachineId ? row.machineId === targetMachineId : true,
       );
-    } catch {
+    } catch (err) {
       machineLookupFailed = true;
+      machineAccessDenied = machineAccessDenied || flyAccessDenied(err);
     }
 
     const reason: BrainServiceReason | undefined =
-      targetMachineId && !machine && !machineLookupFailed
+      machineAccessDenied
+        ? "fly_access_denied"
+        : targetMachineId && !machine && !machineLookupFailed
         ? "runtime_machine_not_found"
         : machineLookupFailed && status.state !== "off"
           ? "machine_lookup_failed"

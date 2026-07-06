@@ -92,6 +92,7 @@ const TARGET_STATUS: Record<string, number> = {
   machine_not_terminal_capable: 403,
   machine_not_running: 409,
   selected_image_not_running: 409,
+  fly_access_denied: 403,
 };
 
 const TARGET_MESSAGE: Record<string, string> = {
@@ -101,6 +102,7 @@ const TARGET_MESSAGE: Record<string, string> = {
     "Brain machine did not become ready in time. Try Connect again.",
   selected_image_not_running:
     "Selected image is not running. Apply it from Brain Images first.",
+  fly_access_denied: "Fly token cannot access this Brain app.",
 };
 
 const WAKE_POLL_ATTEMPTS = 60;
@@ -195,6 +197,17 @@ export async function POST(req: NextRequest) {
         machineId: parsed.data.machineId,
       },
     );
+    if (brainRequested && savedBrain?.brain.reason === "fly_access_denied") {
+      return NextResponse.json(
+        {
+          error: "fly_access_denied",
+          message: TARGET_MESSAGE.fly_access_denied,
+          app: savedBrain.brain.app,
+          org: savedBrain.brain.orgSlug,
+        },
+        { status: TARGET_STATUS.fly_access_denied },
+      );
+    }
     let targetInput:
       | { app: string; machineId: string; feature?: "runner" | "brain" }
       | null =

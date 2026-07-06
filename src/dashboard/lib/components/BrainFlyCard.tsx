@@ -103,7 +103,8 @@ interface StatusResponse {
     | "not_provisioned"
     | "stored_app_not_found"
     | "app_has_no_machine"
-    | "machine_lookup_failed";
+    | "machine_lookup_failed"
+    | "fly_access_denied";
   error?: string;
   stored?: {
     version: 1;
@@ -172,6 +173,8 @@ function brainReasonLabel(reason: StatusResponse["reason"]): string | null {
       return "Brain app exists but has no machine.";
     case "machine_lookup_failed":
       return "Brain machine lookup failed.";
+    case "fly_access_denied":
+      return "Fly token cannot access this Brain app.";
     case "not_provisioned":
       return null;
     default:
@@ -205,6 +208,7 @@ export function BrainFlyCard({
     | "destroying"
     | "suspending"
     | "resuming"
+    | "saving-suspension"
     | "clearing-record"
     | "copying-login"
   >("idle");
@@ -521,22 +525,17 @@ export function BrainFlyCard({
     if (!flyTokenConfigured || Object.keys(headers).length === 0 || !isOn) {
       return;
     }
-    setBusy("provisioning");
+    setBusy("saving-suspension");
     try {
-      const trimmedOverride = customAppName.trim();
-      const res = await fetch("/api/kody/brain/provision", {
+      const res = await fetch("/api/kody/brain/suspension", {
         method: "POST",
         headers: {
           ...headers,
           "Content-Type": "application/json",
-          "x-kody-brain-perf": brainPerf,
           "x-kody-brain-suspension": value,
         },
-        body: JSON.stringify(
-          trimmedOverride.length > 0 ? { appName: trimmedOverride } : {},
-        ),
       });
-      const body = (await res.json().catch(() => ({}))) as ProvisionResponse;
+      const body = (await res.json().catch(() => ({}))) as { error?: string };
       if (!res.ok) {
         toast.error(
           body.error ?? `Brain suspension save failed (HTTP ${res.status})`,
@@ -572,11 +571,8 @@ export function BrainFlyCard({
     }
   }
 
-  // Orphan: the dashboard has a stored record for this user but the Fly
-  // token can't see the app (token revoked, app moved to a different
-  // org, slug taken by another account, etc.). The user can clear the
-  // record to start fresh, or just hit Turn on and let the auto-rename
-  // in `ensureApp` pick a new slug.
+  // The dashboard has a stored record, but the live Fly lookup could not
+  // return a usable machine. Keep auth failures distinct from missing apps.
   const isOrphan = state === "off" && stored !== null;
   const statusDetail = brainReasonLabel(statusReason);
 
@@ -824,11 +820,19 @@ export function BrainFlyCard({
           )}
           {isOrphan && (
             <div className="rounded-md border border-amber-500/40 bg-amber-500/15 p-2.5 text-[12px] text-amber-50 space-y-2">
-              <div>
-                Can&apos;t reach the stored Brain app{" "}
-                <span className="font-mono">{stored?.appName}</span>. Turn on
-                will create a fresh one.
-              </div>
+              {statusReason === "fly_access_denied" ? (
+                <div>
+                  Fly token cannot access the stored Brain app{" "}
+                  <span className="font-mono">{stored?.appName}</span>. Update
+                  the repo Fly token or use a token that can access that app.
+                </div>
+              ) : (
+                <div>
+                  Can&apos;t reach the stored Brain app{" "}
+                  <span className="font-mono">{stored?.appName}</span>. Turn on
+                  will create a fresh one.
+                </div>
+              )}
               <Button
                 size="sm"
                 variant="ghost"

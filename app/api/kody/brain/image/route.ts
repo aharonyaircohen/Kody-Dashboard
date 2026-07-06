@@ -219,6 +219,18 @@ export async function POST(req: NextRequest) {
     const app = brain.app;
     const machineId = brain.machineId;
     const brainFlyToken = brain.flyToken;
+    if (brain.reason === "fly_access_denied") {
+      return NextResponse.json(
+        {
+          error: "fly_access_denied",
+          message: "Fly token cannot access this Brain app.",
+          app: brain.app,
+          org: brain.orgSlug,
+          reason: brain.reason,
+        },
+        { status: 403 },
+      );
+    }
     if (brain.state === "off" || !machineId || !brain.url) {
       return NextResponse.json(
         {
