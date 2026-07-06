@@ -86,7 +86,16 @@ export interface AgencyRunDetailPayload {
   path: string;
   htmlUrl: string | null;
   events: Array<Record<string, unknown>>;
+  workflowLog: AgencyRunWorkflowLogInsight | null;
   computedAt: string;
+}
+
+export interface AgencyRunWorkflowLogInsight {
+  jobId: string;
+  jobName: string | null;
+  status: "completed" | "failed" | "recorded";
+  summary: string | null;
+  lines: string[];
 }
 
 interface RunIndexRow {
@@ -285,6 +294,113 @@ function parseJsonl(content: string): Array<Record<string, unknown>> {
       }
     })
     .filter((entry): entry is Record<string, unknown> => entry !== null);
+}
+
+function stripAnsi(value: string): string {
+  return value.replace(/\x1B\[[0-?]*[ -/]*[@-~]/g, "");
+}
+
+function cleanLogLine(value: string): string {
+  return stripAnsi(value)
+    .replace(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d+Z\s+/, "")
+    .replace(/^##\[[^\]]+\]/, "")
+    .trim();
+}
+
+function collectSummaryLines(lines: string[]): string[] {
+  const start = lines.findIndex((line) => line === "PR_SUMMARY:");
+  if (start < 0) return [];
+  const summary: string[] = [];
+  for (const line of lines.slice(start + 1)) {
+    if (!line || line.startsWith("===") || line.startsWith("##[")) break;
+    summary.push(line.replace(/^-\s*/, ""));
+    if (summary.length >= 4) break;
+  }
+  return summary;
+}
+
+function summarizeWorkflowLog(
+  jobId: string,
+  jobName: string | null,
+  raw: string,
+): AgencyRunWorkflowLogInsight {
+  const lines = raw
+    .split(/\r?\n/)
+    .map(cleanLogLine)
+    .filter(Boolean);
+  const failed = lines.find((line) => line.startsWith("PR_URL=FAILED:"));
+  const summaryLines = collectSummaryLines(lines);
+  const usefulLine =
+    [...lines]
+      .reverse()
+      .find((line) =>
+        /already tracks|already exists|no duplicate|Dev CI|CI is red|DONE/i.test(
+          line,
+        ),
+      ) ?? null;
+  const summary =
+    summaryLines.length > 0
+      ? summaryLines.join(" ")
+      : failed?.replace(/^PR_URL=FAILED:\s*/, "") ?? usefulLine;
+
+  return {
+    jobId,
+    jobName,
+    status: failed ? "failed" : lines.includes("DONE") ? "completed" : "recorded",
+    summary,
+    lines: summaryLines.length > 0 ? summaryLines : usefulLine ? [usefulLine] : [],
+  };
+}
+
+async function readWorkflowLogInsight({
+  octokit,
+  owner,
+  repo,
+  githubRunId,
+}: {
+  octokit: Octokit;
+  owner: string;
+  repo: string;
+  githubRunId: string | null | undefined;
+}): Promise<AgencyRunWorkflowLogInsight | null> {
+  if (!githubRunId || !/^\d+$/.test(githubRunId)) return null;
+  try {
+    const jobsResponse = await octokit.request(
+      "GET /repos/{owner}/{repo}/actions/runs/{run_id}/jobs",
+      {
+        owner,
+        repo,
+        run_id: Number(githubRunId),
+        per_page: 20,
+      },
+    );
+    const jobsData = jobsResponse.data as {
+      jobs?: Array<{ id?: number | string | null; name?: string | null }>;
+    };
+    const job =
+      jobsData.jobs?.find((item) => item.name === "run") ?? jobsData.jobs?.[0];
+    if (!job?.id) return null;
+
+    const logsResponse = await octokit.request(
+      "GET /repos/{owner}/{repo}/actions/jobs/{job_id}/logs",
+      {
+        owner,
+        repo,
+        job_id: Number(job.id),
+      },
+    );
+    const data = logsResponse.data;
+    const raw =
+      typeof data === "string"
+        ? data
+        : data instanceof ArrayBuffer
+          ? Buffer.from(data).toString("utf8")
+          : "";
+    if (!raw) return null;
+    return summarizeWorkflowLog(String(job.id), stringValue(job.name), raw);
+  } catch {
+    return null;
+  }
 }
 
 function assertAllowedDetailPath(path: string): void {
@@ -537,18 +653,24 @@ export async function readAgencyRunDetail({
   owner,
   repo,
   sourcePath,
+  githubRunId,
 }: {
   octokit: Octokit;
   owner: string;
   repo: string;
   sourcePath: string;
+  githubRunId?: string | null;
 }): Promise<AgencyRunDetailPayload> {
   assertAllowedDetailPath(sourcePath);
-  const file = await readStateText(octokit, owner, repo, sourcePath);
+  const [file, workflowLog] = await Promise.all([
+    readStateText(octokit, owner, repo, sourcePath),
+    readWorkflowLogInsight({ octokit, owner, repo, githubRunId }),
+  ]);
   return {
     path: sourcePath,
     htmlUrl: file?.htmlUrl ?? null,
     events: parseJsonl(file?.content ?? ""),
+    workflowLog,
     computedAt: new Date().toISOString(),
   };
 }

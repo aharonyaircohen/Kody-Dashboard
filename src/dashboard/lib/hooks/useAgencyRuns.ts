@@ -23,8 +23,18 @@ export const agencyRunsQueryKeys = {
   all: ["kody-agency-runs"] as const,
   list: (auth: KodyAuth | null) =>
     [...agencyRunsQueryKeys.all, scope(auth)] as const,
-  detail: (auth: KodyAuth | null, sourcePath: string | null) =>
-    [...agencyRunsQueryKeys.all, scope(auth), "detail", sourcePath] as const,
+  detail: (
+    auth: KodyAuth | null,
+    sourcePath: string | null,
+    githubRunId: string | null,
+  ) =>
+    [
+      ...agencyRunsQueryKeys.all,
+      scope(auth),
+      "detail",
+      sourcePath,
+      githubRunId,
+    ] as const,
 };
 
 export function useAgencyRuns() {
@@ -39,11 +49,14 @@ export function useAgencyRuns() {
   });
 }
 
-export function useAgencyRunDetail(sourcePath: string | null) {
+export function useAgencyRunDetail(
+  sourcePath: string | null,
+  githubRunId: string | null = null,
+) {
   const { auth } = useAuth();
   return useQuery({
-    queryKey: agencyRunsQueryKeys.detail(auth, sourcePath),
-    queryFn: () => kodyApi.agencyRuns.detail(sourcePath ?? ""),
+    queryKey: agencyRunsQueryKeys.detail(auth, sourcePath, githubRunId),
+    queryFn: () => kodyApi.agencyRuns.detail(sourcePath ?? "", githubRunId),
     enabled: !!auth && !!sourcePath,
     staleTime: 30_000,
   });

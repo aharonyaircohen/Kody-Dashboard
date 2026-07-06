@@ -25,4 +25,19 @@ describe("Agency Runs page", () => {
     expect(navSource).toContain('label: "Agency Runs"');
     expect(navSource).toContain("Kody runs for goals, loops, and workflows.");
   });
+
+  it("opens run details with operator outcome before raw events", () => {
+    const outcomeIndex = pageSource.indexOf("What happened");
+    const nextIndex = pageSource.indexOf("Next state");
+    const rawIndex = pageSource.indexOf("Raw event timeline");
+
+    expect(pageSource).toContain("function operatorHappened");
+    expect(pageSource).toContain("function operatorNext");
+    expect(pageSource).toContain("What happened");
+    expect(pageSource).toContain("Next state");
+    expect(pageSource).toContain("Raw event timeline");
+    expect(outcomeIndex).toBeGreaterThan(-1);
+    expect(nextIndex).toBeGreaterThan(outcomeIndex);
+    expect(rawIndex).toBeGreaterThan(nextIndex);
+  });
 });

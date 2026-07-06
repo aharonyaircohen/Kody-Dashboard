@@ -110,6 +110,107 @@ function kindHref(run: AgencyRunSummary): string {
   return `/workflows/${encodeURIComponent(run.targetId)}`;
 }
 
+function humanStatus(status: AgencyRunStatus): string {
+  if (status === "success") return "Completed";
+  if (status === "failed") return "Failed";
+  if (status === "blocked") return "Blocked";
+  if (status === "stuck") return "Stuck";
+  if (status === "waiting") return "Waiting";
+  if (status === "running") return "Running";
+  if (status === "cancelled") return "Cancelled";
+  return "Recorded";
+}
+
+function recordValue(value: unknown): Record<string, unknown> | null {
+  return value && typeof value === "object" && !Array.isArray(value)
+    ? (value as Record<string, unknown>)
+    : null;
+}
+
+function textValue(value: unknown): string | null {
+  return typeof value === "string" && value.trim() ? value.trim() : null;
+}
+
+function dispatchLabel(value: string | null): string | null {
+  if (!value) return null;
+  const match = value.match(/^dispatch\s+([^:]+)(?::\s*(.+))?$/i);
+  if (!match?.[1]) return null;
+  return `Kody decided to run ${match[1].trim()}.`;
+}
+
+function eventResultSummary(event: Record<string, unknown> | null): string | null {
+  if (!event) return null;
+  const trace = recordValue(event.trace);
+  const result = recordValue(trace?.result);
+  return (
+    textValue(result?.summary) ??
+    textValue(event.reason) ??
+    textValue(event.summary)
+  );
+}
+
+function eventDecisionSummary(event: Record<string, unknown> | null): string | null {
+  if (!event) return null;
+  const decision = recordValue(event.decision);
+  const kind = textValue(decision?.kind);
+  const reason = textValue(decision?.reason) ?? textValue(event.reason);
+  if (kind && reason) return `${kind}: ${reason}`;
+  return kind ?? reason;
+}
+
+function operatorHappened(
+  run: AgencyRunSummary,
+  events: Record<string, unknown>[],
+  workflowSummary: string | null,
+): string {
+  const latest = events.at(-1) ?? null;
+  return (
+    workflowSummary ??
+    eventResultSummary(latest) ??
+    eventDecisionSummary(latest) ??
+    dispatchLabel(run.summary) ??
+    dispatchLabel(run.decision) ??
+    run.summary ??
+    run.decision ??
+    "Kody recorded this run."
+  );
+}
+
+function operatorNext(
+  run: AgencyRunSummary,
+  events: Record<string, unknown>[],
+  workflowSummary: string | null,
+): string {
+  const latest = events.at(-1) ?? null;
+  const latestReason = eventDecisionSummary(latest) ?? eventResultSummary(latest);
+  if (run.status === "running") return "The run is still executing.";
+  if (
+    workflowSummary &&
+    /already tracks|already exists|existing tracking issue|avoid duplicate|no duplicate|no new issue|fix is already in flight/i.test(
+      workflowSummary,
+    )
+  ) {
+    return "Existing work is already tracking this.";
+  }
+  if (run.status === "waiting") {
+    if (run.summary?.startsWith("waiting on goal ")) return run.summary;
+    return "Waiting for the dispatched work to report back.";
+  }
+  if (run.status === "blocked") return latestReason ?? "Waiting for a blocker to be cleared.";
+  if (run.status === "failed") return latestReason ?? "Open the run log to inspect the failure.";
+  if (run.status === "success") return "No follow-up is needed from this run.";
+  if (run.status === "stuck") return "Needs attention because no progress was reported.";
+  if (run.status === "cancelled") return "This run stopped before finishing.";
+  return latestReason ?? "No next action was recorded.";
+}
+
+function operatorOutcome(run: AgencyRunSummary): string {
+  if (run.status === "waiting" && run.summary?.startsWith("waiting on goal ")) {
+    return "Waiting on dispatched goal";
+  }
+  return humanStatus(run.status);
+}
+
 function RunRow({
   run,
   expanded,
@@ -120,8 +221,15 @@ function RunRow({
   onToggle: () => void;
 }) {
   const scopedHref = useRepoScopedHref();
-  const detail = useAgencyRunDetail(expanded ? run.sourcePath : null);
-  const events = (detail.data?.events ?? []).slice(-4).reverse();
+  const detail = useAgencyRunDetail(
+    expanded ? run.sourcePath : null,
+    expanded ? run.githubRunId : null,
+  );
+  const rawEvents = detail.data?.events ?? [];
+  const workflowSummary = detail.data?.workflowLog?.summary ?? null;
+  const events = rawEvents.slice(-4).reverse();
+  const happened = operatorHappened(run, rawEvents, workflowSummary);
+  const next = operatorNext(run, rawEvents, workflowSummary);
   return (
     <article className="border-b border-white/[0.06] last:border-b-0">
       <button
@@ -168,49 +276,37 @@ function RunRow({
         </div>
       </button>
       {expanded ? (
-        <div className="grid gap-3 border-t border-white/[0.05] bg-black/20 px-3 py-3 text-xs md:grid-cols-2">
-          <div className="space-y-1">
-            <div className="text-white/35">Summary</div>
-            <div className="text-white/70">{run.summary ?? "No summary"}</div>
+        <div className="space-y-4 border-t border-white/[0.05] bg-black/20 px-3 py-3 text-xs">
+          <div className="grid gap-3 md:grid-cols-[180px_minmax(0,1fr)_minmax(0,1fr)]">
+            <div className="space-y-1">
+              <div className="text-white/35">Outcome</div>
+              <div
+                className={cn(
+                  "inline-flex items-center gap-1 rounded border px-2 py-1 text-sm font-medium",
+                  statusTone(run.status),
+                )}
+              >
+                <StatusIcon status={run.status} />
+                {operatorOutcome(run)}
+              </div>
+            </div>
+            <div className="space-y-1">
+              <div className="text-white/35">What happened</div>
+              <div className="text-sm leading-5 text-white/80">{happened}</div>
+            </div>
+            <div className="space-y-1">
+              <div className="text-white/35">Next state</div>
+              <div className="text-sm leading-5 text-white/80">{next}</div>
+            </div>
           </div>
-          <div className="space-y-1">
-            <div className="text-white/35">Target</div>
+
+          <div className="flex flex-wrap items-center gap-2">
             <a
               href={scopedHref(kindHref(run))}
-              className="inline-flex items-center gap-1 font-mono text-sky-200/80 hover:text-sky-100"
+              className="inline-flex h-7 items-center gap-1 rounded-md border border-white/[0.08] px-2 font-mono text-white/60 hover:bg-white/[0.05] hover:text-white"
             >
               {run.targetLabel}
             </a>
-          </div>
-          <div className="space-y-1">
-            <div className="text-white/35">Updated</div>
-            <div className="text-white/70">{formatTime(run.updatedAt)}</div>
-          </div>
-          <div className="space-y-1">
-            <div className="text-white/35">Runtime</div>
-            <div className="flex flex-wrap gap-2 text-white/70">
-              {run.executable ? <span>{run.executable}</span> : null}
-              {run.capability ? <span>{run.capability}</span> : null}
-              {run.workflow ? <span>{run.workflow}</span> : null}
-              {run.agent ? <span>{run.agent}</span> : null}
-            </div>
-          </div>
-          <div className="space-y-1">
-            <div className="text-white/35">Model</div>
-            <div className="text-white/70">
-              {run.model ?? run.modelName ?? "Unknown"}
-              {run.reasoningEffort ? (
-                <span className="ml-2 text-white/35">
-                  {run.reasoningEffort}
-                </span>
-              ) : null}
-            </div>
-          </div>
-          <div className="space-y-1">
-            <div className="text-white/35">Actor</div>
-            <div className="text-white/70">{run.actor ?? "Unknown"}</div>
-          </div>
-          <div className="flex flex-wrap items-end gap-2">
             {run.githubRunUrl ? (
               <a
                 href={run.githubRunUrl}
@@ -234,18 +330,48 @@ function RunRow({
               </a>
             ) : null}
             {run.statePath ? (
-              <span className="font-mono text-white/35">{run.statePath}</span>
+              <span className="font-mono text-white/35">
+                State {run.statePath}
+              </span>
             ) : null}
           </div>
-          <div className="space-y-2 md:col-span-2">
-            <div className="text-white/35">Events</div>
+
+          <div className="grid gap-3 border-t border-white/[0.05] pt-3 md:grid-cols-4">
+            <div className="space-y-1">
+              <div className="text-white/35">Updated</div>
+              <div className="text-white/70">{formatTime(run.updatedAt)}</div>
+            </div>
+            <div className="space-y-1">
+              <div className="text-white/35">Runtime</div>
+              <div className="truncate text-white/70">
+                {run.executable ?? run.capability ?? run.workflow ?? "-"}
+              </div>
+            </div>
+            <div className="space-y-1">
+              <div className="text-white/35">Model</div>
+              <div className="truncate text-white/70">
+                {run.model ?? run.modelName ?? "Unknown"}
+              </div>
+            </div>
+            <div className="space-y-1">
+              <div className="text-white/35">Actor</div>
+              <div className="truncate text-white/70">
+                {run.actor ?? "Unknown"}
+              </div>
+            </div>
+          </div>
+
+          <details className="border-t border-white/[0.05] pt-3">
+            <summary className="cursor-pointer text-white/45 hover:text-white/70">
+              Raw event timeline
+            </summary>
             {detail.isFetching ? (
-              <div className="text-white/45">
+              <div className="mt-2 text-white/45">
                 <Loader2 className="mr-1 inline h-3 w-3 animate-spin" />
                 Loading events...
               </div>
             ) : events.length ? (
-              <div className="divide-y divide-white/[0.06] overflow-hidden rounded-md border border-white/[0.06]">
+              <div className="mt-2 divide-y divide-white/[0.06] overflow-hidden rounded-md border border-white/[0.06]">
                 {events.map((event, index) => {
                   const summary = eventSummary(event);
                   return (
@@ -274,11 +400,11 @@ function RunRow({
                 })}
               </div>
             ) : run.sourcePath ? (
-              <div className="text-white/45">No events found</div>
+              <div className="mt-2 text-white/45">No events found</div>
             ) : (
-              <div className="text-white/45">No source log</div>
+              <div className="mt-2 text-white/45">No source log</div>
             )}
-          </div>
+          </details>
         </div>
       ) : null}
     </article>

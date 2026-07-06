@@ -2320,8 +2320,10 @@ export const agencyRunsApi = {
   },
   detail: async (
     sourcePath: string,
+    githubRunId?: string | null,
   ): Promise<import("./agency-runs").AgencyRunDetailPayload> => {
     const params = new URLSearchParams({ path: sourcePath });
+    if (githubRunId) params.set("githubRunId", githubRunId);
     const res = await fetch(`${API_BASE}/agency-runs/detail?${params}`, {
       headers: buildHeaders(),
     });

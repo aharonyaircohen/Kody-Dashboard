@@ -30,6 +30,7 @@ export async function GET(req: NextRequest) {
   if (!sourcePath) {
     return NextResponse.json({ error: "missing_path" }, { status: 400 });
   }
+  const githubRunId = req.nextUrl.searchParams.get("githubRunId")?.trim();
 
   const octokit = await getUserOctokit(req);
   if (!octokit) {
@@ -50,6 +51,7 @@ export async function GET(req: NextRequest) {
       owner: headerAuth.owner,
       repo: headerAuth.repo,
       sourcePath,
+      githubRunId,
     });
     return NextResponse.json(payload, {
       headers: {

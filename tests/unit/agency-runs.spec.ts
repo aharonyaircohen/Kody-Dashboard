@@ -139,6 +139,59 @@ describe("agency runs", () => {
       event: "loop.tick.done",
       status: "completed",
     });
+    expect(payload.workflowLog).toBeNull();
+  });
+
+  it("summarizes the selected GitHub run log when requested", async () => {
+    stateRepo.readStateText.mockResolvedValue({
+      path: "A-Guy-Web/logs/goals/ci-health/runs/run.jsonl",
+      sha: "sha",
+      htmlUrl: "https://github.com/test/state/run.jsonl",
+      content: [
+        JSON.stringify({
+          time: "2026-07-05T10:00:00.000Z",
+          event: "goal.tick.dispatch",
+          status: "dispatch",
+        }),
+      ].join("\n"),
+    });
+    const octokit = {
+      request: vi
+        .fn()
+        .mockResolvedValueOnce({
+          data: { jobs: [{ id: 42, name: "run" }] },
+        })
+        .mockResolvedValueOnce({
+          data: [
+            "DONE",
+            "PR_SUMMARY:",
+            "- Dev CI is red; issue #745 already tracks this.",
+            "- No duplicate dispatch issued.",
+            "",
+            "=== SESSION ok ===",
+          ].join("\n"),
+        }),
+    };
+
+    const payload = await readAgencyRunDetail({
+      octokit: octokit as never,
+      owner: "test-owner",
+      repo: "test-repo",
+      sourcePath: "logs/goals/ci-health/runs/run.jsonl",
+      githubRunId: "123",
+    });
+
+    expect(octokit.request).toHaveBeenCalledWith(
+      "GET /repos/{owner}/{repo}/actions/runs/{run_id}/jobs",
+      expect.objectContaining({ run_id: 123 }),
+    );
+    expect(payload.workflowLog).toMatchObject({
+      jobId: "42",
+      jobName: "run",
+      status: "completed",
+      summary:
+        "Dev CI is red; issue #745 already tracks this. No duplicate dispatch issued.",
+    });
   });
 
   it("rejects unsupported detail paths", async () => {
