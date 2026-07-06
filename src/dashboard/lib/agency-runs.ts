@@ -265,11 +265,20 @@ function statusFromGitHubRun(run: GitHubWorkflowRun): AgencyRunStatus | null {
 }
 
 function canApplyLiveStatusOverlay(run: AgencyRunSummary): boolean {
+  return run.status === "running" || run.status === "recorded";
+}
+
+function canApplyDispatchTargetOverlay(run: AgencyRunSummary): boolean {
   return (
     run.status === "running" ||
     run.status === "waiting" ||
     run.status === "recorded"
   );
+}
+
+function isWaitingOnDispatchTarget(run: AgencyRunSummary): boolean {
+  const text = [run.summary, run.decision, run.currentStep].filter(Boolean).join("\n");
+  return /\b(?:stuck\s+)?waiting on goal\s+[A-Za-z0-9_.-]+/i.test(text);
 }
 
 function originValue(value: unknown): AgencyRunOrigin {
@@ -682,16 +691,23 @@ async function applyGitHubRunOverlay({
   }
 
   return runs.map((run) => {
-    if (!canApplyLiveStatusOverlay(run)) return run;
     if (!run.githubRunId) return run;
     const githubRun = byId.get(run.githubRunId);
     if (!githubRun) return run;
+    const githubRunUrl = stringValue(githubRun.html_url) ?? run.githubRunUrl;
+    if (
+      !canApplyLiveStatusOverlay(run) ||
+      dispatchGoalId(run) ||
+      isWaitingOnDispatchTarget(run)
+    ) {
+      return githubRunUrl === run.githubRunUrl ? run : { ...run, githubRunUrl };
+    }
     const status = statusFromGitHubRun(githubRun);
     if (!status) return run;
     return {
       ...run,
       status,
-      githubRunUrl: stringValue(githubRun.html_url) ?? run.githubRunUrl,
+      githubRunUrl,
     };
   });
 }
@@ -732,7 +748,7 @@ async function applyDispatchTargetOverlay({
   if (!goals.size) return runs;
 
   return runs.map((run) => {
-    if (!canApplyLiveStatusOverlay(run)) return run;
+    if (!canApplyDispatchTargetOverlay(run)) return run;
     const targetId = targetIds.get(run.id);
     const goal = targetId ? goals.get(targetId) : null;
     if (!targetId || !goal) return run;

@@ -27,7 +27,7 @@ describe("listAgencyRuns", () => {
             id: "goal:ci-health:gh-123-1-1",
             subjectType: "goal",
             subjectId: "ci-health",
-            status: "waiting",
+            status: "running",
             title: "ci-health",
             summary: "dispatch dev-ci-health: ready for loop tick",
             updatedAt: "2026-07-06T06:19:43.979Z",
@@ -126,6 +126,124 @@ describe("listAgencyRuns", () => {
       status: "success",
       currentStep: "loop.tick.dispatch",
       summary: "dispatch goal web-release-2026-07-06",
+    });
+  });
+
+  it("does not turn an idle waiting loop row into a GitHub shell success", async () => {
+    vi.mocked(readStateText).mockResolvedValue({
+      content: JSON.stringify({
+        runs: [
+          {
+            id: "loop:daily-web-release-loop:gh-28788241519-1-1",
+            subjectType: "loop",
+            subjectId: "daily-web-release-loop",
+            status: "waiting",
+            title: "daily-web-release-loop",
+            summary: "already dispatched today at preferred time 02:00 Asia/Jerusalem",
+            currentStep: "loop.tick.idle",
+            updatedAt: "2026-07-06T11:51:07.846Z",
+            githubRunId: "28788241519",
+          },
+        ],
+      }),
+      etag: "etag-1",
+      path: "runs/index.json",
+      sha: "sha-1",
+    });
+
+    const octokit = {
+      actions: {
+        listWorkflowRunsForRepo: vi.fn().mockResolvedValue({
+          data: {
+            workflow_runs: [
+              {
+                id: 28788241519,
+                status: "completed",
+                conclusion: "success",
+              },
+            ],
+          },
+        }),
+      },
+    };
+
+    const payload = await listAgencyRuns({
+      octokit: octokit as never,
+      owner: "o",
+      repo: "r-idle-waiting",
+    });
+
+    expect(payload.runs[0]).toMatchObject({
+      id: "loop:daily-web-release-loop:gh-28788241519-1-1",
+      status: "waiting",
+      currentStep: "loop.tick.idle",
+      summary: "already dispatched today at preferred time 02:00 Asia/Jerusalem",
+    });
+  });
+
+  it("does not let GitHub shell completion hide an active dispatch target", async () => {
+    vi.mocked(readStateText)
+      .mockResolvedValueOnce({
+        content: JSON.stringify({
+          runs: [
+            {
+              id: "loop:daily-web-release-loop:gh-28758779842-1-1",
+              subjectType: "loop",
+              subjectId: "daily-web-release-loop",
+              status: "running",
+              title: "daily-web-release-loop",
+              summary: "dispatch goal web-release-2026-07-06",
+              currentStep: "loop.tick.dispatch",
+              updatedAt: "2026-07-06T06:29:58Z",
+              githubRunId: "28758779842",
+            },
+          ],
+        }),
+        etag: "etag-1",
+        path: "runs/index.json",
+        sha: "sha-1",
+      })
+      .mockResolvedValueOnce({
+        content: JSON.stringify({
+          version: 1,
+          state: "active",
+          type: "web-release",
+          stage: "workflow",
+          facts: {},
+          blockers: [],
+          updatedAt: "2026-07-06T06:29:58Z",
+        }),
+        path: "todos/web-release-2026-07-06.json",
+        sha: "sha-2",
+      });
+
+    const octokit = {
+      actions: {
+        listWorkflowRunsForRepo: vi.fn().mockResolvedValue({
+          data: {
+            workflow_runs: [
+              {
+                id: 28758779842,
+                status: "completed",
+                conclusion: "success",
+              },
+            ],
+          },
+        }),
+      },
+    };
+
+    const payload = await listAgencyRuns({
+      octokit: octokit as never,
+      owner: "o",
+      repo: "r-active-dispatch-target",
+    });
+
+    expect(payload.runs[0]).toMatchObject({
+      id: "loop:daily-web-release-loop:gh-28758779842-1-1",
+      status: "running",
+      currentStep: "web-release-2026-07-06: workflow",
+      summary: "waiting on goal web-release-2026-07-06",
     });
   });
 
