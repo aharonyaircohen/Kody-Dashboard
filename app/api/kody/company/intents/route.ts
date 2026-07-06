@@ -41,6 +41,10 @@ import {
   type CompanyIntentRecord,
 } from "@dashboard/lib/company-intents";
 import {
+  clearCompanyIntentRecordsCache,
+  getCachedCompanyIntentRecords,
+} from "@dashboard/lib/company-intents-read-cache";
+import {
   listStateDirectory,
   readStateText,
   writeStateText,
@@ -263,44 +267,50 @@ export async function GET(req: NextRequest) {
       return NextResponse.json({ error: "no_user_token" }, { status: 401 });
     }
 
-    const { entries } = await listStateDirectory(
-      octokit,
+    const intents = await getCachedCompanyIntentRecords(
       headerAuth.owner,
       headerAuth.repo,
-      "intents",
-    );
+      async () => {
+        const { entries } = await listStateDirectory(
+          octokit,
+          headerAuth.owner,
+          headerAuth.repo,
+          "intents",
+        );
 
-    const records = await Promise.all(
-      entries
-        .filter(
-          (entry) =>
-            entry.type === "dir" &&
-            typeof entry.name === "string" &&
-            isCompanyIntentId(entry.name),
-        )
-        .map(async (entry): Promise<CompanyIntentRecord | null> => {
-          try {
-            return await readIntentRecord({
-              octokit,
-              owner: headerAuth.owner,
-              repo: headerAuth.repo,
-              id: entry.name,
-            });
-          } catch (err) {
-            logger.warn(
-              { err, id: entry.name },
-              "company-intents: skipped malformed file",
-            );
-            return null;
-          }
-        }),
+        const records = await Promise.all(
+          entries
+            .filter(
+              (entry) =>
+                entry.type === "dir" &&
+                typeof entry.name === "string" &&
+                isCompanyIntentId(entry.name),
+            )
+            .map(async (entry): Promise<CompanyIntentRecord | null> => {
+              try {
+                return await readIntentRecord({
+                  octokit,
+                  owner: headerAuth.owner,
+                  repo: headerAuth.repo,
+                  id: entry.name,
+                });
+              } catch (err) {
+                logger.warn(
+                  { err, id: entry.name },
+                  "company-intents: skipped malformed file",
+                );
+                return null;
+              }
+            }),
+        );
+
+        return sortCompanyIntentRecords(records.filter(isCompanyIntentRecord));
+      },
     );
 
     return NextResponse.json(
       {
-        intents: sortCompanyIntentRecords(
-          records.filter(isCompanyIntentRecord),
-        ),
+        intents,
       },
       { headers: { "Cache-Control": "no-store" } },
     );
@@ -365,6 +375,7 @@ export async function POST(req: NextRequest) {
       content: `${JSON.stringify(intent, null, 2)}\n`,
       message: `chore(intents): create ${intent.id}`,
     });
+    clearCompanyIntentRecordsCache(headerAuth.owner, headerAuth.repo);
 
     const record = await readIntentRecord({
       octokit,
