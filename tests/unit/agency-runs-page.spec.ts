@@ -3,6 +3,7 @@ import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 
 import {
+  formatRunEvidenceLine,
   operatorHappenedLines,
   operatorRunFactLines,
 } from "../../src/dashboard/lib/components/AgencyRunsPage";
@@ -93,5 +94,30 @@ describe("Agency Runs page", () => {
     expect(lines).toContain("Model: Claude Sonnet 4.5 (claude/claude-sonnet-4-5).");
     expect(lines.join("\n")).not.toContain("dispatch goal web-release-2026-07-06");
     expect(operatorRunFactLines(run)).toEqual(lines);
+  });
+
+  it("formats run evidence without changing the evidence string", () => {
+    const field = "GitHub run URL: https://github.com/test/repo/actions/runs/123456";
+    const raw =
+      'Raw boundary eval: KODY_AGENCY_BOUNDARY_EVAL={"version":1,"status":"pass"}';
+
+    expect(formatRunEvidenceLine(field)).toEqual({
+      raw: field,
+      label: "GitHub run URL",
+      value: "https://github.com/test/repo/actions/runs/123456",
+      tone: "field",
+    });
+    expect(formatRunEvidenceLine(raw)).toEqual({
+      raw,
+      label: "Raw boundary eval",
+      value: 'KODY_AGENCY_BOUNDARY_EVAL={"version":1,"status":"pass"}',
+      tone: "raw",
+    });
+    expect(formatRunEvidenceLine("No source log")).toEqual({
+      raw: "No source log",
+      label: null,
+      value: "No source log",
+      tone: "plain",
+    });
   });
 });

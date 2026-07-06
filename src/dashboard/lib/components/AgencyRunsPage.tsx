@@ -222,6 +222,27 @@ function rawRunEvidenceLines(run: AgencyRunSummary): string[] {
   return lines.filter((line): line is string => line !== null);
 }
 
+export type FormattedRunEvidenceLine = {
+  raw: string;
+  label: string | null;
+  value: string;
+  tone: "field" | "raw" | "plain";
+};
+
+export function formatRunEvidenceLine(line: string): FormattedRunEvidenceLine {
+  const splitAt = line.indexOf(": ");
+  if (splitAt < 0) {
+    return { raw: line, label: null, value: line, tone: "plain" };
+  }
+  const label = line.slice(0, splitAt).trim();
+  const value = line.slice(splitAt + 2);
+  const tone =
+    /^Raw\b/i.test(label) || value.length > 180 || /[{\[]/.test(value)
+      ? "raw"
+      : "field";
+  return { raw: line, label, value, tone };
+}
+
 export function operatorHappenedLines(
   run: AgencyRunSummary,
   events: Record<string, unknown>[],
@@ -268,6 +289,39 @@ function operatorOutcome(run: AgencyRunSummary): string {
     return "Waiting on dispatched goal";
   }
   return humanStatus(run.status);
+}
+
+function RunEvidenceLine({ line }: { line: string }) {
+  const formatted = formatRunEvidenceLine(line);
+  if (!formatted.label) {
+    return (
+      <li
+        className="rounded-md border border-white/[0.06] bg-white/[0.02] px-2 py-2 text-white/60"
+        data-raw-evidence={formatted.raw}
+      >
+        {formatted.value}
+      </li>
+    );
+  }
+  return (
+    <li
+      className="rounded-md border border-white/[0.06] bg-white/[0.02] px-2 py-2"
+      data-raw-evidence={formatted.raw}
+    >
+      <div className="text-[10px] uppercase tracking-wide text-white/35">
+        {formatted.label}
+      </div>
+      {formatted.tone === "raw" ? (
+        <pre className="mt-1 whitespace-pre-wrap break-words rounded bg-black/30 px-2 py-1.5 font-mono text-[11px] leading-5 text-white/65">
+          {formatted.value}
+        </pre>
+      ) : (
+        <div className="mt-0.5 break-words text-xs leading-5 text-white/70">
+          {formatted.value}
+        </div>
+      )}
+    </li>
+  );
 }
 
 function RunRow({
@@ -493,11 +547,9 @@ function RunRow({
               <summary className="cursor-pointer text-white/45 hover:text-white/70">
                 Run evidence
               </summary>
-              <ul className="mt-2 space-y-1 rounded-md border border-white/[0.06] bg-white/[0.02] px-2 py-2 text-xs leading-5 text-white/60">
+              <ul className="mt-2 space-y-1 text-xs leading-5">
                 {evidenceLines.map((line, index) => (
-                  <li key={`${line}-${index}`} className="break-words">
-                    {line}
-                  </li>
+                  <RunEvidenceLine key={`${line}-${index}`} line={line} />
                 ))}
               </ul>
             </details>
