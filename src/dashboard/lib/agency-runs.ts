@@ -20,6 +20,13 @@ export type AgencyRunStatus =
   | "cancelled"
   | "recorded";
 
+type GitHubWorkflowRun = {
+  id?: number | string | null;
+  status?: string | null;
+  conclusion?: string | null;
+  html_url?: string | null;
+};
+
 export interface AgencyRunSummary {
   id: string;
   kind: AgencyRunKind;
@@ -150,6 +157,28 @@ function statusValue(value: unknown): AgencyRunStatus {
   return "recorded";
 }
 
+function statusFromGitHubRun(run: GitHubWorkflowRun): AgencyRunStatus | null {
+  if (run.status === "queued" || run.status === "requested" || run.status === "pending") {
+    return "running";
+  }
+  if (run.status === "waiting") return "waiting";
+  if (run.status === "in_progress") return "running";
+  if (run.status !== "completed") return null;
+
+  if (run.conclusion === "success") return "success";
+  if (run.conclusion === "cancelled" || run.conclusion === "skipped") return "cancelled";
+  if (run.conclusion === "neutral") return "recorded";
+  if (
+    run.conclusion === "failure" ||
+    run.conclusion === "timed_out" ||
+    run.conclusion === "startup_failure" ||
+    run.conclusion === "action_required"
+  ) {
+    return "failed";
+  }
+  return null;
+}
+
 function originValue(value: unknown): AgencyRunOrigin {
   if (
     value === "manual" ||
@@ -259,6 +288,49 @@ function rowToAgencyRun(row: RunIndexRow): AgencyRunSummary | null {
   };
 }
 
+async function applyGitHubRunOverlay({
+  octokit,
+  owner,
+  repo,
+  runs,
+}: {
+  octokit: Octokit;
+  owner: string;
+  repo: string;
+  runs: AgencyRunSummary[];
+}): Promise<AgencyRunSummary[]> {
+  const ids = new Set(runs.map((run) => run.githubRunId).filter(Boolean));
+  if (!ids.size) return runs;
+
+  let response: Awaited<ReturnType<Octokit["actions"]["listWorkflowRunsForRepo"]>>;
+  try {
+    response = await octokit.actions.listWorkflowRunsForRepo({
+      owner,
+      repo,
+      per_page: 100,
+    });
+  } catch {
+    return runs;
+  }
+  const byId = new Map<string, GitHubWorkflowRun>();
+  for (const run of response.data.workflow_runs) {
+    if (run.id !== undefined && run.id !== null) byId.set(String(run.id), run);
+  }
+
+  return runs.map((run) => {
+    if (!run.githubRunId) return run;
+    const githubRun = byId.get(run.githubRunId);
+    if (!githubRun) return run;
+    const status = statusFromGitHubRun(githubRun);
+    if (!status) return run;
+    return {
+      ...run,
+      status,
+      githubRunUrl: stringValue(githubRun.html_url) ?? run.githubRunUrl,
+    };
+  });
+}
+
 async function readRunIndexFile({
   octokit,
   owner,
@@ -304,11 +376,17 @@ export async function listAgencyRuns({
 }): Promise<AgencyRunsPayload> {
   const boundedLimit = Math.max(1, Math.min(100, Math.floor(limit)));
   const { index, etag } = await readRunIndexFile({ octokit, owner, repo });
-  const runs = index.runs
+  const indexedRuns = index.runs
     .map(rowToAgencyRun)
     .filter((run): run is AgencyRunSummary => run !== null)
     .sort((a, b) => sortTime(b) - sortTime(a))
     .slice(0, boundedLimit);
+  const runs = await applyGitHubRunOverlay({
+    octokit,
+    owner,
+    repo,
+    runs: indexedRuns,
+  });
 
   return {
     runs,
