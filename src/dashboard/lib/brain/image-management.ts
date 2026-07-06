@@ -37,6 +37,7 @@ import {
   deleteBrainImage,
   readBrainImage,
   readBrainImageSave,
+  updateBrainImageMetadata,
   writeBrainImage,
   writeBrainImageSave,
   type BrainImageSaveFile,
@@ -371,6 +372,26 @@ export async function selectBrainImageRef(input: {
     );
   }
   await selectBrainRuntimeImage(context.account, context.githubToken, imageRef);
+  const runtime = await readBrainRuntimeView(context.account, context.githubToken);
+  return imageManagementResponse(image, runtime);
+}
+
+export async function updateBrainImageRefMetadata(input: {
+  context: FlyContext;
+  imageRef: string;
+  label?: string | null;
+  note?: string | null;
+}) {
+  const { context, imageRef, label, note } = input;
+  const image = await updateBrainImageMetadata(
+    context.account,
+    context.githubToken,
+    {
+      imageRef,
+      ...(label !== undefined ? { label } : {}),
+      ...(note !== undefined ? { note } : {}),
+    },
+  );
   const runtime = await readBrainRuntimeView(context.account, context.githubToken);
   return imageManagementResponse(image, runtime);
 }

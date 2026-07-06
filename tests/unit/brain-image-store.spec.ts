@@ -206,6 +206,128 @@ describe("Brain image store", () => {
     );
   });
 
+  it("reads and writes saved Brain image labels and notes", async () => {
+    state.readStateText.mockResolvedValueOnce({
+      content: JSON.stringify({
+        version: 1,
+        createdAt: "2026-06-25T10:00:00.000Z",
+        updatedAt: "2026-06-25T10:00:00.000Z",
+        images: [
+          {
+            imageRef: "ghcr.io/alice/kody-brain-snapshot:20260625",
+            label: "Stable terminal image",
+            note: "Known good before terminal changes.",
+            createdAt: "2026-06-25T10:00:00.000Z",
+            updatedAt: "2026-06-25T10:00:00.000Z",
+          },
+        ],
+      }),
+      sha: "sha",
+      etag: "etag",
+    });
+    state.writeStateText.mockResolvedValue({ sha: "new-sha" });
+    const { readBrainImage, writeBrainImage } = await import(
+      "@dashboard/lib/brain/store"
+    );
+
+    const image = await readBrainImage("Alice", "token");
+    expect(image?.images[0]).toMatchObject({
+      label: "Stable terminal image",
+      note: "Known good before terminal changes.",
+    });
+
+    await writeBrainImage("Alice", "token", image!);
+    const content = JSON.parse(
+      (state.writeStateText.mock.calls[0]?.[0] as { content: string }).content,
+    ) as { images: Array<{ label?: string; note?: string }> };
+    expect(content.images[0]).toMatchObject({
+      label: "Stable terminal image",
+      note: "Known good before terminal changes.",
+    });
+  });
+
+  it("updates saved Brain image metadata without changing the selected image", async () => {
+    state.readStateText
+      .mockResolvedValueOnce({
+        content: JSON.stringify({
+          version: 1,
+          imageRef: "ghcr.io/alice/kody-brain-snapshot:old",
+          createdAt: "2026-06-25T10:00:00.000Z",
+          updatedAt: "2026-06-25T10:00:00.000Z",
+          images: [
+            {
+              imageRef: "ghcr.io/alice/kody-brain-snapshot:new",
+              createdAt: "2026-06-26T10:00:00.000Z",
+              updatedAt: "2026-06-26T10:00:00.000Z",
+            },
+            {
+              imageRef: "ghcr.io/alice/kody-brain-snapshot:old",
+              createdAt: "2026-06-25T10:00:00.000Z",
+              updatedAt: "2026-06-25T10:00:00.000Z",
+            },
+          ],
+        }),
+        sha: "sha",
+      })
+      .mockResolvedValueOnce({ sha: "sha", content: "{}" });
+    state.writeStateText.mockResolvedValue({ sha: "new-sha" });
+    const { updateBrainImageMetadata } = await import(
+      "@dashboard/lib/brain/store"
+    );
+
+    await expect(
+      updateBrainImageMetadata("Alice", "token", {
+        imageRef: "ghcr.io/alice/kody-brain-snapshot:new",
+        label: "Before terminal rewrite",
+        note: "Kept for rollback.",
+      }),
+    ).resolves.toMatchObject({
+      imageRef: "ghcr.io/alice/kody-brain-snapshot:old",
+      images: expect.arrayContaining([
+        expect.objectContaining({
+          imageRef: "ghcr.io/alice/kody-brain-snapshot:new",
+          label: "Before terminal rewrite",
+          note: "Kept for rollback.",
+        }),
+      ]),
+    });
+  });
+
+  it("removes empty saved Brain image labels and notes", async () => {
+    state.readStateText
+      .mockResolvedValueOnce({
+        content: JSON.stringify({
+          version: 1,
+          createdAt: "2026-06-25T10:00:00.000Z",
+          updatedAt: "2026-06-25T10:00:00.000Z",
+          images: [
+            {
+              imageRef: "ghcr.io/alice/kody-brain-snapshot:new",
+              label: "Old label",
+              note: "Old note",
+              createdAt: "2026-06-26T10:00:00.000Z",
+              updatedAt: "2026-06-26T10:00:00.000Z",
+            },
+          ],
+        }),
+        sha: "sha",
+      })
+      .mockResolvedValueOnce({ sha: "sha", content: "{}" });
+    state.writeStateText.mockResolvedValue({ sha: "new-sha" });
+    const { updateBrainImageMetadata } = await import(
+      "@dashboard/lib/brain/store"
+    );
+
+    const updated = await updateBrainImageMetadata("Alice", "token", {
+      imageRef: "ghcr.io/alice/kody-brain-snapshot:new",
+      label: "   ",
+      note: "",
+    });
+
+    expect(updated.images[0]).not.toHaveProperty("label");
+    expect(updated.images[0]).not.toHaveProperty("note");
+  });
+
   it("writes catalog-only Brain images without inventing selected or running state", async () => {
     state.readStateText.mockResolvedValue(null);
     state.writeStateText.mockResolvedValue({ sha: "new-sha" });

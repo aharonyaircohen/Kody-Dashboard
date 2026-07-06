@@ -139,7 +139,14 @@ export function mergeBrainSavedImages(
   }
   for (const saved of image?.images ?? []) {
     if (forgotten.has(saved.imageRef)) continue;
-    if (!merged.has(saved.imageRef)) {
+    const existing = merged.get(saved.imageRef);
+    if (existing) {
+      merged.set(saved.imageRef, {
+        ...existing,
+        ...(saved.label ? { label: saved.label } : {}),
+        ...(saved.note ? { note: saved.note } : {}),
+      });
+    } else {
       merged.set(saved.imageRef, saved);
     }
   }
