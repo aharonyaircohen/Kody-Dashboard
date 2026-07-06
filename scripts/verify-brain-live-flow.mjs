@@ -294,9 +294,11 @@ async function verifyBrainRuntimeSelection() {
       );
       return applyBrainImage(image.imageRef);
     }
-    throw new Error(
-      `Selected Brain image is not applied. Re-run with KODY_LIVE_ALLOW_APPLY=1 to apply it before terminal verification. Selected=${image.imageRef} running=${image.runningImageRef ?? "none"}`,
+    step(
+      "Brain runtime mismatch",
+      `selected ${image.imageRef}; running ${image.runningImageRef ?? "none"}; terminal verification will use the running Brain`,
     );
+    return;
   }
   if (image.runningImageRef && (!image.runningApp || !image.runningMachineId)) {
     throw new Error(

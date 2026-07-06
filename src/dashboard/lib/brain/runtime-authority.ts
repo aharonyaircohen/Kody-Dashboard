@@ -143,16 +143,3 @@ export async function readBrainRuntimeAuthority(
     ),
   };
 }
-
-export function brainTerminalBlocker(
-  runtime: BrainRuntimeView,
-): BrainRuntimeDrift | null {
-  const drift = brainRuntimeDrift(runtime, null);
-  if (
-    drift?.code === "completed_apply_missing_running" ||
-    drift?.code === "selected_image_not_running"
-  ) {
-    return drift;
-  }
-  return null;
-}

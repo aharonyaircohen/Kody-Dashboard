@@ -22,12 +22,16 @@ const CHAT_SOURCE = readFileSync(
 );
 
 describe("Brain terminal image mismatch UI", () => {
-  it("shows a warning without adding a second apply action", () => {
+  it("shows a non-blocking warning without adding a second apply action", () => {
     expect(SURFACE_SOURCE).toContain("selected_image_not_running");
-    expect(SURFACE_SOURCE).toContain("Selected image is not running");
-    expect(SURFACE_SOURCE).toContain("imageRef?: string");
+    expect(SURFACE_SOURCE).toContain(
+      "Selected image differs from running Brain",
+    );
+    expect(SURFACE_SOURCE).toContain("desiredImageRef?: string");
     expect(SURFACE_SOURCE).toContain("runningImageRef?: string | null");
-    expect(SURFACE_SOURCE).toContain("Run image first");
+    expect(SURFACE_SOURCE).toContain(
+      "Terminal is connecting to the running Brain",
+    );
 
     expect(SURFACE_SOURCE).not.toContain("Apply selected Brain image");
     expect(SURFACE_SOURCE).not.toContain("imageWarning?:");

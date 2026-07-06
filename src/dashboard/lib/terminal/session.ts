@@ -17,6 +17,12 @@ export type TerminalTargetError =
   | "machine_not_terminal_capable"
   | "machine_not_running";
 
+export interface TerminalTargetInput {
+  app: string;
+  machineId: string;
+  feature?: FlyFeature;
+}
+
 export interface TerminalTargetResult {
   ok: true;
   machine: FlyMachineRow;
@@ -61,7 +67,7 @@ export function upsertTerminalTargetMachine(
 
 export function findTerminalTargetMachine(
   inventory: FlyInventory,
-  input: { app: string; machineId: string; feature?: FlyFeature },
+  input: TerminalTargetInput,
 ): FlyMachineRow | null {
   return (
     inventory.machines.find(
@@ -72,7 +78,7 @@ export function findTerminalTargetMachine(
 
 export function resolveTerminalTargetMachine(
   inventory: FlyInventory,
-  input: { app: string; machineId: string; feature?: FlyFeature },
+  input: TerminalTargetInput,
 ): FlyMachineRow | null {
   const exact = findTerminalTargetMachine(inventory, input);
   if (exact) return exact;
@@ -122,7 +128,7 @@ export function resolveBrainTerminalTargetInput(
 
 export function selectTerminalTarget(
   inventory: FlyInventory,
-  input: { app: string; machineId: string; feature?: FlyFeature },
+  input: TerminalTargetInput,
 ): TerminalTargetResult | TerminalTargetFailure {
   const machine = resolveTerminalTargetMachine(inventory, input);
   if (!machine) return { ok: false, error: "machine_not_found" };

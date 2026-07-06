@@ -512,7 +512,7 @@ describe("POST /api/kody/terminal/session", () => {
     expect(brainFly.provisionBrain).not.toHaveBeenCalled();
   });
 
-  it("blocks when the selected Brain image has not been applied", async () => {
+  it("connects with a warning when the selected Brain image has not been applied", async () => {
     runtimeManager.readBrainRuntimeView.mockResolvedValueOnce({
       desiredImageRef: "ghcr.io/acme/kody-brain-octocat:selected",
       source: "runtime",
@@ -527,26 +527,31 @@ describe("POST /api/kody/terminal/session", () => {
       }),
     );
 
-    expect(res.status).toBe(409);
+    expect(res.status).toBe(200);
     expect(await res.json()).toMatchObject({
-      error: "selected_image_not_running",
-      imageRef: "ghcr.io/acme/kody-brain-octocat:selected",
+      ok: true,
+      warnings: [
+        expect.objectContaining({
+          code: "selected_image_not_running",
+          desiredImageRef: "ghcr.io/acme/kody-brain-octocat:selected",
+        }),
+      ],
     });
     expect(brainFly.provisionBrain).not.toHaveBeenCalled();
-    expect(bridge.ensureTerminalBridge).not.toHaveBeenCalled();
+    expect(bridge.ensureTerminalBridge).toHaveBeenCalled();
   });
 
-  it("does not wake the Brain when image metadata is stale", async () => {
+  it("does not let stale image metadata choose the terminal target", async () => {
     mockSavedBrainInventory("kody-brain-octocat", "brain-1", "personal");
     inventory.listFlyInventory.mockResolvedValueOnce({
-      running: 0,
+      running: 1,
       total: 1,
       machines: [
         {
           feature: "brain",
           app: "kody-brain-octocat",
           machineId: "brain-1",
-          state: "starting",
+          state: "started",
           region: "fra",
           label: "kody-brain-octocat",
           sizeLabel: "perf 1x",
@@ -568,9 +573,16 @@ describe("POST /api/kody/terminal/session", () => {
       }),
     );
 
-    expect(res.status).toBe(409);
+    expect(res.status).toBe(200);
     expect(await res.json()).toMatchObject({
-      error: "selected_image_not_running",
+      ok: true,
+      app: "kody-brain-octocat",
+      machineId: "brain-1",
+      warnings: [
+        expect.objectContaining({
+          code: "selected_image_not_running",
+        }),
+      ],
     });
     expect(brainFly.provisionBrain).not.toHaveBeenCalled();
     expect(flyPreview.startMachine).not.toHaveBeenCalled();

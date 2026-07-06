@@ -791,30 +791,36 @@ export const ChatTerminalSurface = forwardRef<
           const body = (await res.json().catch(() => ({}))) as {
             message?: string;
             error?: string;
-            imageRef?: string;
-            runningImageRef?: string | null;
           };
-          if (
-            body.error === "selected_image_not_running" &&
-            typeof body.imageRef === "string"
-          ) {
-            const selectedLabel = shortBrainImageLabel(body.imageRef);
-            const runningLabel = shortBrainImageLabel(body.runningImageRef);
-            const message = "Selected image is not running";
-            flyConnectFailureKeyRef.current = attemptKey;
-            setError(message);
-            updateFlyConnectionState("error");
-            setInputSignal({ tone: "blocked", label: "Run image first" });
-            terminal.writeln(
-              `\x1b[33m${message}. Selected: ${selectedLabel}; running: ${runningLabel}.\x1b[0m`,
-            );
-            return;
-          }
           throw new Error(body.message ?? body.error ?? `HTTP ${res.status}`);
         }
         flyConnectFailureKeyRef.current = null;
-        const session = (await res.json()) as { webSocketUrl: string };
+        const session = (await res.json()) as {
+          webSocketUrl: string;
+          warnings?: Array<{
+            code?: string;
+            message?: string;
+            desiredImageRef?: string;
+            runningImageRef?: string | null;
+          }>;
+        };
         if (!isCurrentFlyConnect()) return;
+        for (const warning of session.warnings ?? []) {
+          if (
+            warning.code === "selected_image_not_running" &&
+            warning.desiredImageRef
+          ) {
+            const selectedLabel = shortBrainImageLabel(
+              warning.desiredImageRef,
+            );
+            const runningLabel = shortBrainImageLabel(
+              warning.runningImageRef,
+            );
+            terminal.writeln(
+              `\x1b[33mSelected image differs from running Brain. Selected: ${selectedLabel}; running: ${runningLabel}. Terminal is connecting to the running Brain.\x1b[0m`,
+            );
+          }
+        }
         const ws = new WebSocket(session.webSocketUrl);
         if (!isCurrentFlyConnect()) {
           ws.close(1000, "stale terminal connection");

@@ -9,7 +9,6 @@ vi.mock("server-only", () => ({}));
 
 import {
   brainRuntimeDrift,
-  brainTerminalBlocker,
   type BrainRuntimeAuthorityView,
 } from "../../src/dashboard/lib/brain/runtime-authority";
 
@@ -33,9 +32,6 @@ describe("Brain runtime authority", () => {
       desiredImageRef: "ghcr.io/acme/kody-brain-octocat:20260703t052814z",
       runningImageRef: null,
     });
-    expect(brainTerminalBlocker(runtime)).toMatchObject({
-      code: "completed_apply_missing_running",
-    });
   });
 
   it("accepts equivalent GHCR and Fly runtime tags for the live machine", () => {
@@ -56,11 +52,14 @@ describe("Brain runtime authority", () => {
 
   it("flags selected images that differ from the running image", () => {
     expect(
-      brainTerminalBlocker({
-        desiredImageRef: "ghcr.io/acme/kody-brain-octocat:new",
-        runningImageRef: "ghcr.io/acme/kody-brain-octocat:old",
-        source: "runtime",
-      }),
+      brainRuntimeDrift(
+        {
+          desiredImageRef: "ghcr.io/acme/kody-brain-octocat:new",
+          runningImageRef: "ghcr.io/acme/kody-brain-octocat:old",
+          source: "runtime",
+        },
+        null,
+      ),
     ).toMatchObject({
       code: "selected_image_not_running",
       desiredImageRef: "ghcr.io/acme/kody-brain-octocat:new",

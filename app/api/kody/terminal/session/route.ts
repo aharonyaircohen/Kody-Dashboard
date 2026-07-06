@@ -14,7 +14,7 @@ import { z } from "zod";
 
 import { requireKodyAuth } from "@dashboard/lib/auth";
 import { readBrainRuntimeView } from "@dashboard/lib/brain/runtime-manager";
-import { brainTerminalBlocker } from "@dashboard/lib/brain/runtime-authority";
+import { resolveBrainTerminalConnect } from "@dashboard/lib/brain/terminal-connect";
 import {
   clearGitHubContext,
   setGitHubContext,
@@ -39,10 +39,10 @@ import {
   isTerminalFeatureAllowed,
   isTerminalMachineLive,
   isTerminalMachineStartable,
-  resolveBrainTerminalTargetInput,
   resolveTerminalTargetMachine,
   selectTerminalTarget,
   terminalActivityLimitForTarget,
+  type TerminalTargetInput,
 } from "@dashboard/lib/terminal/session";
 import { mintTerminalBridgeToken } from "@dashboard/lib/terminal/terminal-token";
 
@@ -91,7 +91,6 @@ const TARGET_STATUS: Record<string, number> = {
   machine_not_found: 404,
   machine_not_terminal_capable: 403,
   machine_not_running: 409,
-  selected_image_not_running: 409,
   fly_access_denied: 403,
 };
 
@@ -100,8 +99,6 @@ const TARGET_MESSAGE: Record<string, string> = {
   machine_not_terminal_capable: "Only Brain machines can open a Fly terminal.",
   machine_not_running:
     "Brain machine did not become ready in time. Try Connect again.",
-  selected_image_not_running:
-    "Selected image is not running. Apply it from Brain Images first.",
   fly_access_denied: "Fly token cannot access this Brain app.",
 };
 
@@ -208,9 +205,10 @@ export async function POST(req: NextRequest) {
         { status: TARGET_STATUS.fly_access_denied },
       );
     }
-    let targetInput:
-      | { app: string; machineId: string; feature?: "runner" | "brain" }
-      | null =
+    let brainWarnings: ReturnType<
+      typeof resolveBrainTerminalConnect
+    >["warnings"] = [];
+    let targetInput: TerminalTargetInput | null =
       parsed.data.app && parsed.data.machineId
         ? {
             app: parsed.data.app,
@@ -231,30 +229,13 @@ export async function POST(req: NextRequest) {
           ctx.context.account,
           ctx.context.githubToken,
         );
-        const blocker = brainTerminalBlocker(runtime);
-        if (blocker) {
-          return NextResponse.json(
-            {
-              error: "selected_image_not_running",
-              message: TARGET_MESSAGE.selected_image_not_running,
-              imageRef: blocker.desiredImageRef,
-              runningImageRef: blocker.runningImageRef,
-              machineImageRef: blocker.machineImageRef,
-              runtimeSource: runtime.source,
-              drift: blocker,
-            },
-            { status: TARGET_STATUS.selected_image_not_running },
-          );
-        }
-        if (runtime.runningApp && runtime.runningMachineId) {
-          targetInput = {
-            app: runtime.runningApp,
-            machineId: runtime.runningMachineId,
-            feature: "brain",
-          };
-        } else {
-          targetInput = resolveBrainTerminalTargetInput(inventory, targetInput);
-        }
+        const decision = resolveBrainTerminalConnect({
+          runtime,
+          inventory,
+          requestedTarget: targetInput,
+        });
+        targetInput = decision.targetInput;
+        brainWarnings = decision.warnings;
       } finally {
         clearGitHubContext();
       }
@@ -378,6 +359,7 @@ export async function POST(req: NextRequest) {
       bridgeApp: bridge.app,
       expiresAt: new Date((now + 120) * 1000).toISOString(),
       webSocketUrl,
+      ...(brainWarnings.length ? { warnings: brainWarnings } : {}),
     });
   } catch (err) {
     logger.error(
