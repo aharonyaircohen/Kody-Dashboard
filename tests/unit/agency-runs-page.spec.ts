@@ -140,18 +140,10 @@ describe("Agency Runs page", () => {
         "Report file: A-Guy-Web/reports/ai-agency-health/runs/latest.md",
         context,
       ),
-    ).toEqual({
-      href: "https://github.com/A-Guy-educ/kody-state/blob/main/A-Guy-Web/reports/ai-agency-health/runs/latest.md",
-      external: true,
-      label: "View state file",
-    });
+    ).toBeNull();
     expect(
       runEvidenceViewTarget("Source log: logs/goals/ci-health/runs/run.jsonl", context),
-    ).toEqual({
-      href: "https://github.com/A-Guy-educ/kody-state/blob/main/A-Guy-Web/logs/goals/ci-health/runs/run.jsonl",
-      external: true,
-      label: "View state file",
-    });
+    ).toBeNull();
     expect(
       runEvidenceViewTarget(
         "GitHub run URL: https://github.com/test/repo/actions/runs/123456",

@@ -23,7 +23,6 @@ import { Button } from "@dashboard/ui/button";
 import { useAgencyRunDetail, useAgencyRuns } from "../hooks/useAgencyRuns";
 import { useRepoScopedHref } from "../hooks/useRepoScopedHref";
 import {
-  DEFAULT_KODY_STORE_REF,
   DEFAULT_KODY_STORE_REPO_URL,
   useAuth,
 } from "../auth-context";
@@ -245,7 +244,6 @@ export type RunEvidenceViewTarget = {
 type RunEvidenceViewContext = {
   currentRepo: RepoRef | null;
   stateRepo: RepoRef | null;
-  stateRef: string;
 };
 
 const FILE_REFERENCE_RE =
@@ -315,13 +313,6 @@ function isStateEvidence(
   return Boolean(context.currentRepo && path.startsWith(`${context.currentRepo.repo}/`));
 }
 
-function stateEvidencePath(path: string, context: RunEvidenceViewContext): string {
-  const normalized = path.replace(/^\/+|\/+$/g, "");
-  if (!context.currentRepo) return normalized;
-  if (normalized.startsWith(`${context.currentRepo.repo}/`)) return normalized;
-  return `${context.currentRepo.repo}/${normalized}`;
-}
-
 export function runEvidenceViewTarget(
   line: string,
   context: RunEvidenceViewContext,
@@ -340,14 +331,7 @@ export function runEvidenceViewTarget(
   const path = reference.value.replace(/^\/+|\/+$/g, "");
   if (!path) return null;
   if (isStateEvidence(formatted, path, context)) {
-    if (!context.stateRepo) return null;
-    return {
-      href: `https://github.com/${context.stateRepo.owner}/${context.stateRepo.repo}/blob/${encodeURIComponent(
-        context.stateRef || DEFAULT_KODY_STORE_REF,
-      )}/${encodePath(stateEvidencePath(path, context))}`,
-      external: true,
-      label: "View state file",
-    };
+    return null;
   }
 
   return {
@@ -479,7 +463,6 @@ function RunRow({
   const evidenceViewContext: RunEvidenceViewContext = {
     currentRepo: auth ? { owner: auth.owner, repo: auth.repo } : null,
     stateRepo: parseGitHubRepoUrl(auth?.storeRepoUrl),
-    stateRef: auth?.storeRef ?? DEFAULT_KODY_STORE_REF,
   };
   const events = rawEvents.slice(-4).reverse();
   const happened = operatorHappenedLines(
