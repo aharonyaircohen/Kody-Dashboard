@@ -63,6 +63,7 @@ export interface AgencyRunSummary {
   action: string | null;
   capability: string | null;
   workflow: string | null;
+  implementation?: string | null;
   executable: string | null;
   agent: string | null;
   model: string | null;
@@ -129,6 +130,7 @@ interface RunIndexRow {
   action?: unknown;
   capability?: unknown;
   workflow?: unknown;
+  implementation?: unknown;
   executable?: unknown;
   agent?: unknown;
   model?: unknown;
@@ -209,19 +211,26 @@ function parseManagedGoalState(json: string): ManagedGoalStateLite | null {
     stage: stringValue(parsed?.stage),
     updatedAt: stringValue(parsed?.updatedAt),
     blockers: Array.isArray(parsed?.blockers)
-      ? parsed.blockers.filter((item): item is string => typeof item === "string")
+      ? parsed.blockers.filter(
+          (item): item is string => typeof item === "string",
+        )
       : [],
     facts,
   };
 }
 
 function dispatchGoalId(run: AgencyRunSummary): string | null {
-  const text = [run.summary, run.decision, run.currentStep].filter(Boolean).join("\n");
+  const text = [run.summary, run.decision, run.currentStep]
+    .filter(Boolean)
+    .join("\n");
   const match = text.match(/\bdispatch goal ([A-Za-z0-9_.-]+)/i);
   if (match?.[1]) return match[1];
-  const waitingMatch = text.match(/\b(?:stuck\s+)?waiting on goal\s+([A-Za-z0-9_.-]+)/i);
+  const waitingMatch = text.match(
+    /\b(?:stuck\s+)?waiting on goal\s+([A-Za-z0-9_.-]+)/i,
+  );
   if (waitingMatch?.[1]) return waitingMatch[1];
-  if (run.kind === "goal" && /\bdispatchWorkflow\b/i.test(text)) return run.targetId;
+  if (run.kind === "goal" && /\bdispatchWorkflow\b/i.test(text))
+    return run.targetId;
   return null;
 }
 
@@ -231,23 +240,34 @@ function pendingEvidence(goal: ManagedGoalStateLite): string | null {
   return null;
 }
 
-function statusFromManagedGoal(goal: ManagedGoalStateLite, nowMs = Date.now()): AgencyRunStatus {
+function statusFromManagedGoal(
+  goal: ManagedGoalStateLite,
+  nowMs = Date.now(),
+): AgencyRunStatus {
   if (goal.state === "done") return "success";
   if (goal.blockers.length > 0) return "blocked";
   if (goal.state === "paused" || goal.state === "inactive") return "waiting";
   const updatedAt = goal.updatedAt ? Date.parse(goal.updatedAt) : NaN;
-  if (Number.isFinite(updatedAt) && nowMs - updatedAt > DISPATCH_STUCK_MS) return "stuck";
+  if (Number.isFinite(updatedAt) && nowMs - updatedAt > DISPATCH_STUCK_MS)
+    return "stuck";
   return "running";
 }
 
-function stepFromManagedGoal(goalId: string, goal: ManagedGoalStateLite): string {
+function stepFromManagedGoal(
+  goalId: string,
+  goal: ManagedGoalStateLite,
+): string {
   const stage = goal.stage ?? goal.state;
   const evidence = pendingEvidence(goal);
   return evidence ? `${goalId}: ${stage} / ${evidence}` : `${goalId}: ${stage}`;
 }
 
 function statusFromGitHubRun(run: GitHubWorkflowRun): AgencyRunStatus | null {
-  if (run.status === "queued" || run.status === "requested" || run.status === "pending") {
+  if (
+    run.status === "queued" ||
+    run.status === "requested" ||
+    run.status === "pending"
+  ) {
     return "running";
   }
   if (run.status === "waiting") return "waiting";
@@ -255,7 +275,8 @@ function statusFromGitHubRun(run: GitHubWorkflowRun): AgencyRunStatus | null {
   if (run.status !== "completed") return null;
 
   if (run.conclusion === "success") return "success";
-  if (run.conclusion === "cancelled" || run.conclusion === "skipped") return "cancelled";
+  if (run.conclusion === "cancelled" || run.conclusion === "skipped")
+    return "cancelled";
   if (run.conclusion === "neutral") return "recorded";
   if (
     run.conclusion === "failure" ||
@@ -282,7 +303,9 @@ function canApplyDispatchTargetOverlay(run: AgencyRunSummary): boolean {
 }
 
 function isWaitingOnDispatchTarget(run: AgencyRunSummary): boolean {
-  const text = [run.summary, run.decision, run.currentStep].filter(Boolean).join("\n");
+  const text = [run.summary, run.decision, run.currentStep]
+    .filter(Boolean)
+    .join("\n");
   return /\b(?:stuck\s+)?waiting on goal\s+[A-Za-z0-9_.-]+/i.test(text);
 }
 
@@ -327,7 +350,10 @@ function statusFromDispatchTarget(
         `${targetId} ${humanWorkflowStatus(workflowRun.status)}`,
     };
   }
-  if (workflowRun && (workflowRun.status === "running" || workflowRun.status === "waiting")) {
+  if (
+    workflowRun &&
+    (workflowRun.status === "running" || workflowRun.status === "waiting")
+  ) {
     return {
       status: workflowRun.status,
       currentStep: workflowRun.currentStep
@@ -518,12 +544,16 @@ function boundaryEvalInsight(line: string): OperatorSummaryFormat | null {
         );
       }
     }
-    evidenceLines.push(`Raw boundary eval: KODY_AGENCY_BOUNDARY_EVAL=${payload}`);
+    evidenceLines.push(
+      `Raw boundary eval: KODY_AGENCY_BOUNDARY_EVAL=${payload}`,
+    );
     return { lines: [summary], evidenceLines };
   } catch {
     return {
       lines: ["Agency boundary eval recorded."],
-      evidenceLines: [`Raw boundary eval: KODY_AGENCY_BOUNDARY_EVAL=${payload}`],
+      evidenceLines: [
+        `Raw boundary eval: KODY_AGENCY_BOUNDARY_EVAL=${payload}`,
+      ],
     };
   }
 }
@@ -531,7 +561,9 @@ function boundaryEvalInsight(line: string): OperatorSummaryFormat | null {
 function formatOperatorSummaryLine(line: string): OperatorSummaryFormat {
   const out: string[] = [];
   const evidenceLines: string[] = [];
-  const report = line.match(/\bAdded\s+(.+?\.md)\s+in\s+([A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+)/);
+  const report = line.match(
+    /\bAdded\s+(.+?\.md)\s+in\s+([A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+)/,
+  );
   if (report?.[1] && report[2]) {
     const repo = report[2].replace(/\.$/, "");
     out.push(`Added report: ${report[1]} (${repo}).`);
@@ -572,10 +604,7 @@ function summarizeWorkflowLog(
   jobName: string | null,
   raw: string,
 ): AgencyRunWorkflowLogInsight {
-  const lines = raw
-    .split(/\r?\n/)
-    .map(cleanLogLine)
-    .filter(Boolean);
+  const lines = raw.split(/\r?\n/).map(cleanLogLine).filter(Boolean);
   const failed = lines.find((line) => line.startsWith("PR_URL=FAILED:"));
   const summaryInsight = collectSummaryInsight(lines);
   const usefulLine =
@@ -589,7 +618,7 @@ function summarizeWorkflowLog(
   const summary =
     summaryInsight.lines.length > 0
       ? summaryInsight.lines.join(" ")
-      : failed?.replace(/^PR_URL=FAILED:\s*/, "") ?? usefulLine;
+      : (failed?.replace(/^PR_URL=FAILED:\s*/, "") ?? usefulLine);
   const operatorLines =
     summaryInsight.lines.length > 0
       ? summaryInsight.lines
@@ -606,7 +635,11 @@ function summarizeWorkflowLog(
   return {
     jobId,
     jobName,
-    status: failed ? "failed" : lines.includes("DONE") ? "completed" : "recorded",
+    status: failed
+      ? "failed"
+      : lines.includes("DONE")
+        ? "completed"
+        : "recorded",
     summary: operatorLines.length > 0 ? operatorLines.join(" ") : summary,
     lines: operatorLines,
     evidenceLines,
@@ -725,6 +758,8 @@ function rowToAgencyRun(row: RunIndexRow): AgencyRunSummary | null {
     action: stringValue(row.action),
     capability: stringValue(row.capability),
     workflow: stringValue(row.workflow),
+    implementation:
+      stringValue(row.implementation) ?? stringValue(row.executable),
     executable: stringValue(row.executable),
     agent: stringValue(row.agent),
     model: stringValue(row.model),
@@ -749,7 +784,9 @@ async function applyGitHubRunOverlay({
   const ids = new Set(runs.map((run) => run.githubRunId).filter(Boolean));
   if (!ids.size) return runs;
 
-  let response: Awaited<ReturnType<Octokit["actions"]["listWorkflowRunsForRepo"]>>;
+  let response: Awaited<
+    ReturnType<Octokit["actions"]["listWorkflowRunsForRepo"]>
+  >;
   try {
     response = await octokit.actions.listWorkflowRunsForRepo({
       owner,
@@ -826,7 +863,11 @@ async function applyDispatchTargetOverlay({
     const targetId = targetIds.get(run.id);
     const goal = targetId ? goals.get(targetId) : null;
     if (!targetId || !goal) return run;
-    const target = statusFromDispatchTarget(targetId, goal, relatedWorkflowRun(run, goal, runs));
+    const target = statusFromDispatchTarget(
+      targetId,
+      goal,
+      relatedWorkflowRun(run, goal, runs),
+    );
     return {
       ...run,
       status: target.status,
@@ -863,7 +904,8 @@ async function readRunIndexFile({
     if (status === 304 && cached) {
       return { index: parseRunIndex(cached.json), etag: cached.etag ?? null };
     }
-    if (status === 404) return { index: { updatedAt: null, runs: [] }, etag: null };
+    if (status === 404)
+      return { index: { updatedAt: null, runs: [] }, etag: null };
     throw error;
   }
 }

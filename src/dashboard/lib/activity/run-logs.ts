@@ -19,6 +19,7 @@ export interface KodyRunLogEvent {
   ts?: string;
   runId?: string;
   capability?: string;
+  implementation?: string;
   executable?: string;
   kind?: string;
   name?: string;
@@ -97,7 +98,13 @@ export interface KodyRunLogsSnapshot {
 const STAGE_KINDS = new Set(["stage_start", "stage_end"]);
 
 function textOf(event: KodyRunLogEvent): string {
-  return [event.kind, event.name, event.capability, event.executable]
+  return [
+    event.kind,
+    event.name,
+    event.capability,
+    event.implementation,
+    event.executable,
+  ]
     .filter(Boolean)
     .join(" ")
     .toLowerCase();
@@ -145,7 +152,12 @@ function categoryFor(event: KodyRunLogEvent): KodyRunTimelineCategory | null {
 
 function labelFor(event: KodyRunLogEvent): string {
   return (
-    event.name || event.capability || event.executable || event.kind || "event"
+    event.name ||
+    event.capability ||
+    event.implementation ||
+    event.executable ||
+    event.kind ||
+    "event"
   );
 }
 
@@ -233,7 +245,8 @@ export function buildRunTimeline(
         id: `${event.runId ?? "run"}:${event.ts ?? index}:${event.kind ?? "event"}:${event.name ?? index}`,
         ts: event.ts ?? null,
         runId: event.runId ?? null,
-        capability: event.capability ?? event.executable ?? null,
+        capability:
+          event.capability ?? event.implementation ?? event.executable ?? null,
         kind: event.kind ?? "event",
         name: event.name ?? null,
         durationMs: numberOrNull(event.durationMs),

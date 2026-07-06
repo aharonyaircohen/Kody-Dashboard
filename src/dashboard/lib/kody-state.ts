@@ -42,6 +42,7 @@ export interface KodyAction {
 export interface KodyHistoryEntry {
   timestamp: string;
   capability: string | null;
+  implementation?: string | null;
   action: string;
   note?: string;
   /** Agent member this run executed as, when the capability declares one. */
@@ -77,6 +78,7 @@ export interface KodyTaskState {
 
 type RawKodyState = Partial<Omit<KodyTaskState, "core" | "history">> & {
   core?: Partial<KodyTaskState["core"]> & {
+    currentImplementation?: unknown;
     currentExecutable?: unknown;
   };
   history?: unknown;
@@ -95,7 +97,12 @@ function normalizeHistoryEntry(raw: unknown): KodyHistoryEntry | null {
   return {
     timestamp,
     capability:
-      rawString(entry.capability) ?? rawString(entry.executable) ?? null,
+      rawString(entry.capability) ??
+      rawString(entry.implementation) ??
+      rawString(entry.executable) ??
+      null,
+    implementation:
+      rawString(entry.implementation) ?? rawString(entry.executable) ?? null,
     action: rawString(entry.action) ?? "",
     note: rawString(entry.note),
     agent: rawString(entry.agent),
@@ -147,6 +154,7 @@ export function parseKodyStateComment(body: string): KodyTaskState | null {
         status: parsed.core.status ?? "pending",
         currentCapability:
           rawString(parsed.core.currentCapability) ??
+          rawString(parsed.core.currentImplementation) ??
           rawString(parsed.core.currentExecutable) ??
           null,
         lastOutcome: parsed.core.lastOutcome ?? null,

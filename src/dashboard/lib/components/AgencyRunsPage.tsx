@@ -22,10 +22,7 @@ import {
 import { Button } from "@dashboard/ui/button";
 import { useAgencyRunDetail, useAgencyRuns } from "../hooks/useAgencyRuns";
 import { useRepoScopedHref } from "../hooks/useRepoScopedHref";
-import {
-  DEFAULT_KODY_STORE_REPO_URL,
-  useAuth,
-} from "../auth-context";
+import { DEFAULT_KODY_STORE_REPO_URL, useAuth } from "../auth-context";
 import type {
   AgencyRunKind,
   AgencyRunStatus,
@@ -68,8 +65,7 @@ function statusTone(status: AgencyRunStatus): string {
     return "border-emerald-400/25 bg-emerald-400/10 text-emerald-200";
   if (status === "failed")
     return "border-rose-400/30 bg-rose-400/10 text-rose-200";
-  if (status === "stuck")
-    return "border-red-400/30 bg-red-400/10 text-red-200";
+  if (status === "stuck") return "border-red-400/30 bg-red-400/10 text-red-200";
   if (status === "blocked")
     return "border-amber-400/30 bg-amber-400/10 text-amber-200";
   if (status === "running")
@@ -151,7 +147,9 @@ function handoffTarget(value: string | null): string | null {
   if (!value) return null;
   const arrowMatch = value.match(/(?:->|→)\s*([A-Za-z0-9_.@-]+)/);
   if (arrowMatch?.[1]) return arrowMatch[1];
-  const handoffMatch = value.match(/\bhand-?off\b.*?\bto\s+([A-Za-z0-9_.@-]+)/i);
+  const handoffMatch = value.match(
+    /\bhand-?off\b.*?\bto\s+([A-Za-z0-9_.@-]+)/i,
+  );
   return handoffMatch?.[1] ?? null;
 }
 
@@ -161,7 +159,9 @@ function displayValue(value: string | null): string | null {
   return value;
 }
 
-function eventResultSummary(event: Record<string, unknown> | null): string | null {
+function eventResultSummary(
+  event: Record<string, unknown> | null,
+): string | null {
   if (!event) return null;
   const trace = recordValue(event.trace);
   const result = recordValue(trace?.result);
@@ -172,7 +172,9 @@ function eventResultSummary(event: Record<string, unknown> | null): string | nul
   );
 }
 
-function eventDecisionSummary(event: Record<string, unknown> | null): string | null {
+function eventDecisionSummary(
+  event: Record<string, unknown> | null,
+): string | null {
   if (!event) return null;
   const decision = recordValue(event.decision);
   const kind = textValue(decision?.kind);
@@ -198,7 +200,13 @@ function operatorHappened(
 }
 
 function runtimeLabel(run: AgencyRunSummary): string | null {
-  return run.executable ?? run.capability ?? run.workflow ?? run.action;
+  return (
+    run.implementation ??
+    run.executable ??
+    run.capability ??
+    run.workflow ??
+    run.action
+  );
 }
 
 function modelLabel(run: AgencyRunSummary): string | null {
@@ -222,16 +230,21 @@ export type AgencyRunDiagnosis = {
 
 function waitingGoalTarget(value: string | null): string | null {
   if (!value) return null;
-  const match = value.match(/\b(?:stuck\s+)?waiting on goal\s+([A-Za-z0-9_.@-]+)/i);
+  const match = value.match(
+    /\b(?:stuck\s+)?waiting on goal\s+([A-Za-z0-9_.@-]+)/i,
+  );
   return match?.[1] ?? null;
 }
 
-function handoffChain(value: string | null): { from: string; to: string } | null {
+function handoffChain(
+  value: string | null,
+): { from: string; to: string } | null {
   if (!value) return null;
   const formatted = value.match(
     /\bHand-off:\s*([A-Za-z0-9_.@-]+)\s*(?:->|→)\s*([A-Za-z0-9_.@-]+)/i,
   );
-  if (formatted?.[1] && formatted[2]) return { from: formatted[1], to: formatted[2] };
+  if (formatted?.[1] && formatted[2])
+    return { from: formatted[1], to: formatted[2] };
   const inline = value.match(
     /\b([A-Za-z0-9_.@-]+):\s*in-process hand-off\s*(?:->|→)\s*([A-Za-z0-9_.@-]+)/i,
   );
@@ -271,8 +284,12 @@ function displayedChain(
   return `${from} -> ${chain.to}`;
 }
 
-function hasFinalOutcome(run: AgencyRunSummary, events: Record<string, unknown>[]): boolean {
-  if (["success", "failed", "blocked", "cancelled"].includes(run.status)) return true;
+function hasFinalOutcome(
+  run: AgencyRunSummary,
+  events: Record<string, unknown>[],
+): boolean {
+  if (["success", "failed", "blocked", "cancelled"].includes(run.status))
+    return true;
   return events.some((event) => {
     const name = eventName(event) ?? "";
     const status = textValue(event.status) ?? "";
@@ -289,7 +306,8 @@ export function agencyRunDiagnosis(
 ): AgencyRunDiagnosis {
   const latest = events.at(-1) ?? null;
   const latestName = eventName(latest);
-  const latestReason = eventDecisionSummary(latest) ?? eventResultSummary(latest);
+  const latestReason =
+    eventDecisionSummary(latest) ?? eventResultSummary(latest);
   const diagnosticText = [
     run.summary,
     run.currentStep,
@@ -308,8 +326,11 @@ export function agencyRunDiagnosis(
   const subject = runLabel(run);
   const finalOutcome = hasFinalOutcome(run, events);
   const missingEvidence = [
-    waitingGoal && !finalOutcome ? `No completion event from ${waitingGoal}.` : null,
-    !finalOutcome && ["running", "waiting", "stuck", "recorded"].includes(run.status)
+    waitingGoal && !finalOutcome
+      ? `No completion event from ${waitingGoal}.`
+      : null,
+    !finalOutcome &&
+    ["running", "waiting", "stuck", "recorded"].includes(run.status)
       ? "No final outcome event."
       : null,
     !run.sourcePath && events.length === 0 ? "No source log." : null,
@@ -323,7 +344,7 @@ export function agencyRunDiagnosis(
         ? displayedChain(chain, subject)
         : handoff
           ? `${subject} -> ${handoff}`
-          : latestName ?? subject;
+          : (latestName ?? subject);
     return {
       status: "Stuck",
       pointLabel: "Stopped at",
@@ -390,23 +411,33 @@ export function agencyRunDiagnosis(
       status: humanStatus(run.status),
       pointLabel: "Stopped at",
       stoppedAt: latestName ?? runtimeLabel(run) ?? subject,
-      why: latestReason ?? displayValue(run.decision) ?? "Kody recorded a stop condition.",
+      why:
+        latestReason ??
+        displayValue(run.decision) ??
+        "Kody recorded a stop condition.",
       lastObserved: observedEvent(latestName, latestReason, run.currentStep),
-      expectedNextEvent: "Operator review is needed before this run can be trusted.",
+      expectedNextEvent:
+        "Operator review is needed before this run can be trusted.",
       missingEvidence,
       owner: runtimeLabel(run) ?? run.actor ?? "Kody",
-      nextAction: "Open the raw timeline and run evidence to inspect the stop reason.",
+      nextAction:
+        "Open the raw timeline and run evidence to inspect the stop reason.",
     };
   }
 
   return {
     status: humanStatus(run.status),
-    pointLabel: run.status === "success" || run.status === "cancelled" ? "Ended at" : "Recorded at",
+    pointLabel:
+      run.status === "success" || run.status === "cancelled"
+        ? "Ended at"
+        : "Recorded at",
     stoppedAt: latestName ?? runtimeLabel(run) ?? subject,
     why:
       run.status === "success"
         ? "Kody recorded a completed run."
-        : latestReason ?? displayValue(run.summary) ?? "Kody recorded this run.",
+        : (latestReason ??
+          displayValue(run.summary) ??
+          "Kody recorded this run."),
     lastObserved: observedEvent(latestName, latestReason, run.currentStep),
     expectedNextEvent:
       run.status === "success" || run.status === "cancelled"
@@ -435,7 +466,9 @@ export function operatorRunFactLines(run: AgencyRunSummary): string[] {
     run.githubRunId ? `GitHub run: ${run.githubRunId}.` : null,
     run.startedAt ? `Started: ${formatTime(run.startedAt)}.` : null,
     run.updatedAt ? `Updated: ${formatTime(run.updatedAt)}.` : null,
-    run.durationMs !== null ? `Duration: ${formatDuration(run.durationMs)}.` : null,
+    run.durationMs !== null
+      ? `Duration: ${formatDuration(run.durationMs)}.`
+      : null,
   ];
   return lines.filter((line): line is string => line !== null);
 }
@@ -531,14 +564,21 @@ function isStateEvidence(
   }
   if (
     context.stateRepo &&
-    formatted.value.includes(`${context.stateRepo.owner}/${context.stateRepo.repo}`)
+    formatted.value.includes(
+      `${context.stateRepo.owner}/${context.stateRepo.repo}`,
+    )
   ) {
     return true;
   }
-  return Boolean(context.currentRepo && path.startsWith(`${context.currentRepo.repo}/`));
+  return Boolean(
+    context.currentRepo && path.startsWith(`${context.currentRepo.repo}/`),
+  );
 }
 
-function stateEvidencePath(path: string, context: RunEvidenceViewContext): string {
+function stateEvidencePath(
+  path: string,
+  context: RunEvidenceViewContext,
+): string {
   const normalized = path.replace(/^\/+|\/+$/g, "");
   if (
     context.currentRepo &&
@@ -588,7 +628,10 @@ export function operatorHappenedLines(
   workflowLines: string[],
 ): string[] {
   if (workflowLines.length > 0) return workflowLines;
-  if (!workflowSummary && (dispatchTarget(run.summary) ?? dispatchTarget(run.decision))) {
+  if (
+    !workflowSummary &&
+    (dispatchTarget(run.summary) ?? dispatchTarget(run.decision))
+  ) {
     return operatorRunFactLines(run);
   }
   return [operatorHappened(run, events, workflowSummary)];
@@ -599,7 +642,9 @@ export function shouldWaitForRunStory(
   hasDetailData: boolean,
   isFetching: boolean,
 ): boolean {
-  return isFetching && !hasDetailData && Boolean(run.sourcePath || run.githubRunId);
+  return (
+    isFetching && !hasDetailData && Boolean(run.sourcePath || run.githubRunId)
+  );
 }
 
 function operatorNext(
@@ -608,7 +653,8 @@ function operatorNext(
   workflowSummary: string | null,
 ): string {
   const latest = events.at(-1) ?? null;
-  const latestReason = eventDecisionSummary(latest) ?? eventResultSummary(latest);
+  const latestReason =
+    eventDecisionSummary(latest) ?? eventResultSummary(latest);
   if (run.status === "running") return "The run is still executing.";
   if (
     workflowSummary &&
@@ -622,10 +668,13 @@ function operatorNext(
     if (run.summary?.startsWith("waiting on goal ")) return run.summary;
     return "Waiting for the dispatched work to report back.";
   }
-  if (run.status === "blocked") return latestReason ?? "Waiting for a blocker to be cleared.";
-  if (run.status === "failed") return latestReason ?? "Open the run log to inspect the failure.";
+  if (run.status === "blocked")
+    return latestReason ?? "Waiting for a blocker to be cleared.";
+  if (run.status === "failed")
+    return latestReason ?? "Open the run log to inspect the failure.";
   if (run.status === "success") return "No follow-up is needed from this run.";
-  if (run.status === "stuck") return "Needs attention because no progress was reported.";
+  if (run.status === "stuck")
+    return "Needs attention because no progress was reported.";
   if (run.status === "cancelled") return "This run stopped before finishing.";
   return latestReason ?? "No next action was recorded.";
 }
@@ -686,11 +735,7 @@ function RunEvidenceLine({
   );
 }
 
-function RunDiagnosisPanel({
-  diagnosis,
-}: {
-  diagnosis: AgencyRunDiagnosis;
-}) {
+function RunDiagnosisPanel({ diagnosis }: { diagnosis: AgencyRunDiagnosis }) {
   return (
     <section className="rounded-md border border-white/[0.08] bg-white/[0.03] px-3 py-3">
       <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
@@ -816,11 +861,11 @@ function RunRow({
             {run.status}
           </span>
         </div>
-          <div className="min-w-0">
+        <div className="min-w-0">
           <div className="truncate font-medium text-white/85">{run.title}</div>
           <div className="mt-0.5 flex min-w-0 flex-wrap gap-2 text-xs text-white/40">
             <span>{run.origin}</span>
-            {run.modelName ?? run.model ? (
+            {(run.modelName ?? run.model) ? (
               <span>{run.modelName ?? run.model}</span>
             ) : null}
             {run.kodyRunId ? (
@@ -926,7 +971,7 @@ function RunRow({
             <div className="space-y-1">
               <div className="text-white/35">Runtime</div>
               <div className="truncate text-white/70">
-                {run.executable ?? run.capability ?? run.workflow ?? "-"}
+                {runtimeLabel(run) ?? "-"}
               </div>
             </div>
             <div className="space-y-1">

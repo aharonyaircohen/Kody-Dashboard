@@ -203,6 +203,7 @@ export interface ManagedGoalCapabilityScheduleState {
         targetId?: string;
         action?: string;
         workflow?: string;
+        implementation?: string;
         executable?: string;
         reason: string;
         at: string;
@@ -599,6 +600,7 @@ function normalizeManagedGoalScheduleState(
           targetId?: unknown;
           action?: unknown;
           workflow?: unknown;
+          implementation?: unknown;
           executable?: unknown;
           reason?: unknown;
           at?: unknown;
@@ -619,9 +621,11 @@ function normalizeManagedGoalScheduleState(
             ? rawDecision.action
             : typeof rawDecision.workflow === "string"
               ? rawDecision.workflow
-              : typeof rawDecision.executable === "string"
-                ? rawDecision.executable
-                : undefined;
+              : typeof rawDecision.implementation === "string"
+                ? rawDecision.implementation
+                : typeof rawDecision.executable === "string"
+                  ? rawDecision.executable
+                  : undefined;
     lastDecision = {
       kind: "dispatch",
       ...(fallbackCapability ? { capability: fallbackCapability } : {}),
@@ -638,6 +642,11 @@ function normalizeManagedGoalScheduleState(
       ...(typeof rawDecision.workflow === "string"
         ? { workflow: rawDecision.workflow }
         : {}),
+      ...(typeof rawDecision.implementation === "string"
+        ? { implementation: rawDecision.implementation }
+        : typeof rawDecision.executable === "string"
+          ? { implementation: rawDecision.executable }
+          : {}),
       ...(typeof rawDecision.executable === "string"
         ? { executable: rawDecision.executable }
         : {}),
