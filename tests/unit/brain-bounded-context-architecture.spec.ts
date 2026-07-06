@@ -25,8 +25,10 @@ describe("Brain bounded context architecture", () => {
       "src/dashboard/lib/brain/overview.ts",
       "src/dashboard/lib/brain/server-commands.ts",
       "src/dashboard/lib/brain/image-save-command.ts",
+      "src/dashboard/lib/brain/image-management.ts",
       "src/dashboard/lib/brain/image-apply-command.ts",
       "src/dashboard/lib/brain/terminal-connect.ts",
+      "src/dashboard/lib/terminal/session-connect.ts",
     ]) {
       expect(exists(path), path).toBe(true);
       expect(source(path), path).toContain("@fileType use-case");
@@ -62,7 +64,7 @@ describe("Brain bounded context architecture", () => {
       "applyBrainImage(",
     );
     expect(source("app/api/kody/terminal/session/route.ts")).toContain(
-      "connectBrainTerminal(",
+      "startTerminalSession(",
     );
   });
 });

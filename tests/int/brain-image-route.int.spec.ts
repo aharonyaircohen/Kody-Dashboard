@@ -348,6 +348,64 @@ describe("GET /api/kody/brain/image", () => {
     );
   });
 
+  it("returns failed save output details while persisting the failure", async () => {
+    mocks.readSave.mockResolvedValue({
+      version: 1,
+      status: "running",
+      jobId: "0123456789abcdef0123456789abcdef",
+      app: "brain-1",
+      machineId: "machine-1",
+      bridgeApp: "kody-terminal-guy-koren",
+      orgSlug: "guy-koren",
+      defaultRegion: "fra",
+      expectedImageRef:
+        "ghcr.io/a-guy-educ/kody-brain-aguyaharonyair:brain-20260702-120000",
+      startedAt: "2026-07-02T12:00:00.000Z",
+      updatedAt: "2026-07-02T12:00:00.000Z",
+    });
+    mocks.getJob.mockResolvedValue({
+      id: "0123456789abcdef0123456789abcdef",
+      status: "failed",
+      startedAt: "2026-07-02T12:00:00.000Z",
+      finishedAt: "2026-07-02T12:04:00.000Z",
+      code: 1,
+      stdout: "__KODY_BRAIN_SAVE_STAGE=push-ghcr\n",
+      stderr: "denied: permission denied\n",
+      error: "push failed",
+    });
+
+    const res = await GET(
+      request(
+        "GET",
+        "https://dash.test/api/kody/brain/image?jobId=0123456789abcdef0123456789abcdef",
+      ),
+    );
+    const body = (await res.json()) as {
+      status?: string;
+      phase?: string;
+      jobId?: string;
+      lastOutput?: string;
+    };
+
+    expect(res.status).toBe(500);
+    expect(body).toMatchObject({
+      status: "failed",
+      phase: "failed",
+      jobId: "0123456789abcdef0123456789abcdef",
+      lastOutput: "denied: permission denied",
+    });
+    expect(mocks.writeSave).toHaveBeenCalledWith(
+      "aguyaharonyair",
+      "gh-token",
+      expect.objectContaining({
+        status: "failed",
+        phase: "failed",
+        lastOutput: "denied: permission denied",
+        error: "denied: permission denied",
+      }),
+    );
+  });
+
   it("completes a running save when the expected GHCR image already exists", async () => {
     mocks.readSave.mockResolvedValue({
       version: 1,

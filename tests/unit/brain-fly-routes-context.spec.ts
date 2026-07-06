@@ -38,14 +38,16 @@ describe("Brain Fly route GitHub context", () => {
   });
 
   it("uses the resolved Brain service for every machine control route", () => {
+    const commandSource = readRoute("src/dashboard/lib/brain/server-commands.ts");
+    expect(commandSource).toContain("resolveBrainService(");
+    expect(commandSource).toContain("appNameOverride: brain.app");
     for (const routePath of [
       "app/api/kody/brain/destroy/route.ts",
       "app/api/kody/brain/suspend/route.ts",
       "app/api/kody/brain/resume/route.ts",
     ]) {
       const source = readRoute(routePath);
-      expect(source, routePath).toContain("resolveBrainService(");
-      expect(source, routePath).toContain("appNameOverride: brain.app");
+      expect(source, routePath).toContain("manageBrainServer(");
     }
   });
 });

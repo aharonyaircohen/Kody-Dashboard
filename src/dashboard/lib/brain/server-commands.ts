@@ -8,7 +8,6 @@
  */
 import "server-only";
 
-import { logger } from "@dashboard/lib/logger";
 import {
   destroyBrain,
   isBrainFlyProvisionTransientError,
@@ -118,11 +117,6 @@ export async function manageBrainServer(input: ManageBrainServerInput) {
         appName: result.app,
         orgSlug: result.org,
         createdAt: new Date().toISOString(),
-      }).catch((err) => {
-        logger.warn(
-          { err, owner: context.owner, app: result.app },
-          "brain provision: record write failed (non-fatal)",
-        );
       });
       return result;
     } catch (err) {
@@ -172,12 +166,7 @@ export async function manageBrainServer(input: ManageBrainServerInput) {
       defaultRegion: context.flyDefaultRegion,
       appNameOverride: brain.app,
     });
-    await clearBrainApp(context.account, context.githubToken).catch((err) => {
-      logger.warn(
-        { err, owner: context.owner },
-        "brain destroy: record clear failed (non-fatal)",
-      );
-    });
+    await clearBrainApp(context.account, context.githubToken);
     return { ok: true };
   }
 

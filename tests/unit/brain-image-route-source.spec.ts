@@ -13,6 +13,14 @@ const ROUTE_SOURCE = readFileSync(
   resolve(__dirname, "../../app/api/kody/brain/image/route.ts"),
   "utf8",
 );
+const IMAGE_SAVE_COMMAND_SOURCE = readFileSync(
+  resolve(__dirname, "../../src/dashboard/lib/brain/image-save-command.ts"),
+  "utf8",
+);
+const IMAGE_MANAGEMENT_SOURCE = readFileSync(
+  resolve(__dirname, "../../src/dashboard/lib/brain/image-management.ts"),
+  "utf8",
+);
 const BRIDGE_SOURCE = readFileSync(
   resolve(__dirname, "../../src/dashboard/lib/terminal/bridge-fly.ts"),
   "utf8",
@@ -38,28 +46,32 @@ const APPLY_SERVICE_SOURCE = readFileSync(
 describe("Brain image save route", () => {
   it("exports Brain state through the terminal bridge and records a GHCR image ref", () => {
     expect(ROUTE_SOURCE).toContain("/api/kody/brain/image");
-    expect(ROUTE_SOURCE).toContain("ensureTerminalBridge");
-    expect(ROUTE_SOURCE).toContain("startTerminalBridgeLocalExecJob");
-    expect(ROUTE_SOURCE).toContain("getTerminalBridgeExecJob");
+    expect(ROUTE_SOURCE).toContain("startBrainImageSave");
+    expect(ROUTE_SOURCE).toContain("readBrainImageManagement");
+    expect(ROUTE_SOURCE).toContain("pollBrainImageSave");
+    expect(ROUTE_SOURCE).toContain("selectBrainImageRef");
+    expect(ROUTE_SOURCE).toContain("forgetBrainImageRef");
+    expect(IMAGE_SAVE_COMMAND_SOURCE).toContain("ensureTerminalBridge");
+    expect(IMAGE_SAVE_COMMAND_SOURCE).toContain("startTerminalBridgeLocalExecJob");
+    expect(IMAGE_MANAGEMENT_SOURCE).toContain("getTerminalBridgeExecJob");
     expect(BRIDGE_EXEC_CLIENT_SOURCE).toContain("/exec");
     expect(BRIDGE_EXEC_CLIENT_SOURCE).toContain("/jobs");
-    expect(ROUTE_SOURCE).toContain("brainImageBuildCommand");
-    expect(ROUTE_SOURCE).toContain("brainGhcrImageRef");
-    expect(ROUTE_SOURCE).toContain("brainGhcrAuth");
-    expect(ROUTE_SOURCE).toContain("ghcrToken: ghcr.token");
-    expect(ROUTE_SOURCE).toContain("writeBrainImageSave");
-    expect(ROUTE_SOURCE).toContain("readBrainImageSave");
-    expect(ROUTE_SOURCE).toContain("clearBrainImageSave");
+    expect(IMAGE_SAVE_COMMAND_SOURCE).toContain("brainImageBuildCommand");
+    expect(IMAGE_SAVE_COMMAND_SOURCE).toContain("brainGhcrImageRef");
+    expect(IMAGE_SAVE_COMMAND_SOURCE).toContain("brainGhcrAuth");
+    expect(IMAGE_SAVE_COMMAND_SOURCE).toContain("ghcrToken: ghcr.token");
+    expect(IMAGE_MANAGEMENT_SOURCE).toContain("writeBrainImageSave");
+    expect(IMAGE_MANAGEMENT_SOURCE).toContain("readBrainImageSave");
+    expect(IMAGE_MANAGEMENT_SOURCE).toContain("clearBrainImageSave");
     expect(ROUTE_SOURCE).toContain("export async function GET");
-    expect(ROUTE_SOURCE).toContain("resolveBrainService");
-    expect(ROUTE_SOURCE).not.toContain("machineIdOverride");
-    expect(ROUTE_SOURCE).not.toContain("appNameOverride: parsed.data.app");
-    expect(ROUTE_SOURCE).toContain(
-      "brainImageBuildCommand({\n        app,\n        machineId,\n        orgSlug: brain.orgSlug,",
-    );
+    expect(IMAGE_SAVE_COMMAND_SOURCE).toContain("resolveBrainService");
+    expect(IMAGE_SAVE_COMMAND_SOURCE).not.toContain("machineIdOverride");
+    expect(IMAGE_SAVE_COMMAND_SOURCE).not.toContain("appNameOverride: parsed.data.app");
+    expect(IMAGE_SAVE_COMMAND_SOURCE).toContain("brainImageBuildCommand({");
+    expect(IMAGE_SAVE_COMMAND_SOURCE).toContain("orgSlug: brain.orgSlug,");
     expect(BRIDGE_EXEC_CLIENT_SOURCE).toContain("local: true");
-    expect(ROUTE_SOURCE).toContain("readBrainImage");
-    expect(ROUTE_SOURCE).toContain("writeBrainImage");
+    expect(IMAGE_MANAGEMENT_SOURCE).toContain("readBrainImage");
+    expect(IMAGE_MANAGEMENT_SOURCE).toContain("writeBrainImage");
     expect(ROUTE_SOURCE).not.toContain("brain_app_mismatch");
   });
 
@@ -79,13 +91,13 @@ describe("Brain image save route", () => {
 
   it("keeps image apply explicit and out of normal Brain provision paths", () => {
     for (const source of PROVISION_SOURCES) {
-      expect(source).toContain("resolveBrainTarget");
+      expect(source).toContain("manageBrainServer");
       expect(source).not.toContain("readBrainImage");
       expect(source).not.toContain("prepareBrainRuntimeImage");
       expect(source).not.toContain("resolveRuntimeImageRef");
       expect(source).not.toContain("prepareRuntimeImage");
     }
-    expect(APPLY_ROUTE_SOURCE).toContain("applySelectedBrainImage");
+    expect(APPLY_ROUTE_SOURCE).toContain("applyBrainImage");
     expect(APPLY_ROUTE_SOURCE).toContain("const body =");
     expect(APPLY_ROUTE_SOURCE).toContain("imageRef: body.imageRef");
     expect(APPLY_SERVICE_SOURCE).toContain("readBrainImage");

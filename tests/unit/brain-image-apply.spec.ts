@@ -435,4 +435,29 @@ describe("applySelectedBrainImage", () => {
     );
     expect(store.selectBrainImage).not.toHaveBeenCalled();
   });
+
+  it("fails the apply operation when the Brain app record cannot be saved", async () => {
+    store.writeBrainApp.mockRejectedValueOnce(new Error("state repo down"));
+
+    await expect(
+      applySelectedBrainImage({
+        owner: "acme",
+        repo: "widgets",
+        account: "octocat",
+        githubToken: "gh-token",
+        allSecrets: {},
+        flyToken: "fly-token",
+        flyOrgSlug: "personal",
+        flyDefaultRegion: "fra",
+        dashboardUrl: "https://dash.test",
+      }),
+    ).rejects.toThrow("state repo down");
+
+    expect(runtimeManager.failBrainRuntimeApply).toHaveBeenCalledWith(
+      "octocat",
+      "gh-token",
+      "ghcr.io/acme/kody-brain-octocat:selected",
+      "state repo down",
+    );
+  });
 });

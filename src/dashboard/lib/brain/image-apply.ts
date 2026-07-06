@@ -174,11 +174,6 @@ export async function applySelectedBrainImage(
       appName: brain.app,
       orgSlug: brain.org,
       createdAt: new Date().toISOString(),
-    }).catch((err) => {
-      logger.warn(
-        { err, owner: input.owner, app: brain.app },
-        "brain image apply: record app write failed",
-      );
     });
 
     const runtime = await completeBrainRuntimeApply(
