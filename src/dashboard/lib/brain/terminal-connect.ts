@@ -68,3 +68,11 @@ export function resolveBrainTerminalConnect(input: {
     warnings: warning ? [warning] : [],
   };
 }
+
+export function connectBrainTerminal(input: {
+  runtime: BrainRuntimeView;
+  inventory: FlyInventory;
+  requestedTarget: TerminalTargetInput | null;
+}): BrainTerminalConnectDecision {
+  return resolveBrainTerminalConnect(input);
+}

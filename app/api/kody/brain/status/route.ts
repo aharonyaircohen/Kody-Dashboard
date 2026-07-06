@@ -27,7 +27,7 @@
 import { NextRequest, NextResponse } from "next/server";
 
 import { requireKodyAuth } from "@dashboard/lib/auth";
-import { readBrainRuntimeAuthority } from "@dashboard/lib/brain/runtime-authority";
+import { readBrainOverview } from "@dashboard/lib/brain/overview";
 import {
   clearGitHubContext,
   setGitHubContext,
@@ -45,10 +45,6 @@ export async function GET(req: NextRequest) {
   if (!ctx.ok) {
     return NextResponse.json({ error: ctx.error }, { status: ctx.status });
   }
-  if (!ctx.context.flyToken) {
-    // No Fly token in the vault — the user can't have a brain app yet.
-    return NextResponse.json({ state: "off", stored: null });
-  }
 
   setGitHubContext(
     ctx.context.owner,
@@ -59,36 +55,32 @@ export async function GET(req: NextRequest) {
   );
 
   try {
-    // Read the stored record first so the live-status call targets the
-    // actual app name (which may carry a `-2`/`-3` suffix from an earlier
-    // auto-rename when the default slug was taken).
-    const authority = await readBrainRuntimeAuthority({
+    const overview = await readBrainOverview({
       flyToken: ctx.context.flyToken,
       account: ctx.context.account,
       githubToken: ctx.context.githubToken,
       orgSlug: ctx.context.flyOrgSlug,
       defaultRegion: ctx.context.flyDefaultRegion,
     });
-    const result = authority.service;
-    if (!result) {
+    if (!overview.service) {
       return NextResponse.json({
         state: "off",
-        stored: null,
-        runtime: authority.runtime,
-        drift: authority.drift,
+        stored: overview.stored,
+        runtime: overview.runtime,
+        drift: overview.drift,
       });
     }
     return NextResponse.json({
-      app: result.app,
-      state: result.state,
-      url: result.url,
-      machineId: result.machineId,
-      machineImageRef: result.machineImageRef,
-      org: result.orgSlug,
-      reason: result.reason,
-      stored: result.stored,
-      runtime: authority.runtime,
-      drift: authority.drift,
+      app: overview.app,
+      state: overview.state,
+      url: overview.url,
+      machineId: overview.machineId,
+      machineImageRef: overview.machineImageRef,
+      org: overview.org,
+      reason: overview.reason,
+      stored: overview.stored,
+      runtime: overview.runtime,
+      drift: overview.drift,
     });
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);

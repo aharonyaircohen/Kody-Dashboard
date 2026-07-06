@@ -13,7 +13,7 @@
  * Lifecycle:
  *   1. requireKodyAuth + resolveFlyContext (reads FLY_API_TOKEN from the
  *      repo's secrets vault).
- *   2. provisionBrain() — idempotent. Creates the per-user app + machine
+ *   2. manageBrainServer("provision") — idempotent. Creates the per-user app + machine
  *      on the first call (~30s); reuses both on later calls and returns
  *      the existing API key from the machine's env.
  *   3. streamBrainChat() — same proxy core used by /api/kody/chat/brain.
@@ -26,8 +26,10 @@
 import { NextRequest, NextResponse } from "next/server";
 
 import { requireKodyAuth } from "@dashboard/lib/auth";
-import { readBrainApp, writeBrainApp } from "@dashboard/lib/brain/store";
-import { resolveBrainTarget } from "@dashboard/lib/brain/target";
+import {
+  BrainCommandError,
+  manageBrainServer,
+} from "@dashboard/lib/brain/server-commands";
 import {
   clearGitHubContext,
   setGitHubContext,
@@ -41,8 +43,6 @@ import {
   type BrainTaskContext,
 } from "@dashboard/lib/brain-proxy";
 import {
-  isBrainFlyProvisionTransientError,
-  provisionBrain,
   waitForBrainHealth,
 } from "@dashboard/lib/runners/brain-fly";
 import { resolveFlyContext } from "@dashboard/lib/runners/fly-context";
@@ -129,65 +129,31 @@ export async function POST(req: NextRequest) {
 
   try {
     const dashboardUrl = requestOrigin(req);
-    // Provision (or reuse) the user's brain machine. Idempotent: returns
-    // the existing apiKey when a live machine exists, otherwise creates one
-    // and returns a fresh key. The Fly token is whatever `fly-context.ts`
-    // resolved (env-first, vault fallback — single source of truth). The
-    // app name is read from the storage record so the chat route stays in
-    // sync with whatever the Runner card provisioned.
-    const stored = await readBrainApp(
-      ctx.context.account,
-      ctx.context.githubToken,
-    ).catch(() => null);
-    const target = resolveBrainTarget({
-      account: ctx.context.account,
-      contextOrgSlug: ctx.context.flyOrgSlug,
-      stored,
-    });
     let provisioned: { url: string; apiKey: string; app?: string };
     try {
-      const result = await provisionBrain({
-        flyToken: ctx.context.flyToken,
-        account: ctx.context.account,
-        // Repo-less Brain: no boot repo. It clones each repo per chat message.
-        // We still hand it the model resolved from Dashboard /models.
-        model: ctx.context.engineModel,
-        modelConfig: ctx.context.engineModelConfig,
-        githubToken: ctx.context.githubToken,
-        allSecrets: ctx.context.allSecrets,
+      const result = await manageBrainServer({
+        command: "provision",
+        context: ctx.context,
         perfTier: ctx.context.perfTier,
-        orgSlug: target.orgSlug,
-        defaultRegion: ctx.context.flyDefaultRegion,
         suspendOnIdle: brainSuspendOnIdleFrom(req),
         dashboardUrl,
-        appNameOverride: target.app,
       });
       provisioned = { url: result.url, apiKey: result.apiKey, app: result.app };
-      try {
-        await writeBrainApp(ctx.context.account, ctx.context.githubToken, {
-          version: 1,
-          appName: result.app,
-          orgSlug: result.org,
-          createdAt: new Date().toISOString(),
-        });
-      } catch (writeErr) {
-        logger.warn(
-          { err: writeErr, owner: ctx.context.owner, app: result.app },
-          "chat/brain-fly: record write failed (non-fatal)",
-        );
-      }
     } catch (err) {
       const message = err instanceof Error ? err.message : String(err);
       logger.error(
         { err, owner: ctx.context.owner },
-        "chat/brain-fly: provisionBrain failed",
+        "chat/brain-fly: Brain provision command failed",
       );
-      if (isBrainFlyProvisionTransientError(err)) {
+      if (
+        err instanceof BrainCommandError &&
+        err.code === "brain_provision_retryable"
+      ) {
         return NextResponse.json(
           { error: `Brain is preparing: ${message}` },
           {
             status: 503,
-            headers: { "Retry-After": String(err.retryAfterSeconds) },
+            headers: { "Retry-After": String(err.retryAfterSeconds ?? 30) },
           },
         );
       }

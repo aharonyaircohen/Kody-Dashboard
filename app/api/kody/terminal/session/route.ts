@@ -14,7 +14,7 @@ import { z } from "zod";
 
 import { requireKodyAuth } from "@dashboard/lib/auth";
 import { readBrainRuntimeView } from "@dashboard/lib/brain/runtime-manager";
-import { resolveBrainTerminalConnect } from "@dashboard/lib/brain/terminal-connect";
+import { connectBrainTerminal } from "@dashboard/lib/brain/terminal-connect";
 import {
   clearGitHubContext,
   setGitHubContext,
@@ -205,9 +205,8 @@ export async function POST(req: NextRequest) {
         { status: TARGET_STATUS.fly_access_denied },
       );
     }
-    let brainWarnings: ReturnType<
-      typeof resolveBrainTerminalConnect
-    >["warnings"] = [];
+    let brainWarnings: ReturnType<typeof connectBrainTerminal>["warnings"] =
+      [];
     let targetInput: TerminalTargetInput | null =
       parsed.data.app && parsed.data.machineId
         ? {
@@ -229,7 +228,7 @@ export async function POST(req: NextRequest) {
           ctx.context.account,
           ctx.context.githubToken,
         );
-        const decision = resolveBrainTerminalConnect({
+        const decision = connectBrainTerminal({
           runtime,
           inventory,
           requestedTarget: targetInput,

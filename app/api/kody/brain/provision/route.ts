@@ -35,18 +35,16 @@
 import { NextRequest, NextResponse } from "next/server";
 
 import { requireKodyAuth } from "@dashboard/lib/auth";
-import { readBrainApp, writeBrainApp } from "@dashboard/lib/brain/store";
-import { resolveBrainTarget } from "@dashboard/lib/brain/target";
+import {
+  BrainCommandError,
+  manageBrainServer,
+} from "@dashboard/lib/brain/server-commands";
 import {
   clearGitHubContext,
   setGitHubContext,
 } from "@dashboard/lib/github-client";
 import { logger } from "@dashboard/lib/logger";
-import {
-  isBrainFlyProvisionTransientError,
-  provisionBrain,
-  type PerfTier,
-} from "@dashboard/lib/runners/brain-fly";
+import type { PerfTier } from "@dashboard/lib/runners/brain-fly";
 import { resolveFlyContext } from "@dashboard/lib/runners/fly-context";
 import { requestOrigin } from "@dashboard/lib/request-origin";
 
@@ -115,54 +113,27 @@ export async function POST(req: NextRequest) {
     const body = (await req.json().catch(() => ({}))) as unknown;
     const override = parseAppNameOverride(body);
 
-    const stored = await readBrainApp(
-      ctx.context.account,
-      ctx.context.githubToken,
-    ).catch(() => null);
-    const target = resolveBrainTarget({
-      account: ctx.context.account,
-      contextOrgSlug: ctx.context.flyOrgSlug,
-      stored,
-      appNameOverride: override,
-    });
-
-    const result = await provisionBrain({
-      flyToken: ctx.context.flyToken,
-      account: ctx.context.account,
-      model: ctx.context.engineModel,
-      modelConfig: ctx.context.engineModelConfig,
-      githubToken: ctx.context.githubToken,
-      allSecrets: ctx.context.allSecrets,
+    const result = await manageBrainServer({
+      command: "provision",
+      context: ctx.context,
       perfTier: brainPerfFrom(req, ctx.context.perfTier),
-      orgSlug: target.orgSlug,
-      defaultRegion: ctx.context.flyDefaultRegion,
       suspendOnIdle: brainSuspendOnIdleFrom(req),
       dashboardUrl: requestOrigin(req),
-      appNameOverride: target.app,
+      appNameOverride: override,
     });
-    try {
-      await writeBrainApp(ctx.context.account, ctx.context.githubToken, {
-        version: 1,
-        appName: result.app,
-        orgSlug: result.org,
-        createdAt: new Date().toISOString(),
-      });
-    } catch (writeErr) {
-      logger.warn(
-        { err: writeErr, owner: ctx.context.owner, app: result.app },
-        "brain provision: record write failed (non-fatal)",
-      );
-    }
     return NextResponse.json(result);
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
     logger.error({ err, owner: ctx.context.owner }, "brain provision failed");
-    if (isBrainFlyProvisionTransientError(err)) {
+    if (
+      err instanceof BrainCommandError &&
+      err.code === "brain_provision_retryable"
+    ) {
       return NextResponse.json(
         { error: message, retryable: true },
         {
           status: 503,
-          headers: { "Retry-After": String(err.retryAfterSeconds) },
+          headers: { "Retry-After": String(err.retryAfterSeconds ?? 30) },
         },
       );
     }

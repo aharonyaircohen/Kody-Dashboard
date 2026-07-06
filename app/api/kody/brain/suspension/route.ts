@@ -13,13 +13,15 @@
 import { NextRequest, NextResponse } from "next/server";
 
 import { requireKodyAuth } from "@dashboard/lib/auth";
-import { resolveBrainService } from "@dashboard/lib/brain/service-resolver";
+import {
+  BrainCommandError,
+  manageBrainServer,
+} from "@dashboard/lib/brain/server-commands";
 import {
   clearGitHubContext,
   setGitHubContext,
 } from "@dashboard/lib/github-client";
 import { logger } from "@dashboard/lib/logger";
-import { updateBrainSuspension } from "@dashboard/lib/runners/brain-fly";
 import { resolveFlyContext } from "@dashboard/lib/runners/fly-context";
 
 export const runtime = "nodejs";
@@ -66,37 +68,18 @@ export async function POST(req: NextRequest) {
   );
 
   try {
-    const brain = await resolveBrainService({
-      flyToken: ctx.context.flyToken,
-      account: ctx.context.account,
-      githubToken: ctx.context.githubToken,
-      orgSlug: ctx.context.flyOrgSlug,
-      defaultRegion: ctx.context.flyDefaultRegion,
-    });
-
-    if (brain.state === "off" || !brain.machineId) {
-      return NextResponse.json(
-        {
-          error:
-            "Brain is not on yet. Turn it on before changing suspension.",
-        },
-        { status: 409 },
-      );
-    }
-
-    const result = await updateBrainSuspension({
-      flyToken: brain.flyToken,
-      account: ctx.context.account,
-      orgSlug: brain.orgSlug,
-      defaultRegion: ctx.context.flyDefaultRegion,
-      appNameOverride: brain.app,
-      machineIdOverride: brain.machineId,
+    const result = await manageBrainServer({
+      command: "update-suspension",
+      context: ctx.context,
       suspendOnIdle,
     });
-    return NextResponse.json({ ok: true, ...result });
+    return NextResponse.json(result);
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
     logger.error({ err, owner: ctx.context.owner }, "brain suspension failed");
+    if (err instanceof BrainCommandError) {
+      return NextResponse.json({ error: message }, { status: err.status });
+    }
     return NextResponse.json({ error: message }, { status: 502 });
   } finally {
     clearGitHubContext();

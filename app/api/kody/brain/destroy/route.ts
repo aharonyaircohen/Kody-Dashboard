@@ -23,14 +23,12 @@
 import { NextRequest, NextResponse } from "next/server";
 
 import { requireKodyAuth } from "@dashboard/lib/auth";
-import { resolveBrainService } from "@dashboard/lib/brain/service-resolver";
-import { clearBrainApp } from "@dashboard/lib/brain/store";
+import { manageBrainServer } from "@dashboard/lib/brain/server-commands";
 import {
   clearGitHubContext,
   setGitHubContext,
 } from "@dashboard/lib/github-client";
 import { logger } from "@dashboard/lib/logger";
-import { destroyBrain } from "@dashboard/lib/runners/brain-fly";
 import { resolveFlyContext } from "@dashboard/lib/runners/fly-context";
 
 export const runtime = "nodejs";
@@ -62,30 +60,9 @@ export async function POST(req: NextRequest) {
   );
 
   try {
-    const brain = await resolveBrainService({
-      flyToken: ctx.context.flyToken,
-      account: ctx.context.account,
-      githubToken: ctx.context.githubToken,
-      orgSlug: ctx.context.flyOrgSlug,
-      defaultRegion: ctx.context.flyDefaultRegion,
-    });
-
-    await destroyBrain({
-      flyToken: brain.flyToken,
-      account: ctx.context.account,
-      orgSlug: brain.orgSlug,
-      defaultRegion: ctx.context.flyDefaultRegion,
-      appNameOverride: brain.app,
-    });
-    try {
-      await clearBrainApp(ctx.context.account, ctx.context.githubToken);
-    } catch (clearErr) {
-      logger.warn(
-        { err: clearErr, owner: ctx.context.owner },
-        "brain destroy: record clear failed (non-fatal)",
-      );
-    }
-    return NextResponse.json({ ok: true });
+    return NextResponse.json(
+      await manageBrainServer({ command: "destroy", context: ctx.context }),
+    );
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
     logger.error({ err, owner: ctx.context.owner }, "brain destroy failed");

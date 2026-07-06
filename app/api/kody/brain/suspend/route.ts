@@ -14,13 +14,12 @@
 import { NextRequest, NextResponse } from "next/server";
 
 import { requireKodyAuth } from "@dashboard/lib/auth";
-import { resolveBrainService } from "@dashboard/lib/brain/service-resolver";
+import { manageBrainServer } from "@dashboard/lib/brain/server-commands";
 import {
   clearGitHubContext,
   setGitHubContext,
 } from "@dashboard/lib/github-client";
 import { logger } from "@dashboard/lib/logger";
-import { suspendBrain } from "@dashboard/lib/runners/brain-fly";
 import { resolveFlyContext } from "@dashboard/lib/runners/fly-context";
 
 export const runtime = "nodejs";
@@ -52,23 +51,9 @@ export async function POST(req: NextRequest) {
   );
 
   try {
-    const brain = await resolveBrainService({
-      flyToken: ctx.context.flyToken,
-      account: ctx.context.account,
-      githubToken: ctx.context.githubToken,
-      orgSlug: ctx.context.flyOrgSlug,
-      defaultRegion: ctx.context.flyDefaultRegion,
-    });
-
-    await suspendBrain({
-      flyToken: brain.flyToken,
-      account: ctx.context.account,
-      orgSlug: brain.orgSlug,
-      defaultRegion: ctx.context.flyDefaultRegion,
-      appNameOverride: brain.app,
-      ...(brain.machineId ? { machineIdOverride: brain.machineId } : {}),
-    });
-    return NextResponse.json({ ok: true });
+    return NextResponse.json(
+      await manageBrainServer({ command: "suspend", context: ctx.context }),
+    );
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
     logger.error({ err, owner: ctx.context.owner }, "brain suspend failed");

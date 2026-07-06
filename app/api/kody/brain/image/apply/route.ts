@@ -10,7 +10,7 @@
 import { NextRequest, NextResponse } from "next/server";
 
 import { requireKodyAuth } from "@dashboard/lib/auth";
-import { applySelectedBrainImage } from "@dashboard/lib/brain/image-apply";
+import { applyBrainImage } from "@dashboard/lib/brain/image-apply-command";
 import {
   clearGitHubContext,
   setGitHubContext,
@@ -55,19 +55,9 @@ export async function POST(req: NextRequest) {
 
   try {
     const body = (await req.json().catch(() => ({}))) as ApplyBody;
-    const result = await applySelectedBrainImage({
-      owner: ctx.context.owner,
-      repo: ctx.context.repo,
-      account: ctx.context.account,
-      githubToken: ctx.context.githubToken,
-      allSecrets: ctx.context.allSecrets,
-      flyToken: ctx.context.flyToken,
-      flyOrgSlug: ctx.context.flyOrgSlug,
-      flyDefaultRegion: ctx.context.flyDefaultRegion,
+    const result = await applyBrainImage({
+      context: ctx.context,
       dashboardUrl: requestOrigin(req),
-      engineModel: ctx.context.engineModel,
-      engineModelConfig: ctx.context.engineModelConfig,
-      perfTier: ctx.context.perfTier,
       imageRef: body.imageRef,
     });
     return NextResponse.json({

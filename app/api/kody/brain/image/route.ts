@@ -9,7 +9,7 @@
 import { NextRequest, NextResponse } from "next/server";
 
 import { requireKodyAuth } from "@dashboard/lib/auth";
-import { resolveBrainService } from "@dashboard/lib/brain/service-resolver";
+import { startBrainImageSave } from "@dashboard/lib/brain/image-save-command";
 import {
   readBrainRuntimeView,
   selectBrainRuntimeImage,
@@ -25,40 +25,25 @@ import {
   readBrainImageSave,
   writeBrainImage,
   writeBrainImageSave,
-  type BrainImageFile,
   type BrainImageSaveFile,
   type BrainSavedImage,
 } from "@dashboard/lib/brain/store";
-import {
-  brainGhcrImageRef,
-  brainImageBuildCommand,
-  brainImageSaveProgressFromOutput,
-  brainImageTag,
-} from "@dashboard/lib/brain/image-save";
+import { brainImageSaveProgressFromOutput } from "@dashboard/lib/brain/image-save";
 import {
   brainImageCatalogFile,
   discoverBrainPackageImages,
   mergeBrainSavedImages,
   upsertBrainCatalogImageFile,
 } from "@dashboard/lib/brain/image-catalog";
-import {
-  BRAIN_IMAGE_JOB_OUTPUT_BYTES,
-  brainImageJobTimeoutMs,
-} from "@dashboard/lib/brain/image-timeouts";
 import { brainGhcrAuth } from "@dashboard/lib/brain/image-runtime";
 import {
   clearGitHubContext,
   setGitHubContext,
 } from "@dashboard/lib/github-client";
 import { logger } from "@dashboard/lib/logger";
-import {
-  DEFAULT_IMAGE,
-  waitForBrainHealth,
-} from "@dashboard/lib/runners/brain-fly";
 import { resolveFlyContext } from "@dashboard/lib/runners/fly-context";
 import {
   getTerminalBridgeExecJob,
-  startTerminalBridgeLocalExecJob,
   type TerminalBridgeExecJob,
 } from "@dashboard/lib/terminal/bridge-exec-client";
 import { ensureTerminalBridge } from "@dashboard/lib/terminal/bridge-fly";
@@ -198,7 +183,6 @@ export async function POST(req: NextRequest) {
       { status: 400 },
     );
   }
-  const flyToken = ctx.context.flyToken;
 
   setGitHubContext(
     ctx.context.owner,
@@ -209,128 +193,46 @@ export async function POST(req: NextRequest) {
   );
 
   try {
-    const brain = await resolveBrainService({
-      flyToken,
-      account: ctx.context.account,
-      githubToken: ctx.context.githubToken,
-      orgSlug: ctx.context.flyOrgSlug,
-      defaultRegion: ctx.context.flyDefaultRegion,
-    });
-    const app = brain.app;
-    const machineId = brain.machineId;
-    const brainFlyToken = brain.flyToken;
-    if (brain.reason === "fly_access_denied") {
-      return NextResponse.json(
-        {
-          error: "fly_access_denied",
-          message: "Fly token cannot access this Brain app.",
-          app: brain.app,
-          org: brain.orgSlug,
-          reason: brain.reason,
-        },
-        { status: 403 },
-      );
-    }
-    if (brain.state === "off" || !machineId || !brain.url) {
-      return NextResponse.json(
-        {
-          error: "brain_not_found",
-          message: "No Brain machine found to save.",
-          reason: brain.reason,
-        },
-        { status: 404 },
-      );
-    }
-    await waitForBrainHealth(brain.url, 120_000);
-
-    const bridge = await ensureTerminalBridge({
-      token: brainFlyToken,
-      orgSlug: brain.orgSlug,
-      defaultRegion: brain.defaultRegion,
-    });
-    const ghcr = brainGhcrAuth({
-      allSecrets: ctx.context.allSecrets,
-      githubToken: ctx.context.githubToken,
-      account: ctx.context.account,
-    });
-    const token = mintTerminalBridgeToken({
-      owner: ctx.context.owner,
-      repo: ctx.context.repo,
-      app,
-      orgSlug: brain.orgSlug,
-      machineId,
-      flyToken: brainFlyToken,
-      ghcrToken: ghcr.token,
-      localExec: true,
-      ttlSeconds: 900,
-      secret: bridge.secret,
-    });
-    const now = new Date();
-    const tag = brainImageTag(now);
-    const expectedImageRef = brainGhcrImageRef({
-      owner: ctx.context.owner,
-      account: ctx.context.account,
-      tag,
-    });
-    const job = await startTerminalBridgeLocalExecJob({
-      bridgeUrl: bridge.url,
-      token,
-      command: brainImageBuildCommand({
-        app,
-        machineId,
-        orgSlug: brain.orgSlug,
-        tag,
-        baseImageRef: DEFAULT_IMAGE,
-        imageRef: expectedImageRef,
-        ghcrUser: ghcr.user,
-      }),
-      timeoutMs: brainImageJobTimeoutMs(),
-      maxOutputBytes: BRAIN_IMAGE_JOB_OUTPUT_BYTES,
-    });
-    const save: BrainImageSaveFile = {
-      version: 1,
-      status: "running",
-      phase: "starting",
-      message: "Starting Brain image save",
-      jobId: job.id,
-      app,
-      machineId,
-      bridgeApp: bridge.app,
-      orgSlug: brain.orgSlug,
-      defaultRegion: brain.defaultRegion,
-      expectedImageRef,
-      startedAt: now.toISOString(),
-      updatedAt: now.toISOString(),
-    };
-    await writeBrainImageSave(
-      ctx.context.account,
-      ctx.context.githubToken,
-      save,
-    );
-
-    return NextResponse.json(
-      {
-        ok: true,
-        status: "running",
-        phase: "starting",
-        message: "Starting Brain image save",
-        jobId: job.id,
-        app,
-        machineId,
-        imageRef: expectedImageRef,
-        startedAt: save.startedAt,
-      },
-      { status: 202 },
-    );
+    const result = await startBrainImageSave({ context: ctx.context });
+    return NextResponse.json(result, { status: 202 });
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
     logger.error(
       { err, owner: ctx.context.owner, repo: ctx.context.repo },
       "brain image save start failed",
     );
+    const status = typeof (err as { status?: unknown }).status === "number"
+      ? (err as { status: number }).status
+      : 502;
+    const code =
+      typeof (err as { code?: unknown }).code === "string"
+        ? (err as { code: string }).code
+        : "brain_image_save_start_failed";
+    if (code === "fly_access_denied") {
+      return NextResponse.json(
+        {
+          error: "fly_access_denied",
+          message: "Fly token cannot access this Brain app.",
+          app: (err as { app?: string }).app,
+          org: (err as { org?: string }).org,
+          reason: "fly_access_denied",
+        },
+        { status },
+      );
+    }
+    if (code === "brain_not_found") {
+      return NextResponse.json(
+        {
+          error: "brain_not_found",
+          message: "No Brain machine found to save.",
+          reason: (err as { reason?: string }).reason,
+        },
+        { status },
+      );
+    }
     return NextResponse.json(
       { error: "brain_image_save_start_failed", message },
-      { status: 502 },
+      { status },
     );
   } finally {
     clearGitHubContext();
