@@ -88,6 +88,22 @@ describe("ChatTerminalSurface timeout guard", () => {
     );
   });
 
+  it("treats mobile browser socket loss as a reconnectable state", () => {
+    expect(SOURCE).toContain("scheduleFlyReconnect");
+    expect(SOURCE).toContain("Terminal connection interrupted; reconnecting.");
+    expect(SOURCE).toContain('window.addEventListener("focus"');
+    expect(SOURCE).toContain('window.addEventListener("online"');
+    expect(SOURCE).toContain('document.addEventListener("visibilitychange"');
+    expect(SOURCE).toContain("document.visibilityState === \"visible\"");
+    expect(SOURCE).toContain(
+      "reconnectFlyRef.current({ force: true, resetSession: false });",
+    );
+    expect(SOURCE).not.toContain('setError("Terminal websocket error.")');
+    expect(SOURCE).not.toContain(
+      '"\\r\\n\\x1b[31mTerminal websocket error\\x1b[0m"',
+    );
+  });
+
   it("does not block remote input behind a restore-only browser state", () => {
     expect(SOURCE).not.toContain("flyRestorePending");
     expect(SOURCE).not.toContain('message.type === "restoring"');

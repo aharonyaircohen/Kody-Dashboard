@@ -114,6 +114,7 @@ const TERMINAL_STOP_TIMEOUT_MS = 8_000;
 const LOCAL_POLL_TIMEOUT_MS = 5_000;
 const TERMINAL_START_TIMEOUT_MS = 20_000;
 const FLY_CONNECT_TIMEOUT_MS = 75_000;
+const FLY_RECONNECT_DELAY_MS = 750;
 const MAX_PENDING_INPUT_CHARS = 8_000;
 
 function fetchWithTimeout(
@@ -233,6 +234,8 @@ export const ChatTerminalSurface = forwardRef<
   const flyConnectSeqRef = useRef(0);
   const flyConnectInFlightKeyRef = useRef<string | null>(null);
   const flyConnectFailureKeyRef = useRef<string | null>(null);
+  const flyReconnectTimerRef = useRef<number | null>(null);
+  const flyReconnectNoticeRef = useRef(false);
   const nextFlyInputIdRef = useRef(1);
   const pendingFlyInputAckTimerRef = useRef<number | null>(null);
   const localStartFailureKeyRef = useRef<string | null>(null);
@@ -323,6 +326,13 @@ export const ChatTerminalSurface = forwardRef<
     [notifyConnectionState],
   );
 
+  const clearScheduledFlyReconnect = useCallback(() => {
+    if (flyReconnectTimerRef.current !== null) {
+      window.clearTimeout(flyReconnectTimerRef.current);
+      flyReconnectTimerRef.current = null;
+    }
+  }, []);
+
   const setInputSignalBriefly = useCallback(
     (signal: TerminalInputSignal, fallback?: TerminalInputSignal) => {
       if (inputSignalTimerRef.current !== null) {
@@ -352,6 +362,41 @@ export const ChatTerminalSurface = forwardRef<
       pendingFlyInputAckTimerRef.current = null;
     }
   }, []);
+
+  const scheduleFlyReconnect = useCallback(
+    (reason = "Terminal connection interrupted; reconnecting.") => {
+      if (
+        disposedRef.current ||
+        !isRemoteTerminalTransport(transportRef.current)
+      ) {
+        return;
+      }
+      const ws = flySocketRef.current;
+      flySocketRef.current = null;
+      clearPendingFlyInputAck();
+      setError(null);
+      updateFlyConnectionState("connecting");
+      setInputSignal({ tone: "blocked", label: "Reconnecting terminal" });
+      if (!flyReconnectNoticeRef.current) {
+        terminalRef.current?.writeln(`\r\n\x1b[33m${reason}\x1b[0m`);
+        flyReconnectNoticeRef.current = true;
+      }
+      try {
+        ws?.close(4001, reason);
+      } catch {}
+      clearScheduledFlyReconnect();
+      flyReconnectTimerRef.current = window.setTimeout(() => {
+        flyReconnectTimerRef.current = null;
+        flyReconnectNoticeRef.current = false;
+        reconnectFlyRef.current({ force: true, resetSession: false });
+      }, FLY_RECONNECT_DELAY_MS);
+    },
+    [
+      clearPendingFlyInputAck,
+      clearScheduledFlyReconnect,
+      updateFlyConnectionState,
+    ],
+  );
 
   const waitForFlyInputAck = useCallback(
     (inputId: number) => {
@@ -681,19 +726,26 @@ export const ChatTerminalSurface = forwardRef<
     if (flySocketRef.current || flyTargetKeyRef.current) {
       notifyTerminalSessionEnded();
     }
+    clearScheduledFlyReconnect();
+    flyReconnectNoticeRef.current = false;
     flyConnectSeqRef.current += 1;
     flyConnectInFlightKeyRef.current = null;
     flySocketRef.current?.close(1000, "terminal transport changed");
     flySocketRef.current = null;
     flyTargetKeyRef.current = null;
     updateFlyConnectionState("closed");
-  }, [notifyTerminalSessionEnded, updateFlyConnectionState]);
+  }, [
+    clearScheduledFlyReconnect,
+    notifyTerminalSessionEnded,
+    updateFlyConnectionState,
+  ]);
 
   const connectFly = useCallback(
     async (opts: { force?: boolean; resetSession?: boolean } = {}) => {
       const terminal = terminalRef.current;
       const current = transportRef.current;
       if (!terminal || !isRemoteTerminalTransport(current)) return;
+      clearScheduledFlyReconnect();
 
       const key = transportKey(current);
       const existingState = flyConnectionStateRef.current;
@@ -879,6 +931,7 @@ export const ChatTerminalSurface = forwardRef<
           }
           if (message.type === "exit") {
             notifyTerminalSessionEnded();
+            flySocketRef.current = null;
             updateFlyConnectionState("closed");
             terminalRef.current?.writeln(
               `\r\nProcess exited${message.code === undefined ? "" : ` (${message.code})`}`,
@@ -887,19 +940,17 @@ export const ChatTerminalSurface = forwardRef<
         };
         ws.onerror = () => {
           if (flySocketRef.current !== ws || !isCurrentFlyConnect()) return;
-          setError("Terminal websocket error.");
-          updateFlyConnectionState("error");
-          terminalRef.current?.writeln(
-            "\r\n\x1b[31mTerminal websocket error\x1b[0m",
-          );
+          scheduleFlyReconnect();
         };
-        ws.onclose = () => {
+        ws.onclose = (event) => {
           if (flySocketRef.current !== ws || !isCurrentFlyConnect()) return;
           flySocketRef.current = null;
           notifyTerminalSessionEnded();
-          if (flyConnectionStateRef.current !== "error") {
+          if (event.code === 1000 || flyConnectionStateRef.current === "error") {
             updateFlyConnectionState("closed");
+            return;
           }
+          scheduleFlyReconnect();
         };
       } catch (err) {
         if (!isCurrentFlyConnect()) return;
@@ -922,11 +973,43 @@ export const ChatTerminalSurface = forwardRef<
       acknowledgeFlyInput,
       appendCapturedOutput,
       chatSessionId,
+      clearScheduledFlyReconnect,
       flushPendingFlyInput,
       notifyTerminalSessionEnded,
+      scheduleFlyReconnect,
       updateFlyConnectionState,
     ],
   );
+
+  useEffect(() => {
+    function reconnectVisibleRemoteTerminal() {
+      if (
+        disposedRef.current ||
+        !activeRef.current ||
+        !isRemoteTerminalTransport(transportRef.current)
+      ) {
+        return;
+      }
+      if (
+        document.visibilityState === "visible" &&
+        flyConnectionStateRef.current !== "connected"
+      ) {
+        scheduleFlyReconnect();
+      }
+    }
+
+    window.addEventListener("focus", reconnectVisibleRemoteTerminal);
+    window.addEventListener("online", reconnectVisibleRemoteTerminal);
+    document.addEventListener("visibilitychange", reconnectVisibleRemoteTerminal);
+    return () => {
+      window.removeEventListener("focus", reconnectVisibleRemoteTerminal);
+      window.removeEventListener("online", reconnectVisibleRemoteTerminal);
+      document.removeEventListener(
+        "visibilitychange",
+        reconnectVisibleRemoteTerminal,
+      );
+    };
+  }, [scheduleFlyReconnect]);
 
   useEffect(() => {
     reconnectFlyRef.current = (opts) => {
@@ -1074,11 +1157,12 @@ export const ChatTerminalSurface = forwardRef<
         inputSignalTimerRef.current = null;
       }
       clearPendingFlyInputAck();
+      clearScheduledFlyReconnect();
       flyConnectSeqRef.current += 1;
       flyConnectInFlightKeyRef.current = null;
       flySocketRef.current?.close(1000, "terminal unmounted");
     };
-  }, [clearPendingFlyInputAck]);
+  }, [clearPendingFlyInputAck, clearScheduledFlyReconnect]);
 
   const addToChat = useCallback(() => {
     const text = usefulCapturedOutput(outputCaptureRef.current);
@@ -1097,6 +1181,8 @@ export const ChatTerminalSurface = forwardRef<
 
   const restart = useCallback(() => {
     pendingFlyInputRef.current = "";
+    clearScheduledFlyReconnect();
+    flyReconnectNoticeRef.current = false;
     setInputSignal({ tone: "blocked", label: "Waiting for terminal" });
     if (isRemoteTerminalTransport(transportRef.current)) {
       void connectFly({ force: true, resetSession: true });
@@ -1104,7 +1190,7 @@ export const ChatTerminalSurface = forwardRef<
     }
     localStartFailureKeyRef.current = null;
     void stop().then(() => start());
-  }, [connectFly, start, stop]);
+  }, [clearScheduledFlyReconnect, connectFly, start, stop]);
 
   useImperativeHandle(
     ref,
