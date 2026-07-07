@@ -5377,7 +5377,7 @@ export function KodyChat({
           <select
             value={activeTerminalValue}
             onChange={(event) => handleTerminalTargetSelect(event.target.value)}
-            className="h-8 min-w-0 flex-1 rounded-md border border-[#27272a] bg-[#050608] px-2 text-body-xs text-[#f4f4f5] outline-none focus:ring-1 focus:ring-[#3f4652]"
+            className="h-8 min-w-0 flex-1 rounded-md border border-border bg-background px-2 text-body-xs text-foreground outline-none focus:ring-1 focus:ring-ring"
             title="Terminal target"
             aria-label="Terminal target"
           >
@@ -5419,7 +5419,7 @@ export function KodyChat({
         >
           <RepoScopedLink
             href="/fly/brain-images"
-            className="inline-flex h-8 w-8 items-center justify-center rounded text-zinc-300 transition-colors hover:bg-white/10 hover:text-white"
+            className="inline-flex h-8 w-8 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
             title="Manage Brain images"
             aria-label="Manage Brain images"
           >
@@ -5429,7 +5429,7 @@ export function KodyChat({
             type="button"
             onClick={() => void handleSaveBrainImage()}
             disabled={brainImageBusy}
-            className="inline-flex h-8 w-8 items-center justify-center rounded text-zinc-300 transition-colors hover:bg-white/10 hover:text-white disabled:cursor-not-allowed disabled:opacity-50"
+            className="inline-flex h-8 w-8 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-muted hover:text-foreground disabled:cursor-not-allowed disabled:opacity-50"
             title={brainImageSaveLabel}
             aria-label={brainImageSaveLabel}
           >
@@ -5448,7 +5448,7 @@ export function KodyChat({
             type="button"
             onClick={() => void refreshChatTerminalFlyMachines()}
             disabled={flyInventoryLoading}
-            className="inline-flex h-8 w-8 items-center justify-center rounded text-zinc-300 transition-colors hover:bg-white/10 hover:text-white disabled:cursor-not-allowed disabled:opacity-50"
+            className="inline-flex h-8 w-8 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-muted hover:text-foreground disabled:cursor-not-allowed disabled:opacity-50"
             title="Refresh Fly machines"
             aria-label="Refresh Fly machines"
           >
@@ -5461,41 +5461,35 @@ export function KodyChat({
         </div>
       </div>
     ) : null;
-  const terminalInputToneClassName =
-    activeTerminalChrome?.inputTone === "sent"
-      ? "text-emerald-600"
-      : activeTerminalChrome?.inputTone === "ready"
-        ? "text-cyan-600"
-        : activeTerminalChrome?.inputTone === "queued"
-          ? "text-sky-600"
-          : activeTerminalChrome?.inputTone === "blocked"
-            ? "text-amber-600"
-            : "text-muted-foreground";
   const activeTerminalSurface = activeTerminalInstanceId
     ? terminalSurfaceRefs.current[activeTerminalInstanceId]
     : null;
+  const terminalInputTone = activeTerminalChrome?.inputTone ?? "idle";
+  const terminalSendBusy =
+    chatMode === "terminal" &&
+    (terminalInputTone === "queued" || activeTerminalChrome?.actionBusy);
+  const terminalSendDisabled =
+    chatMode === "terminal" &&
+    (terminalInputTone === "blocked" || terminalSendBusy);
+  const terminalProblemMessage =
+    chatMode === "terminal" &&
+    terminalInputTone === "blocked" &&
+    /stalled|error|failed|websocket|reconnecting/i.test(
+      activeTerminalChrome?.statusText ?? "",
+    )
+      ? activeTerminalChrome?.statusText
+      : null;
   const terminalBottomControls =
     chatMode === "terminal" ? (
       <div
         data-testid="chat-terminal-bottom-status"
         className="flex min-w-0 shrink items-center gap-2"
       >
-        <div className="min-w-0 max-w-[58vw] text-left leading-tight sm:max-w-[42rem]">
-          <div className="truncate text-[11px] text-muted-foreground">
-            {activeTerminalChrome?.statusText ?? "terminal · closed"}
-          </div>
-          <div
-            className={`truncate text-[11px] font-medium ${terminalInputToneClassName}`}
-            aria-live="polite"
-          >
-            {activeTerminalChrome?.inputLabel ?? "No input"}
-          </div>
-        </div>
         <div className="flex shrink-0 items-center gap-1">
           <button
             type="button"
             onClick={() => activeTerminalSurface?.addToChat()}
-            className="inline-flex h-8 w-8 items-center justify-center rounded text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+            className="inline-flex h-8 w-8 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
             title="Add terminal output to AI chat"
             aria-label="Add terminal output to AI chat"
           >
@@ -5505,7 +5499,7 @@ export function KodyChat({
             type="button"
             onClick={() => activeTerminalSurface?.restart()}
             disabled={activeTerminalChrome?.actionBusy}
-            className="inline-flex h-8 w-8 items-center justify-center rounded text-muted-foreground transition-colors hover:bg-muted hover:text-foreground disabled:cursor-not-allowed disabled:opacity-50"
+            className="inline-flex h-8 w-8 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-muted hover:text-foreground disabled:cursor-not-allowed disabled:opacity-50"
             title="Restart terminal"
             aria-label="Restart terminal"
           >
@@ -5518,7 +5512,7 @@ export function KodyChat({
           <button
             type="button"
             onClick={() => activeTerminalSurface?.clear()}
-            className="inline-flex h-8 w-8 items-center justify-center rounded text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+            className="inline-flex h-8 w-8 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
             title="Clear terminal"
             aria-label="Clear terminal"
           >
@@ -6501,11 +6495,7 @@ export function KodyChat({
         )}
 
         {/* Input area */}
-        <div
-          className={`relative z-10 shrink-0 px-2.5 py-3 sm:p-4 ${
-            chatMode === "terminal" ? "bg-[#050608]" : "border-t bg-background"
-          }`}
-        >
+        <div className="relative z-10 shrink-0 border-t bg-background px-2.5 py-3 sm:p-4">
           <div>
             {/* Kody Live status dot — compact indicator above the composer.
               Color encodes state; hover for full detail + links. Restart
@@ -6578,7 +6568,13 @@ export function KodyChat({
               button swapped by state. The action row below (Paperclip,
               VoiceButton) no longer hosts the send affordance — the
               hairline separates input from action rows. */}
-            <div className="flex gap-2 items-center">
+            <div
+              className={`flex items-center gap-2 ${
+                chatMode === "terminal"
+                  ? "border-b border-border/40 pb-2"
+                  : ""
+              }`}
+            >
               <div className="flex-1 relative">
                 {slashMenuOpen && (
                   <SlashCommandMenu
@@ -6708,9 +6704,14 @@ export function KodyChat({
                     placeholder={placeholder}
                     rows={1}
                     dir="auto"
+                    aria-label={
+                      chatMode === "terminal"
+                        ? "Terminal command input"
+                        : undefined
+                    }
                     className={`w-full px-3 py-2 text-base rounded-md border focus:outline-none focus:ring-1 resize-none overflow-hidden disabled:opacity-50 disabled:cursor-not-allowed ${
                       chatMode === "terminal"
-                        ? "border-white/10 bg-black/40 text-zinc-100 placeholder:text-zinc-500 focus:ring-white/20"
+                        ? "border-border bg-background text-foreground placeholder:text-muted-foreground focus:ring-ring"
                         : "bg-background focus:ring-primary"
                     }`}
                     disabled={composerDisabled}
@@ -6742,7 +6743,11 @@ export function KodyChat({
                 if (!showTrailingButton) return null;
                 const title =
                   chatMode === "terminal"
-                    ? "Send command"
+                    ? terminalSendDisabled
+                      ? (activeTerminalChrome?.inputLabel ?? "Input unavailable")
+                      : terminalSendBusy
+                        ? "Sending command"
+                        : "Send command"
                     : isInFlight
                       ? composerAction === "cancel"
                         ? "Cancel boot"
@@ -6753,6 +6758,7 @@ export function KodyChat({
                 return (
                   <button
                     type="button"
+                    disabled={terminalSendDisabled}
                     onClick={() => {
                       if (chatMode === "terminal") {
                         void sendMessage();
@@ -6769,7 +6775,7 @@ export function KodyChat({
                         void sendMessage();
                       }
                     }}
-                    className={`p-2 text-muted-foreground hover:text-foreground hover:bg-muted rounded-md transition-colors ${
+                    className={`p-2 text-muted-foreground hover:text-foreground hover:bg-muted rounded-md transition-colors disabled:cursor-not-allowed disabled:opacity-50 ${
                       richComposerEnabled ? "mb-1 self-end" : ""
                     }`}
                     title={title}
@@ -6777,6 +6783,8 @@ export function KodyChat({
                   >
                     {isInFlight ? (
                       <Square className="w-5 h-5" fill="currentColor" />
+                    ) : terminalSendBusy ? (
+                      <Loader2 className="w-5 h-5 animate-spin" />
                     ) : (
                       <Send className="w-5 h-5" />
                     )}
@@ -6784,9 +6792,18 @@ export function KodyChat({
                 );
               })()}
             </div>
+            {terminalProblemMessage && (
+              <div className="mt-1 text-[11px] text-amber-600" role="status">
+                {terminalProblemMessage}
+              </div>
+            )}
             {chatMode === "ai" && <div className="border-t border-border/40" />}
           </div>
-          <div className="flex min-h-10 items-center gap-2">
+          <div
+            className={`flex min-h-10 items-center gap-2 ${
+              chatMode === "terminal" ? "pt-2" : ""
+            }`}
+          >
             {chatMode === "ai" && (
               <>
                 {/* Attachment button — hidden file input lives alongside the
