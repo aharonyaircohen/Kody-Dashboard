@@ -89,6 +89,18 @@ export async function POST(req: NextRequest) {
         { status },
       );
     }
+    if (code === "fly_bridge_access_denied") {
+      return NextResponse.json(
+        {
+          error: "fly_bridge_access_denied",
+          message,
+          app: (err as { app?: string }).app,
+          org: (err as { org?: string }).org,
+          reason: "fly_bridge_access_denied",
+        },
+        { status },
+      );
+    }
     if (code === "brain_not_found") {
       return NextResponse.json(
         {

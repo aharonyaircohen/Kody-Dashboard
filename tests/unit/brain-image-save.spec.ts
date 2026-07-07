@@ -153,13 +153,15 @@ describe("Brain image save helpers", () => {
     expect(
       brainImageSaveProgressFromOutput({
         status: "running",
-        stdout: "__KODY_BRAIN_SAVE_STAGE=export-rootfs\n",
+        stdout:
+          "__KODY_BRAIN_SAVE_STAGE=export-rootfs\n__KODY_BRAIN_SAVE_HEARTBEAT=2026-07-07T12:03:04Z\n",
         stderr: "",
         error: null,
       }),
     ).toMatchObject({
       phase: "exporting-rootfs",
       message: "Exporting the Brain filesystem",
+      heartbeatAt: "2026-07-07T12:03:04Z",
     });
 
     expect(
@@ -175,5 +177,23 @@ describe("Brain image save helpers", () => {
       message: "Retrying push ghcr",
       lastOutput: "upload stalled once",
     });
+  });
+
+  it("emits live heartbeat markers from long save stages", () => {
+    const command = brainImageBuildCommand({
+      app: "kody-brain-alice",
+      machineId: "machine-1",
+      orgSlug: "guy-koren",
+      tag: "20260625t102030z",
+      baseImageRef: "ghcr.io/aharonyaircohen/kody-brain:latest",
+      imageRef: "ghcr.io/a-guy-educ/kody-brain-alice:20260625t102030z",
+      ghcrUser: "Alice",
+    });
+
+    expect(command).toContain("run_with_heartbeat");
+    expect(command).toContain("__KODY_BRAIN_SAVE_HEARTBEAT=");
+    expect(command).toContain('run_with_heartbeat "export-rootfs"');
+    expect(command).toContain('run_with_heartbeat "download-rootfs"');
+    expect(command).toContain('run_with_heartbeat "push-ghcr"');
   });
 });

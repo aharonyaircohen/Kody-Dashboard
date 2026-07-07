@@ -102,7 +102,11 @@ import { selectionPath } from "../selection-routing";
 import { cn } from "../utils";
 import { EmptyState } from "./EmptyState";
 import { MasterDetailShell } from "./MasterDetailShell";
-import { RunModeBadge, RunModeControl } from "./RunModeControl";
+import {
+  KodyTriggerControl,
+  RunModeBadge,
+  RunModeControl,
+} from "./RunModeControl";
 import {
   SearchableSelect,
   SearchableMultiSelect,
@@ -1969,11 +1973,14 @@ function GoalDetail({
   runMode,
   runModeCapabilityCount,
   runModePending,
+  runWithoutApproval,
+  runWithoutApprovalPending,
   onBack,
   onActivate,
   onPause,
   onRun,
   onRunModeChange,
+  onRunWithoutApprovalChange,
   onEdit,
   onDelete,
   isUpdating,
@@ -1985,11 +1992,14 @@ function GoalDetail({
   runMode: RunMode;
   runModeCapabilityCount: number;
   runModePending: boolean;
+  runWithoutApproval: boolean;
+  runWithoutApprovalPending: boolean;
   onBack: () => void;
   onActivate: () => void;
   onPause: () => void;
   onRun: () => void | Promise<void>;
   onRunModeChange: (mode: RunMode) => void | Promise<void>;
+  onRunWithoutApprovalChange: (enabled: boolean) => void | Promise<void>;
   onEdit: () => void;
   onDelete: () => void;
   isUpdating: boolean;
@@ -2067,6 +2077,11 @@ function GoalDetail({
                 capabilityCount={runModeCapabilityCount}
                 pending={runModePending}
                 onChange={(mode) => void onRunModeChange(mode)}
+              />
+              <KodyTriggerControl
+                enabled={runWithoutApproval}
+                pending={runWithoutApprovalPending}
+                onChange={(enabled) => void onRunWithoutApprovalChange(enabled)}
               />
               <Button
                 asChild
@@ -2790,6 +2805,7 @@ export function ManagedModelsView({
     () => modelGoals.find((goal) => goal.id === selectedId) ?? null,
     [modelGoals, selectedId],
   );
+  const updateSelectedGoal = useUpdateManagedGoal(selectedGoal?.id ?? "");
   const selectedRunCapabilitySlugs = useMemo(
     () =>
       selectedGoal
@@ -2887,6 +2903,8 @@ export function ManagedModelsView({
               runMode={selectedRunMode}
               runModeCapabilityCount={selectedRunCapabilitySlugs.length}
               runModePending={trust.isMutating}
+              runWithoutApproval={selectedGoal.state.runWithoutApproval === true}
+              runWithoutApprovalPending={updateSelectedGoal.isPending}
               onBack={() => selectGoal(null)}
               onEdit={() => setEditingGoal(selectedGoal)}
               onDelete={() => setDeleteGoal(selectedGoal)}
@@ -2927,6 +2945,11 @@ export function ManagedModelsView({
                   mode,
                 )
               }
+              onRunWithoutApprovalChange={async (enabled) => {
+                await updateSelectedGoal.mutateAsync({
+                  runWithoutApproval: enabled,
+                });
+              }}
               isUpdating={setGoalState.isPending}
               isRunning={
                 (runManagedGoal.isPending &&

@@ -29,9 +29,44 @@ import {
 } from "./store";
 
 const BRAIN_IMAGE_JOB_OUTPUT_BYTES = 2_000_000;
+const FLY_BRIDGE_ACCESS_DENIED_MESSAGE =
+  "Fly token cannot create or access the terminal bridge app needed to save Brain image.";
 
 export interface StartBrainImageSaveInput {
   context: FlyContext;
+}
+
+function flyAccessDenied(error: unknown): boolean {
+  const status = (error as { status?: number })?.status;
+  if (status === 401 || status === 403) return true;
+  const message = error instanceof Error ? error.message : String(error);
+  return /Fly Machines API (401|403)|unauthorized|forbidden/i.test(message);
+}
+
+function bridgeAccessDeniedError(input: {
+  app: string;
+  org: string;
+  cause: unknown;
+}): Error & {
+  status?: number;
+  code?: string;
+  app?: string;
+  org?: string;
+  cause?: unknown;
+} {
+  const error = new Error(FLY_BRIDGE_ACCESS_DENIED_MESSAGE) as Error & {
+    status?: number;
+    code?: string;
+    app?: string;
+    org?: string;
+    cause?: unknown;
+  };
+  error.status = 403;
+  error.code = "fly_bridge_access_denied";
+  error.app = input.app;
+  error.org = input.org;
+  error.cause = input.cause;
+  return error;
 }
 
 export async function startBrainImageSave(input: StartBrainImageSaveInput) {
@@ -82,6 +117,15 @@ export async function startBrainImageSave(input: StartBrainImageSaveInput) {
     token: brainFlyToken,
     orgSlug: brain.orgSlug,
     defaultRegion: brain.defaultRegion,
+  }).catch((err) => {
+    if (flyAccessDenied(err)) {
+      throw bridgeAccessDeniedError({
+        app,
+        org: brain.orgSlug,
+        cause: err,
+      });
+    }
+    throw err;
   });
   const ghcr = brainGhcrAuth({
     allSecrets: context.allSecrets,

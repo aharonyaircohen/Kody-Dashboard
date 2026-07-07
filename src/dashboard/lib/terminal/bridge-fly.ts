@@ -439,7 +439,14 @@ function startExecJob(claims, runner, local, command, timeoutMs, maxOutputBytes)
     error: null,
   };
   execJobs.set(id, job);
-  runner(claims, command, timeoutMs, maxOutputBytes)
+  runner(claims, command, timeoutMs, maxOutputBytes, {
+    onStdout: (chunk) => {
+      job.stdout += chunk.toString("utf8");
+    },
+    onStderr: (chunk) => {
+      job.stderr += chunk.toString("utf8");
+    },
+  })
     .then((result) => {
       job.code = result.code ?? 0;
       job.stdout = result.stdout ?? "";
@@ -486,15 +493,22 @@ function readRequestJson(req, maxBytes = 65536) {
   });
 }
 
-function appendOutput(chunks, state, chunk, maxOutputBytes) {
+function appendOutput(chunks, state, chunk, maxOutputBytes, onChunk) {
   state.size += chunk.length;
   if (state.size > maxOutputBytes) {
     throw new Error("command output too large");
   }
   chunks.push(chunk);
+  if (onChunk) onChunk(chunk);
 }
 
-function runOneShotFlyCommand(claims, command, timeoutMs, maxOutputBytes) {
+function runOneShotFlyCommand(
+  claims,
+  command,
+  timeoutMs,
+  maxOutputBytes,
+  liveOutput,
+) {
   return new Promise((resolve, reject) => {
     const env = {
       ...process.env,
@@ -535,7 +549,13 @@ function runOneShotFlyCommand(claims, command, timeoutMs, maxOutputBytes) {
     }, timeoutMs);
     child.stdout.on("data", (chunk) => {
       try {
-        appendOutput(stdout, stdoutState, chunk, maxOutputBytes);
+        appendOutput(
+          stdout,
+          stdoutState,
+          chunk,
+          maxOutputBytes,
+          liveOutput && liveOutput.onStdout,
+        );
       } catch (err) {
         try {
           child.kill("SIGTERM");
@@ -545,7 +565,13 @@ function runOneShotFlyCommand(claims, command, timeoutMs, maxOutputBytes) {
     });
     child.stderr.on("data", (chunk) => {
       try {
-        appendOutput(stderr, stderrState, chunk, 1024 * 1024);
+        appendOutput(
+          stderr,
+          stderrState,
+          chunk,
+          1024 * 1024,
+          liveOutput && liveOutput.onStderr,
+        );
       } catch (err) {
         try {
           child.kill("SIGTERM");
@@ -564,7 +590,13 @@ function runOneShotFlyCommand(claims, command, timeoutMs, maxOutputBytes) {
   });
 }
 
-function runOneShotLocalCommand(claims, command, timeoutMs, maxOutputBytes) {
+function runOneShotLocalCommand(
+  claims,
+  command,
+  timeoutMs,
+  maxOutputBytes,
+  liveOutput,
+) {
   return new Promise((resolve, reject) => {
     const env = {
       ...process.env,
@@ -597,7 +629,13 @@ function runOneShotLocalCommand(claims, command, timeoutMs, maxOutputBytes) {
     }, timeoutMs);
     child.stdout.on("data", (chunk) => {
       try {
-        appendOutput(stdout, stdoutState, chunk, maxOutputBytes);
+        appendOutput(
+          stdout,
+          stdoutState,
+          chunk,
+          maxOutputBytes,
+          liveOutput && liveOutput.onStdout,
+        );
       } catch (err) {
         try {
           child.kill("SIGTERM");
@@ -607,7 +645,13 @@ function runOneShotLocalCommand(claims, command, timeoutMs, maxOutputBytes) {
     });
     child.stderr.on("data", (chunk) => {
       try {
-        appendOutput(stderr, stderrState, chunk, 1024 * 1024);
+        appendOutput(
+          stderr,
+          stderrState,
+          chunk,
+          1024 * 1024,
+          liveOutput && liveOutput.onStderr,
+        );
       } catch (err) {
         try {
           child.kill("SIGTERM");

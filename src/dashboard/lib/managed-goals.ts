@@ -219,6 +219,7 @@ export interface ManagedGoalState {
   destination: ManagedGoalDestination;
   capabilities: string[];
   route: ManagedGoalRouteStep[];
+  runWithoutApproval?: boolean;
   schedule?: ManagedGoalSchedule;
   preferredRunTime?: ManagedGoalPreferredRunTime;
   stage?: string;
@@ -416,6 +417,7 @@ export interface CreateManagedGoalInput {
   loopTarget?: ManagedLoopTarget;
   workflowRef?: ManagedGoalWorkflowRef;
   saveReport?: boolean;
+  runWithoutApproval?: boolean;
   capabilities?: string[];
   evidence?: string[];
   route?: ManagedGoalRouteStep[];
@@ -430,6 +432,7 @@ export interface SimpleManagedGoalCreateFields {
   loopTarget?: ManagedLoopTarget;
   workflowRef?: ManagedGoalWorkflowRef;
   saveReport?: boolean;
+  runWithoutApproval?: boolean;
   capabilities?: string[];
   evidence?: string[];
   route?: ManagedGoalRouteStep[];
@@ -445,6 +448,7 @@ export interface UpdateManagedGoalInput {
   loopTarget?: ManagedLoopTarget;
   workflowRef?: ManagedGoalWorkflowRef | null;
   saveReport?: boolean;
+  runWithoutApproval?: boolean;
   capabilities?: string[];
   evidence?: string[];
   route?: ManagedGoalRouteStep[];
@@ -717,6 +721,7 @@ export function buildManagedGoalState(
         evidence: [SIMPLE_MANAGED_GOAL_EVIDENCE],
       },
       schedule: input.schedule ?? "manual",
+      ...(input.runWithoutApproval === true ? { runWithoutApproval: true } : {}),
       capabilities: [],
       route: [],
       stage: "waiting",
@@ -789,6 +794,7 @@ export function buildManagedGoalState(
       evidence,
     },
     schedule: input.schedule ?? "manual",
+    ...(input.runWithoutApproval === true ? { runWithoutApproval: true } : {}),
     ...(isRoutine
       ? {
           scheduleMode: "agentLoop" as const,
@@ -909,6 +915,7 @@ export function normalizeManagedGoalState(
     },
     capabilities,
     route,
+    ...(goal.runWithoutApproval === true ? { runWithoutApproval: true } : {}),
     ...(scheduleState ? { scheduleState } : {}),
     facts: goal.facts,
     blockers: goal.blockers,

@@ -38,6 +38,7 @@ const workflowPayloadSchema = z.object({
   id: z.string().trim().min(1).max(80).optional(),
   name: z.string().trim().min(1).max(160),
   capabilities: z.array(z.string().trim().min(1).max(80)).min(1),
+  runWithoutApproval: z.boolean().optional(),
   actorLogin: z.string().trim().optional(),
 });
 

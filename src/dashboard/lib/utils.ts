@@ -115,16 +115,11 @@ export function filterTasksByView(
       if (isTerminalTask(task)) return false;
       if (task.column !== "open") return false;
     } else if (viewMode === "history") {
-      if (
-        task.state !== "closed" &&
-        task.column !== "done" &&
-        task.column !== "failed"
-      )
-        return false;
+      if (task.state !== "closed" && task.column !== "done") return false;
     } else if (viewMode === "running") {
       if (isTerminalTask(task)) return false;
       if (task.column === "open") return false;
-      if (task.column === "done" || task.column === "failed") return false;
+      if (task.column === "done") return false;
     }
     // Status filter
     if (statusFilter !== "all" && task.column !== statusFilter) return false;
@@ -143,9 +138,8 @@ export function filterTasksByView(
 
 /**
  * Compute view mode counts from task list.
- * Backlog = open-column non-terminal tasks. Running = everything else that's
- * still active (terminal/closed tasks are excluded from both counts so they
- * match what {@link filterTasksByView} actually shows).
+ * Backlog = open-column non-terminal tasks. Running = actionable open work,
+ * including failed tasks that still need attention. History = closed/done work.
  */
 export function getViewModeCounts(tasks: KodyTask[]): {
   runningCount: number;
@@ -157,10 +151,10 @@ export function getViewModeCounts(tasks: KodyTask[]): {
   const active = tasks.filter((t) => !isTerminalTask(t));
   const backlogCount = active.filter((t) => t.column === "open").length;
   const historyCount = tasks.filter(
-    (t) => t.state === "closed" || t.column === "done" || t.column === "failed",
+    (t) => t.state === "closed" || t.column === "done",
   ).length;
   const runningCount = active.filter(
-    (t) => t.column !== "open" && t.column !== "done" && t.column !== "failed",
+    (t) => t.column !== "open" && t.column !== "done",
   ).length;
   const queueCount = tasks.filter((t) =>
     t.labels.some((l) =>

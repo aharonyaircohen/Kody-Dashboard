@@ -1,5 +1,5 @@
 /**
- * @fileoverview Browser proof for workflow/goal/loop Run Mode.
+ * @fileoverview Browser proof for workflow/goal/loop approval controls.
  * @testFramework playwright
  * @domain e2e
  */
@@ -299,34 +299,51 @@ async function openItemPage(
   page: Page,
   path: string,
   heading: string,
+  approval: "required" | "not-required",
 ): Promise<void> {
   await page.goto(path, { waitUntil: "domcontentloaded" });
   await expect(page.getByRole("heading", { name: heading })).toBeVisible({
     timeout: 10_000,
   });
-  const runMode = page.getByRole("group", { name: "Run Mode" });
-  await expect(runMode.getByRole("button", { name: "Auto" })).toBeVisible();
-  await expect(runMode.getByRole("button", { name: "Manual" })).toBeVisible();
-  await expect(runMode.getByRole("button", { name: "Auto" })).toHaveText("");
-  await expect(runMode.getByRole("button", { name: "Manual" })).toHaveText("");
+  const approvalLabel =
+    approval === "required"
+      ? /^Human approval required/
+      : /^Human approval not required/;
+  await expect(
+    page.getByRole("button", { name: approvalLabel }),
+  ).toBeVisible();
+  await expect(
+    page.getByRole("button", { name: "Kody cannot trigger" }),
+  ).toBeVisible();
+  await expect(
+    page.getByRole("button", { name: approvalLabel }),
+  ).toHaveText("");
+  await expect(
+    page.getByRole("button", { name: "Kody cannot trigger" }),
+  ).toHaveText("");
 }
 
 async function clickModeAndExpectTrust(
   page: Page,
   trustPosts: TrustPost[],
-  mode: "Auto" | "Manual",
+  nextState: "approval-not-required" | "approval-required",
 ): Promise<void> {
   const start = trustPosts.length;
-  const op: TrustPost["op"] = mode === "Auto" ? "graduate" : "degrade";
-  await page.getByRole("button", { name: mode, exact: true }).click();
+  const op: TrustPost["op"] =
+    nextState === "approval-not-required" ? "graduate" : "degrade";
+  const currentLabel =
+    nextState === "approval-not-required"
+      ? /^Human approval required/
+      : /^Human approval not required/;
+  const expectedLabel =
+    nextState === "approval-not-required"
+      ? /^Human approval not required/
+      : /^Human approval required/;
+  await page.getByRole("button", { name: currentLabel }).click();
   await expect
     .poll(() => trustPosts.length, { timeout: 10_000 })
     .toBe(start + expectedCapabilities.length);
-  const runMode = page.getByRole("group", { name: "Run Mode" });
-  await expect(runMode.getByRole("button", { name: mode })).toHaveAttribute(
-    "aria-pressed",
-    "true",
-  );
+  await expect(page.getByRole("button", { name: expectedLabel })).toBeVisible();
   expect(trustPosts.slice(start).sort(compareTrustPosts)).toEqual(
     expectedCapabilities
       .map((capability) => ({ capability, op }))
@@ -365,18 +382,23 @@ function compareTrustPosts(a: TrustPost, b: TrustPost): number {
   return `${a.capability}:${a.op}`.localeCompare(`${b.capability}:${b.op}`);
 }
 
-test.describe("Run Mode cascade", () => {
-  test("workflow, goal, and loop pages expose icon-only Auto / Manual controls and cascade to capabilities before run", async ({
+test.describe("approval control cascade", () => {
+  test("workflow, goal, and loop pages expose icon-only approval controls and cascade to capabilities before run", async ({
     page,
   }) => {
     const trustPosts: TrustPost[] = [];
     const runPosts: RunPost[] = [];
     await installMocks(page, trustPosts, runPosts);
 
-    await openItemPage(page, "/workflows/release-workflow", "Release Workflow");
-    await clickModeAndExpectTrust(page, trustPosts, "Auto");
-    await clickModeAndExpectTrust(page, trustPosts, "Manual");
-    await clickModeAndExpectTrust(page, trustPosts, "Auto");
+    await openItemPage(
+      page,
+      "/workflows/release-workflow",
+      "Release Workflow",
+      "required",
+    );
+    await clickModeAndExpectTrust(page, trustPosts, "approval-not-required");
+    await clickModeAndExpectTrust(page, trustPosts, "approval-required");
+    await clickModeAndExpectTrust(page, trustPosts, "approval-not-required");
     await clickRunAndExpectCascade(
       page,
       trustPosts,
@@ -385,10 +407,14 @@ test.describe("Run Mode cascade", () => {
       "/api/kody/company/workflows/release-workflow/run",
     );
 
-    await openItemPage(page, "/agent-goals/quality-goal", "quality-goal");
-    await clickModeAndExpectTrust(page, trustPosts, "Auto");
-    await clickModeAndExpectTrust(page, trustPosts, "Manual");
-    await clickModeAndExpectTrust(page, trustPosts, "Auto");
+    await openItemPage(
+      page,
+      "/agent-goals/quality-goal",
+      "quality-goal",
+      "not-required",
+    );
+    await clickModeAndExpectTrust(page, trustPosts, "approval-required");
+    await clickModeAndExpectTrust(page, trustPosts, "approval-not-required");
     await clickRunAndExpectCascade(
       page,
       trustPosts,
@@ -397,10 +423,14 @@ test.describe("Run Mode cascade", () => {
       "/api/kody/goals/managed/quality-goal/run",
     );
 
-    await openItemPage(page, "/agent-loops/daily-triage", "daily-triage");
-    await clickModeAndExpectTrust(page, trustPosts, "Auto");
-    await clickModeAndExpectTrust(page, trustPosts, "Manual");
-    await clickModeAndExpectTrust(page, trustPosts, "Auto");
+    await openItemPage(
+      page,
+      "/agent-loops/daily-triage",
+      "daily-triage",
+      "not-required",
+    );
+    await clickModeAndExpectTrust(page, trustPosts, "approval-required");
+    await clickModeAndExpectTrust(page, trustPosts, "approval-not-required");
     await clickRunAndExpectCascade(
       page,
       trustPosts,

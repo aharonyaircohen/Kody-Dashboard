@@ -4,7 +4,7 @@
  * @domain brain
  */
 import { NextRequest } from "next/server";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 const mocks = vi.hoisted(() => ({
   deleteImage: vi.fn(),
@@ -98,6 +98,12 @@ vi.mock("@dashboard/lib/brain/image-runtime", () => ({
 
 import { DELETE, GET, PATCH, POST } from "../../app/api/kody/brain/image/route";
 import { resolveBrainService } from "../../src/dashboard/lib/brain/service-resolver";
+import { ensureTerminalBridge } from "../../src/dashboard/lib/terminal/bridge-fly";
+
+afterEach(() => {
+  vi.useRealTimers();
+  vi.unstubAllGlobals();
+});
 
 function request(
   method: "DELETE" | "GET" | "PATCH" | "POST" = "POST",
@@ -223,6 +229,54 @@ describe("GET /api/kody/brain/image", () => {
     ]);
   });
 
+  it("marks stale running save state as failed when loading image management", async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2026-07-07T12:02:37.000Z"));
+    mocks.readSave.mockResolvedValue({
+      version: 1,
+      status: "running",
+      phase: "starting",
+      message: "Starting Brain image save",
+      jobId: "85fcba09827b512d308c705050fb6354",
+      app: "kody-brain-aharonyaircohen",
+      machineId: "89079db6d91518",
+      bridgeApp: "kody-terminal-aharon-yair-cohen-44fcef106eb9",
+      orgSlug: "aharon-yair-cohen",
+      defaultRegion: "fra",
+      expectedImageRef:
+        "ghcr.io/a-guy-educ/kody-brain-aguyaharonyair:20260706t151218z",
+      startedAt: "2026-07-06T15:12:18.390Z",
+      updatedAt: "2026-07-06T15:12:18.390Z",
+    });
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () => new Response(JSON.stringify([]), { status: 200 })),
+    );
+
+    const res = await GET(request("GET"));
+    const body = (await res.json()) as {
+      save?: { status?: string; phase?: string; message?: string; error?: string };
+    };
+
+    expect(res.status).toBe(200);
+    expect(body.save).toMatchObject({
+      status: "failed",
+      phase: "failed",
+      message: "Brain image save timed out",
+      error: "Brain image save timed out after 2h 0m without progress.",
+    });
+    expect(mocks.writeSave).toHaveBeenCalledWith(
+      "aguyaharonyair",
+      "gh-token",
+      expect.objectContaining({
+        status: "failed",
+        phase: "failed",
+        message: "Brain image save timed out",
+        error: "Brain image save timed out after 2h 0m without progress.",
+      }),
+    );
+  });
+
   it("keeps forgotten image tags hidden when a new save completes", async () => {
     mocks.readSave.mockResolvedValue({
       version: 1,
@@ -314,7 +368,8 @@ describe("GET /api/kody/brain/image", () => {
       startedAt: "2026-07-02T12:00:00.000Z",
       finishedAt: null,
       code: null,
-      stdout: "__KODY_BRAIN_SAVE_STAGE=push-ghcr\n",
+      stdout:
+        "__KODY_BRAIN_SAVE_STAGE=push-ghcr\n__KODY_BRAIN_SAVE_HEARTBEAT=2026-07-02T12:03:04Z\n",
       stderr: "pushing layer\n",
       error: null,
     });
@@ -328,6 +383,7 @@ describe("GET /api/kody/brain/image", () => {
     const body = (await res.json()) as {
       phase?: string;
       message?: string;
+      heartbeatAt?: string;
       lastOutput?: string;
     };
 
@@ -335,6 +391,7 @@ describe("GET /api/kody/brain/image", () => {
     expect(body).toMatchObject({
       phase: "pushing-image",
       message: "Pushing the Brain image to GHCR",
+      heartbeatAt: "2026-07-02T12:03:04Z",
       lastOutput: "pushing layer",
     });
     expect(mocks.writeSave).toHaveBeenCalledWith(
@@ -343,7 +400,66 @@ describe("GET /api/kody/brain/image", () => {
       expect.objectContaining({
         phase: "pushing-image",
         message: "Pushing the Brain image to GHCR",
+        heartbeatAt: "2026-07-02T12:03:04Z",
         lastOutput: "pushing layer",
+      }),
+    );
+  });
+
+  it("polls a running save through the resolved Brain operation token", async () => {
+    mocks.readSave.mockResolvedValue({
+      version: 1,
+      status: "running",
+      phase: "starting",
+      message: "Starting Brain image save",
+      jobId: "51256ab31d0282e85f98d34a95033892",
+      app: "kody-brain-aharonyaircohen",
+      machineId: "857496f4e69168",
+      bridgeApp: "kody-terminal-aharon-yair-cohen-44fcef106eb9",
+      orgSlug: "aharon-yair-cohen",
+      defaultRegion: "fra",
+      expectedImageRef:
+        "ghcr.io/a-guy-educ/kody-brain-aguyaharonyair:20260707t121923z",
+      startedAt: "2026-07-07T12:19:23.583Z",
+      updatedAt: "2026-07-07T12:19:23.583Z",
+    });
+    vi.mocked(resolveBrainService).mockResolvedValueOnce({
+      app: "kody-brain-aharonyaircohen",
+      orgSlug: "aharon-yair-cohen",
+      defaultRegion: "fra",
+      flyToken: "resolved-operation-token",
+      state: "running",
+      url: "https://kody-brain-aharonyaircohen.fly.dev",
+      machineId: "857496f4e69168",
+      stored: null,
+    });
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () => new Response(JSON.stringify([]), { status: 200 })),
+    );
+    mocks.getJob.mockResolvedValue({
+      id: "51256ab31d0282e85f98d34a95033892",
+      status: "running",
+      startedAt: "2026-07-07T12:19:23.583Z",
+      finishedAt: null,
+      code: null,
+      stdout: "__KODY_BRAIN_SAVE_STAGE=push-ghcr\n",
+      stderr: "",
+      error: null,
+    });
+
+    const res = await GET(
+      request(
+        "GET",
+        "https://dash.test/api/kody/brain/image?jobId=51256ab31d0282e85f98d34a95033892",
+      ),
+    );
+
+    expect(res.status).toBe(200);
+    expect(ensureTerminalBridge).toHaveBeenCalledWith(
+      expect.objectContaining({
+        token: "resolved-operation-token",
+        orgSlug: "aharon-yair-cohen",
       }),
     );
   });
@@ -651,5 +767,35 @@ describe("POST /api/kody/brain/image", () => {
       message: "Fly token cannot access this Brain app.",
     });
     expect(mocks.startJob).not.toHaveBeenCalled();
+  });
+
+  it("returns a clear Fly bridge authorization error before starting a save job", async () => {
+    vi.mocked(ensureTerminalBridge).mockRejectedValueOnce(
+      Object.assign(
+        new Error('Fly Machines API 403 on /apps: {"error":"unauthorized"}'),
+        {
+          status: 403,
+          body: '{"error":"unauthorized"}',
+          path: "/apps",
+        },
+      ),
+    );
+
+    const res = await POST(request());
+    const body = (await res.json()) as {
+      error?: string;
+      message?: string;
+      reason?: string;
+    };
+
+    expect(res.status).toBe(403);
+    expect(body).toMatchObject({
+      error: "fly_bridge_access_denied",
+      message:
+        "Fly token cannot create or access the terminal bridge app needed to save Brain image.",
+      reason: "fly_bridge_access_denied",
+    });
+    expect(mocks.startJob).not.toHaveBeenCalled();
+    expect(mocks.writeSave).not.toHaveBeenCalled();
   });
 });

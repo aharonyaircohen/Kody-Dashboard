@@ -24,6 +24,7 @@ import {
 } from "./image-catalog";
 import { brainGhcrAuth } from "./image-runtime";
 import { brainImageSaveProgressFromOutput } from "./image-save";
+import { brainImageJobTimeoutMs } from "./image-timeouts";
 import {
   readBrainRuntimeView,
   selectBrainRuntimeImage,
@@ -32,6 +33,7 @@ import {
   readBrainRuntimeAuthority,
   type BrainRuntimeDrift,
 } from "./runtime-authority";
+import { resolveBrainService } from "./service-resolver";
 import {
   clearBrainImageSave,
   deleteBrainImage,
@@ -84,6 +86,7 @@ function savePollResponse(
     status: job.status,
     phase: progress.phase,
     message: progress.message,
+    heartbeatAt: progress.heartbeatAt,
     lastOutput: progress.lastOutput,
     jobId: save.jobId,
     app: save.app,
@@ -139,6 +142,59 @@ async function discoverImages(
   );
 }
 
+function formatBrainImageSaveTimeout(timeoutMs: number): string {
+  const minutes = Math.floor(timeoutMs / 60_000);
+  const hours = Math.floor(minutes / 60);
+  const rest = minutes % 60;
+  return hours > 0 ? `${hours}h ${rest}m` : `${minutes}m`;
+}
+
+function staleRunningSaveFailure(
+  save: BrainImageSaveFile,
+  now = Date.now(),
+): BrainImageSaveFile | null {
+  if (save.status !== "running") return null;
+  const reference = Date.parse(
+    save.heartbeatAt || save.updatedAt || save.startedAt,
+  );
+  if (!Number.isFinite(reference)) return null;
+  const timeoutMs = brainImageJobTimeoutMs();
+  if (now - reference <= timeoutMs) return null;
+  const elapsed = formatBrainImageSaveTimeout(timeoutMs);
+  return {
+    ...save,
+    status: "failed",
+    phase: "failed",
+    message: "Brain image save timed out",
+    updatedAt: new Date(now).toISOString(),
+    error: `Brain image save timed out after ${elapsed} without progress.`,
+  };
+}
+
+async function reconcileBrainImageSaveForManagement(input: {
+  account: string;
+  githubToken: string;
+  save: BrainImageSaveFile | null;
+}): Promise<BrainImageSaveFile | null> {
+  const failed = input.save ? staleRunningSaveFailure(input.save) : null;
+  if (!failed) return input.save;
+  await writeBrainImageSave(input.account, input.githubToken, failed);
+  return failed;
+}
+
+async function findCompletedBrainImageSave(
+  context: FlyContext,
+  save: BrainImageSaveFile,
+): Promise<BrainSavedImage | null> {
+  const images = await discoverImages(context, {
+    refresh: true,
+    scope: save.expectedImageRef,
+  });
+  return (
+    images.find((image) => image.imageRef === save.expectedImageRef) ?? null
+  );
+}
+
 async function recordCompletedBrainImageSave(input: {
   account: string;
   githubToken: string;
@@ -190,7 +246,11 @@ export async function readBrainImageManagement(input: { context: FlyContext }) {
   const { context } = input;
   const image = await readBrainImage(context.account, context.githubToken);
   const discoveredImages = await discoverImages(context);
-  const save = await readBrainImageSave(context.account, context.githubToken);
+  const save = await reconcileBrainImageSaveForManagement({
+    account: context.account,
+    githubToken: context.githubToken,
+    save: await readBrainImageSave(context.account, context.githubToken),
+  });
   const authority = await readBrainRuntimeAuthority({
     flyToken: context.flyToken,
     account: context.account,
@@ -217,6 +277,7 @@ export async function readBrainImageManagement(input: { context: FlyContext }) {
           status: save.status,
           phase: save.phase ?? "starting",
           message: save.message,
+          heartbeatAt: save.heartbeatAt,
           lastOutput: save.lastOutput,
           jobId: save.jobId,
           imageRef: save.expectedImageRef,
@@ -253,17 +314,51 @@ export async function pollBrainImageSave(input: {
     );
   }
 
-  const bridge = await ensureTerminalBridge({
-    token: context.flyToken,
+  const completedImage = await findCompletedBrainImageSave(context, save);
+  if (completedImage) {
+    return recordCompletedBrainImageSave({
+      account: context.account,
+      githubToken: context.githubToken,
+      save,
+      imageRef: save.expectedImageRef,
+      finishedAt: completedImage.updatedAt,
+    });
+  }
+
+  const service = await resolveBrainService({
+    flyToken: context.flyToken,
+    account: context.account,
+    githubToken: context.githubToken,
     orgSlug: save.orgSlug,
+    defaultRegion: save.defaultRegion,
+    appNameOverride: save.app,
+    machineIdOverride: save.machineId,
+  });
+  if (service.reason === "fly_access_denied") {
+    throw new BrainImageManagementError(
+      "Fly token cannot access this Brain app.",
+      403,
+      "fly_access_denied",
+      {
+        app: service.app,
+        org: service.orgSlug,
+      },
+    );
+  }
+  const operationFlyToken = service.flyToken;
+  const operationOrgSlug = service.orgSlug;
+
+  const bridge = await ensureTerminalBridge({
+    token: operationFlyToken,
+    orgSlug: operationOrgSlug,
     defaultRegion: save.defaultRegion,
   });
   const token = mintTerminalBridgeToken({
     owner: context.owner,
     repo: context.repo,
     app: save.app,
-    orgSlug: save.orgSlug,
-    flyToken: context.flyToken,
+    orgSlug: operationOrgSlug,
+    flyToken: operationFlyToken,
     localExec: true,
     ttlSeconds: 120,
     secret: bridge.secret,
@@ -280,12 +375,14 @@ export async function pollBrainImageSave(input: {
       ...save,
       phase: progress.phase,
       message: progress.message,
+      heartbeatAt: progress.heartbeatAt,
       lastOutput: progress.lastOutput,
       updatedAt: new Date().toISOString(),
     };
     if (
       save.phase !== updatedSave.phase ||
       save.message !== updatedSave.message ||
+      save.heartbeatAt !== updatedSave.heartbeatAt ||
       save.lastOutput !== updatedSave.lastOutput
     ) {
       await writeBrainImageSave(
@@ -298,12 +395,9 @@ export async function pollBrainImageSave(input: {
   }
 
   if (job.status === "failed") {
-    const refreshedImages = await discoverImages(context, {
-      refresh: true,
-      scope: save.expectedImageRef,
-    });
-    const completedImageAfterFailure = refreshedImages.find(
-      (image) => image.imageRef === save.expectedImageRef,
+    const completedImageAfterFailure = await findCompletedBrainImageSave(
+      context,
+      save,
     );
     if (completedImageAfterFailure) {
       return recordCompletedBrainImageSave({

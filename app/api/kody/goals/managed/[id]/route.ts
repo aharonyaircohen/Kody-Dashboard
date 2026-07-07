@@ -137,6 +137,7 @@ const updateManagedGoalSchema = z.object({
   loopTarget: loopTargetSchema.optional(),
   workflowRef: workflowRefSchema.nullable().optional(),
   saveReport: z.boolean().optional(),
+  runWithoutApproval: z.boolean().optional(),
   capabilities: z.array(z.string().min(1).max(80)).optional(),
   evidence: z.array(z.string().min(1).max(80)).optional(),
   route: z.array(routeStepSchema).optional(),
@@ -168,6 +169,7 @@ function isStateOnlyUpdate(
     data.preferredRunTime === undefined &&
     data.loopTarget === undefined &&
     data.saveReport === undefined &&
+    data.runWithoutApproval === undefined &&
     data.capabilities === undefined &&
     data.evidence === undefined &&
     data.route === undefined
@@ -196,6 +198,9 @@ function instantiateStoreGoalState(
       ? { preferredRunTime: storeState.preferredRunTime }
       : {}),
     ...(storeState.loopTarget ? { loopTarget: storeState.loopTarget } : {}),
+    ...(storeState.runWithoutApproval === true
+      ? { runWithoutApproval: true }
+      : {}),
     ...(typeof storeState.stage === "string"
       ? { stage: storeState.stage }
       : {}),
@@ -370,6 +375,9 @@ export async function PATCH(
       (typeof existing.state.saveReport === "boolean"
         ? existing.state.saveReport
         : undefined);
+    const nextRunWithoutApproval =
+      parsed.data.runWithoutApproval ??
+      (existing.state.runWithoutApproval === true);
     const routeChanged =
       parsed.data.route !== undefined || shouldUseTypeDefaults;
     const capabilitiesChanged =
@@ -383,6 +391,7 @@ export async function PATCH(
       loopTarget: nextLoopTarget,
       workflowRef: nextWorkflowRef,
       saveReport: nextSaveReport,
+      runWithoutApproval: nextRunWithoutApproval,
       capabilities: nextCapabilities,
       evidence: nextEvidence,
       route: nextRoute,
@@ -394,6 +403,9 @@ export async function PATCH(
       type: rebuilt.type,
       destination: rebuilt.destination,
       schedule: rebuilt.schedule,
+      ...(rebuilt.runWithoutApproval === true
+        ? { runWithoutApproval: true }
+        : {}),
       loopTarget: rebuilt.loopTarget,
       workflowRef: rebuilt.workflowRef,
       ...(rebuilt.preferredRunTime
@@ -419,6 +431,9 @@ export async function PATCH(
     }
     if (!rebuilt.preferredRunTime) {
       delete nextState.preferredRunTime;
+    }
+    if (rebuilt.runWithoutApproval !== true) {
+      delete nextState.runWithoutApproval;
     }
     if (parsed.data.state && parsed.data.state !== "paused") {
       delete nextState.pausedReason;

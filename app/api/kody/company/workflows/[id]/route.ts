@@ -41,6 +41,7 @@ import {
 const workflowPatchSchema = z.object({
   name: z.string().trim().min(1).max(160).optional(),
   capabilities: z.array(z.string().trim().min(1).max(80)).min(1).optional(),
+  runWithoutApproval: z.boolean().optional(),
   actorLogin: z.string().trim().optional(),
 });
 

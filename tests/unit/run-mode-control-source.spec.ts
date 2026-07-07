@@ -8,10 +8,10 @@ const source = readFileSync(
 );
 
 describe("RunModeControl source", () => {
-  it("keeps Auto / Manual as accessibility labels, not visible button text", () => {
-    expect(source.match(/aria-label=\{modeLabel\(mode\)\}/g)?.length).toBe(2);
-    expect(source).toContain('aria-label="Run Mode"');
-    expect(source).not.toContain('{mode === "auto" ? "Auto" : "Manual"}');
-    expect(source).not.toContain(">Run Mode<");
+  it("uses clear accessibility labels without visible button text", () => {
+    expect(source).toContain("Human approval required");
+    expect(source).toContain("Kody can trigger");
+    expect(source).not.toContain("Autorun");
+    expect(source).not.toContain("Run without approval");
   });
 });

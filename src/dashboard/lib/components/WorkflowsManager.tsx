@@ -60,7 +60,11 @@ import { selectionPath } from "../selection-routing";
 import { ConfirmDialog } from "./ConfirmDialog";
 import { EmptyState } from "./EmptyState";
 import { MasterDetailShell } from "./MasterDetailShell";
-import { RunModeBadge, RunModeControl } from "./RunModeControl";
+import {
+  KodyTriggerControl,
+  RunModeBadge,
+  RunModeControl,
+} from "./RunModeControl";
 import { SearchableMultiSelect } from "./SearchableSelect";
 
 const BASE_PATH = "/workflows";
@@ -141,6 +145,7 @@ export function WorkflowsManager({ selectedId }: WorkflowsManagerProps) {
     useCapabilities();
   const createWorkflow = useCreateWorkflowDefinition();
   const updateWorkflow = useUpdateWorkflowDefinition(editingWorkflow?.id ?? "");
+  const updateSelectedWorkflow = useUpdateWorkflowDefinition(selectedId ?? "");
   const deleteWorkflow = useDeleteWorkflowDefinition();
   const runWorkflow = useRunWorkflowDefinition();
   const trust = useTrust();
@@ -152,6 +157,14 @@ export function WorkflowsManager({ selectedId }: WorkflowsManagerProps) {
   const selectedWorkflow = useMemo(
     () => workflows.find((workflow) => workflow.id === selectedId) ?? null,
     [selectedId, workflows],
+  );
+  const selectedRunCapabilitySlugs = useMemo(
+    () => (selectedWorkflow ? workflowCapabilitySlugs(selectedWorkflow) : []),
+    [selectedWorkflow],
+  );
+  const selectedRunMode = useMemo(
+    () => runModeForCapabilities(trust.groups, selectedRunCapabilitySlugs),
+    [selectedRunCapabilitySlugs, trust.groups],
   );
   const capabilityBySlug = useMemo(
     () =>
@@ -241,20 +254,19 @@ export function WorkflowsManager({ selectedId }: WorkflowsManagerProps) {
             <WorkflowDetail
               workflow={selectedWorkflow}
               capabilityBySlug={capabilityBySlug}
-              runMode={runModeForCapabilities(
-                trust.groups,
-                workflowCapabilitySlugs(selectedWorkflow),
-              )}
+              runMode={selectedRunMode}
               runModePending={trust.isMutating}
+              runWithoutApproval={
+                selectedWorkflow.workflow.runWithoutApproval === true
+              }
+              runWithoutApprovalPending={updateSelectedWorkflow.isPending}
               onBack={() => selectWorkflow(null)}
               onRun={async () => {
-                const capabilitySlugs =
-                  workflowCapabilitySlugs(selectedWorkflow);
                 try {
                   await applyRunModeToCapabilities(
                     trust.setTrust,
-                    capabilitySlugs,
-                    runModeForCapabilities(trust.groups, capabilitySlugs),
+                    selectedRunCapabilitySlugs,
+                    selectedRunMode,
                   );
                 } catch (error) {
                   toast.error("Failed to prepare run", {
@@ -270,10 +282,15 @@ export function WorkflowsManager({ selectedId }: WorkflowsManagerProps) {
               onRunModeChange={(mode) =>
                 applyRunModeToCapabilities(
                   trust.setTrust,
-                  workflowCapabilitySlugs(selectedWorkflow),
+                  selectedRunCapabilitySlugs,
                   mode,
                 )
               }
+              onRunWithoutApprovalChange={async (enabled) => {
+                await updateSelectedWorkflow.mutateAsync({
+                  runWithoutApproval: enabled,
+                });
+              }}
               runPending={
                 (runWorkflow.isPending &&
                   runWorkflow.variables === selectedWorkflow.id) ||
@@ -438,9 +455,12 @@ function WorkflowDetail({
   capabilityBySlug,
   runMode,
   runModePending,
+  runWithoutApproval,
+  runWithoutApprovalPending,
   onBack,
   onRun,
   onRunModeChange,
+  onRunWithoutApprovalChange,
   runPending,
   onEdit,
   onDelete,
@@ -449,9 +469,12 @@ function WorkflowDetail({
   capabilityBySlug: Map<string, { slug: string; describe?: string }>;
   runMode: RunMode;
   runModePending: boolean;
+  runWithoutApproval: boolean;
+  runWithoutApprovalPending: boolean;
   onBack: () => void;
   onRun: () => void | Promise<void>;
   onRunModeChange: (mode: RunMode) => void | Promise<void>;
+  onRunWithoutApprovalChange: (enabled: boolean) => void | Promise<void>;
   runPending: boolean;
   onEdit: () => void;
   onDelete: () => void;
@@ -502,6 +525,11 @@ function WorkflowDetail({
             capabilityCount={workflow.workflow.capabilities.length}
             pending={runModePending}
             onChange={(mode) => void onRunModeChange(mode)}
+          />
+          <KodyTriggerControl
+            enabled={runWithoutApproval}
+            pending={runWithoutApprovalPending}
+            onChange={(enabled) => void onRunWithoutApprovalChange(enabled)}
           />
           <Button
             size="sm"

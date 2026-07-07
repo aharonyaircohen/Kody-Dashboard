@@ -120,6 +120,7 @@ export interface BrainImageSaveFile {
     | "completed"
     | "failed";
   message?: string;
+  heartbeatAt?: string;
   lastOutput?: string;
   jobId: string;
   app: string;
@@ -277,6 +278,7 @@ function isBrainImageSaveFile(value: unknown): value is BrainImageSaveFile {
       v.phase === "failed") &&
     (v.message === undefined ||
       (typeof v.message === "string" && v.message.length <= 500)) &&
+    (v.heartbeatAt === undefined || typeof v.heartbeatAt === "string") &&
     (v.lastOutput === undefined ||
       (typeof v.lastOutput === "string" && v.lastOutput.length <= 2000)) &&
     (v.error === undefined || typeof v.error === "string")

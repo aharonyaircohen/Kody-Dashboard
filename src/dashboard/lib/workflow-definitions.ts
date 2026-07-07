@@ -10,6 +10,7 @@ export interface WorkflowDefinition {
   version: 1;
   name: string;
   capabilities: string[];
+  runWithoutApproval?: boolean;
   createdAt: string;
   updatedAt: string;
 }
@@ -30,11 +31,13 @@ export interface CreateWorkflowDefinitionInput {
   id?: string;
   name: string;
   capabilities: string[];
+  runWithoutApproval?: boolean;
 }
 
 export interface UpdateWorkflowDefinitionInput {
   name?: string;
   capabilities?: string[];
+  runWithoutApproval?: boolean;
 }
 
 const WORKFLOW_ID_PATTERN = /^[a-z0-9][a-z0-9_-]{0,79}$/;
@@ -96,6 +99,7 @@ export function normalizeWorkflowDefinition(
     version: 1,
     name,
     capabilities,
+    ...(raw.runWithoutApproval === true ? { runWithoutApproval: true } : {}),
     createdAt,
     updatedAt,
   };
@@ -110,6 +114,7 @@ export function buildWorkflowDefinition(
     version: 1,
     name: input.name.trim(),
     capabilities: normalizeWorkflowCapabilities(input.capabilities),
+    ...(input.runWithoutApproval === true ? { runWithoutApproval: true } : {}),
     createdAt: existing?.createdAt ?? now,
     updatedAt: now,
   };
@@ -123,6 +128,8 @@ export function mergeWorkflowDefinition(
     {
       name: input.name ?? existing.name,
       capabilities: input.capabilities ?? existing.capabilities,
+      runWithoutApproval:
+        input.runWithoutApproval ?? existing.runWithoutApproval,
     },
     existing,
   );

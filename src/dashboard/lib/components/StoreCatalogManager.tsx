@@ -7,6 +7,7 @@
 
 "use client";
 
+import type { ReactNode } from "react";
 import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
@@ -753,10 +754,17 @@ function CatalogDetail({
   const installed = item.installed === true;
   const blockers = item.uninstallBlockedBy ?? [];
   const uninstallBlocked = installed && blockers.length > 0;
+  const workflowSteps = item.workflowSteps ?? [];
+  const statusLabel = installed
+    ? uninstallBlocked
+      ? "Installed, in use"
+      : "Installed"
+    : "Available";
+  const sourceLabel = item.htmlUrl ? "Store source" : "Store catalog";
 
   return (
-    <DialogContent className="max-w-2xl border-border bg-card text-card-foreground">
-      <DialogHeader className="pr-8">
+    <DialogContent className="flex max-h-[88vh] w-[calc(100vw-2rem)] max-w-5xl flex-col overflow-hidden border-border bg-card text-card-foreground">
+      <DialogHeader className="shrink-0 pr-8">
         <div className="flex min-w-0 items-center gap-2">
           <span
             className={cn(
@@ -776,6 +784,7 @@ function CatalogDetail({
           <span className={cn("font-medium", colors.text)}>
             {displayKindLabel(item)}
           </span>
+          <span className="text-muted-foreground">{statusLabel}</span>
           {installed ? (
             <span className="inline-flex items-center gap-1 rounded-md border border-emerald-500/25 bg-emerald-500/10 px-1.5 py-0.5 text-emerald-700 dark:text-emerald-100">
               <CheckCircle2 className="h-3 w-3" />
@@ -785,34 +794,101 @@ function CatalogDetail({
         </DialogDescription>
       </DialogHeader>
 
-      {item.description ? (
-        <p className="text-sm leading-6 text-muted-foreground">
-          {item.description}
-        </p>
-      ) : null}
+      <div className="min-h-0 flex-1 overflow-y-auto pr-1">
+        <div className="grid gap-5 lg:grid-cols-[minmax(0,1fr)_20rem]">
+          <div className="space-y-5">
+            {item.description ? (
+              <section className="rounded-md border border-border bg-muted/20 p-4">
+                <h3 className="text-sm font-medium text-foreground">
+                  Summary
+                </h3>
+                <p className="mt-2 text-sm leading-6 text-muted-foreground">
+                  {item.description}
+                </p>
+              </section>
+            ) : null}
 
-      <div className="space-y-3">
-        <InfoRow label="Type" value={displayKindLabel(item)} />
-        {item.action ? <InfoRow label="Action" value={item.action} /> : null}
-        {item.agent ? <InfoRow label="Agent" value={item.agent} /> : null}
-        {isWorkflowCatalogItem(item) && item.workflowSteps?.length ? (
-          <InfoRow label="Steps" value={item.workflowSteps.join(" -> ")} />
-        ) : null}
-        {(item.kind === "agentGoal" || item.kind === "agentLoop") &&
-        item.schedule ? (
-          <InfoRow label="Schedule" value={item.schedule} />
-        ) : null}
+            {isWorkflowCatalogItem(item) && workflowSteps.length > 0 ? (
+              <section className="rounded-md border border-border bg-muted/20 p-4">
+                <div className="flex items-center justify-between gap-3">
+                  <h3 className="text-sm font-medium text-foreground">
+                    Workflow steps
+                  </h3>
+                  <span className="rounded-md border border-border px-2 py-0.5 text-xs text-muted-foreground">
+                    {workflowSteps.length}
+                  </span>
+                </div>
+                <ol className="mt-3 grid gap-2 sm:grid-cols-2">
+                  {workflowSteps.map((step, index) => (
+                    <li
+                      key={`${step}-${index}`}
+                      className="flex min-w-0 items-center gap-2 rounded-md border border-border bg-background/50 px-3 py-2 text-sm"
+                    >
+                      <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-md border border-border text-[11px] text-muted-foreground">
+                        {index + 1}
+                      </span>
+                      <span className="min-w-0 break-words font-mono text-xs text-foreground">
+                        {step}
+                      </span>
+                    </li>
+                  ))}
+                </ol>
+              </section>
+            ) : null}
+
+            {uninstallBlocked ? (
+              <section className="rounded-md border border-amber-500/25 bg-amber-500/10 p-4 text-sm text-amber-700 dark:text-amber-100">
+                <h3 className="font-medium">Required by</h3>
+                <div className="mt-2 flex flex-wrap gap-2">
+                  {blockers.map((blocker) => (
+                    <span
+                      key={`${blocker.kind}:${blocker.slug}`}
+                      className="rounded-md border border-current/20 bg-background/40 px-2 py-1 text-xs"
+                    >
+                      {blocker.title || blocker.slug}
+                    </span>
+                  ))}
+                </div>
+              </section>
+            ) : null}
+          </div>
+
+          <aside className="space-y-3">
+            <InfoRow label="Type" value={displayKindLabel(item)} />
+            <InfoRow label="Slug" value={item.slug} mono />
+            <InfoRow label="Status" value={statusLabel} />
+            {item.agent ? (
+              <InfoRow label="Agent" value={item.agent} mono />
+            ) : null}
+            {item.action ? (
+              <InfoRow label="Action" value={item.action} mono />
+            ) : null}
+            {item.schedule ? (
+              <InfoRow label="Schedule" value={item.schedule} />
+            ) : null}
+            {workflowSteps.length > 0 ? (
+              <InfoRow label="Step count" value={String(workflowSteps.length)} />
+            ) : null}
+            <InfoRow label="Source">
+              {item.htmlUrl ? (
+                <a
+                  href={item.htmlUrl}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="inline-flex min-w-0 items-center gap-1 text-foreground underline-offset-4 hover:underline"
+                >
+                  <ExternalLink className="h-3.5 w-3.5 shrink-0" />
+                  <span className="truncate">{sourceLabel}</span>
+                </a>
+              ) : (
+                sourceLabel
+              )}
+            </InfoRow>
+          </aside>
+        </div>
       </div>
 
-      {uninstallBlocked ? (
-        <div className="rounded-md border border-amber-500/25 bg-amber-500/10 px-3 py-2 text-xs leading-5 text-amber-700 dark:text-amber-100">
-          Required by{" "}
-          {blockers.map((blocker) => blocker.title || blocker.slug).join(", ")}
-          .
-        </div>
-      ) : null}
-
-      <div className="flex flex-wrap justify-end gap-2 pt-2">
+      <div className="flex shrink-0 flex-wrap justify-end gap-2 border-t border-border pt-3">
         {item.htmlUrl ? (
           <Button asChild size="sm" variant="outline" className="gap-1">
             <a href={item.htmlUrl} target="_blank" rel="noreferrer">
@@ -849,13 +925,30 @@ function CatalogDetail({
   );
 }
 
-function InfoRow({ label, value }: { label: string; value: string }) {
+function InfoRow({
+  label,
+  value,
+  children,
+  mono = false,
+}: {
+  label: string;
+  value?: string;
+  children?: ReactNode;
+  mono?: boolean;
+}) {
   return (
-    <div className="grid gap-2 rounded-md border border-border bg-muted/30 px-3 py-2 text-sm md:grid-cols-[10rem_minmax(0,1fr)]">
-      <span className="text-xs uppercase tracking-wide text-muted-foreground">
+    <div className="grid gap-1 rounded-md border border-border bg-muted/30 px-3 py-2 text-sm">
+      <span className="text-[11px] uppercase tracking-wide text-muted-foreground">
         {label}
       </span>
-      <span className="min-w-0 truncate text-foreground">{value}</span>
+      <span
+        className={cn(
+          "min-w-0 break-words text-foreground",
+          mono && "font-mono text-xs",
+        )}
+      >
+        {children ?? value}
+      </span>
     </div>
   );
 }

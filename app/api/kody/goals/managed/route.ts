@@ -109,6 +109,7 @@ const createManagedGoalSchema = z.object({
   loopTarget: loopTargetSchema.optional(),
   workflowRef: workflowRefSchema.optional(),
   saveReport: z.boolean().optional(),
+  runWithoutApproval: z.boolean().optional(),
   capabilities: z.array(z.string().min(1).max(80)).optional(),
   evidence: z.array(z.string().min(1).max(80)).default([]),
   route: z.array(routeStepSchema).default([]),

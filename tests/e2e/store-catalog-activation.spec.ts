@@ -319,6 +319,25 @@ test.describe("Store Catalog add", () => {
     ).toContainText("Install");
   });
 
+  test("shows richer selected item data in the modal", async ({ page }) => {
+    await mockStoreCatalog(page);
+    await openStoreCatalog(page);
+
+    await page.getByTestId("store-catalog-row-capability-bug-flow").click();
+
+    const dialog = page.getByRole("dialog");
+    await expect(
+      dialog.getByRole("heading", { name: "Bug Flow" }),
+    ).toBeVisible();
+    await expect(dialog.getByText("Workflow steps")).toBeVisible();
+    await expect(dialog.getByText("reproduce")).toBeVisible();
+    await expect(dialog.getByText("review")).toBeVisible();
+    await expect(dialog.getByText("Agent")).toBeVisible();
+    await expect(dialog.getByText("kody")).toBeVisible();
+    await expect(dialog.getByText("Step count")).toBeVisible();
+    await expect(dialog.getByText("5")).toBeVisible();
+  });
+
   test("shows workflow capabilities under the Workflows filter", async ({
     page,
   }, testInfo) => {

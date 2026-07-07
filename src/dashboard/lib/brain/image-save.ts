@@ -45,6 +45,7 @@ export type BrainImageSavePhase =
 export interface BrainImageSaveProgress {
   phase: BrainImageSavePhase;
   message: string;
+  heartbeatAt?: string;
   lastOutput?: string;
 }
 
@@ -97,6 +98,9 @@ export function brainImageSaveProgressFromOutput(input: {
   const stages = [...output.matchAll(/__KODY_BRAIN_SAVE_STAGE=([^\s]+)/g)];
   const stage = stages.at(-1)?.[1];
   const progress = stage ? SAVE_STAGE_PROGRESS[stage] : null;
+  const heartbeat = [
+    ...output.matchAll(/__KODY_BRAIN_SAVE_HEARTBEAT=([^\s]+)/g),
+  ].at(-1)?.[1];
   const retry = [...output.matchAll(/__KODY_BRAIN_SAVE_RETRY=([^\s]+)/g)].at(
     -1,
   )?.[1];
@@ -106,6 +110,9 @@ export function brainImageSaveProgressFromOutput(input: {
   return {
     phase: progress?.phase ?? "starting",
     message,
+    ...(heartbeat && !Number.isNaN(Date.parse(heartbeat))
+      ? { heartbeatAt: heartbeat }
+      : {}),
     ...(lastOutput ? { lastOutput } : {}),
   };
 }
@@ -118,6 +125,7 @@ function cleanProgressOutput(output: string): string {
       (line) =>
         line &&
         !line.startsWith("__KODY_BRAIN_SAVE_STAGE=") &&
+        !line.startsWith("__KODY_BRAIN_SAVE_HEARTBEAT=") &&
         !line.startsWith("__KODY_BRAIN_SAVE_RETRY="),
     )
     .slice(-20)
@@ -227,6 +235,23 @@ retry() {
   done
 }
 
+run_with_heartbeat() {
+  local label="$1"
+  shift
+  (
+    while true; do
+      printf '__KODY_BRAIN_SAVE_HEARTBEAT=%s\\n' "$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+      sleep 10
+    done
+  ) &
+  local heartbeat_pid="$!"
+  "$@"
+  local status="$?"
+  kill "$heartbeat_pid" >/dev/null 2>&1 || true
+  wait "$heartbeat_pid" >/dev/null 2>&1 || true
+  return "$status"
+}
+
 keep_brain_awake &
 keepalive_pid="$!"
 
@@ -265,13 +290,13 @@ if ! retry "upload-export-script" flyctl ssh sftp put "$tmpdir/export-rootfs.sh"
 fi
 
 echo "__KODY_BRAIN_SAVE_STAGE=export-rootfs"
-if ! flyctl ssh console --app "$app" --org "$org" --machine "$machine" --command "/bin/bash $remote_script $remote_archive" > "$tmpdir/export.log" 2>&1; then
+if ! run_with_heartbeat "export-rootfs" flyctl ssh console --app "$app" --org "$org" --machine "$machine" --command "/bin/bash $remote_script $remote_archive" > "$tmpdir/export.log" 2>&1; then
   tail -n 200 "$tmpdir/export.log" >&2
   exit 1
 fi
 
 echo "__KODY_BRAIN_SAVE_STAGE=download-rootfs"
-if ! retry "download-rootfs" flyctl sftp get "$remote_archive" "$tmpdir/rootfs.tgz" --app "$app" --org "$org" --machine "$machine" --quiet > "$tmpdir/sftp.log" 2>&1; then
+if ! run_with_heartbeat "download-rootfs" retry "download-rootfs" flyctl sftp get "$remote_archive" "$tmpdir/rootfs.tgz" --app "$app" --org "$org" --machine "$machine" --quiet > "$tmpdir/sftp.log" 2>&1; then
   tail -n 200 "$tmpdir/sftp.log" >&2
   exit 1
 fi
@@ -281,7 +306,7 @@ install_crane
 printf '%s' "$GHCR_TOKEN" | crane auth login ghcr.io --username "$ghcr_user" --password-stdin >/dev/null
 
 echo "__KODY_BRAIN_SAVE_STAGE=push-ghcr"
-if ! retry "push-ghcr" crane append --base "$base" --new_layer "$tmpdir/rootfs.tgz" --new_tag "$image" > "$tmpdir/push.log" 2>&1; then
+if ! run_with_heartbeat "push-ghcr" retry "push-ghcr" crane append --base "$base" --new_layer "$tmpdir/rootfs.tgz" --new_tag "$image" > "$tmpdir/push.log" 2>&1; then
   tail -n 200 "$tmpdir/push.log" >&2
   exit 1
 fi

@@ -117,7 +117,26 @@ describe("dashboard view filtering", () => {
     });
   });
 
-  it("shows closed, done, and failed tasks in history", () => {
+  it("keeps open failed tasks in the running view", () => {
+    expect(
+      filterTasksByView(
+        [
+          task({ issueNumber: 1, column: "building" }),
+          task({ issueNumber: 2, column: "failed" }),
+          task({ issueNumber: 3, column: "done" }),
+          task({ issueNumber: 4, column: "open" }),
+        ],
+        {
+          viewMode: "running",
+          statusFilter: "all",
+          labelFilter: "all",
+          priorityFilter: "all",
+        },
+      ).map((t) => t.issueNumber),
+    ).toEqual([1, 2]);
+  });
+
+  it("keeps history to closed and done tasks", () => {
     expect(
       filterTasksByView(
         [
@@ -133,6 +152,21 @@ describe("dashboard view filtering", () => {
           priorityFilter: "all",
         },
       ).map((t) => t.issueNumber),
-    ).toEqual([2, 3, 4]);
+    ).toEqual([2, 4]);
+  });
+
+  it("counts open failed tasks as running, not history", () => {
+    expect(
+      getViewModeCounts([
+        task({ issueNumber: 1, column: "building" }),
+        task({ issueNumber: 2, column: "failed" }),
+        task({ issueNumber: 3, column: "done" }),
+        task({ issueNumber: 4, column: "open" }),
+      ]),
+    ).toMatchObject({
+      runningCount: 2,
+      backlogCount: 1,
+      historyCount: 1,
+    });
   });
 });

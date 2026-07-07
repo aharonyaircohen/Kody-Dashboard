@@ -110,11 +110,7 @@ function clampPerPage(value: string | null): number {
 }
 
 function isHistoryTask(task: KodyTask): boolean {
-  return (
-    task.state === "closed" ||
-    task.column === "done" ||
-    task.column === "failed"
-  );
+  return task.state === "closed" || task.column === "done";
 }
 
 function isBacklogTask(task: KodyTask): boolean {
@@ -125,8 +121,7 @@ function isRunningTask(task: KodyTask): boolean {
   return (
     task.state === "open" &&
     task.column !== "open" &&
-    task.column !== "done" &&
-    task.column !== "failed"
+    task.column !== "done"
   );
 }
 
