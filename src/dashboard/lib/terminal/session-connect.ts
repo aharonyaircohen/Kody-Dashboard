@@ -39,6 +39,7 @@ import {
   isTerminalMachineStartable,
   resolveTerminalTargetMachine,
   selectTerminalTarget,
+  terminalBridgeSessionIdForTarget,
   terminalActivityLimitForTarget,
   type TerminalTargetInput,
 } from "./session";
@@ -268,13 +269,21 @@ export async function startTerminalSession(input: {
     data.activityLimitMs,
   );
   const now = Math.floor(Date.now() / 1000);
+  const bridgeSessionId = terminalBridgeSessionIdForTarget({
+    owner: context.owner,
+    repo: context.repo,
+    app: selected.machine.app,
+    machineId: selected.machine.machineId,
+    feature: selected.machine.feature,
+    requestedChatSessionId: data.chatSessionId,
+  });
   const token = mintTerminalBridgeToken({
     owner: context.owner,
     repo: context.repo,
     app: selected.machine.app,
     orgSlug: terminalCfg.orgSlug,
     machineId: selected.machine.machineId,
-    chatSessionId: data.chatSessionId,
+    chatSessionId: bridgeSessionId,
     resetSession: data.resetSession,
     ...(activityLimitMs !== undefined ? { activityLimitMs } : {}),
     flyToken: terminalCfg.token,

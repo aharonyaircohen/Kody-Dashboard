@@ -474,11 +474,12 @@ afterEach(() => {
 });
 
 describe("POST /api/kody/terminal/session", () => {
-  it("mints a chat-scoped Brain terminal token", async () => {
+  it("mints a stable Brain-scoped terminal token", async () => {
     const res = await sessionPOST(
       makeSessionReq({
         app: "kody-brain-octocat",
         machineId: "brain-1",
+        feature: "brain",
         chatSessionId: "chat-1",
         resetSession: true,
         cols: 132,
@@ -500,7 +501,7 @@ describe("POST /api/kody/terminal/session", () => {
         repo: "widgets",
         app: "kody-brain-octocat",
         machineId: "brain-1",
-        chatSessionId: "chat-1",
+        chatSessionId: "brain:acme:widgets:kody-brain-octocat:brain-1",
         resetSession: true,
         cols: 132,
         rows: 40,

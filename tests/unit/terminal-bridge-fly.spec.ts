@@ -164,7 +164,14 @@ describe("ensureTerminalBridge", () => {
       "session.activityLimitMs !== null",
     );
     expect(TERMINAL_BRIDGE_SCRIPT).toContain('url.pathname === "/status"');
-    expect(TERMINAL_BRIDGE_SCRIPT).toContain("Reattached terminal session.");
+    expect(TERMINAL_BRIDGE_SCRIPT).toContain("function ensureTmuxSession");
+    expect(TERMINAL_BRIDGE_SCRIPT).toContain("function configureTmuxSession");
+    expect(TERMINAL_BRIDGE_SCRIPT).toContain('"set-option"');
+    expect(TERMINAL_BRIDGE_SCRIPT).toContain('"status"');
+    expect(TERMINAL_BRIDGE_SCRIPT).toContain('"off"');
+    expect(TERMINAL_BRIDGE_SCRIPT).toContain("function tmuxPaneCommand");
+    expect(TERMINAL_BRIDGE_SCRIPT).toContain('"attach-session"');
+    expect(TERMINAL_BRIDGE_SCRIPT).not.toContain("Reattached terminal session.");
     expect(TERMINAL_BRIDGE_SCRIPT).not.toContain("RESTORE_PROBE_TIMEOUT_MS");
     expect(TERMINAL_BRIDGE_SCRIPT).not.toContain("startRestoreProbe");
     expect(TERMINAL_BRIDGE_SCRIPT).not.toContain(
@@ -211,33 +218,35 @@ describe("ensureTerminalBridge", () => {
     );
   });
 
-  it("does not replay old terminal buffers when a browser reattaches", () => {
+  it("reattaches the browser to the tmux pane without replaying old output", () => {
     const attachSession = TERMINAL_BRIDGE_SCRIPT.match(
       /function attachSocketToSession[\s\S]*?\n}\n\nfunction startFlyConsole/,
     )?.[0];
 
     expect(attachSession).toBeTruthy();
+    expect(TERMINAL_BRIDGE_SCRIPT).toContain(
+      "const MAX_REPLAY_CHARS = 120000;",
+    );
     expect(attachSession).not.toContain("session.outputBuffer");
     expect(attachSession).not.toContain("session.pendingOutput");
-    expect(attachSession).toContain("Reattached terminal session.");
+    expect(attachSession).not.toContain("Reattached terminal session.");
+    expect(attachSession).toContain("session.restartChild()");
+    expect(TERMINAL_BRIDGE_SCRIPT).toContain("session.sockets.size > 0");
     expect(attachSession).not.toContain("startRestoreProbe");
     expect(attachSession).not.toContain('type: "restoring"');
     expect(attachSession).not.toContain('type: "restore-failed"');
     expect(attachSession).toContain('type: "ready"');
   });
 
-  it("binds browser input before sending reattach readiness", () => {
+  it("binds browser input before sending attach readiness", () => {
     const attachSession = TERMINAL_BRIDGE_SCRIPT.match(
       /function attachSocketToSession[\s\S]*?\n}\n\nfunction startFlyConsole/,
     )?.[0];
 
     expect(attachSession).toBeTruthy();
     expect(attachSession!.indexOf("parseFrames(socket")).toBeGreaterThan(-1);
-    expect(attachSession!.indexOf("Reattached terminal session.")).toBeGreaterThan(
-      -1,
-    );
     expect(attachSession!.indexOf("parseFrames(socket")).toBeLessThan(
-      attachSession!.indexOf("Reattached terminal session."),
+      attachSession!.indexOf('sendJson(socket, { type: "ready" });'),
     );
   });
 
@@ -484,6 +493,78 @@ os.write(sys.stdout.fileno(), b"REMOTE:" + data)
       ),
     ).toHaveLength(1);
     expect(machineListCalls).toBe(2);
+  });
+
+  it("replaces a stale bridge machine after a Fly machine-name conflict", async () => {
+    const app = terminalBridgeAppName(CFG);
+    let machineListCalls = 0;
+    let createCalls = 0;
+    const calls = installFetchStub((call) => {
+      if (call.method === "GET" && call.url.endsWith(`/apps/${app}`)) {
+        return { json: { name: app } };
+      }
+      if (call.method === "GET" && call.url.endsWith(`/apps/${app}/machines`)) {
+        machineListCalls += 1;
+        return {
+          json:
+            machineListCalls <= 2
+              ? [
+                  {
+                    id: "stale-bridge",
+                    state: "started",
+                    region: "fra",
+                    config: {
+                      image: TERMINAL_BRIDGE_BASE_IMAGE,
+                      env: {
+                        BRIDGE_AUTH_SECRET: "stale-secret",
+                        KODY_TERMINAL_BRIDGE_VERSION: "old",
+                      },
+                    },
+                  },
+                ]
+              : [],
+        };
+      }
+      if (
+        call.method === "DELETE" &&
+        call.url.includes(`/apps/${app}/machines/stale-bridge`)
+      ) {
+        return { json: { ok: true } };
+      }
+      if (
+        call.method === "POST" &&
+        call.url.endsWith(`/apps/${app}/machines`)
+      ) {
+        createCalls += 1;
+        if (createCalls === 1) {
+          return {
+            status: 409,
+            json: {
+              error:
+                'already_exists: unique machine name violation, machine ID stale-bridge already exists with name "terminal-fra"',
+            },
+          };
+        }
+        return { json: { id: "fresh-bridge", state: "started", region: "fra" } };
+      }
+      throw new Error(`unexpected call: ${call.method} ${call.url}`);
+    });
+
+    const out = await ensureTerminalBridge(CFG);
+
+    expect(out).toMatchObject({
+      app,
+      machineId: "fresh-bridge",
+      url: `https://${app}.fly.dev`,
+    });
+    expect(createCalls).toBe(2);
+    expect(
+      calls.filter(
+        (call) =>
+          call.method === "DELETE" &&
+          call.url.includes(`/apps/${app}/machines/stale-bridge`),
+      ),
+    ).toHaveLength(2);
   });
 
   it("reuses an existing current bridge machine", async () => {

@@ -16,8 +16,9 @@ const FLY_API_BASE = "https://api.machines.dev/v1";
 const REQUEST_TIMEOUT_MS = 90_000;
 const BRIDGE_HEALTH_TIMEOUT_MS = 90_000;
 const BRIDGE_HEALTH_INTERVAL_MS = 2_000;
+const BRIDGE_CREATE_ATTEMPTS = 3;
 
-export const TERMINAL_BRIDGE_VERSION = "2026-07-06.1";
+export const TERMINAL_BRIDGE_VERSION = "2026-07-07.3";
 export const TERMINAL_BRIDGE_BASE_IMAGE =
   process.env.KODY_TERMINAL_BRIDGE_BASE_IMAGE ?? "node:22-bookworm";
 
@@ -27,10 +28,11 @@ set -eu
 need_apt=0
 command -v curl >/dev/null 2>&1 || need_apt=1
 command -v python3 >/dev/null 2>&1 || need_apt=1
+command -v tmux >/dev/null 2>&1 || need_apt=1
 
 if [ "$need_apt" = "1" ]; then
   apt-get update
-  apt-get install -y --no-install-recommends ca-certificates curl python3
+  apt-get install -y --no-install-recommends ca-certificates curl python3 tmux
   rm -rf /var/lib/apt/lists/*
 fi
 
@@ -157,7 +159,7 @@ sys.exit(exit_code)
 
 export const TERMINAL_BRIDGE_SCRIPT = String.raw`import crypto from "node:crypto";
 import http from "node:http";
-import { spawn } from "node:child_process";
+import { spawn, spawnSync } from "node:child_process";
 
 const TOKEN_VERSION = "kody-terminal-v1";
 const SSH_STATUS_INTERVAL_MS = 10000;
@@ -686,6 +688,79 @@ function persistentSessionKey(claims) {
   ].join("::");
 }
 
+function directFlySshCommand(claims) {
+  return [
+    "flyctl",
+    "ssh",
+    "console",
+    "--app",
+    claims.app,
+    ...flyctlOrgArgs(claims.orgSlug),
+    "--machine",
+    claims.machineId,
+    "--pty",
+  ];
+}
+
+function shellQuote(value) {
+  const text = String(value);
+  if (/^[A-Za-z0-9_/:.,+=@%~-]+$/.test(text)) return text;
+  return "'" + text.replace(/'/g, "'\\''") + "'";
+}
+
+function tmuxPaneCommand(claims) {
+  return directFlySshCommand(claims).map(shellQuote).join(" ");
+}
+
+function tmuxSessionName(claims) {
+  const key = persistentSessionKey(claims);
+  if (!key) return null;
+  return "kody_" + crypto.createHash("sha256").update(key).digest("hex").slice(0, 32);
+}
+
+function killTmuxSession(sessionName) {
+  if (!sessionName) return;
+  spawnSync("tmux", ["kill-session", "-t", sessionName], {
+    stdio: "ignore",
+  });
+}
+
+function hasTmuxSession(sessionName) {
+  if (!sessionName) return false;
+  const result = spawnSync("tmux", ["has-session", "-t", sessionName], {
+    stdio: "ignore",
+  });
+  return result.status === 0;
+}
+
+function configureTmuxSession(sessionName) {
+  const result = spawnSync(
+    "tmux",
+    ["set-option", "-t", sessionName, "status", "off"],
+    { stdio: "ignore" },
+  );
+  if (result.status !== 0) {
+    throw new Error("failed to configure terminal tmux session");
+  }
+}
+
+function ensureTmuxSession(claims, sessionName, env) {
+  if (hasTmuxSession(sessionName)) {
+    configureTmuxSession(sessionName);
+    return { created: false };
+  }
+  const result = spawnSync(
+    "tmux",
+    ["new-session", "-d", "-s", sessionName, tmuxPaneCommand(claims)],
+    { env, stdio: "ignore" },
+  );
+  if (result.status !== 0) {
+    throw new Error("failed to start terminal tmux session");
+  }
+  configureTmuxSession(sessionName);
+  return { created: true };
+}
+
 function rememberOutput(session, text) {
   if (!text) return;
   session.outputBuffer = (session.outputBuffer + text).slice(-MAX_REPLAY_CHARS);
@@ -714,6 +789,7 @@ function cleanupSession(session) {
 function disposePersistentSession(key, session) {
   cleanupSession(session);
   closeSessionSockets(session, 1000, "terminal session closed");
+  killTmuxSession(session.tmuxSessionName);
   try {
     session.child.kill("SIGTERM");
   } catch {}
@@ -764,26 +840,22 @@ function createFlyConsoleSession(claims, key) {
     LINES: String(claims.rows || 36),
   };
   const readyMarker = "__KR_" + crypto.randomBytes(4).toString("hex") + "__";
-  const args = [
-    "/app/pty-relay.py",
-    "flyctl",
-    "ssh",
-    "console",
-    "--app",
-    claims.app,
-    ...flyctlOrgArgs(claims.orgSlug),
-    "--machine",
-    claims.machineId,
-    "--pty",
-  ];
+  const tmuxName = key ? tmuxSessionName(claims) : null;
+  const tmuxState = tmuxName ? ensureTmuxSession(claims, tmuxName, env) : null;
+  const command = tmuxName
+    ? ["tmux", "attach-session", "-t", tmuxName]
+    : directFlySshCommand(claims);
+  const args = ["/app/pty-relay.py", ...command];
   const session = {
     child: null,
     sockets: new Set(),
     key,
+    tmuxSessionName: tmuxName,
     readyMarker,
     sawOutput: false,
-    ready: false,
+    ready: Boolean(tmuxName && !tmuxState?.created),
     timedOut: false,
+    detaching: false,
     startAttempts: 0,
     pendingOutput: "",
     outputBuffer: "",
@@ -794,6 +866,7 @@ function createFlyConsoleSession(claims, key) {
     readyProbeTimer: null,
     readyTimer: null,
     retryTimer: null,
+    restartChild: null,
   };
   const statusTimer = setInterval(() => {
     if (!session.sawOutput) {
@@ -868,6 +941,7 @@ function createFlyConsoleSession(claims, key) {
   }
 
   function startChild() {
+    if (session.child) return;
     session.startAttempts += 1;
     session.sawOutput = false;
     const child = spawn("python3", args, {
@@ -899,6 +973,18 @@ function createFlyConsoleSession(claims, key) {
       if (session.child !== child) return;
       clearInterval(session.readyProbeTimer);
       session.readyProbeTimer = null;
+      if (session.detaching) {
+        session.detaching = false;
+        session.child = null;
+        if (
+          session.key &&
+          session.sockets.size > 0 &&
+          typeof session.restartChild === "function"
+        ) {
+          session.restartChild();
+        }
+        return;
+      }
       if (
         !session.ready &&
         !session.timedOut &&
@@ -937,18 +1023,29 @@ function createFlyConsoleSession(claims, key) {
     });
   }
 
+  session.restartChild = startChild;
   startChild();
 
   return session;
 }
 
 function attachSocketToSession(socket, session) {
+  if (session.key && !session.child && typeof session.restartChild === "function") {
+    session.restartChild();
+  }
   session.sockets.add(socket);
   session.lastTouched = Date.now();
 
   function detach() {
     session.sockets.delete(socket);
     session.lastTouched = Date.now();
+    if (session.key && session.sockets.size === 0) {
+      session.detaching = true;
+      try {
+        session.child?.kill("SIGTERM");
+      } catch {}
+      return;
+    }
     if (!session.key) {
       cleanupSession(session);
       try {
@@ -1001,10 +1098,12 @@ function attachSocketToSession(socket, session) {
     }
   });
 
-  sendJson(socket, {
-    type: "output",
-    data: session.ready ? "Reattached terminal session.\r\n" : "Opening real terminal...\r\n",
-  });
+  if (!session.ready) {
+    sendJson(socket, {
+      type: "output",
+      data: "Opening real terminal...\r\n",
+    });
+  }
   if (session.ready) {
     sendJson(socket, { type: "ready" });
   }
@@ -1015,6 +1114,7 @@ function startFlyConsole(socket, claims) {
   if (key && claims.resetSession) {
     const existing = persistentSessions.get(key);
     if (existing) disposePersistentSession(key, existing);
+    else killTmuxSession(tmuxSessionName(claims));
   }
   if (key) {
     const existing = persistentSessions.get(key);
@@ -1040,12 +1140,16 @@ const server = http.createServer((req, res) => {
       const claims = verifyTerminalToken(url.searchParams.get("token"));
       const key = persistentSessionKey(claims);
       const session = key ? persistentSessions.get(key) : null;
+      const sessionName = key ? tmuxSessionName(claims) : null;
+      const detachedTmuxAlive = Boolean(
+        !session && sessionName && hasTmuxSession(sessionName),
+      );
       res.writeHead(200, { "content-type": "application/json" });
       res.end(
         JSON.stringify({
           ok: true,
-          alive: Boolean(session),
-          ready: Boolean(session?.ready),
+          alive: Boolean(session) || detachedTmuxAlive,
+          ready: Boolean(session?.ready) || detachedTmuxAlive,
           socketCount: session?.sockets.size ?? 0,
           lastTouched: session?.lastTouched ?? null,
         }),
@@ -1494,6 +1598,42 @@ async function createBridgeMachine(
   return machine;
 }
 
+async function createOrConvergeBridgeMachine(input: {
+  cfg: FlyPreviewConfig;
+  app: string;
+  secret: string;
+}): Promise<{ machine: FlyMachine; secret: string }> {
+  let lastConflict: unknown = null;
+  for (let attempt = 1; attempt <= BRIDGE_CREATE_ATTEMPTS; attempt += 1) {
+    try {
+      return {
+        machine: await createBridgeMachine(input.cfg, input.app, input.secret),
+        secret: input.secret,
+      };
+    } catch (err) {
+      if (!isMachineNameConflict(err)) throw err;
+      lastConflict = err;
+      const conflicting = await findExistingMachine(input.cfg, input.app);
+      if (conflicting && canReuseMachine(conflicting)) {
+        return {
+          machine: conflicting,
+          secret: machineSecret(conflicting)!,
+        };
+      }
+      if (conflicting?.id) {
+        logger.info(
+          { app: input.app, machineId: conflicting.id, attempt },
+          "terminal bridge: removing stale conflicting bridge machine",
+        );
+        await destroyMachine(input.cfg, input.app, conflicting.id);
+      }
+    }
+  }
+  throw lastConflict instanceof Error
+    ? lastConflict
+    : new Error("terminal bridge: machine name conflict did not converge");
+}
+
 export async function ensureTerminalBridge(
   cfg: FlyPreviewConfig,
 ): Promise<TerminalBridgeInfo> {
@@ -1544,25 +1684,8 @@ export async function ensureTerminalBridge(
     await allocateIpsIfMissing(cfg.token, app);
   }
   const secret = generateBridgeSecret();
-  let machine: FlyMachine;
-  try {
-    machine = await createBridgeMachine(cfg, app, secret);
-  } catch (err) {
-    if (!isMachineNameConflict(err)) throw err;
-    const existingAfterConflict = await findExistingMachine(cfg, app);
-    if (!existingAfterConflict || !canReuseMachine(existingAfterConflict)) {
-      throw err;
-    }
-    const existingSecret = machineSecret(existingAfterConflict)!;
-    const url = bridgeUrl(app);
-    await waitForBridgeHealth(url);
-    return {
-      app,
-      url,
-      machineId: existingAfterConflict.id,
-      secret: existingSecret,
-    };
-  }
+  const created = await createOrConvergeBridgeMachine({ cfg, app, secret });
+  const machine = created.machine;
   logger.info(
     { app, machineId: machine.id },
     "terminal bridge: machine provisioned",
@@ -1573,7 +1696,7 @@ export async function ensureTerminalBridge(
     app,
     url,
     machineId: machine.id,
-    secret,
+    secret: created.secret,
   };
 }
 

@@ -148,6 +148,18 @@ export function terminalActivityLimitForTarget(
   return feature === "brain" ? requested : undefined;
 }
 
+export function terminalBridgeSessionIdForTarget(input: {
+  owner: string;
+  repo: string;
+  app: string;
+  machineId: string;
+  feature: FlyFeature;
+  requestedChatSessionId?: string;
+}): string | undefined {
+  if (input.feature !== "brain") return input.requestedChatSessionId;
+  return `brain:${input.owner}:${input.repo}:${input.app}:${input.machineId}`;
+}
+
 export function buildTerminalWebSocketUrl(
   bridgeBase: string,
   token: string,

@@ -24,6 +24,7 @@ import {
 import {
   resolveBrainTerminalTargetInput,
   resolveTerminalTargetMachine,
+  terminalBridgeSessionIdForTarget,
 } from "@dashboard/lib/terminal/session";
 import { mintTerminalBridgeToken } from "@dashboard/lib/terminal/terminal-token";
 
@@ -168,7 +169,14 @@ export async function POST(req: NextRequest) {
     app: targetApp,
     orgSlug: bridgeCfg.orgSlug,
     machineId: targetMachineId,
-    chatSessionId: parsed.data.chatSessionId,
+    chatSessionId: terminalBridgeSessionIdForTarget({
+      owner: ctx.context.owner,
+      repo: ctx.context.repo,
+      app: targetApp,
+      machineId: targetMachineId,
+      feature: brainRequested ? "brain" : (parsed.data.feature ?? "runner"),
+      requestedChatSessionId: parsed.data.chatSessionId,
+    }),
     flyToken: bridgeCfg.token,
     ttlSeconds: 30,
     secret: bridge.secret,

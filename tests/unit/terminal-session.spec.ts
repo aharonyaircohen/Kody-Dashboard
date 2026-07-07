@@ -8,6 +8,7 @@ import {
   resolveTerminalTargetMachine,
   selectTerminalTarget,
   terminalActivityLimitForTarget,
+  terminalBridgeSessionIdForTarget,
 } from "@dashboard/lib/terminal/session";
 import type { FlyInventory } from "@dashboard/lib/runners/fly-inventory";
 
@@ -164,5 +165,28 @@ describe("terminal session policy", () => {
       terminalActivityLimitForTarget("runner", 60 * 60_000),
     ).toBeUndefined();
     expect(terminalActivityLimitForTarget("preview", null)).toBeUndefined();
+  });
+
+  it("uses a stable bridge session id for Brain terminals", () => {
+    expect(
+      terminalBridgeSessionIdForTarget({
+        owner: "acme",
+        repo: "widgets",
+        app: "kody-brain-alice",
+        machineId: "brain-1",
+        feature: "brain",
+        requestedChatSessionId: "browser-chat-1",
+      }),
+    ).toBe("brain:acme:widgets:kody-brain-alice:brain-1");
+    expect(
+      terminalBridgeSessionIdForTarget({
+        owner: "acme",
+        repo: "widgets",
+        app: "kody-runner",
+        machineId: "runner-1",
+        feature: "runner",
+        requestedChatSessionId: "browser-chat-1",
+      }),
+    ).toBe("browser-chat-1");
   });
 });
