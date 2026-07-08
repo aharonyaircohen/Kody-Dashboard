@@ -4,6 +4,31 @@ import reactHooks from "eslint-plugin-react-hooks";
 import reactPlugin from "eslint-plugin-react";
 import jsxA11y from "eslint-plugin-jsx-a11y";
 import nextPlugin from "@next/eslint-plugin-next";
+import importPlugin from "eslint-plugin-import";
+
+// Chat-platform layering (docs/chat-platform-phase1.md, "Standing rules"):
+// core ← platform ← plugins/surface. Zones below make violations lint
+// ERRORS, so every step's gate catches them.
+const CHAT = "./src/dashboard/lib/chat";
+const CHAT_PLUGIN_DIRS = ["terminal", "commands", "vibe", "goals", "branding"];
+const chatLayerZones = [
+  // core is the bottom layer: no platform/surface/plugins/legacy components.
+  { target: `${CHAT}/core`, from: `${CHAT}/surface`, message: "core must not import surface" },
+  { target: `${CHAT}/core`, from: `${CHAT}/plugins`, message: "core must not import plugins" },
+  { target: `${CHAT}/core`, from: `${CHAT}/platform`, message: "core must not import platform" },
+  { target: `${CHAT}/core`, from: "./src/dashboard/lib/components", message: "core must not import components" },
+  // platform sits above core only.
+  { target: `${CHAT}/platform`, from: `${CHAT}/surface`, message: "platform must not import surface" },
+  { target: `${CHAT}/platform`, from: `${CHAT}/plugins`, message: "platform must not import plugins" },
+  { target: `${CHAT}/platform`, from: "./src/dashboard/lib/components", message: "platform must not import components" },
+  // plugins may use platform + core, never each other.
+  ...CHAT_PLUGIN_DIRS.map((dir) => ({
+    target: `${CHAT}/plugins/${dir}`,
+    from: `${CHAT}/plugins`,
+    except: [`./${dir}`],
+    message: `plugins must not import sibling plugins (${dir})`,
+  })),
+];
 
 export default [
   {
@@ -55,6 +80,67 @@ export default [
       "jsx-a11y/label-has-associated-control": "off",
     },
   },
+  {
+    // Chat platform: strict standards + layering. These are ERRORS (the
+    // repo-wide config only warns) — the refactor gate runs lint blocking.
+    name: "chat-platform-standards",
+    files: ["src/dashboard/lib/chat/**/*.ts", "src/dashboard/lib/chat/**/*.tsx"],
+    plugins: { import: importPlugin },
+    settings: {
+      // Resolve .ts/.tsx so the relative-path layer zones fire. Alias-form
+      // imports (@dashboard/...) are enforced by the per-layer
+      // no-restricted-imports blocks below — no extra resolver dependency.
+      "import/resolver": {
+        node: { extensions: [".js", ".ts", ".tsx"] },
+      },
+    },
+    rules: {
+      "no-console": "error",
+      "@typescript-eslint/no-explicit-any": "error",
+      "max-lines": ["error", { max: 800, skipBlankLines: true, skipComments: true }],
+      "import/no-restricted-paths": ["error", { zones: chatLayerZones }],
+    },
+  },
+  {
+    // Layer zones, alias form. no-restricted-paths only sees resolvable
+    // relative imports; these blocks close the @dashboard/@ alias route.
+    name: "chat-core-alias-zones",
+    files: ["src/dashboard/lib/chat/core/**/*.ts", "src/dashboard/lib/chat/core/**/*.tsx"],
+    rules: {
+      "no-restricted-imports": ["error", { patterns: [
+        { group: ["@dashboard/lib/chat/surface*", "@/dashboard/lib/chat/surface*"], message: "core must not import surface" },
+        { group: ["@dashboard/lib/chat/plugins*", "@/dashboard/lib/chat/plugins*"], message: "core must not import plugins" },
+        { group: ["@dashboard/lib/chat/platform*", "@/dashboard/lib/chat/platform*"], message: "core must not import platform" },
+        { group: ["@dashboard/lib/components*", "@/dashboard/lib/components*"], message: "core must not import components" },
+      ]}],
+    },
+  },
+  {
+    name: "chat-platform-alias-zones",
+    files: ["src/dashboard/lib/chat/platform/**/*.ts", "src/dashboard/lib/chat/platform/**/*.tsx"],
+    rules: {
+      "no-restricted-imports": ["error", { patterns: [
+        { group: ["@dashboard/lib/chat/surface*", "@/dashboard/lib/chat/surface*"], message: "platform must not import surface" },
+        { group: ["@dashboard/lib/chat/plugins*", "@/dashboard/lib/chat/plugins*"], message: "platform must not import plugins" },
+        { group: ["@dashboard/lib/components*", "@/dashboard/lib/components*"], message: "platform must not import components" },
+      ]}],
+    },
+  },
+  ...CHAT_PLUGIN_DIRS.map((dir) => ({
+    name: `chat-plugin-${dir}-alias-zones`,
+    files: [`src/dashboard/lib/chat/plugins/${dir}/**/*.ts`, `src/dashboard/lib/chat/plugins/${dir}/**/*.tsx`],
+    rules: {
+      "no-restricted-imports": ["error", { patterns: [
+        {
+          group: CHAT_PLUGIN_DIRS.filter((d) => d !== dir).flatMap((d) => [
+            `@dashboard/lib/chat/plugins/${d}*`,
+            `@/dashboard/lib/chat/plugins/${d}*`,
+          ]),
+          message: `plugins must not import sibling plugins (${dir})`,
+        },
+      ]}],
+    },
+  })),
   {
     // Playwright e2e specs are not React. Its fixture API names callbacks
     // `use` (`await use(ctx)`), which the react-hooks plugin mistakes for
