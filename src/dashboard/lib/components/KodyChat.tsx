@@ -168,8 +168,12 @@ import {
 } from "../mentions/agent-mentions";
 import {
   pickVibeRequestIssueNumber,
+  vibeChatPlugin,
+  vibeLiveTaskContext,
+  vibeTurnFields,
+  VIBE_TASK_EMPTY_STATE_HINT,
   type RecentVibeIssue,
-} from "../vibe/recent-issue";
+} from "../chat/plugins/vibe";
 import {
   isDashboardNavigateDirective,
   isPreviewActDirective,
@@ -364,6 +368,10 @@ export function KodyChat({
   // (ClientChatSurface) skip it, so they carry no terminal display mode or
   // terminal-intent middleware. The commands plugin (Step 5b) registers on
   // every surface — slash expansion ran unconditionally before the move.
+  // The vibe plugin (Step 5c) also registers on every surface: its manifest
+  // is contribution-free (vibe is a HOST mode — see plugins/vibe/index.ts),
+  // and behavior stays gated on the `vibeMode` prop, which can flip
+  // mid-mount as the persistent rail navigates onto/off /vibe.
   // With no plugins at all the registry is inert: slots render nothing and
   // the send-middleware chain passes through.
   const [pluginRegistry] = useState(() => {
@@ -372,6 +380,7 @@ export function KodyChat({
     const entries = [
       ...(hideTerminalMode ? [] : [{ plugin: terminalChatPlugin }]),
       { plugin: commandsChatPlugin },
+      { plugin: vibeChatPlugin },
       ...(plugins ?? []),
     ];
     for (const entry of entries) {
@@ -879,7 +888,7 @@ export function KodyChat({
   // below). Used to scope the immediately-following turns to that issue while
   // the page's task scope (context.kind === "task") catches up — without it,
   // the turn right after creation carries no issue and the server can't bind
-  // the runner hand-off to the right one. See lib/vibe/recent-issue.ts.
+  // the runner hand-off to the right one. See chat/plugins/vibe/recent-issue.ts.
   const recentVibeIssueRef = useRef<RecentVibeIssue | null>(null);
   const interactiveTargetRef = useRef<{ owner: string; repo: string } | null>(
     null,
@@ -2829,7 +2838,8 @@ export function KodyChat({
               // Vibe flips the system prompt to "you ARE the executor" and
               // strips the @kody dispatch tools. Only meaningful when the
               // chat is hosted on /vibe; the dashboard rail leaves it off.
-              ...(vibeMode ? { vibeMode: true } : {}),
+              // (Wire shape owned by chat/plugins/vibe/turn-context.ts.)
+              ...vibeTurnFields(vibeMode),
               // Forward the user-managed gateway model id when one is
               // active. The server validates against the LLM_MODELS list,
               // so a stale value falls back to the configured default.
@@ -3169,18 +3179,10 @@ export function KodyChat({
                 .join("\n\n") + (wireContent ? `\n\n${wireContent}` : "")
             : wireContent;
 
-        const liveTaskContext =
-          vibeMode && context?.kind === "task"
-            ? {
-                issueNumber: context.task.issueNumber,
-                ...(context.task.associatedPR
-                  ? {
-                      prNumber: context.task.associatedPR.number,
-                      branch: context.task.associatedPR.head.ref,
-                    }
-                  : {}),
-              }
-            : undefined;
+        const liveTaskContext = vibeLiveTaskContext(
+          vibeMode,
+          context?.kind === "task" ? context.task : null,
+        );
 
         // First turn into a fresh session: hand the message to /start so it's
         // written ATOMICALLY with the meta line. Previously we started the
@@ -3253,20 +3255,7 @@ export function KodyChat({
                   ...(currentPageRef.current
                     ? { currentPage: currentPageRef.current }
                     : {}),
-                  ...(vibeMode ? { vibeMode: true } : {}),
-                  ...(vibeMode && context?.kind === "task"
-                    ? {
-                        taskContext: {
-                          issueNumber: context.task.issueNumber,
-                          ...(context.task.associatedPR
-                            ? {
-                                prNumber: context.task.associatedPR.number,
-                                branch: context.task.associatedPR.head.ref,
-                              }
-                            : {}),
-                        },
-                      }
-                    : {}),
+                  ...vibeTurnFields(vibeMode, liveTaskContext),
                 },
               } satisfies KodyLiveTurnConfig,
             },
@@ -3346,20 +3335,13 @@ export function KodyChat({
                 ...(currentPageRef.current
                   ? { currentPage: currentPageRef.current }
                   : {}),
-                ...(vibeMode ? { vibeMode: true } : {}),
-                ...(vibeMode && context?.kind === "task"
-                  ? {
-                      taskContext: {
-                        issueNumber: context.task.issueNumber,
-                        ...(context.task.associatedPR
-                          ? {
-                              prNumber: context.task.associatedPR.number,
-                              branch: context.task.associatedPR.head.ref,
-                            }
-                          : {}),
-                      },
-                    }
-                  : {}),
+                ...vibeTurnFields(
+                  vibeMode,
+                  vibeLiveTaskContext(
+                    vibeMode,
+                    context?.kind === "task" ? context.task : null,
+                  ),
+                ),
               },
             } satisfies KodyLiveTurnConfig,
           },
@@ -3486,11 +3468,7 @@ export function KodyChat({
     async (opts?: {
       initialContent?: string;
       initialTimestamp?: string;
-      taskContext?: {
-        issueNumber: number;
-        prNumber?: number;
-        branch?: string;
-      };
+      taskContext?: import("../chat/plugins/vibe").VibeLiveTaskContext;
       uiSessionId?: string | null;
     }) => {
       const cur = liveStateRef.current.phase;
@@ -3551,10 +3529,7 @@ export function KodyChat({
               ? {
                   content: opts.initialContent,
                   timestamp: opts.initialTimestamp,
-                  ...(vibeMode ? { vibeMode: true } : {}),
-                  ...(vibeMode && opts.taskContext
-                    ? { taskContext: opts.taskContext }
-                    : {}),
+                  ...vibeTurnFields(vibeMode, opts.taskContext),
                 }
               : {}),
           }),
@@ -4714,7 +4689,7 @@ export function KodyChat({
                     <p className="font-medium">Chat about this task</p>
                     <p className="text-sm mt-1">
                       {vibeMode
-                        ? "Messages stay in this Vibe thread"
+                        ? VIBE_TASK_EMPTY_STATE_HINT
                         : "Messages will be saved to the task"}
                     </p>
                     <p className="text-sm mt-3 font-medium text-foreground">

@@ -2,7 +2,7 @@
  * @fileoverview Tests for pickVibeRequestIssueNumber — the decision that
  * bridges the chat's task scope right after a vibe issue is created.
  * @testFramework vitest
- * @domain vibe
+ * @domain chat-plugins
  *
  * Reproduces the gap: when the page has just created an issue but the chat's
  * task scope hasn't propagated yet (selectedTaskIssueNumber === null), a vibe
@@ -15,7 +15,7 @@ import { describe, expect, it } from "vitest";
 import {
   pickVibeRequestIssueNumber,
   RECENT_VIBE_ISSUE_TTL_MS,
-} from "@dashboard/lib/vibe/recent-issue";
+} from "@dashboard/lib/chat/plugins/vibe/recent-issue";
 
 const NOW = 1_000_000;
 

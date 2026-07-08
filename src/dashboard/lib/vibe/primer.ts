@@ -17,6 +17,13 @@
  *   Both the one-shot dispatch path (/api/kody/chat/trigger) and the
  *   long-lived runner path (/api/kody/chat/interactive/append) import from
  *   here so the wording stays in sync.
+ *
+ *   BOUNDARY (chat-platform Step 5c): this module is the HOST/SERVER half
+ *   of vibe and deliberately stays out of chat/plugins/vibe — vibe is a
+ *   host mode (plan M2); only client-side chat pieces moved there. The
+ *   client half that PRODUCES the `vibeMode`/`taskContext` fields this
+ *   primer consumes lives in
+ *   src/dashboard/lib/chat/plugins/vibe/turn-context.ts.
  */
 
 export interface VibeTaskContext {
