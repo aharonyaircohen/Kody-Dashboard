@@ -185,14 +185,52 @@ Rules, all enforced in code:
 - Integration point: the in-process kody route
   ([`app/api/kody/chat/kody/route.ts`](../app/api/kody/chat/kody/route.ts))
   merges collected tools on top of its built-in map.
-- **Phase-1 scope:** only the in-process `kody` backend sees plugin tools.
-  The engine (`kody-live`, the default admin agent) and Brain backends do
-  not — engine tools are MCP-config generation and brain tools are an
-  out-of-repo protocol change, both explicitly out of phase 1.
+- **Backend scope:** the in-process `kody` backend merges plugin tools
+  directly (phase 1). The engine (`kody-live`) bridge exists since phase 2
+  step 1 via **MCP config** — see below. Brain tools remain an out-of-repo
+  protocol change (still out of scope).
 
 Int coverage: `tests/int/chat-platform-plugin.int.spec.ts` (fixture plugin,
 client + server halves) and `tests/int/chat-kody-direct.int.spec.ts` (real
 route handler).
+
+### Engine bridge (phase 2 step 1) — what's wired vs manual
+
+Dashboard-side only; no engine code, no workflow YAML changes.
+
+- **Wired — MCP endpoint:**
+  [`app/api/kody/chat/plugin-tools/mcp/route.ts`](../app/api/kody/chat/plugin-tools/mcp/route.ts)
+  serves the server tool registry over MCP Streamable HTTP (same protocol
+  handling as the CMS precedent `app/api/kody/cms/mcp/route.ts`): initialize,
+  ping, tools/list (zod → JSON Schema via zod v4 `z.toJSONSchema`),
+  tools/call (zod-validated, `-32602` on invalid args). Auth is a
+  repo-scoped bearer `owner/repo:hmac` — HMAC of the scope with
+  `KODY_MASTER_KEY`, purpose-prefixed `kody-plugin-tools:` (chat-token
+  pattern, no new env var). Tool calls run with a ctx built from the
+  **verified** scope + the server-side `GITHUB_TOKEN`.
+- **Wired — config/token helpers:**
+  [`plugin-tools-config.ts`](../src/dashboard/lib/chat/platform/plugin-tools-config.ts)
+  mints/verifies the bearer and builds the engine-shaped
+  `claudeCode.mcpServers` entry (`{ name: "kody-plugin-tools", command:
+"npx", args: ["-y", "mcp-remote", <endpoint>, "--header", …] }` — the
+  engine spawns stdio MCP servers, so the HTTP endpoint rides the standard
+  `mcp-remote` shim). The entry drops into any capability/duty profile via
+  the existing Capabilities flow, which auto-derives the
+  `mcp__kody-plugin-tools` allowlist token.
+- **Wired — fail-open trigger rider:** when at least one plugin has
+  registered server tools, the chat trigger route appends a `pluginTools`
+  bearer to the `dashboardUrl` workflow input (engines ignore unknown query
+  params today; a future engine can self-configure from it). With zero
+  registered plugins the dispatch payload is **byte-identical** to the
+  pre-bridge behavior — pinned by
+  `tests/int/chat-plugin-tools-failopen.int.spec.ts`.
+- **Manual:** writing the `mcpServers` entry into a consumer repo's
+  capability/duty profile is an explicit operator action (Capabilities UI /
+  Tools flow) — the dashboard never silently rewrites consumer repo configs.
+  Note the engine's **chat** loop does not read `claudeCode.mcpServers` yet
+  (only profile-driven capabilities/duties do), so chat-turn consumption
+  additionally awaits engine support; the endpoint, token, and config entry
+  are ready for it.
 
 ## Host wiring — registering plugins on a surface
 

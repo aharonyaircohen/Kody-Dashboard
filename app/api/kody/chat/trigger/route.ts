@@ -26,6 +26,7 @@ import {
 } from "@dashboard/lib/auth";
 import { logger } from "@dashboard/lib/logger";
 import { mintSessionToken } from "@dashboard/lib/chat-token";
+import { maybeAppendPluginToolsToken } from "@dashboard/lib/chat/platform/plugin-tools-config";
 import {
   applyVibePrimerToMessages,
   type VibeTaskContext,
@@ -188,7 +189,14 @@ export async function POST(req: NextRequest) {
       message: lastUserMessage,
     };
     if (dashboardUrl) {
-      workflowInputs.dashboardUrl = appendIngestToken(dashboardUrl, taskId);
+      // Fail-open plugin-tools bridge (phase 2 step 1): with zero registered
+      // plugin server tools this is a byte-level no-op — the dispatched URL
+      // is identical to the pre-bridge payload (pinned by int tests).
+      workflowInputs.dashboardUrl = maybeAppendPluginToolsToken(
+        appendIngestToken(dashboardUrl, taskId),
+        owner,
+        repo,
+      );
     }
 
     await octokit.rest.actions.createWorkflowDispatch({
