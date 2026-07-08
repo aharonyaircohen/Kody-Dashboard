@@ -21,7 +21,7 @@ import {
   saveLiveSession,
   stickyBrainChatId,
   type PersistedLiveSession,
-} from "@dashboard/lib/components/kody-chat-live-session";
+} from "@dashboard/lib/chat/core/kody-chat-live-session";
 import type { ChatContext } from "@dashboard/lib/chat-types";
 
 class MemStorage {

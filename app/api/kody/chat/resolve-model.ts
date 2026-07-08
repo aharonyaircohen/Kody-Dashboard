@@ -17,8 +17,8 @@ import { createOpenAICompatible } from "@ai-sdk/openai-compatible";
 import { getRequestAuth, getUserOctokit } from "@dashboard/lib/auth";
 import { getEngineConfig } from "@dashboard/lib/engine/config";
 import { getSecret } from "@dashboard/lib/vault/get-secret";
-import { normalizeOpenAICompatibleRequestBody } from "@dashboard/lib/chat/openai-compatible-request";
-import { supportsVision } from "@dashboard/lib/chat/vision-support";
+import { normalizeOpenAICompatibleRequestBody } from "@dashboard/lib/chat/core/openai-compatible-request";
+import { supportsVision } from "@dashboard/lib/chat/core/vision-support";
 import { loadChatModels } from "@dashboard/lib/variables/load-chat-models";
 import {
   PROVIDER_PRESETS,

@@ -3,7 +3,7 @@
  * @domain chat
  */
 import { describe, expect, it } from "vitest";
-import { softFormatUserMessageForDisplay } from "@dashboard/lib/chat/user-message-format";
+import { softFormatUserMessageForDisplay } from "@dashboard/lib/chat/core/user-message-format";
 
 describe("softFormatUserMessageForDisplay", () => {
   it("splits long plain human text into readable paragraphs", () => {

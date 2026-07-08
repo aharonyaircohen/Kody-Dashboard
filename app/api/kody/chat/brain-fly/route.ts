@@ -50,7 +50,7 @@ import { requestOrigin } from "@dashboard/lib/request-origin";
 import {
   withPageContext,
   withDashboardContext,
-} from "@dashboard/lib/chat/page-context";
+} from "@dashboard/lib/chat/core/page-context";
 import { loadContextForPrompt } from "@dashboard/lib/context/files";
 import { createRepoBrainScope } from "@dashboard/lib/brain/repo-scope";
 import { readResolvedAgentFile } from "@dashboard/lib/agent-files";

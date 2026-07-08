@@ -28,7 +28,7 @@ import {
   applyVibePrimerToContent,
   type VibeTaskContext,
 } from "@dashboard/lib/vibe/primer";
-import { withPageContext } from "@dashboard/lib/chat/page-context";
+import { withPageContext } from "@dashboard/lib/chat/core/page-context";
 
 export const runtime = "nodejs";
 

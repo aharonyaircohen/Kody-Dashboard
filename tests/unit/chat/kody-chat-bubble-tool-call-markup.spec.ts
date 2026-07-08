@@ -27,7 +27,7 @@ const MARKDOWN_PREVIEW_SOURCE = readFileSync(MARKDOWN_PREVIEW_PATH, "utf8");
 describe("KodyChat bubble markdown contract", () => {
   it("strips tool-call markup before rendering assistant text", () => {
     expect(KODY_CHAT_SOURCE).toMatch(
-      /import\s*\{\s*parseAssistantContent\s*\}\s*from\s*["']\.\.\/chat\/tool-call-strip["']/,
+      /import\s*\{\s*parseAssistantContent\s*\}\s*from\s*["']\.\.\/chat\/core\/tool-call-strip["']/,
     );
     expect(KODY_CHAT_SOURCE).toMatch(
       /parseAssistantContent\(\s*msg\.content\s*\)/,

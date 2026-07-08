@@ -15,7 +15,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { generateText } from "ai";
 import { z } from "zod";
 import { requireKodyAuth, getUserOctokit } from "@dashboard/lib/auth";
-import { stripReasoning } from "@dashboard/lib/chat/reasoning";
+import { stripReasoning } from "@dashboard/lib/chat/core/reasoning";
 import { resolveChatModel } from "../../chat/resolve-model";
 
 export const runtime = "nodejs";

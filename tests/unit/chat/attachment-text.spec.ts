@@ -11,7 +11,7 @@ import {
   MAX_TEXT_BACKEND_ATTACHMENT_DATA_CHARS,
   dataUrlForTextAttachment,
   formatAttachmentForTextBackend,
-} from "@dashboard/lib/chat/attachment-text";
+} from "@dashboard/lib/chat/core/attachment-text";
 
 describe("dataUrlForTextAttachment", () => {
   it("keeps existing data URLs intact", () => {

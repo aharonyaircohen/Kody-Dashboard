@@ -9,7 +9,7 @@
 import { useState } from "react";
 import { cn } from "@dashboard/lib/utils/ui";
 import { usePersistedState } from "../hooks/usePersistedState";
-export { parseReasoning, stripReasoning } from "../chat/reasoning";
+export { parseReasoning, stripReasoning } from "../chat/core/reasoning";
 
 interface ToolCall {
   name: string;

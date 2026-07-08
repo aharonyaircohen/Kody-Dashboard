@@ -17,7 +17,7 @@ import { fileURLToPath } from "node:url";
 import {
   isModelBackedEntryKey,
   shouldWaitForModelBackedEntryResolution,
-} from "@dashboard/lib/chat/agent-entries";
+} from "@dashboard/lib/chat/platform/agent-entries";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const KODY_CHAT_PATH = resolve(

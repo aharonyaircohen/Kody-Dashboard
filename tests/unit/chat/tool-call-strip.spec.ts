@@ -13,7 +13,7 @@ import { describe, expect, it } from "vitest";
 import {
   parseAssistantContent,
   stripToolCallMarkup,
-} from "@dashboard/lib/chat/tool-call-strip";
+} from "@dashboard/lib/chat/core/tool-call-strip";
 
 describe("stripToolCallMarkup", () => {
   it("removes a complete tool_call JSON block", () => {

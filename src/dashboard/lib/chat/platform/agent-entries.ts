@@ -8,8 +8,8 @@
  *   localStorage.
  */
 
-import { AGENTS, type AgentConfig, type AgentId } from "../agents";
-import { resolveReasoning, type ModelReasoning } from "./reasoning-adapter";
+import { AGENTS, type AgentConfig, type AgentId } from "../../agents";
+import { resolveReasoning, type ModelReasoning } from "../core/reasoning-adapter";
 
 /** A single selectable row in the chat agent picker. */
 export interface ChatDropdownEntry {

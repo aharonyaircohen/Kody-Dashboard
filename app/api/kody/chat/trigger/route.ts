@@ -30,7 +30,7 @@ import {
   applyVibePrimerToMessages,
   type VibeTaskContext,
 } from "@dashboard/lib/vibe/primer";
-import { applyPageContextToLastUser } from "@dashboard/lib/chat/page-context";
+import { applyPageContextToLastUser } from "@dashboard/lib/chat/core/page-context";
 import { recordDispatchFailure } from "@dashboard/lib/health/dispatch-failures";
 import { readStateText, writeStateText } from "@dashboard/lib/state-repo";
 

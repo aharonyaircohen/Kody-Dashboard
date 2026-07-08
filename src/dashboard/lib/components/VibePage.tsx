@@ -51,7 +51,7 @@ import {
   branchPreviewNeedsPoll,
   fetchBranchPreviews,
 } from "../previews/branch-preview-client";
-import { previewChatContextBlock } from "../chat/preview-context";
+import { previewChatContextBlock } from "../chat/core/preview-context";
 import { tasksApi, getStoredAuth } from "../api";
 import { RateLimitError, NoTokenError, SessionExpiredError } from "../api";
 import type { KodyTask } from "../types";

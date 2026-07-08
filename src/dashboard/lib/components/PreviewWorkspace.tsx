@@ -58,7 +58,7 @@ import {
   fetchDashboardConfig,
   saveDashboardConfig,
 } from "../dashboard-config/client";
-import { previewChatContextBlock } from "../chat/preview-context";
+import { previewChatContextBlock } from "../chat/core/preview-context";
 import {
   getStoredAuth,
   RateLimitError,

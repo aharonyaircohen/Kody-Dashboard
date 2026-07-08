@@ -7,7 +7,7 @@
  * @domain unit
  */
 import { describe, expect, it } from "vitest";
-import { parseReasoning, stripReasoning } from "@dashboard/lib/chat/reasoning";
+import { parseReasoning, stripReasoning } from "@dashboard/lib/chat/core/reasoning";
 
 describe("parseReasoning", () => {
   it("splits a standard think block from the visible answer", () => {

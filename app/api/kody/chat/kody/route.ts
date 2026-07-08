@@ -49,8 +49,8 @@ import {
 } from "@dashboard/lib/github-client";
 import { getSecret } from "@dashboard/lib/vault/get-secret";
 import { resolveChatModel } from "../resolve-model";
-import { supportsVision } from "@dashboard/lib/chat/vision-support";
-import { formatAttachmentForTextBackend } from "@dashboard/lib/chat/attachment-text";
+import { supportsVision } from "@dashboard/lib/chat/core/vision-support";
+import { formatAttachmentForTextBackend } from "@dashboard/lib/chat/core/attachment-text";
 import {
   buildSystemPrompt,
   formatUserInstructionsPromptSection,
@@ -106,7 +106,7 @@ import { createNotificationTools } from "../tools/notifications-tools";
 import { createCompanyTools } from "../tools/company-tools";
 import { createInboxTools } from "../tools/inbox-tools";
 import { createCmsTools } from "../tools/cms-tools";
-import { applyReasoning } from "@dashboard/lib/chat/reasoning-adapter";
+import { applyReasoning } from "@dashboard/lib/chat/core/reasoning-adapter";
 import { createAgentAdminTools } from "../tools/agent-admin-tools";
 import { createMacroTools } from "../tools/macros-tools";
 import {

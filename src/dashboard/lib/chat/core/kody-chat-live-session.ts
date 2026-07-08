@@ -13,8 +13,8 @@ import {
   getStoredAuth,
   getStoredBrainConfig,
   getStoredBrainSuspension,
-} from "../api";
-import type { ChatContext } from "../chat-types";
+} from "../../api";
+import type { ChatContext } from "../../chat-types";
 import type { LiveScopeKey } from "./kody-chat-reducer";
 
 export type { LiveScopeKey };

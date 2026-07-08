@@ -21,11 +21,11 @@ import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 import { readFileSync } from "fs";
 import { resolve } from "path";
 import type { GlobalChatStore } from "@dashboard/lib/chat-types";
-import { defaultChatEntryStorageKey } from "@dashboard/lib/chat/default-entry";
+import { defaultChatEntryStorageKey } from "@dashboard/lib/chat/platform/default-entry";
 import {
   saveLiveSession,
   type PersistedLiveSession,
-} from "@dashboard/lib/components/kody-chat-live-session";
+} from "@dashboard/lib/chat/core/kody-chat-live-session";
 
 // ─── node-env localStorage fake ──────────────────────────────────────────────
 

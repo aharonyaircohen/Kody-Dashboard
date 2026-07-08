@@ -69,7 +69,7 @@ import {
   type McpServerSpec,
   type PermissionMode,
 } from "../capabilities/profile";
-import type { ChatModelEntry } from "../chat/agent-entries";
+import type { ChatModelEntry } from "../chat/platform/agent-entries";
 
 /** One-line explanation per tool, shown beside its checkbox. */
 const TOOL_DESCRIPTIONS: Record<string, string> = {

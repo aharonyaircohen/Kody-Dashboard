@@ -25,7 +25,7 @@ import {
   parseTerminalBridgeServerMessage,
   type TerminalBridgeClientMessage,
 } from "../terminal/bridge-protocol";
-import { authHeaders } from "./kody-chat-live-session";
+import { authHeaders } from "../chat/core/kody-chat-live-session";
 
 interface TerminalSessionState {
   sessionId: string;

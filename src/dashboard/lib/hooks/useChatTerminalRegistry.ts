@@ -13,7 +13,7 @@ import type {
   ChatTerminalConnectionState,
   ChatTerminalTransport,
 } from "../components/ChatTerminalSurface";
-import { authHeaders } from "../components/kody-chat-live-session";
+import { authHeaders } from "../chat/core/kody-chat-live-session";
 import {
   isFlyTerminalCapable,
   type FlyMachineRow,

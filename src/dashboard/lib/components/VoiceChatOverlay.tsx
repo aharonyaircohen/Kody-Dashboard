@@ -9,7 +9,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { Mic, MicOff, PhoneOff, Loader2, Volume2 } from "lucide-react";
 import { cn } from "@dashboard/lib/utils/ui";
 import type { VoiceChatState } from "../hooks/useVoiceChat";
-import { stripReasoning } from "../chat/reasoning";
+import { stripReasoning } from "../chat/core/reasoning";
 
 interface VoiceChatOverlayProps {
   state: VoiceChatState;

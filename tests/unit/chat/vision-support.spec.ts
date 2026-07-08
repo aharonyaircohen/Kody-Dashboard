@@ -6,7 +6,7 @@
  * text model would reject.
  */
 import { describe, expect, it } from "vitest";
-import { supportsVision } from "@dashboard/lib/chat/vision-support";
+import { supportsVision } from "@dashboard/lib/chat/core/vision-support";
 
 describe("supportsVision", () => {
   const visionModels = [

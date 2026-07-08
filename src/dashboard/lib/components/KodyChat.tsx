@@ -17,7 +17,7 @@ import {
   type LivePhase,
   type LiveAction,
   type LiveSessionState,
-} from "./kody-chat-reducer";
+} from "../chat/core/kody-chat-reducer";
 import { MarkdownPreview } from "./MarkdownPreview";
 import { MarkdownEditor } from "./MarkdownEditor";
 import {
@@ -54,17 +54,17 @@ import {
   shouldWaitForModelBackedEntryResolution,
   type ChatDropdownEntry,
   type ChatModelEntry,
-} from "../chat/agent-entries";
+} from "../chat/platform/agent-entries";
 import {
   repoBrainConversationKey,
   repoBrainScopeKey,
 } from "../brain/repo-scope";
-import { readDefaultChatEntry } from "../chat/default-entry";
+import { readDefaultChatEntry } from "../chat/platform/default-entry";
 import {
   readReasoningEffort,
   writeReasoningEffort,
   resolveEffort,
-} from "../chat/reasoning-pref";
+} from "../chat/core/reasoning-pref";
 import { getStoredAuth, getStoredBrainConfig, getStoredFlyPerf } from "../api";
 import { useAuth } from "../auth-context";
 import { toast } from "sonner";
@@ -102,7 +102,7 @@ import {
   liveAuthHeaders,
   brainHeaders,
   type LiveScopeKey,
-} from "./kody-chat-live-session";
+} from "../chat/core/kody-chat-live-session";
 import {
   bootPhaseLabel,
   composeUserWireContent,
@@ -111,7 +111,7 @@ import {
   getFileIcon,
   shouldCollectPreviewContextForTurn,
 } from "./kody-chat-helpers";
-import { formatAttachmentForTextBackend } from "../chat/attachment-text";
+import { formatAttachmentForTextBackend } from "../chat/core/attachment-text";
 import {
   chatToMessage,
   messageToChat,
@@ -168,9 +168,9 @@ import { useKodyActionState } from "../hooks/useKodyActionState";
 import { useMediaQuery } from "../hooks/useMediaQuery";
 import { SessionSidebar } from "./SessionSidebar";
 import { ToolCallList, ThinkingPanel, ReasoningPanel } from "./ToolCallCard";
-import { parseReasoning, stripReasoning } from "../chat/reasoning";
-import { parseAssistantContent } from "../chat/tool-call-strip";
-import { softFormatUserMessageForDisplay } from "../chat/user-message-format";
+import { parseReasoning, stripReasoning } from "../chat/core/reasoning";
+import { parseAssistantContent } from "../chat/core/tool-call-strip";
+import { softFormatUserMessageForDisplay } from "../chat/core/user-message-format";
 import {
   extractFirstStaffMentionCandidate,
   extractStaffMentions,
