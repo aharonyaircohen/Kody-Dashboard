@@ -64,6 +64,37 @@ import { commandsChatPlugin } from "../chat/plugins/commands";
 import { vibeChatPlugin } from "../chat/plugins/vibe";
 import { goalsChatPlugin } from "../chat/plugins/goals";
 import { tasksChatPlugin, TASKS_PANEL_ID } from "../chat/plugins/tasks";
+// Phase 2 step 4 — remaining admin pages migrated to page-plugins via the
+// tasks-pilot recipe (panels-only manifests; routes unchanged, so the
+// chat-first toggle OFF stays byte-identical).
+import { activityChatPlugin, ACTIVITY_PANEL_ID } from "../chat/plugins/activity";
+import { agencyRunsChatPlugin, AGENCY_RUNS_PANEL_ID } from "../chat/plugins/agency-runs";
+import { agentGoalsChatPlugin, AGENT_GOALS_PANEL_ID } from "../chat/plugins/agent-goals";
+import { agentLoopsChatPlugin, AGENT_LOOPS_PANEL_ID } from "../chat/plugins/agent-loops";
+import { agentsChatPlugin, AGENTS_PANEL_ID } from "../chat/plugins/agents";
+import { capabilitiesChatPlugin, CAPABILITIES_PANEL_ID } from "../chat/plugins/capabilities";
+import { changelogChatPlugin, CHANGELOG_PANEL_ID } from "../chat/plugins/changelog";
+import { commandsPageChatPlugin, COMMANDS_PAGE_PANEL_ID } from "../chat/plugins/commands-page";
+import { companyChatPlugin, COMPANY_PANEL_ID } from "../chat/plugins/company";
+import { companyIntentsChatPlugin, COMPANY_INTENTS_PANEL_ID } from "../chat/plugins/company-intents";
+import { configChatPlugin, CONFIG_PANEL_ID } from "../chat/plugins/config";
+import { contextChatPlugin, CONTEXT_PANEL_ID } from "../chat/plugins/context";
+import { docsChatPlugin, DOCS_PANEL_ID } from "../chat/plugins/docs";
+import { filesChatPlugin, FILES_PANEL_ID } from "../chat/plugins/files";
+import { inboxChatPlugin, INBOX_PANEL_ID } from "../chat/plugins/inbox";
+import { instructionsChatPlugin, INSTRUCTIONS_PANEL_ID } from "../chat/plugins/instructions";
+import { memoryChatPlugin, MEMORY_PANEL_ID } from "../chat/plugins/memory";
+import { messagesChatPlugin, MESSAGES_PANEL_ID } from "../chat/plugins/messages";
+import { modelsChatPlugin, MODELS_PANEL_ID } from "../chat/plugins/models";
+import { notificationsChatPlugin, NOTIFICATIONS_PANEL_ID } from "../chat/plugins/notifications";
+import { previewChatPlugin, PREVIEW_PANEL_ID } from "../chat/plugins/preview";
+import { reportsChatPlugin, REPORTS_PANEL_ID } from "../chat/plugins/reports";
+import { secretsChatPlugin, SECRETS_PANEL_ID } from "../chat/plugins/secrets";
+import { settingsChatPlugin, SETTINGS_PANEL_ID } from "../chat/plugins/settings";
+import { storeCatalogChatPlugin, STORE_CATALOG_PANEL_ID } from "../chat/plugins/store-catalog";
+import { todosChatPlugin, TODOS_PANEL_ID } from "../chat/plugins/todos";
+import { variablesChatPlugin, VARIABLES_PANEL_ID } from "../chat/plugins/variables";
+import { workflowsChatPlugin, WORKFLOWS_PANEL_ID } from "../chat/plugins/workflows";
 
 // Admin plugin composition (Step 6 / M6: the HOST owns the plugin list, so
 // each surface bundles only what it imports). Both KodyChat mounts (desktop
@@ -80,6 +111,35 @@ const ADMIN_CHAT_PLUGINS = [
   // panel view the flipped layout renders in place of the raw /tasks route
   // children. Inert with the chat-first toggle off.
   { plugin: tasksChatPlugin },
+  // Phase 2 step 4 page-plugins — panels only, inert with the toggle off.
+  { plugin: activityChatPlugin },
+  { plugin: agencyRunsChatPlugin },
+  { plugin: agentGoalsChatPlugin },
+  { plugin: agentLoopsChatPlugin },
+  { plugin: agentsChatPlugin },
+  { plugin: capabilitiesChatPlugin },
+  { plugin: changelogChatPlugin },
+  { plugin: commandsPageChatPlugin },
+  { plugin: companyChatPlugin },
+  { plugin: companyIntentsChatPlugin },
+  { plugin: configChatPlugin },
+  { plugin: contextChatPlugin },
+  { plugin: docsChatPlugin },
+  { plugin: filesChatPlugin },
+  { plugin: inboxChatPlugin },
+  { plugin: instructionsChatPlugin },
+  { plugin: memoryChatPlugin },
+  { plugin: messagesChatPlugin },
+  { plugin: modelsChatPlugin },
+  { plugin: notificationsChatPlugin },
+  { plugin: previewChatPlugin },
+  { plugin: reportsChatPlugin },
+  { plugin: secretsChatPlugin },
+  { plugin: settingsChatPlugin },
+  { plugin: storeCatalogChatPlugin },
+  { plugin: todosChatPlugin },
+  { plugin: variablesChatPlugin },
+  { plugin: workflowsChatPlugin },
 ];
 
 // ─── Route → plugin panel mapping (phase 2 step 3 pilot) ───────────────
@@ -91,6 +151,35 @@ const ADMIN_CHAT_PLUGINS = [
 // With the chat-first toggle OFF this map is never consulted.
 const ROUTE_PANEL_IDS: Readonly<Record<string, string>> = {
   "/tasks": TASKS_PANEL_ID,
+  // Phase 2 step 4 — every migrated admin page routes to its plugin panel.
+  "/activity": ACTIVITY_PANEL_ID,
+  "/agency-runs": AGENCY_RUNS_PANEL_ID,
+  "/agent-goals": AGENT_GOALS_PANEL_ID,
+  "/agent-loops": AGENT_LOOPS_PANEL_ID,
+  "/agents": AGENTS_PANEL_ID,
+  "/capabilities": CAPABILITIES_PANEL_ID,
+  "/changelog": CHANGELOG_PANEL_ID,
+  "/commands": COMMANDS_PAGE_PANEL_ID,
+  "/company": COMPANY_PANEL_ID,
+  "/company-intents": COMPANY_INTENTS_PANEL_ID,
+  "/config": CONFIG_PANEL_ID,
+  "/context": CONTEXT_PANEL_ID,
+  "/docs": DOCS_PANEL_ID,
+  "/files": FILES_PANEL_ID,
+  "/inbox": INBOX_PANEL_ID,
+  "/instructions": INSTRUCTIONS_PANEL_ID,
+  "/memory": MEMORY_PANEL_ID,
+  "/messages": MESSAGES_PANEL_ID,
+  "/models": MODELS_PANEL_ID,
+  "/notifications": NOTIFICATIONS_PANEL_ID,
+  "/preview": PREVIEW_PANEL_ID,
+  "/reports": REPORTS_PANEL_ID,
+  "/secrets": SECRETS_PANEL_ID,
+  "/settings": SETTINGS_PANEL_ID,
+  "/store-catalog": STORE_CATALOG_PANEL_ID,
+  "/todos": TODOS_PANEL_ID,
+  "/variables": VARIABLES_PANEL_ID,
+  "/workflows": WORKFLOWS_PANEL_ID,
 };
 
 // Stable host-context snapshot for route panels (no per-render identity

@@ -187,4 +187,78 @@ test.describe("Chat-first layout (beta toggle)", () => {
       timeout: 15_000,
     });
   });
+
+  // Phase 2 step 4 — every migrated admin page substitutes its plugin's
+  // panel view in the flipped layout. ONE test iterates all routes (keeps
+  // the gate runtime flat) and asserts the plugin wrapper marker attached
+  // inside the chat-first panel; the wrapped page content itself is pinned
+  // by each page's own specs and the classic-layout regression above.
+  test("toggle ON: migrated page routes render their plugin panels", async ({
+    page,
+  }) => {
+    test.setTimeout(240_000);
+    const routes: Array<[route: string, slug: string]> = [
+      ["/activity", "activity"],
+      ["/agency-runs", "agency-runs"],
+      ["/agent-goals", "agent-goals"],
+      ["/agent-loops", "agent-loops"],
+      ["/agents", "agents"],
+      ["/capabilities", "capabilities"],
+      ["/changelog", "changelog"],
+      ["/commands", "commands-page"],
+      ["/company", "company"],
+      ["/company-intents", "company-intents"],
+      ["/config", "config"],
+      ["/context", "context"],
+      ["/docs", "docs"],
+      ["/files", "files"],
+      ["/inbox", "inbox"],
+      ["/instructions", "instructions"],
+      ["/memory", "memory"],
+      ["/messages", "messages"],
+      ["/models", "models"],
+      ["/notifications", "notifications"],
+      ["/preview", "preview"],
+      ["/reports", "reports"],
+      ["/secrets", "secrets"],
+      ["/settings", "settings"],
+      ["/store-catalog", "store-catalog"],
+      ["/todos", "todos"],
+      ["/variables", "variables"],
+      ["/workflows", "workflows"],
+    ];
+    // Non-mocked API calls from the wrapped pages must not hang the run —
+    // stub everything the beforeEach didn't already mock.
+    await page.route("**/api/**", (route) => {
+      // Later-registered routes win in Playwright — fall back to the
+      // beforeEach mocks for the endpoints they already cover.
+      const url = route.request().url();
+      if (
+        url.includes("/api/kody/models") ||
+        url.includes("/api/kody/auth/me") ||
+        url.includes("/api/kody/commands") ||
+        url.includes("/api/kody/tasks")
+      ) {
+        return route.fallback();
+      }
+      // Error status on purpose: pages own graceful error states, while a
+      // 200 with an empty body crashes react-query consumers ("Query data
+      // cannot be undefined") and Next's dev overlay swallows the panel.
+      return route.fulfill({
+        status: 404,
+        contentType: "application/json",
+        body: JSON.stringify({ error: "mocked" }),
+      });
+    });
+    await seedAuth(page, { chatFirst: true });
+    for (const [route, slug] of routes) {
+      await page.goto(`${BASE_URL}${route}`);
+      const panel = page.locator('[data-testid="chat-first-panel"]');
+      await expect(panel, `${route} panel`).toBeVisible({ timeout: 15_000 });
+      await expect(
+        panel.locator(`[data-testid="chat-panel-${slug}"]`),
+        `${route} plugin marker`,
+      ).toBeAttached({ timeout: 15_000 });
+    }
+  });
 });
