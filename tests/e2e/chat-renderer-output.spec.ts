@@ -439,7 +439,7 @@ test.describe("Kody chat renderer output", () => {
     await expect(page.getByText(leakedQuestion)).toHaveCount(0);
   });
 
-  test("plain interactive text without an output tool is not accepted as final", async ({
+  test("plain streamed text is rendered without client-side renderer guessing", async ({
     page,
   }) => {
     const plainQuestion = "Want me to file this as a bug now?";
@@ -461,8 +461,8 @@ test.describe("Kody chat renderer output", () => {
       "i want to open new issue, changelog is not properly being populated",
     );
 
-    await expect(page.getByText(plainQuestion)).toHaveCount(0);
-    await expect(page.getByText(/output tool/i)).toBeVisible();
+    await expect(page.getByText(plainQuestion)).toBeVisible();
+    await expect(page.getByText(/output tool/i)).toHaveCount(0);
   });
 
   test("approval markdown body renders as formatted content", async ({

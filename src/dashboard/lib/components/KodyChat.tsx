@@ -203,7 +203,6 @@ import {
   getToolErrorMessage,
   isFinalAnswerOutput,
 } from "@dashboard/lib/chat-output-tools";
-import { looksLikeAssistantInteraction } from "@dashboard/lib/view-renderers/chat-intent";
 import {
   terminalCheckpointLabel,
   type TerminalCheckpoint,
@@ -3860,13 +3859,6 @@ export function KodyChat({
                 !pendingDashboardNavigate &&
                 !pendingView &&
                 (!answer.trim() || lastToolErrorToolName === SHOW_VIEW_TOOL);
-              const producedPlainInteractiveQuestion =
-                answer.trim().length > 0 &&
-                looksLikeAssistantInteraction(answer) &&
-                !hadSuccessfulTools &&
-                !pendingSwitchAgent &&
-                !pendingDashboardNavigate &&
-                !pendingView;
               const producedNothing =
                 !answer.trim() &&
                 !reasoning.trim() &&
@@ -3881,29 +3873,21 @@ export function KodyChat({
                     isError: true,
                     content: `Error: ${lastToolErrorText}`,
                   }
-                : producedPlainInteractiveQuestion
+                : producedNothing
                   ? {
                       ...m,
                       isLoading: false,
                       isError: true,
                       content:
-                        "Error: Kody ended with an interactive question without using an output tool. Please retry with a renderer-capable model.",
+                        "Kody returned no response. The model may not be configured for this repo, or it ended the turn without a reply — try again, or check Chat Models in Settings.",
                     }
-                  : producedNothing
-                    ? {
-                        ...m,
-                        isLoading: false,
-                        isError: true,
-                        content:
-                          "Kody returned no response. The model may not be configured for this repo, or it ended the turn without a reply — try again, or check Chat Models in Settings.",
-                      }
-                    : {
-                        ...m,
-                        ...(typeof assistantDisplayOverride === "string"
-                          ? { content: assistantDisplayOverride }
-                          : {}),
-                        isLoading: false,
-                      };
+                  : {
+                      ...m,
+                      ...(typeof assistantDisplayOverride === "string"
+                        ? { content: assistantDisplayOverride }
+                        : {}),
+                      isLoading: false,
+                    };
             }
             return copy;
           });

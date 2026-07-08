@@ -209,4 +209,13 @@ describe("view renderer chat intent", () => {
       }),
     ).toBe(false);
   });
+
+  it("allows plain greeting help questions without a renderer interaction", () => {
+    expect(
+      shouldRequireViewOutputForAssistantText({
+        assistantText: "Hi! How can I help you today?",
+        definitions: [approvalRenderer],
+      }),
+    ).toBe(false);
+  });
 });

@@ -10,6 +10,10 @@ import { test, expect, type Page } from "@playwright/test";
 
 const BASE_URL = process.env.BASE_URL ?? "http://localhost:3333";
 
+function sseBody(events: unknown[]): string {
+  return events.map((event) => `data: ${JSON.stringify(event)}\n\n`).join("");
+}
+
 async function seedAuth(page: Page): Promise<void> {
   await page.goto(`${BASE_URL}/login`);
   await page.waitForLoadState("domcontentloaded");
@@ -63,6 +67,18 @@ test.describe("Client chat surface", () => {
   });
 
   test("/client/kody renders one standalone Kody chat", async ({ page }) => {
+    await page.route("**/api/kody/chat/kody", async (route) => {
+      await route.fulfill({
+        status: 200,
+        headers: {
+          "content-type": "text/event-stream; charset=utf-8",
+          "cache-control": "no-cache",
+        },
+        body: sseBody([
+          { type: "text-delta", delta: "Hi! How can I help you today?" },
+        ]),
+      });
+    });
     await page.goto(`${BASE_URL}/client/kody`);
     await page.waitForLoadState("domcontentloaded");
 
@@ -126,5 +142,11 @@ test.describe("Client chat surface", () => {
     await expect(
       page.getByRole("button", { name: "Unpin conversations panel" }),
     ).toBeVisible();
+
+    const composer = chat.locator("textarea").first();
+    await composer.fill("hi");
+    await chat.getByRole("button", { name: "Send message" }).click();
+    await expect(chat.getByText("Hi! How can I help you today?")).toBeVisible();
+    await expect(chat.getByText(/renderer-capable model/i)).toHaveCount(0);
   });
 });

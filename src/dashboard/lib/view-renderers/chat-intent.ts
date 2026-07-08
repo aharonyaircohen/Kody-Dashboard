@@ -120,7 +120,8 @@ export function looksLikeAssistantInteraction(text: string): boolean {
   if (!trimmed.includes("?")) return false;
   return (
     /\b(?:which|choose|pick|select)\b/i.test(trimmed) ||
-    /\b(?:want|would|should|shall|can)\s+(?:me|i|we|you)\b/i.test(trimmed) ||
+    /\b(?:want|would|should|shall|can)\s+(?:me|i|we)\s+to\b/i.test(trimmed) ||
+    /\bwould\s+you\s+like\s+(?:me|us)\s+to\b/i.test(trimmed) ||
     /\b(?:confirm|approve|continue|cancel|edit|ok)\b/i.test(trimmed) ||
     /\bor\s+(?:should|do|would|want|I|we|you)\b/i.test(trimmed)
   );
