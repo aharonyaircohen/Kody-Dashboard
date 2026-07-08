@@ -6,11 +6,14 @@ import jsxA11y from "eslint-plugin-jsx-a11y";
 import nextPlugin from "@next/eslint-plugin-next";
 import importPlugin from "eslint-plugin-import";
 
+import { CHAT_PLUGIN_DIRS } from "./src/dashboard/lib/chat/plugins/plugin-dirs.mjs";
+
 // Chat-platform layering (docs/chat-platform-phase1.md, "Standing rules"):
 // core ← platform ← plugins/surface. Zones below make violations lint
-// ERRORS, so every step's gate catches them.
+// ERRORS, so every step's gate catches them. CHAT_PLUGIN_DIRS is shared
+// with tests/unit/chat-platform/plugin-dirs.spec.ts, which fails when the
+// list drifts from the directories actually on disk.
 const CHAT = "./src/dashboard/lib/chat";
-const CHAT_PLUGIN_DIRS = ["terminal", "commands", "vibe", "goals", "branding"];
 const chatLayerZones = [
   // core is the bottom layer: no platform/surface/plugins/legacy components.
   { target: `${CHAT}/core`, from: `${CHAT}/surface`, message: "core must not import surface" },

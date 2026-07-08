@@ -12,7 +12,11 @@ import {
   ChatPluginRegistrationError,
   createChatPluginRegistry,
 } from "@dashboard/lib/chat/platform/registry";
-import { FULL_GRANT } from "@dashboard/lib/chat/platform/capabilities";
+import {
+  CHAT_CAPABILITIES,
+  FULL_GRANT,
+  type ChatCapability,
+} from "@dashboard/lib/chat/platform/capabilities";
 import type {
   ChatPlugin,
   ChatSendMiddlewareContext,
@@ -61,10 +65,117 @@ describe("chat plugin registry", () => {
 
   it("rejects declared capabilities outside the surface grant", () => {
     const registry = createChatPluginRegistry();
-    const plugin: ChatPlugin = { id: "terminal", capabilities: ["display-modes"] };
+    const plugin: ChatPlugin = {
+      id: "terminal",
+      capabilities: ["display-modes"],
+    };
     expect(() => registry.register(plugin, ["theme"])).toThrow(
       /"display-modes" is not granted/,
     );
+  });
+
+  // Step 7 enforcement sweep: every contribution field must be refused when
+  // the matching capability is missing from the plugin's declaration. One
+  // fixture contribution per field, keyed by the capability it requires.
+  const CONTRIBUTION_FIXTURES: ReadonlyArray<{
+    field: string;
+    capability: ChatCapability;
+    contribution: Partial<ChatPlugin>;
+  }> = [
+    {
+      field: "slots",
+      capability: "slots",
+      contribution: {
+        slots: [{ slot: "footer", id: "s", component: () => null }],
+      },
+    },
+    {
+      field: "middleware",
+      capability: "middleware",
+      contribution: { middleware: [{ id: "m", order: 1, onSend: () => null }] },
+    },
+    { field: "theme", capability: "theme", contribution: { theme: {} } },
+    { field: "agents", capability: "agents", contribution: { agents: ["a"] } },
+    {
+      field: "displayModes",
+      capability: "display-modes",
+      contribution: { displayModes: [{ id: "d", priority: 1 }] },
+    },
+    {
+      field: "sessionState",
+      capability: "session-state",
+      contribution: {
+        sessionState: [{ key: "k", parse: () => null, serialize: () => "" }],
+      },
+    },
+  ];
+
+  for (const { field, capability, contribution } of CONTRIBUTION_FIXTURES) {
+    it(`rejects a ${field} contribution when "${capability}" is not declared`, () => {
+      const registry = createChatPluginRegistry();
+      const plugin: ChatPlugin = {
+        id: `undeclared-${field}`,
+        capabilities: CHAT_CAPABILITIES.filter((c) => c !== capability),
+        ...contribution,
+      };
+      expect(() => registry.register(plugin, FULL_GRANT)).toThrow(
+        new RegExp(
+          `contributes ${field} without declaring capability "${capability}"`,
+        ),
+      );
+    });
+
+    it(`rejects a ${field} contribution when "${capability}" is declared but not granted`, () => {
+      const registry = createChatPluginRegistry();
+      const plugin: ChatPlugin = {
+        id: `ungranted-${field}`,
+        capabilities: [capability],
+        ...contribution,
+      };
+      const grantWithout = CHAT_CAPABILITIES.filter((c) => c !== capability);
+      expect(() => registry.register(plugin, grantWithout)).toThrow(
+        new RegExp(`capability "${capability}" is not granted`),
+      );
+      expect(() => registry.register(plugin, grantWithout)).toThrow(
+        ChatPluginRegistrationError,
+      );
+    });
+  }
+
+  // "tools" and "host-effects" have no client-manifest contribution field
+  // (tools live in the server-half registry; host effects are dispatched via
+  // the middleware context), so grant enforcement on the DECLARATION is the
+  // client-side gate for them.
+  for (const capability of ["tools", "host-effects"] as const) {
+    it(`rejects a plugin declaring "${capability}" outside the grant`, () => {
+      const registry = createChatPluginRegistry();
+      const plugin: ChatPlugin = {
+        id: `wants-${capability}`,
+        capabilities: [capability],
+      };
+      expect(() =>
+        registry.register(
+          plugin,
+          CHAT_CAPABILITIES.filter((c) => c !== capability),
+        ),
+      ).toThrow(new RegExp(`capability "${capability}" is not granted`));
+    });
+  }
+
+  it("accepts every capability type when declared and granted (sweep sanity)", () => {
+    const registry = createChatPluginRegistry();
+    const plugin: ChatPlugin = {
+      id: "everything",
+      capabilities: CHAT_CAPABILITIES,
+      slots: [{ slot: "footer", id: "s", component: () => null }],
+      middleware: [{ id: "m", order: 1, onSend: () => null }],
+      theme: {},
+      agents: ["a"],
+      displayModes: [{ id: "d", priority: 1 }],
+      sessionState: [{ key: "k", parse: () => null, serialize: () => "" }],
+    };
+    expect(() => registry.register(plugin, FULL_GRANT)).not.toThrow();
+    expect(registry.pluginIds()).toEqual(["everything"]);
   });
 
   it("orders middleware by order asc, ties broken by plugin id", () => {

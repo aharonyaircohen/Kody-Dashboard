@@ -52,7 +52,11 @@ import {
   resolveRepoRouteAuthSync,
 } from "../routes";
 import { routeOwnsAppHeader } from "./header-ownership";
-import { terminalChatPlugin } from "../chat/plugins/terminal";
+// Leaf manifest import on purpose (Step 7 bundle check): the terminal
+// barrel statically reaches ChatTerminalSurface/TerminalControls, which
+// must only ever load through KodyChat's React.lazy chunks — a static path
+// here would drag them into the shared sync chunks /client also loads.
+import { terminalChatPlugin } from "../chat/plugins/terminal/plugin";
 import { commandsChatPlugin } from "../chat/plugins/commands";
 import { vibeChatPlugin } from "../chat/plugins/vibe";
 import { goalsChatPlugin } from "../chat/plugins/goals";

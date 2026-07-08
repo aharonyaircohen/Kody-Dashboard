@@ -12,7 +12,7 @@ describe("rate limit polling guardrails", () => {
       source("src/dashboard/lib/components/FlyPreviewsList.tsx"),
     ).toContain("const REFRESH_MS = 60_000");
     expect(
-      source("src/dashboard/lib/chat/plugins/terminal/TerminalControls.tsx"),
+      source("src/dashboard/lib/chat/plugins/terminal/use-brain-image-save.ts"),
     ).toContain("const BRAIN_IMAGE_SAVE_POLL_INTERVAL_MS = 10_000");
     expect(
       source("src/dashboard/lib/components/BrainImagesManager.tsx"),

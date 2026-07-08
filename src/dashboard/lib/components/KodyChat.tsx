@@ -1,6 +1,14 @@
 "use client";
 
-import { useState, useRef, useEffect, useCallback, useMemo } from "react";
+import {
+  Suspense,
+  lazy,
+  useState,
+  useRef,
+  useEffect,
+  useCallback,
+  useMemo,
+} from "react";
 import { usePathname, useRouter } from "next/navigation";
 import { navLabelForPath } from "./settings-nav";
 import {
@@ -41,27 +49,36 @@ import { getStoredAuth, getStoredBrainConfig, getStoredFlyPerf } from "../api";
 import { useAuth } from "../auth-context";
 import { toast } from "sonner";
 import type { KodyTask } from "../types";
+// Terminal plugin — deep imports on purpose (Step 7 bundle check). The
+// barrel (plugins/terminal/index.ts) statically reaches ChatTerminalSurface,
+// fly-connection and TerminalControls; importing it here would drag the
+// whole plugin into EVERY route chunk that renders KodyChat, including
+// /client. Statics below are the small always-needed halves (hooks can't be
+// lazy; the effect reader/checkpoint helpers run on every send path); the
+// heavy render-gated components load via React.lazy further down.
 import {
   LOCAL_TERMINAL_TRANSPORT,
-  TERMINAL_DISPLAY_MODE,
-  TerminalBottomControls,
-  TerminalModeToggle,
-  TerminalTopControls,
+} from "../chat/plugins/terminal/registry-state";
+import { TERMINAL_DISPLAY_MODE } from "../chat/plugins/terminal/mode";
+import {
   checkpointTransportFromChatTransport,
-  readTerminalIntentEffect,
   shouldLoadTerminalCheckpoint,
   terminalCheckpointLoadKey,
   terminalCheckpointSearchParams,
-  useBrainImageSave,
-  useChatTerminalRegistry,
-  ChatTerminalSurface,
-  type ChatTerminalMode,
-  type ChatTerminalChromeState,
-  type ChatTerminalSnapshot,
-  type ChatTerminalTransport,
-  type ChatTerminalSurfaceHandle,
+} from "../chat/plugins/terminal/checkpoints";
+import {
+  readTerminalIntentEffect,
   type TerminalIntentEffectPayload,
-} from "../chat/plugins/terminal";
+} from "../chat/plugins/terminal/intent-middleware";
+import { useBrainImageSave } from "../chat/plugins/terminal/use-brain-image-save";
+import { useChatTerminalRegistry } from "../chat/plugins/terminal/useChatTerminalRegistry";
+import type {
+  ChatTerminalMode,
+  ChatTerminalChromeState,
+  ChatTerminalSnapshot,
+  ChatTerminalTransport,
+} from "../chat/plugins/terminal/types";
+import type { ChatTerminalSurfaceHandle } from "../chat/plugins/terminal/ChatTerminalSurface";
 import {
   SlashCommandMenu,
   filterCommands,
@@ -190,6 +207,34 @@ import {
   type TerminalCheckpoint,
 } from "@dashboard/lib/terminal/checkpoint-types";
 import { extractKodyTerminalPayload } from "@dashboard/lib/terminal/kody-terminal-directive";
+
+// Render-gated terminal plugin components (Step 7 bundle check): loaded via
+// React.lazy so the xterm surface, Fly connection stack and terminal chrome
+// land in their own async chunks instead of every KodyChat route chunk.
+// /client never renders them (hideTerminalMode + no terminal plugin in the
+// grant), so their chunks are never fetched there. Each render site wraps
+// them in <Suspense fallback={null}> — the admin toggle/toolbars appear as
+// soon as the (tiny) chunk resolves; Playwright's visibility waits cover it.
+const ChatTerminalSurface = lazy(() =>
+  import("../chat/plugins/terminal/ChatTerminalSurface").then((m) => ({
+    default: m.ChatTerminalSurface,
+  })),
+);
+const TerminalModeToggle = lazy(() =>
+  import("../chat/plugins/terminal/TerminalControls").then((m) => ({
+    default: m.TerminalModeToggle,
+  })),
+);
+const TerminalTopControls = lazy(() =>
+  import("../chat/plugins/terminal/TerminalControls").then((m) => ({
+    default: m.TerminalTopControls,
+  })),
+);
+const TerminalBottomControls = lazy(() =>
+  import("../chat/plugins/terminal/TerminalControls").then((m) => ({
+    default: m.TerminalBottomControls,
+  })),
+);
 
 function reportValue(value: unknown, max = 1_000): string | null {
   if (value === null || value === undefined || value === "") return null;
@@ -4463,30 +4508,34 @@ export function KodyChat({
   // or runs vibe.
   const chatModeToggle =
     !hideTerminalMode && !lockedAgentId && !vibeMode ? (
-      <TerminalModeToggle
-        chatMode={chatMode}
-        terminalStatusLabel={terminalStatusLabel}
-        hasLiveTerminal={activeSessionHasLiveTerminal}
-        connectionState={activeTerminalConnectionState}
-        onSelectAiMode={() => setActiveChatMode("ai")}
-        onOpenTerminal={openTerminalMode}
-      />
+      <Suspense fallback={null}>
+        <TerminalModeToggle
+          chatMode={chatMode}
+          terminalStatusLabel={terminalStatusLabel}
+          hasLiveTerminal={activeSessionHasLiveTerminal}
+          connectionState={activeTerminalConnectionState}
+          onSelectAiMode={() => setActiveChatMode("ai")}
+          onOpenTerminal={openTerminalMode}
+        />
+      </Suspense>
     ) : null;
 
   const terminalTopControls =
     chatMode === "terminal" ? (
-      <TerminalTopControls
-        activeTargetValue={activeTerminalValue}
-        onSelectTarget={handleTerminalTargetSelect}
-        activeTransport={activeTerminalTransport}
-        terminalMachines={terminalMachines}
-        flyInventoryError={flyInventoryError}
-        flyInventoryLoading={flyInventoryLoading}
-        onRefreshMachines={() => void refreshChatTerminalFlyMachines()}
-        brainImageBusy={brainImageSave.busy}
-        brainImageSaveLabel={brainImageSave.label}
-        onSaveBrainImage={() => void brainImageSave.save()}
-      />
+      <Suspense fallback={null}>
+        <TerminalTopControls
+          activeTargetValue={activeTerminalValue}
+          onSelectTarget={handleTerminalTargetSelect}
+          activeTransport={activeTerminalTransport}
+          terminalMachines={terminalMachines}
+          flyInventoryError={flyInventoryError}
+          flyInventoryLoading={flyInventoryLoading}
+          onRefreshMachines={() => void refreshChatTerminalFlyMachines()}
+          brainImageBusy={brainImageSave.busy}
+          brainImageSaveLabel={brainImageSave.label}
+          onSaveBrainImage={() => void brainImageSave.save()}
+        />
+      </Suspense>
     ) : null;
   const activeTerminalSurface = activeTerminalInstanceId
     ? terminalSurfaceRefs.current[activeTerminalInstanceId]
@@ -4508,12 +4557,14 @@ export function KodyChat({
       : null;
   const terminalBottomControls =
     chatMode === "terminal" ? (
-      <TerminalBottomControls
-        onAddToChat={() => activeTerminalSurface?.addToChat()}
-        onRestart={() => activeTerminalSurface?.restart()}
-        onClear={() => activeTerminalSurface?.clear()}
-        actionBusy={activeTerminalChrome?.actionBusy}
-      />
+      <Suspense fallback={null}>
+        <TerminalBottomControls
+          onAddToChat={() => activeTerminalSurface?.addToChat()}
+          onRestart={() => activeTerminalSurface?.restart()}
+          onClear={() => activeTerminalSurface?.clear()}
+          actionBusy={activeTerminalChrome?.actionBusy}
+        />
+      </Suspense>
     ) : null;
 
   return (
@@ -4814,6 +4865,7 @@ export function KodyChat({
                   key={terminal.id}
                   className={isActiveTerminal ? "h-full min-h-0" : "hidden"}
                 >
+                  <Suspense fallback={null}>
                   <ChatTerminalSurface
                     ref={(node) => {
                       terminalSurfaceRefs.current[terminal.id] = node;
@@ -4847,6 +4899,7 @@ export function KodyChat({
                       void saveTerminalCheckpoint(terminal, snapshot)
                     }
                   />
+                  </Suspense>
                 </div>
               );
             })}
