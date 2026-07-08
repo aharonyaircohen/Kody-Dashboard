@@ -13,95 +13,95 @@ function health(over: Partial<GitHubActionsHealth>): GitHubActionsHealth {
   };
 }
 
-const FLY_OK = { runner: "pool" as const, machineId: "m-123" };
+const SERVER_OK = { runner: "pool" as const, machineId: "m-123" };
 
 describe("dispatchRun", () => {
-  it("dispatches to GitHub when healthy and never touches Fly", async () => {
+  it("dispatches to GitHub when healthy and never touches the server provider", async () => {
     const dispatchGitHub = vi.fn(async () => {});
-    const runFly = vi.fn(async () => FLY_OK);
+    const runServer = vi.fn(async () => SERVER_OK);
 
     const out = await dispatchRun({
       checkHealth: async () => health({ healthy: true }),
-      flyAvailable: true,
+      serverAvailable: true,
       dispatchGitHub,
-      runFly,
+      runServer,
     });
 
     expect(out.runner).toBe("github");
     expect(dispatchGitHub).toHaveBeenCalledOnce();
-    expect(runFly).not.toHaveBeenCalled();
-    expect(out.flyResult).toBeUndefined();
+    expect(runServer).not.toHaveBeenCalled();
+    expect(out.serverResult).toBeUndefined();
   });
 
-  it("proactively routes to Fly when GitHub is unhealthy and Fly is available", async () => {
+  it("proactively routes to server when GitHub is unhealthy and server is available", async () => {
     const dispatchGitHub = vi.fn(async () => {});
-    const runFly = vi.fn(async () => FLY_OK);
+    const runServer = vi.fn(async () => SERVER_OK);
 
     const out = await dispatchRun({
       checkHealth: async () => health({ healthy: false, statusDegraded: true }),
-      flyAvailable: true,
+      serverAvailable: true,
       dispatchGitHub,
-      runFly,
+      runServer,
     });
 
-    expect(out.runner).toBe("fly");
-    expect(out.flyResult).toEqual(FLY_OK);
+    expect(out.runner).toBe("server");
+    expect(out.serverResult).toEqual(SERVER_OK);
     expect(dispatchGitHub).not.toHaveBeenCalled();
-    expect(runFly).toHaveBeenCalledOnce();
+    expect(runServer).toHaveBeenCalledOnce();
     expect(out.fellBackOnError).toBeUndefined();
   });
 
-  it("stays on GitHub when unhealthy but no Fly available", async () => {
+  it("stays on GitHub when unhealthy but no server provider is available", async () => {
     const dispatchGitHub = vi.fn(async () => {});
-    const runFly = vi.fn(async () => FLY_OK);
+    const runServer = vi.fn(async () => SERVER_OK);
 
     const out = await dispatchRun({
       checkHealth: async () => health({ healthy: false, queueFull: true }),
-      flyAvailable: false,
+      serverAvailable: false,
       dispatchGitHub,
-      runFly,
+      runServer,
     });
 
     expect(out.runner).toBe("github");
     expect(dispatchGitHub).toHaveBeenCalledOnce();
-    expect(runFly).not.toHaveBeenCalled();
+    expect(runServer).not.toHaveBeenCalled();
   });
 
-  it("falls back to Fly when the GitHub dispatch THROWS and Fly is available", async () => {
+  it("falls back to server when the GitHub dispatch throws and server is available", async () => {
     const dispatchGitHub = vi.fn(async () => {
       throw new Error("HTTP 500: Failed to run workflow dispatch");
     });
-    const runFly = vi.fn(async () => FLY_OK);
+    const runServer = vi.fn(async () => SERVER_OK);
 
     const out = await dispatchRun({
       checkHealth: async () => health({ healthy: true }),
-      flyAvailable: true,
+      serverAvailable: true,
       dispatchGitHub,
-      runFly,
+      runServer,
     });
 
-    expect(out.runner).toBe("fly");
+    expect(out.runner).toBe("server");
     expect(out.fellBackOnError).toBe(true);
     expect(out.reason).toContain("github dispatch failed");
     expect(out.reason).toContain("HTTP 500");
     expect(dispatchGitHub).toHaveBeenCalledOnce();
-    expect(runFly).toHaveBeenCalledOnce();
+    expect(runServer).toHaveBeenCalledOnce();
   });
 
-  it("rethrows when the GitHub dispatch throws and there is no Fly fallback", async () => {
+  it("rethrows when the GitHub dispatch throws and there is no server fallback", async () => {
     const dispatchGitHub = vi.fn(async () => {
       throw new Error("boom");
     });
-    const runFly = vi.fn(async () => FLY_OK);
+    const runServer = vi.fn(async () => SERVER_OK);
 
     await expect(
       dispatchRun({
         checkHealth: async () => health({ healthy: true }),
-        flyAvailable: false,
+        serverAvailable: false,
         dispatchGitHub,
-        runFly,
+        runServer,
       }),
     ).rejects.toThrow("boom");
-    expect(runFly).not.toHaveBeenCalled();
+    expect(runServer).not.toHaveBeenCalled();
   });
 });

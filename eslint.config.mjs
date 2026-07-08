@@ -38,11 +38,13 @@ export default [
     name: "ignore-patterns",
     ignores: [
       "**/node_modules/**",
+      "**/.claude/**",
       "**/.kody/**",
       "**/.next/**",
       "**/dist/**",
       "**/build/**",
       "**/coverage/**",
+      "**/test-results/**",
       "next-env.d.ts",
     ],
   },

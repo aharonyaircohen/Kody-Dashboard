@@ -1,9 +1,9 @@
 /**
- * @fileType library
+ * @fileType plugin
  * @domain infrastructure
  * @pattern fly-deployment-provider
  * @ai-summary Fly adapter for Kody deployments. PR/branch previews are modeled
- *   as deployments; Fly app/machine details stay behind this provider.
+ *   as deployments; Fly app/machine details stay in this plugin.
  */
 
 import type { DeploymentProvider } from "@dashboard/lib/infrastructure/contracts";
@@ -203,7 +203,9 @@ export const flyDeploymentProvider: FlyDeploymentProvider = {
       const refreshed = (await listMachines(appName, cfg)).find(
         (machine) => machine.id === first.id,
       );
-      if (refreshed) return deploymentInfoFromMachine(key, appName, refreshed, cfg);
+      if (refreshed) {
+        return deploymentInfoFromMachine(key, appName, refreshed, cfg);
+      }
     }
 
     return deploymentInfoFromMachine(key, appName, first, cfg);

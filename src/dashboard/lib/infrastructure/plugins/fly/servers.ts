@@ -1,32 +1,35 @@
 /**
- * @fileType library
+ * @fileType plugin
  * @domain infrastructure
- * @pattern fly-compute-provider
- * @ai-summary Fly adapter for Kody compute: warm-pool claim first, then
- *   one-shot runner machine spawn. Keeps Fly mechanics behind ComputeProvider.
+ * @pattern fly-server-provider
+ * @ai-summary Fly adapter for Kody servers: warm-pool claim first, then
+ *   one-shot runner machine spawn. Vendor mechanics stay in this plugin.
  */
 
-import type { ComputeProvider } from "@dashboard/lib/infrastructure/contracts";
+import type { ServerProvider } from "@dashboard/lib/infrastructure/contracts";
 import { logger } from "@dashboard/lib/logger";
-import { claimFromPool } from "@dashboard/lib/runners/pool-client";
 import { spawnRunner, type SpawnRunnerInput } from "@dashboard/lib/runners/fly";
-import type { FlyContext } from "@dashboard/lib/runners/fly-context";
-import type {
-  ClaimOrSpawnOpts,
-  ClaimOrSpawnResult,
-} from "@dashboard/lib/runners/fly-run";
+import {
+  resolveFlyContext,
+  type FlyContext,
+} from "@dashboard/lib/runners/fly-context";
+import {
+  type ClaimOrRunServerOptions,
+  type ClaimOrRunServerResult,
+} from "@dashboard/lib/runners/server-run";
+import { claimFromPool } from "@dashboard/lib/runners/pool-client";
 
-export type FlyComputeProvider = ComputeProvider<
+export type FlyServerProvider = ServerProvider<
   FlyContext,
   SpawnRunnerInput,
   Awaited<ReturnType<typeof spawnRunner>>,
-  ClaimOrSpawnOpts,
-  ClaimOrSpawnResult
+  ClaimOrRunServerOptions,
+  ClaimOrRunServerResult
 >;
 
-export const flyComputeProvider: FlyComputeProvider = {
+export const flyServerProvider: FlyServerProvider = {
   id: "fly",
-  area: "compute",
+  area: "servers",
   capabilities: new Set([
     "run-work",
     "claim-warm-runner",
@@ -34,6 +37,15 @@ export const flyComputeProvider: FlyComputeProvider = {
     "destroy",
     "inventory",
   ]),
+  async resolveContext(input) {
+    return resolveFlyContext(
+      (input as { request: Parameters<typeof resolveFlyContext>[0] }).request,
+      (input as { options?: Parameters<typeof resolveFlyContext>[1] }).options,
+    );
+  },
+  isAvailable(ctx) {
+    return !!ctx.flyToken;
+  },
   run(input) {
     return spawnRunner(input);
   },
@@ -48,7 +60,7 @@ export const flyComputeProvider: FlyComputeProvider = {
       ...(opts.hardCapMs ? { hardCapMs: opts.hardCapMs } : {}),
       dashboardUrl: opts.dashboardUrl,
       ...(opts.reasoningEffort ? { reasoningEffort: opts.reasoningEffort } : {}),
-      ...(opts.ref ? { ref: opts.ref } : {}),
+      ref: opts.ref,
     });
     if (claim.ok) {
       logger.info(
@@ -60,7 +72,7 @@ export const flyComputeProvider: FlyComputeProvider = {
 
     logger.info(
       { taskId: opts.taskId, owner, repo, poolMiss: claim.reason },
-      "fly: pool miss — spawning fresh runner",
+      "fly: pool miss - spawning fresh runner",
     );
 
     const { machineId } = await spawnRunner({
@@ -71,7 +83,7 @@ export const flyComputeProvider: FlyComputeProvider = {
       ...(opts.idleExitMs ? { idleExitMs: opts.idleExitMs } : {}),
       ...(opts.hardCapMs ? { hardCapMs: opts.hardCapMs } : {}),
       ...(opts.reasoningEffort ? { reasoningEffort: opts.reasoningEffort } : {}),
-      ...(opts.ref ? { ref: opts.ref } : {}),
+      ref: opts.ref,
       allSecrets,
       flyToken,
       perfTier,

@@ -108,7 +108,7 @@
  * state of its own.
  */
 
-import { flyDeploymentProvider } from "@dashboard/lib/infrastructure/providers/fly/deployments";
+import { getDeploymentProvider } from "@dashboard/lib/infrastructure/installed";
 import type { FlyPreviewConfig } from "@dashboard/lib/previews/fly-previews";
 import {
   type BranchPreviewKey,
@@ -143,26 +143,26 @@ export async function createPreview(
   input: CreatePreviewInput,
   cfg: FlyPreviewConfig,
 ): Promise<PreviewInfo> {
-  return flyDeploymentProvider.create(input, cfg);
+  return getDeploymentProvider().create(input, cfg) as Promise<PreviewInfo>;
 }
 
 export async function destroyPreview(
   key: PreviewKey,
   cfg: FlyPreviewConfig,
 ): Promise<void> {
-  await flyDeploymentProvider.destroy(key, cfg);
+  await getDeploymentProvider().destroy(key, cfg);
 }
 
 export async function getPreview(
   key: PreviewKey,
   cfg: FlyPreviewConfig,
 ): Promise<PreviewInfo | null> {
-  return flyDeploymentProvider.get(key, cfg);
+  return getDeploymentProvider().get(key, cfg) as Promise<PreviewInfo | null>;
 }
 
 export async function wakePreview(
   key: PreviewKey,
   cfg: FlyPreviewConfig,
 ): Promise<PreviewInfo | null> {
-  return flyDeploymentProvider.wake!(key, cfg);
+  return getDeploymentProvider().wake!(key, cfg) as Promise<PreviewInfo | null>;
 }

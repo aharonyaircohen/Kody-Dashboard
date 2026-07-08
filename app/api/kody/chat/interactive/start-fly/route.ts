@@ -6,8 +6,7 @@
  * POST /api/kody/chat/interactive/start-fly
  *
  * Same shape as /interactive/start, but instead of dispatching the
- * `kody.yml` workflow on GitHub Actions, spawns a Fly Machine that runs
- * the same engine image. Used by the `kody-live-fly` agent.
+ * `kody.yml` workflow on GitHub Actions, starts the installed server provider.
  *
  * The session JSONL lives in the state repo's `sessions/{id}.jsonl`, so the
  * existing append + event-stream paths work unchanged — only the runtime moves.
@@ -26,17 +25,19 @@ import {
   type VibeTaskContext,
 } from "@dashboard/lib/vibe/primer";
 import { mintSessionToken } from "@dashboard/lib/chat-token";
-import { resolveFlyContext } from "@dashboard/lib/runners/fly-context";
-import { claimOrSpawnFly } from "@dashboard/lib/runners/fly-run";
 import {
   chatRunRequest,
   withStoreTarget,
 } from "@dashboard/lib/runners/run-request";
+import {
+  claimOrRunServer,
+  resolveServerContext,
+} from "@dashboard/lib/runners/server-run";
 
 export const runtime = "nodejs";
 
 /**
- * Chat is unique among Fly-spawning routes: it may target a separate
+ * Chat is unique among server-spawning routes: it may target a separate
  * "engine repo" (where `kody.yml` lives) instead of the user's connected
  * repo. KODY_CHAT_WORKFLOW_REPO opts in; otherwise the connected repo
  * from header auth is used (same as the shared context default).
@@ -88,7 +89,7 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "taskId required" }, { status: 400 });
   }
 
-  const ctxResult = await resolveFlyContext(req, {
+  const ctxResult = await resolveServerContext(req, {
     repoOverride: getChatRepoOverride(),
   });
   if (!ctxResult.ok) {
@@ -97,7 +98,10 @@ export async function POST(req: NextRequest) {
       { status: ctxResult.status },
     );
   }
-  const { owner, repo, octokit } = ctxResult.context;
+  const { owner, repo } = ctxResult.context;
+  const octokit = ctxResult.context.octokit as Parameters<
+    typeof writeSessionMeta
+  >[0];
 
   try {
     logger.info(
@@ -131,10 +135,9 @@ export async function POST(req: NextRequest) {
       initialTurn,
     );
 
-    // dashboardUrl + inline HMAC token so the runner can push events
-    // straight to /api/kody/events/ingest. The Fly machine's source IP
-    // isn't in GitHub Actions's CIDR list, so the token is the only way
-    // it gets past the ingest auth gate.
+    // dashboardUrl + inline HMAC token so the runner can push events straight
+    // to /api/kody/events/ingest. Non-GitHub server providers do not come from
+    // GitHub's CIDR list, so the token gets them past the ingest auth gate.
     let ingestUrl: string | undefined;
     if (dashboardUrl) {
       const token = mintSessionToken(taskId);
@@ -144,11 +147,14 @@ export async function POST(req: NextRequest) {
       )}&token=${token}`;
     }
 
-    // Shared with the GitHub→Fly fallback in /interactive/start so the two
+    // Shared with the GitHub-to-server fallback in /interactive/start so the two
     // paths can't drift.
-    const result = await claimOrSpawnFly(ctxResult.context, {
+    const result = await claimOrRunServer(ctxResult.context, {
       taskId,
-      runRequest: withStoreTarget(chatRunRequest(taskId), ctxResult.context),
+      runRequest: withStoreTarget(
+        chatRunRequest(taskId),
+        ctxResult.context as Parameters<typeof withStoreTarget>[1],
+      ),
       idleExitMs,
       hardCapMs,
       dashboardUrl: ingestUrl,
@@ -162,7 +168,7 @@ export async function POST(req: NextRequest) {
         owner,
         repo,
       },
-      "interactive-fly: session started on Fly",
+      "interactive-server: session started on provider",
     );
 
     return NextResponse.json({
@@ -171,7 +177,7 @@ export async function POST(req: NextRequest) {
       mode: "interactive",
       runner: result.runner,
       machineId: result.machineId,
-      target: { owner, repo, branch: "main", workflow: "fly" },
+      target: { owner, repo, branch: "main", workflow: "server" },
     });
   } catch (err) {
     logger.error({ err, taskId }, "interactive-fly: start failed");

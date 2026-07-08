@@ -1,9 +1,22 @@
 import type { NextRequest } from "next/server";
 
 import { logger } from "@dashboard/lib/logger";
-import { claimOrSpawnFly } from "./fly-run";
-import { resolveFlyContext } from "./fly-context";
+import {
+  claimOrRunServer,
+  resolveServerContext,
+} from "@dashboard/lib/runners/server-run";
 import type { KodyRunRequest } from "./run-request";
+
+interface RepoMetadataOctokit {
+  rest: {
+    repos: {
+      get(input: {
+        owner: string;
+        repo: string;
+      }): Promise<{ data: { default_branch?: string | null } }>;
+    };
+  };
+}
 
 export type ScheduledKodyRunResult =
   | {
@@ -25,7 +38,7 @@ export async function runScheduledKodyOnRunner(
     runRequest: KodyRunRequest;
   },
 ): Promise<ScheduledKodyRunResult> {
-  const ctxResult = await resolveFlyContext(req);
+  const ctxResult = await resolveServerContext(req);
   if (!ctxResult.ok) {
     return {
       ok: false,
@@ -34,7 +47,8 @@ export async function runScheduledKodyOnRunner(
     };
   }
 
-  const { owner, repo, octokit } = ctxResult.context;
+  const { owner, repo } = ctxResult.context;
+  const octokit = ctxResult.context.octokit as RepoMetadataOctokit;
   let ref = "main";
   try {
     const repoMeta = await octokit.rest.repos.get({ owner, repo });
@@ -47,7 +61,7 @@ export async function runScheduledKodyOnRunner(
   }
 
   try {
-    const run = await claimOrSpawnFly(ctxResult.context, {
+    const run = await claimOrRunServer(ctxResult.context, {
       taskId: opts.taskId,
       runRequest: opts.runRequest,
       ref,
