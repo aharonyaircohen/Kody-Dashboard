@@ -39,6 +39,7 @@ export const DEFAULT_CHAT_CAPABILITY: ChatCapabilityEntry = {
     "kody_get_pipeline_status",
     "kody_list_workflow_runs",
     "kody_list_open_prs",
+    "kody_run_issue",
     // ── Issue / task creation (actor-gated) ────────────────────────────────
     "report_bug",
     "create_feature",

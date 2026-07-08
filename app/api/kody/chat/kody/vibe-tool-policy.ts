@@ -3,14 +3,13 @@
  * @domain kody
  * @ai-summary Pure tool-availability policy for the kody-direct chat agent.
  *
- * Kody chat is issue-first. It can research, plan, and file issues, but it
- * must not start implementation itself by dispatching the pipeline, starting a
- * Vibe runner, or writing files through remote-dev tools.
+ * Kody chat is issue-first. It can research, plan, file issues, and hand an
+ * explicitly approved issue to the Kody pipeline. It must not start PR-targeted
+ * work, start a Vibe runner, or write files through remote-dev tools.
  */
 
-/** `@kody ...` dispatch tools — never available to Kody chat. */
-export const VIBE_DISPATCH_TOOLS: readonly string[] = [
-  "kody_run_issue",
+/** PR-targeted `@kody ...` dispatch tools — never available to Kody chat. */
+export const VIBE_PR_DISPATCH_TOOLS: readonly string[] = [
   "kody_fix_pr",
   "kody_fix_ci_pr",
   "kody_review_pr",
@@ -22,7 +21,7 @@ export const VIBE_DISPATCH_TOOLS: readonly string[] = [
 
 /** Implementation-start/write tools — never available to Kody chat. */
 export const KODY_CHAT_IMPLEMENTATION_TOOLS: readonly string[] = [
-  ...VIBE_DISPATCH_TOOLS,
+  ...VIBE_PR_DISPATCH_TOOLS,
   "remote_implementation",
   "remote_write",
 ];

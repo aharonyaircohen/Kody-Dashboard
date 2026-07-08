@@ -157,6 +157,26 @@ describe("POST /api/kody/chat/kody", () => {
     expect(prompt).not.toContain("## Connected repository");
   });
 
+  it("allows explicit issue execution handoff in vibe mode", async () => {
+    const { buildSystemPrompt } =
+      await import("../../app/api/kody/chat/kody/system-prompt");
+    const prompt = buildSystemPrompt(
+      "base",
+      { owner: "acme", repo: "app" },
+      {
+        issueNumber: 776,
+        title: "Keep logo colors in dark mode",
+        state: "open",
+      },
+      { vibeMode: true },
+    );
+
+    expect(prompt).toContain("explicit issue handoff");
+    expect(prompt).toContain("call `kody_run_issue` for the current issue");
+    expect(prompt).toContain("Do not tell the user to post `@kody` manually");
+    expect(prompt).not.toContain("Kody chat opens issues only");
+  });
+
   it("treats preview make-page requests as issue-creation requests", async () => {
     const { buildSystemPrompt } =
       await import("../../app/api/kody/chat/kody/system-prompt");
@@ -268,7 +288,7 @@ describe("POST /api/kody/chat/kody", () => {
     expect(CRITICAL_REMINDERS_MD).not.toMatch(/Every reply ends/i);
   });
 
-  it("vibe prompt keeps Kody chat issue-only", async () => {
+  it("vibe prompt keeps Kody chat out of direct runner handoff", async () => {
     const { buildSystemPrompt } = await import(
       "../../app/api/kody/chat/kody/system-prompt"
     );
@@ -281,7 +301,10 @@ describe("POST /api/kody/chat/kody", () => {
     );
 
     expect(prompt).toMatch(/Stop after issue creation/i);
-    expect(prompt).toMatch(/Kody chat opens issues only/i);
+    expect(prompt).toMatch(/explicit issue handoff/i);
+    expect(prompt).toMatch(/The only execution handoff allowed/i);
+    expect(prompt).toContain("kody_run_issue");
+    expect(prompt).not.toContain("Kody chat opens issues only");
     expect(prompt).not.toContain("targetAgent");
   });
 
