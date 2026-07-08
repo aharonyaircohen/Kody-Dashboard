@@ -72,7 +72,11 @@ import {
   useSlashCommands,
   type SlashExpansionEffectPayload,
 } from "../chat/plugins/commands";
-import { parseGoalMention, type GoalRef } from "../goal-mention";
+import {
+  goalsChatPlugin,
+  readGoalDirectEffect,
+  type GoalDirectEffectPayload,
+} from "../chat/plugins/goals";
 import { useElementPicker } from "../picker/useElementPicker";
 import { formatPageInfo } from "../picker/protocol";
 import { runPreviewAction } from "../picker/run-preview-action";
@@ -372,6 +376,11 @@ export function KodyChat({
   // is contribution-free (vibe is a HOST mode — see plugins/vibe/index.ts),
   // and behavior stays gated on the `vibeMode` prop, which can flip
   // mid-mount as the persistent rail navigates onto/off /vibe.
+  // The goals plugin (Step 5d) registers only when the host can route
+  // goals (`onDirectToGoal` supplied — ChatRailShell's two mounts; the
+  // client surface and GoalControl's planner dialog never pass it, so
+  // they carry no goal-mention middleware). Prop PRESENCE is stable per
+  // surface, so the mount-time read is safe.
   // With no plugins at all the registry is inert: slots render nothing and
   // the send-middleware chain passes through.
   const [pluginRegistry] = useState(() => {
@@ -381,6 +390,7 @@ export function KodyChat({
       ...(hideTerminalMode ? [] : [{ plugin: terminalChatPlugin }]),
       { plugin: commandsChatPlugin },
       { plugin: vibeChatPlugin },
+      ...(onDirectToGoal ? [{ plugin: goalsChatPlugin }] : []),
       ...(plugins ?? []),
     ];
     for (const entry of entries) {
@@ -413,6 +423,18 @@ export function KodyChat({
       pendingSlashExpansionRef.current = null;
       return expansion;
     }, []);
+  // Goal-direct hand-off (Step 5d): same synchronous ref pattern — the
+  // goals plugin's mention middleware CONSUMES the message and dispatches
+  // this effect during runSendMiddleware; sendMessage's consumed branch
+  // reads it and runs the existing onDirectToGoal path (scope swap + rest
+  // of the message back into the composer).
+  const pendingGoalDirectRef = useRef<GoalDirectEffectPayload | null>(null);
+  const consumePendingGoalDirect =
+    useCallback((): GoalDirectEffectPayload | null => {
+      const goalDirect = pendingGoalDirectRef.current;
+      pendingGoalDirectRef.current = null;
+      return goalDirect;
+    }, []);
   // Host-effect switch. Plugins dispatch effects (scope changes, navigation
   // requests) here — unknown kinds are ignored by design.
   const handlePluginHostEffect = useCallback((effect: ChatHostEffect) => {
@@ -424,6 +446,11 @@ export function KodyChat({
     const slashExpansion = readSlashExpansionEffect(effect);
     if (slashExpansion) {
       pendingSlashExpansionRef.current = slashExpansion;
+      return;
+    }
+    const goalDirect = readGoalDirectEffect(effect);
+    if (goalDirect) {
+      pendingGoalDirectRef.current = goalDirect;
       return;
     }
     switch (effect.kind) {
@@ -460,11 +487,12 @@ export function KodyChat({
   // Read-only host snapshot handed to slot components and send middleware.
   // Minimal by design (plan H2 host-context channel) — grows per plugin
   // need, not speculatively. `slashCommands` feeds the commands plugin's
-  // slash-expansion middleware (Step 5b): the manifest is static pure
-  // data, so the async-loaded command list travels via host context.
+  // slash-expansion middleware (Step 5b); `knownGoals` feeds the goals
+  // plugin's mention middleware (Step 5d): the manifests are static pure
+  // data, so the async-loaded lists travel via host context.
   const pluginHost = useMemo(
-    () => ({ pathname, agentId: selectedAgentId, slashCommands }),
-    [pathname, selectedAgentId, slashCommands],
+    () => ({ pathname, agentId: selectedAgentId, slashCommands, knownGoals }),
+    [pathname, selectedAgentId, slashCommands, knownGoals],
   );
   // Brain visibility is driven exclusively by the per-user Settings entry
   // (URL + API key in localStorage). A server-wide `BRAIN_CHAT_URL` env on
@@ -3838,27 +3866,6 @@ export function KodyChat({
     previewActChainRef.current = 0;
     const typedInput = input.trim();
 
-    // "Direct chat to a goal by id": if the message mentions a known
-    // goal (`#<n>` / `goal:<n>`), re-scope this chat to that goal's
-    // planner and keep the rest of the message in the composer for the
-    // user to send into the now-goal-scoped thread. Consuming the
-    // mention on its own Enter keeps it race-free (the scope swap drives
-    // a re-render before anything is sent). A mention of the goal we're
-    // already in just strips the token (the `!==` guard skips a
-    // redundant re-scope).
-    if (onDirectToGoal && knownGoals && knownGoals.length > 0) {
-      const mention = parseGoalMention(typedInput, knownGoals);
-      if (mention) {
-        if (mention.goalId !== plannerGoal?.id) {
-          onDirectToGoal(mention.goalId);
-        }
-        setInput(mention.rest);
-        setSlashMenuOpen(false);
-        setSlashSelectedIndex(0);
-        return;
-      }
-    }
-
     // Built-in `/init` — deterministic engine install. Bypasses the LLM
     // entirely: hits the install endpoint, renders the result as a chat
     // message. Anchored to the start so "//init" or text containing
@@ -3920,7 +3927,9 @@ export function KodyChat({
       return;
     }
 
-    // Plugin send-middleware chain (Step 4). The terminal plugin's
+    // Plugin send-middleware chain (Step 4). The goals plugin's
+    // goal-mention middleware (order 50, Step 5d) CONSUMES a message that
+    // mentions a known goal (`#<n>` / `goal:<n>`); the terminal plugin's
     // terminal-intent middleware (order 100, Step 5a) rewrites
     // `/terminal <x>` to the Kody terminal prompt; the commands plugin's
     // slash-expansion middleware (order 200, Step 5b) expands
@@ -3934,11 +3943,29 @@ export function KodyChat({
     // that consumes the message stops the send.
     pendingTerminalIntentRef.current = null;
     pendingSlashExpansionRef.current = null;
+    pendingGoalDirectRef.current = null;
     const middlewareOutcome = pluginRegistry.runSendMiddleware(typedInput, {
       host: pluginHost,
       dispatchHostEffect: handlePluginHostEffect,
     });
     if (middlewareOutcome.consumedBy) {
+      // "Direct chat to a goal by id": re-scope this chat to the mentioned
+      // goal's planner and keep the rest of the message in the composer
+      // for the user to send into the now-goal-scoped thread. Consuming
+      // the mention on its own Enter keeps it race-free (the scope swap
+      // drives a re-render before anything is sent). A mention of the
+      // goal we're already in just strips the token (the `!==` guard
+      // skips a redundant re-scope).
+      const goalDirect = consumePendingGoalDirect();
+      if (goalDirect) {
+        if (goalDirect.goalId !== plannerGoal?.id) {
+          onDirectToGoal?.(goalDirect.goalId);
+        }
+        setInput(goalDirect.rest);
+        setSlashMenuOpen(false);
+        setSlashSelectedIndex(0);
+        return;
+      }
       setInput("");
       setSlashMenuOpen(false);
       setAgentMentionTrigger(null);

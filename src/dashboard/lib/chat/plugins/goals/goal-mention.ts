@@ -1,6 +1,6 @@
 /**
  * @fileType util
- * @domain goals
+ * @domain chat-plugin-goals
  * @pattern goal-mention-parser
  * @ai-summary Pure parser that lets a user "direct chat to a goal by id"
  *   simply by mentioning it. A goal's user-facing id is its backing
@@ -9,7 +9,8 @@
  *   `#<n>`, or the legacy `goal:<slug>` form, resolves it against the
  *   known goals, and returns the canonical goal slug id plus the rest of
  *   the message with the token stripped. No React / no I/O — trivially
- *   unit-testable and reused by KodyChat's send path.
+ *   unit-testable and consumed by the goals plugin's send middleware
+ *   (mention-middleware.ts, Step 5d).
  */
 
 /** Minimal goal shape the parser needs to resolve a mention. */

@@ -35,8 +35,8 @@ export interface ChatSlotContribution {
 /**
  * Send middleware — runs over the outgoing text before transport. Ordering
  * is deterministic: ascending `order`, ties broken by plugin id. Today's
- * pinned precedence: terminal intent (order 100) before slash expansion
- * (order 200).
+ * pinned precedence: goal mention (order 50, consumes) before terminal
+ * intent (order 100) before slash expansion (order 200).
  */
 export interface ChatSendMiddlewareContext {
   host: Readonly<Record<string, unknown>>;
