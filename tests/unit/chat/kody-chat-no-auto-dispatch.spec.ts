@@ -64,6 +64,19 @@ const VOICE_PATH = resolve(
   "../../../src/dashboard/lib/components/kody-chat-voice.ts",
 );
 
+// Phase 1.6d moved the terminal host wiring and the composer
+// key/slash/mention handlers to their own hook modules; the effect scan
+// covers them too so a future regression can't hide a mount dispatch in
+// an extracted hook.
+const TERMINAL_HOST_PATH = resolve(
+  __dirname,
+  "../../../src/dashboard/lib/components/kody-chat-terminal-host.tsx",
+);
+const COMPOSER_HANDLERS_PATH = resolve(
+  __dirname,
+  "../../../src/dashboard/lib/components/kody-chat-composer-handlers.ts",
+);
+
 const LIVE_RUNNER_SOURCE = readFileSync(LIVE_RUNNER_PATH, "utf8");
 const SOURCE =
   readFileSync(KODY_CHAT_PATH, "utf8") +
@@ -76,7 +89,11 @@ const SOURCE =
   "\n" +
   readFileSync(DATA_PATH, "utf8") +
   "\n" +
-  readFileSync(VOICE_PATH, "utf8");
+  readFileSync(VOICE_PATH, "utf8") +
+  "\n" +
+  readFileSync(TERMINAL_HOST_PATH, "utf8") +
+  "\n" +
+  readFileSync(COMPOSER_HANDLERS_PATH, "utf8");
 
 /**
  * Iterate every `useEffect` in `source` and return its body + dep array

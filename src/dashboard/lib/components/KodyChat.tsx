@@ -1,14 +1,6 @@
 "use client";
 
-import {
-  Suspense,
-  lazy,
-  useState,
-  useRef,
-  useEffect,
-  useCallback,
-  useMemo,
-} from "react";
+import { useState, useRef, useEffect, useCallback, useMemo } from "react";
 import { usePathname, useRouter } from "next/navigation";
 import { navLabelForPath } from "./settings-nav";
 import { useLiveRunner } from "./kody-chat-live-runner";
@@ -25,37 +17,18 @@ import {
 import { useAuth } from "../auth-context";
 import { toast } from "sonner";
 import type { KodyTask } from "../types";
-// Terminal plugin — deep imports on purpose (Step 7 bundle check). The
-// barrel (plugins/terminal/index.ts) statically reaches ChatTerminalSurface,
-// fly-connection and TerminalControls; importing it here would drag the
-// whole plugin into EVERY route chunk that renders KodyChat, including
-// /client. Statics below are the small always-needed halves (hooks can't be
-// lazy; the effect reader/checkpoint helpers run on every send path); the
-// heavy render-gated components load via React.lazy further down.
-import { LOCAL_TERMINAL_TRANSPORT } from "../chat/plugins/terminal/registry-state";
-import { TERMINAL_DISPLAY_MODE } from "../chat/plugins/terminal/mode";
-import {
-  checkpointTransportFromChatTransport,
-  shouldLoadTerminalCheckpoint,
-  terminalCheckpointLoadKey,
-  terminalCheckpointSearchParams,
-} from "../chat/plugins/terminal/checkpoints";
+// Terminal HOST wiring (phase 1.6d): registry, checkpoints, payload
+// hand-off, chrome state + the lazy terminal chrome nodes all live in
+// the useTerminalHost hook (kody-chat-terminal-host.tsx). Only the
+// effect reader (send-middleware hand-off) stays imported here.
 import {
   readTerminalIntentEffect,
   type TerminalIntentEffectPayload,
 } from "../chat/plugins/terminal/intent-middleware";
-import { useBrainImageSave } from "../chat/plugins/terminal/use-brain-image-save";
-import { useChatTerminalRegistry } from "../chat/plugins/terminal/useChatTerminalRegistry";
-import type {
-  ChatTerminalMode,
-  ChatTerminalChromeState,
-  ChatTerminalSnapshot,
-  ChatTerminalTransport,
-} from "../chat/plugins/terminal/types";
-import type { ChatTerminalSurfaceHandle } from "../chat/plugins/terminal/ChatTerminalSurface";
+import { useTerminalHost } from "./kody-chat-terminal-host";
+import { useComposerHandlers } from "./kody-chat-composer-handlers";
 import {
   SlashCommandMenu,
-  filterCommands,
   parseSlashTrigger,
   readSlashExpansionEffect,
   useSlashCommands,
@@ -107,15 +80,9 @@ import { SessionsPanel } from "../chat/surface/SessionsPanel";
 import { HeaderControls } from "../chat/surface/HeaderControls";
 import { MessageList } from "../chat/surface/MessageList";
 import { Composer } from "../chat/surface/Composer";
-import {
-  parseStaffMentionTrigger,
-  replaceStaffMentionTrigger,
-  type StaffMentionTrigger,
-} from "../mentions/agent-mentions";
-import {
-  VIBE_TASK_EMPTY_STATE_HINT,
-  type RecentVibeIssue,
-} from "../chat/plugins/vibe";
+import type { StaffMentionTrigger } from "../mentions/agent-mentions";
+import { EmptyState } from "../chat/surface/EmptyState";
+import type { RecentVibeIssue } from "../chat/plugins/vibe";
 import type {
   DashboardNavigateDirective,
   RenderedViewAction,
@@ -123,38 +90,6 @@ import type {
   PreviewActDirective,
 } from "@dashboard/lib/chat-ui-actions";
 import { repoScopedHref } from "@dashboard/lib/routes";
-import {
-  terminalCheckpointLabel,
-  type TerminalCheckpoint,
-} from "@dashboard/lib/terminal/checkpoint-types";
-
-// Render-gated terminal plugin components (Step 7 bundle check): loaded via
-// React.lazy so the xterm surface, Fly connection stack and terminal chrome
-// land in their own async chunks instead of every KodyChat route chunk.
-// /client never renders them (hideTerminalMode + no terminal plugin in the
-// grant), so their chunks are never fetched there. Each render site wraps
-// them in <Suspense fallback={null}> — the admin toggle/toolbars appear as
-// soon as the (tiny) chunk resolves; Playwright's visibility waits cover it.
-const ChatTerminalSurface = lazy(() =>
-  import("../chat/plugins/terminal/ChatTerminalSurface").then((m) => ({
-    default: m.ChatTerminalSurface,
-  })),
-);
-const TerminalModeToggle = lazy(() =>
-  import("../chat/plugins/terminal/TerminalControls").then((m) => ({
-    default: m.TerminalModeToggle,
-  })),
-);
-const TerminalTopControls = lazy(() =>
-  import("../chat/plugins/terminal/TerminalControls").then((m) => ({
-    default: m.TerminalTopControls,
-  })),
-);
-const TerminalBottomControls = lazy(() =>
-  import("../chat/plugins/terminal/TerminalControls").then((m) => ({
-    default: m.TerminalBottomControls,
-  })),
-);
 
 function reportValue(value: unknown, max = 1_000): string | null {
   if (value === null || value === undefined || value === "") return null;
@@ -659,247 +594,48 @@ export function KodyChat({
     if (sessionSidebarPinned) setShowSessionSidebar(true);
   }, [sessionSidebarPinned]);
 
-
-
   // Reset the visible stream state on agent switch. Session switches are
   // intentionally allowed while a reply is running; each send now writes
   // back to the session id it started from.
   const activeSessionIdForReset = sessionHook.activeSession?.id ?? null;
-  const terminalRegistry = useChatTerminalRegistry({
-    activeSessionId: activeSessionIdForReset,
-    createSession: createChatSession,
+  // Terminal HOST wiring (phase 1.6d) — registry, checkpoint load/save,
+  // payload hand-off, chrome state and the lazy terminal chrome nodes all
+  // live in useTerminalHost (kody-chat-terminal-host.tsx).
+  const {
+    chatMode,
+    modeBySessionId: terminalModeBySessionId,
+    sendInputToTerminal,
+    sendKodyTerminalPayloadToTerminal,
+    terminalSendBusy,
+    terminalSendDisabled,
+    terminalInputLabel,
+    terminalProblemMessage,
+    chatModeToggle,
+    terminalBottomControls,
+    terminalSurfaces,
+  } = useTerminalHost({
+    actorLogin,
+    vibeMode,
+    hideTerminalMode,
+    lockedAgentId,
+    pluginRegistry,
+    activeSessionIdForReset,
+    createChatSession,
     sessions: sessionHook.sessions,
     sessionsHydrated: sessionHook.hydrated,
-    storageScope: sessionStoreScope,
+    sessionStoreScope,
+    input,
+    setInput,
+    setSlashMenuOpen,
+    setSlashSelectedIndex,
+    composerTextareaRef,
+    setContextChips,
   });
-  // Display-mode arbitration (plan H2d): the terminal plugin DECLARES the
-  // "terminal" mode; the platform resolves it. Vibe is a HOST mode — the
-  // host forces "ai", which always wins, so vibe-suppresses-terminal never
-  // becomes a plugin→plugin import. With the terminal plugin unregistered
-  // (hosts that omit it, e.g. ClientChatSurface) the mode can never
-  // resolve to "terminal"; `hideTerminalMode` stays as the belt-and-braces
-  // visibility gate on the toggle below.
-  const resolvedDisplayMode = pluginRegistry.resolveDisplayMode(
-    [terminalRegistry.mode],
-    vibeMode ? "ai" : undefined,
-  );
-  const chatMode: ChatTerminalMode =
-    resolvedDisplayMode === TERMINAL_DISPLAY_MODE ? "terminal" : "ai";
-  const terminalMachines = terminalRegistry.terminalMachines;
-  const activeTerminalTransport = terminalRegistry.activeTransport;
-  const activeTerminalInstanceId = terminalRegistry.activeInstanceId;
-  const activeTerminalValue = terminalRegistry.activeTargetValue;
-  const activeTerminalConnectionState = terminalRegistry.activeConnectionState;
-  const mountedChatTerminals = terminalRegistry.mountedTerminals;
-  const flyInventoryLoading = terminalRegistry.flyInventoryLoading;
-  const flyInventoryError = terminalRegistry.flyInventoryError;
-  const setActiveChatMode = terminalRegistry.setActiveMode;
-  const refreshChatTerminalFlyMachines = terminalRegistry.refreshFlyMachines;
-  const handleTerminalTargetChange = terminalRegistry.selectTarget;
-  const recordTerminalConnectionState = terminalRegistry.recordConnectionState;
-  const activeSessionHasLiveTerminal = terminalRegistry.hasLiveTerminal(
-    activeSessionIdForReset,
-  );
-  const terminalStatusLabel =
-    activeTerminalConnectionState === "connected"
-      ? "On"
-      : activeTerminalConnectionState === "connecting"
-        ? "Starting"
-        : "Off";
-  // Brain image save action + status (plugin hook — called here so a save
-  // keeps polling while the user leaves terminal mode).
-  const brainImageSave = useBrainImageSave();
-  const [pendingTerminalRestore, setPendingTerminalRestore] =
-    useState<TerminalCheckpoint | null>(null);
-  const [pendingKodyTerminalPayload, setPendingKodyTerminalPayload] = useState<
-    string | null
-  >(null);
-  const loadedTerminalCheckpointKeyRef = useRef<string | null>(null);
-
-  const loadTerminalCheckpoint = useCallback(
-    async (transport: ChatTerminalTransport, chatSessionId: string) => {
-      const headers = authHeaders();
-      if (Object.keys(headers).length === 0) return;
-      try {
-        const res = await fetch(
-          `/api/kody/chat/terminal/checkpoint${terminalCheckpointSearchParams(
-            actorLogin,
-            transport,
-            chatSessionId,
-          )}`,
-          { headers },
-        );
-        const body = (await res.json().catch(() => ({}))) as {
-          checkpoint?: TerminalCheckpoint | null;
-          message?: string;
-          error?: string;
-        };
-        if (!res.ok) {
-          throw new Error(body.message ?? body.error ?? `HTTP ${res.status}`);
-        }
-        if (body.checkpoint?.output?.trim()) {
-          setPendingTerminalRestore(body.checkpoint);
-        }
-      } catch (err) {
-        toast.error(
-          err instanceof Error
-            ? err.message
-            : "Failed to load terminal checkpoint",
-        );
-      }
-    },
-    [actorLogin],
-  );
-  useEffect(() => {
-    if (!activeSessionIdForReset) return;
-    const checkpointKey = terminalCheckpointLoadKey({
-      actorLogin,
-      activeSessionId: activeSessionIdForReset,
-      activeTargetValue: activeTerminalValue,
-    });
-    if (
-      !shouldLoadTerminalCheckpoint({
-        chatMode,
-        activeSessionId: activeSessionIdForReset,
-        hasLiveTerminal: activeSessionHasLiveTerminal,
-        loadedKey: loadedTerminalCheckpointKeyRef.current,
-        nextKey: checkpointKey,
-      })
-    ) {
-      return;
-    }
-    loadedTerminalCheckpointKeyRef.current = checkpointKey;
-    void loadTerminalCheckpoint(
-      activeTerminalTransport,
-      activeSessionIdForReset,
-    );
-  }, [
-    activeSessionIdForReset,
-    activeTerminalTransport,
-    activeTerminalValue,
-    activeSessionHasLiveTerminal,
-    actorLogin,
-    chatMode,
-    loadTerminalCheckpoint,
-  ]);
-  useEffect(() => {
-    loadedTerminalCheckpointKeyRef.current = null;
-  }, [sessionStoreScope]);
-
-  const saveTerminalCheckpoint = useCallback(
-    async (
-      terminal: { sessionId: string; transport: ChatTerminalTransport },
-      snapshot: ChatTerminalSnapshot,
-    ) => {
-      if (!snapshot.output.trim()) return false;
-      try {
-        const res = await fetch("/api/kody/chat/terminal/checkpoint", {
-          method: "PUT",
-          headers: { "Content-Type": "application/json", ...authHeaders() },
-          body: JSON.stringify({
-            actorLogin,
-            transport: checkpointTransportFromChatTransport(terminal.transport),
-            chatSessionId: terminal.sessionId,
-            cwd: snapshot.cwd,
-            shell: snapshot.shell,
-            output: snapshot.output,
-          }),
-        });
-        const body = (await res.json().catch(() => ({}))) as {
-          checkpoint?: TerminalCheckpoint;
-          message?: string;
-          error?: string;
-        };
-        if (!res.ok || !body.checkpoint) {
-          throw new Error(body.message ?? body.error ?? `HTTP ${res.status}`);
-        }
-        return true;
-      } catch (err) {
-        toast.error(
-          err instanceof Error
-            ? err.message
-            : "Failed to save terminal checkpoint",
-        );
-        return false;
-      }
-    },
-    [actorLogin],
-  );
-
-  const sendKodyTerminalPayloadToTerminal = useCallback(
-    (payload: string) => {
-      const terminalPayload = payload.trimEnd();
-      if (!terminalPayload.trim()) {
-        toast.error("Kody returned an empty terminal payload");
-        return false;
-      }
-      const payloadWithEnter = `${terminalPayload}\n`;
-      terminalRegistry.openTerminalMode(LOCAL_TERMINAL_TRANSPORT);
-
-      if (
-        activeTerminalTransport.type === "local" &&
-        activeTerminalInstanceId &&
-        activeTerminalConnectionState === "connected"
-      ) {
-        const terminal = terminalSurfaceRefs.current[activeTerminalInstanceId];
-        if (terminal?.executeText(payloadWithEnter)) {
-          terminal.focus();
-          toast.success("Sent to terminal");
-          return true;
-        }
-      }
-
-      setPendingKodyTerminalPayload(payloadWithEnter);
-      return true;
-    },
-    [
-      activeTerminalConnectionState,
-      activeTerminalInstanceId,
-      activeTerminalTransport.type,
-      terminalRegistry,
-    ],
-  );
-
-  useEffect(() => {
-    if (!pendingKodyTerminalPayload) return;
-    if (chatMode !== "terminal") return;
-    if (activeTerminalTransport.type !== "local") return;
-    if (!activeTerminalInstanceId) return;
-    if (activeTerminalConnectionState !== "connected") return;
-
-    const terminal = terminalSurfaceRefs.current[activeTerminalInstanceId];
-    if (!terminal?.executeText(pendingKodyTerminalPayload)) return;
-
-    setPendingKodyTerminalPayload(null);
-    terminal.focus();
-    toast.success("Sent to terminal");
-  }, [
-    activeTerminalConnectionState,
-    activeTerminalInstanceId,
-    activeTerminalTransport.type,
-    chatMode,
-    pendingKodyTerminalPayload,
-  ]);
-  const handleTerminalTargetSelect = useCallback(
-    (value: string) => {
-      handleTerminalTargetChange(value);
-    },
-    [handleTerminalTargetChange],
-  );
   useEffect(() => {
     if (desiredSessionScope === sessionStoreScope) return;
     const t = setTimeout(() => setSessionStoreScope(desiredSessionScope), 150);
     return () => clearTimeout(t);
   }, [desiredSessionScope, sessionStoreScope]);
-  const terminalSurfaceRefs = useRef<
-    Record<string, ChatTerminalSurfaceHandle | null>
-  >({});
-  const [terminalChromeById, setTerminalChromeById] = useState<
-    Record<string, ChatTerminalChromeState>
-  >({});
-  const activeTerminalChrome = activeTerminalInstanceId
-    ? terminalChromeById[activeTerminalInstanceId]
-    : null;
 
   // Poll action state — detects when Kody is waiting for instructions
   const { state: actionState, isWaiting: isKodyWaiting } = useKodyActionState(
@@ -957,7 +693,6 @@ export function KodyChat({
     [sessionHook],
   );
   const activeLoading = messages.some((m) => m.isLoading);
-
 
   // Kody Live runner lifecycle — reducer orchestration, event poll, SSE,
   // localStorage persistence + scope rehydration, and the zombie watchdog
@@ -1121,47 +856,6 @@ export function KodyChat({
     setIssueReportState(captureIssueReportState());
     setShowIssueReport(true);
   }, [captureIssueReportState]);
-
-  const addTerminalContextToChat = useCallback(
-    (context: string) => {
-      setContextChips((prev) => [
-        ...prev,
-        {
-          id: `terminal-output-${Date.now()}`,
-          label: "Terminal output",
-          context,
-        },
-      ]);
-      setActiveChatMode("ai");
-      toast.success("Terminal output added to next chat message");
-    },
-    [setActiveChatMode],
-  );
-
-  const openTerminalMode = useCallback(() => {
-    terminalRegistry.openTerminalMode();
-    setSlashMenuOpen(false);
-  }, [terminalRegistry]);
-
-  useEffect(() => {
-    if (
-      !pendingTerminalRestore ||
-      chatMode !== "terminal" ||
-      !activeTerminalInstanceId
-    ) {
-      return;
-    }
-    const terminal = terminalSurfaceRefs.current[activeTerminalInstanceId];
-    if (!terminal) return;
-    terminal.restoreSnapshot({
-      name: `${terminalCheckpointLabel(
-        pendingTerminalRestore.transport,
-      )} checkpoint`,
-      output: pendingTerminalRestore.output,
-    });
-    setPendingTerminalRestore(null);
-    toast.success("Terminal checkpoint restored");
-  }, [activeTerminalInstanceId, chatMode, pendingTerminalRestore]);
 
   // Unified thread: the global session store (useChatSessions) owns the
   // message list. Per-page scope (task / capability / planner / report) flows
@@ -1508,37 +1202,6 @@ export function KodyChat({
     });
   }, [pendingKickoff, selectedAgentId, context, sendText, dispatchLive]);
 
-  const sendInputToTerminal = useCallback(() => {
-    const command = input;
-    if (!command.trim()) return;
-    if (!activeTerminalInstanceId) {
-      toast.error("Terminal is not ready yet");
-      return;
-    }
-
-    const terminal = terminalSurfaceRefs.current[activeTerminalInstanceId];
-    if (!terminal) {
-      toast.error("Terminal is still opening");
-      return;
-    }
-
-    if (!terminal.sendLine(command)) {
-      toast.error("Terminal is not connected yet");
-      terminal.focus();
-      return;
-    }
-
-    setInput("");
-    setSlashMenuOpen(false);
-    setSlashSelectedIndex(0);
-    requestAnimationFrame(() => {
-      const textarea = composerTextareaRef.current;
-      if (!textarea) return;
-      textarea.style.height = "auto";
-      textarea.focus();
-    });
-  }, [activeTerminalInstanceId, input]);
-
   const sendMessage = () =>
     // Thin wrapper (phase 1.6b): the composer submit path (/init, plugin
     // send-middleware, waiting-instruction route) lives in
@@ -1575,191 +1238,64 @@ export function KodyChat({
       sendText,
     });
 
-
-  // Apply a slash command to the input: replaces the entire input with
-  // "/slug " so the user can immediately type arguments, OR sends right
-  // away when the prompt takes no arguments and the user pressed Enter.
-  const refreshAgentMentionTrigger = useCallback(
-    (value: string, caretIndex: number | null | undefined) => {
-      if (chatMode !== "ai") {
-        setAgentMentionTrigger(null);
-        return;
+  const handleStop = () => {
+    // Cancel every backend the chat can be talking to. Each abort/close
+    // is a no-op if that backend wasn't active — calling them all
+    // unconditionally keeps the handler simple and the Stop button
+    // honest regardless of which agent is selected.
+    const activeSessionId = sessionHook.activeSession?.id ?? null;
+    eventSourceRef.current?.close();
+    if (activeSessionId) {
+      kodyAbortBySessionRef.current.get(activeSessionId)?.abort();
+      brainAbortBySessionRef.current.get(activeSessionId)?.abort();
+    } else {
+      kodyAbortRef.current?.abort();
+      brainAbortRef.current?.abort();
+    }
+    setLoading(false);
+    setMessages((prev) => {
+      const newMessages = [...prev];
+      const lastMsg = newMessages[newMessages.length - 1];
+      if (lastMsg?.role === "assistant") {
+        lastMsg.isLoading = false;
       }
-      const trigger = parseStaffMentionTrigger(
-        value,
-        caretIndex ?? value.length,
-      );
-      setAgentMentionTrigger(trigger);
-      setAgentMentionSelectedIndex(0);
-    },
-    [chatMode],
-  );
-
-  const handleComposerInputChange = useCallback(
-    (
-      next: string,
-      caretIndex: number | null | undefined,
-      textarea?: HTMLTextAreaElement | null,
-    ) => {
-      setInput(next);
-      refreshAgentMentionTrigger(next, caretIndex);
-      // Slash menu opens on `/` at line start, stays open while
-      // the user types the slug, closes when they add a space
-      // or clear the slash.
-      if (chatMode === "ai") {
-        const trigger = parseSlashTrigger(next);
-        setSlashMenuOpen(trigger.active && slashCommands.length > 0);
-        if (trigger.active) setSlashSelectedIndex(0);
-      } else {
-        setSlashMenuOpen(false);
-      }
-      if (textarea) {
-        textarea.style.height = "auto";
-        textarea.style.height = `${Math.min(textarea.scrollHeight, 150)}px`;
-      }
-    },
-    [chatMode, refreshAgentMentionTrigger, slashCommands.length],
-  );
-
-  const applyAgentMentionSelection = useCallback(
-    (slug: string) => {
-      if (!agentMentionTrigger) return;
-      const next = replaceStaffMentionTrigger(input, agentMentionTrigger, slug);
-      const nextCaret = agentMentionTrigger.start + slug.length + 2;
-      setInput(next);
-      setAgentMentionTrigger(null);
-      setAgentMentionSelectedIndex(0);
-      requestAnimationFrame(() => {
-        const textarea = composerTextareaRef.current;
-        if (!textarea) return;
-        textarea.focus();
-        textarea.setSelectionRange(nextCaret, nextCaret);
-      });
-    },
-    [agentMentionTrigger, input],
-  );
-
-  const applySlashSelection = (slug: string) => {
-    const command = slashCommands.find((p) => p.slug === slug);
-    if (!prompt) return;
-    setSlashMenuOpen(false);
-    setSlashSelectedIndex(0);
-    // Always insert "/slug " and let the user add args (or hit Enter
-    // again to send). Sending immediately on first select would break
-    // the case where the prompt needs arguments.
-    setInput(`/${slug} `);
+      return newMessages;
+    });
   };
 
-  // Close the slash menu + mention popover. The Composer calls this from
-  // its onBlur after a small delay so the menus' onMouseDown can fire
-  // before close (see the comment at the blur handler).
-  const closeComposerMenus = useCallback(() => {
-    setSlashMenuOpen(false);
-    setAgentMentionTrigger(null);
-  }, []);
-
-  const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
-    if (
-      chatMode === "ai" &&
-      agentMentionTrigger &&
-      filteredAgentMentions.length > 0
-    ) {
-      if (e.key === "ArrowDown") {
-        e.preventDefault();
-        setAgentMentionSelectedIndex((i) =>
-          Math.min(i + 1, filteredAgentMentions.length - 1),
-        );
-        return;
-      }
-      if (e.key === "ArrowUp") {
-        e.preventDefault();
-        setAgentMentionSelectedIndex((i) => Math.max(i - 1, 0));
-        return;
-      }
-      if (e.key === "Enter" || e.key === "Tab") {
-        e.preventDefault();
-        const picked =
-          filteredAgentMentions[
-            Math.min(
-              agentMentionSelectedIndex,
-              filteredAgentMentions.length - 1,
-            )
-          ];
-        if (picked) applyAgentMentionSelection(picked.slug);
-        return;
-      }
-      if (e.key === "Escape") {
-        e.preventDefault();
-        setAgentMentionTrigger(null);
-        return;
-      }
-    }
-
-    // Slash menu keyboard navigation. Only intercept when the menu is
-    // open AND the input still looks like a slug-in-progress (so once
-    // the user types a space the menu's gone and normal handling resumes).
-    if (chatMode === "ai" && slashMenuOpen) {
-      const { filter } = parseSlashTrigger(input);
-      const matches = filterCommands(slashCommands, filter);
-      if (e.key === "ArrowDown") {
-        e.preventDefault();
-        setSlashSelectedIndex((i) =>
-          Math.min(i + 1, Math.max(matches.length - 1, 0)),
-        );
-        return;
-      }
-      if (e.key === "ArrowUp") {
-        e.preventDefault();
-        setSlashSelectedIndex((i) => Math.max(i - 1, 0));
-        return;
-      }
-      if (e.key === "Escape") {
-        e.preventDefault();
-        setSlashMenuOpen(false);
-        return;
-      }
-      if ((e.key === "Enter" && !e.shiftKey) || e.key === "Tab") {
-        if (matches.length > 0) {
-          e.preventDefault();
-          const picked =
-            matches[Math.min(slashSelectedIndex, matches.length - 1)];
-          if (picked) applySlashSelection(picked.slug);
-          return;
-        }
-      }
-    }
-    // Desktop AI chat and terminal keep Enter-to-send. Mobile AI chat leaves
-    // plain Enter to the textarea so the soft keyboard inserts a newline.
-    if (
-      (chatMode === "terminal" || isDesktop) &&
-      e.key === "Enter" &&
-      !e.shiftKey
-    ) {
-      e.preventDefault();
-      sendMessage();
-      return;
-    }
-    // Esc aborts a streaming reply.
-    if (e.key === "Escape" && activeLoading) {
-      e.preventDefault();
-      handleStop();
-      return;
-    }
-    // ↑ on an empty composer recalls the last user message for editing —
-    // matches the shell history convention.
-    if (
-      chatMode === "ai" &&
-      e.key === "ArrowUp" &&
-      !input &&
-      attachments.length === 0
-    ) {
-      const lastUser = [...messages].reverse().find((m) => m.role === "user");
-      if (lastUser) {
-        e.preventDefault();
-        setInput(lastUser.content);
-      }
-    }
-  };
+  // Composer key/slash/mention handlers (phase 1.6d) — extracted to the
+  // useComposerHandlers hook (kody-chat-composer-handlers.ts). State stays
+  // here; the hook owns only the handlers. Called after sendMessage /
+  // handleStop-adjacent state so the closures see current values.
+  const {
+    refreshAgentMentionTrigger,
+    handleComposerInputChange,
+    applyAgentMentionSelection,
+    applySlashSelection,
+    closeComposerMenus,
+    handleKeyDown,
+  } = useComposerHandlers({
+    chatMode,
+    isDesktop,
+    input,
+    setInput,
+    attachments,
+    messages,
+    activeLoading,
+    composerTextareaRef,
+    slashCommands,
+    slashMenuOpen,
+    setSlashMenuOpen,
+    slashSelectedIndex,
+    setSlashSelectedIndex,
+    agentMentionTrigger,
+    setAgentMentionTrigger,
+    agentMentionSelectedIndex,
+    setAgentMentionSelectedIndex,
+    filteredAgentMentions,
+    sendMessage,
+    handleStop,
+  });
 
   // Global ⌘/Ctrl+K toggles the sessions sidebar. Skips when a modifier-less
   // key would interfere with native browser shortcuts.
@@ -1838,31 +1374,6 @@ export function KodyChat({
     })();
   }, [isGlobalMode, activeLoading, messages, sessionHook, selectedModelId]);
 
-  const handleStop = () => {
-    // Cancel every backend the chat can be talking to. Each abort/close
-    // is a no-op if that backend wasn't active — calling them all
-    // unconditionally keeps the handler simple and the Stop button
-    // honest regardless of which agent is selected.
-    const activeSessionId = sessionHook.activeSession?.id ?? null;
-    eventSourceRef.current?.close();
-    if (activeSessionId) {
-      kodyAbortBySessionRef.current.get(activeSessionId)?.abort();
-      brainAbortBySessionRef.current.get(activeSessionId)?.abort();
-    } else {
-      kodyAbortRef.current?.abort();
-      brainAbortRef.current?.abort();
-    }
-    setLoading(false);
-    setMessages((prev) => {
-      const newMessages = [...prev];
-      const lastMsg = newMessages[newMessages.length - 1];
-      if (lastMsg?.role === "assistant") {
-        lastMsg.isLoading = false;
-      }
-      return newMessages;
-    });
-  };
-
   // Both `kody-live` (GH Actions) and `kody-live-fly` (Fly Machines) use
   // the same interactive session model, so they share this UI state.
   const isKodyLive =
@@ -1922,72 +1433,6 @@ export function KodyChat({
               ? `Ask about capability \`${selectedCapability?.slug ?? ""}\`...`
               : genericPlaceholder;
 
-  // Terminal chrome — plugin components passed as HOST ReactNodes (not
-  // registry slots) so the DOM stays byte-identical (see
-  // chat/plugins/terminal/TerminalControls.tsx). Visibility rules are host
-  // state: no toggle when the surface hides terminal mode, pins an agent,
-  // or runs vibe.
-  const chatModeToggle =
-    !hideTerminalMode && !lockedAgentId && !vibeMode ? (
-      <Suspense fallback={null}>
-        <TerminalModeToggle
-          chatMode={chatMode}
-          terminalStatusLabel={terminalStatusLabel}
-          hasLiveTerminal={activeSessionHasLiveTerminal}
-          connectionState={activeTerminalConnectionState}
-          onSelectAiMode={() => setActiveChatMode("ai")}
-          onOpenTerminal={openTerminalMode}
-        />
-      </Suspense>
-    ) : null;
-
-  const terminalTopControls =
-    chatMode === "terminal" ? (
-      <Suspense fallback={null}>
-        <TerminalTopControls
-          activeTargetValue={activeTerminalValue}
-          onSelectTarget={handleTerminalTargetSelect}
-          activeTransport={activeTerminalTransport}
-          terminalMachines={terminalMachines}
-          flyInventoryError={flyInventoryError}
-          flyInventoryLoading={flyInventoryLoading}
-          onRefreshMachines={() => void refreshChatTerminalFlyMachines()}
-          brainImageBusy={brainImageSave.busy}
-          brainImageSaveLabel={brainImageSave.label}
-          onSaveBrainImage={() => void brainImageSave.save()}
-        />
-      </Suspense>
-    ) : null;
-  const activeTerminalSurface = activeTerminalInstanceId
-    ? terminalSurfaceRefs.current[activeTerminalInstanceId]
-    : null;
-  const terminalInputTone = activeTerminalChrome?.inputTone ?? "idle";
-  const terminalSendBusy =
-    chatMode === "terminal" &&
-    (terminalInputTone === "queued" || activeTerminalChrome?.actionBusy);
-  const terminalSendDisabled =
-    chatMode === "terminal" &&
-    (terminalInputTone === "blocked" || terminalSendBusy);
-  const terminalProblemMessage =
-    chatMode === "terminal" &&
-    terminalInputTone === "blocked" &&
-    /stalled|error|failed|websocket|reconnecting/i.test(
-      activeTerminalChrome?.statusText ?? "",
-    )
-      ? activeTerminalChrome?.statusText
-      : null;
-  const terminalBottomControls =
-    chatMode === "terminal" ? (
-      <Suspense fallback={null}>
-        <TerminalBottomControls
-          onAddToChat={() => activeTerminalSurface?.addToChat()}
-          onRestart={() => activeTerminalSurface?.restart()}
-          onClear={() => activeTerminalSurface?.clear()}
-          actionBusy={activeTerminalChrome?.actionBusy}
-        />
-      </Suspense>
-    ) : null;
-
   return (
     // Plugin platform mount (Step 4): the provider exposes THIS mount's
     // registry to the surface pieces (HeaderControls / Composer slots and
@@ -2021,9 +1466,7 @@ export function KodyChat({
           standalonePresentation={standalonePresentation}
           sessions={sessionHook.sessions}
           activeSessionId={sessionHook.activeSession?.id || null}
-          modeBySessionId={
-            vibeMode ? undefined : terminalRegistry.modeBySessionId
-          }
+          modeBySessionId={vibeMode ? undefined : terminalModeBySessionId}
           onSwitchSession={(id) => {
             sessionHook.switchSession(id);
           }}
@@ -2168,162 +1611,17 @@ export function KodyChat({
             usedViewIds={usedViewIds}
             onRenderedViewAction={handleRenderedViewAction}
             emptyState={
-              <div className="text-center text-muted-foreground text-base py-8">
-                {isTaskMode ? (
-                  <>
-                    <p className="font-medium">Chat about this task</p>
-                    <p className="text-sm mt-1">
-                      {vibeMode
-                        ? VIBE_TASK_EMPTY_STATE_HINT
-                        : "Messages will be saved to the task"}
-                    </p>
-                    <p className="text-sm mt-3 font-medium text-foreground">
-                      I can help you:
-                    </p>
-                    <ul className="mt-2 text-left text-sm space-y-2 max-w-sm mx-auto">
-                      <li className="flex items-start gap-2">
-                        <span className="text-primary">•</span>
-                        <span>
-                          Diagnose the linked PR if it didn&apos;t fully fix the
-                          issue — try{" "}
-                          <span className="font-mono">
-                            &quot;diagnose{" "}
-                            {selectedTask?.associatedPR
-                              ? `PR #${selectedTask.associatedPR.number}`
-                              : "this PR"}
-                            &quot;
-                          </span>
-                          . I&apos;ll read the diff, find the gap, and draft a
-                          sharper <span className="font-mono">@kody fix</span>{" "}
-                          for your approval.
-                        </span>
-                      </li>
-                      <li className="flex items-start gap-2">
-                        <span className="text-primary">•</span>
-                        <span>
-                          Explain the issue, the PR diff, or pipeline status
-                        </span>
-                      </li>
-                      <li className="flex items-start gap-2">
-                        <span className="text-primary">•</span>
-                        <span>
-                          Browse and search the repository for related code
-                        </span>
-                      </li>
-                      <li className="flex items-start gap-2">
-                        <span className="text-primary">•</span>
-                        <span>
-                          Draft a follow-up{" "}
-                          <span className="font-mono">@kody</span> instruction
-                        </span>
-                      </li>
-                    </ul>
-                  </>
-                ) : isCapabilityMode && selectedCapability ? (
-                  <>
-                    <p className="font-medium text-foreground">
-                      Chat about `{selectedCapability.slug}`
-                    </p>
-                    <p className="text-sm mt-1 max-w-sm mx-auto">
-                      Ask anything about this capability&apos;s intent, scope,
-                      or rules. Each capability has its own thread.
-                    </p>
-                  </>
-                ) : isPlannerMode && plannerGoal ? (
-                  <>
-                    <p className="font-medium text-foreground">
-                      Plan tasks for &ldquo;{plannerGoal.name}&rdquo;
-                    </p>
-                    <p className="text-sm mt-1 max-w-md mx-auto">
-                      Say <span className="font-mono">&quot;plan it&quot;</span>{" "}
-                      (or paste extra context first). I&apos;ll propose a task
-                      list, you approve, then I&apos;ll deepen each spec and
-                      create the issues attached to this goal.
-                    </p>
-                  </>
-                ) : (
-                  <>
-                    <p className="font-medium">Hi! I can help you with:</p>
-                    <ul className="mt-3 text-left text-sm space-y-2">
-                      <li className="flex items-start gap-2">
-                        <span className="text-primary">•</span>
-                        <span>Browse repository files and code</span>
-                      </li>
-                      <li className="flex items-start gap-2">
-                        <span className="text-primary">•</span>
-                        <span>Search code across the codebase</span>
-                      </li>
-                      <li className="flex items-start gap-2">
-                        <span className="text-primary">•</span>
-                        <span>List and explain tasks</span>
-                      </li>
-                      <li className="flex items-start gap-2">
-                        <span className="text-primary">•</span>
-                        <span>Show pipeline status and progress</span>
-                      </li>
-                      <li className="flex items-start gap-2">
-                        <span className="text-primary">•</span>
-                        <span>
-                          Diagnose a Kody PR that didn&apos;t fully solve its
-                          issue — try{" "}
-                          <span className="font-mono">
-                            &quot;diagnose PR #1404&quot;
-                          </span>
-                        </span>
-                      </li>
-                    </ul>
-                  </>
-                )}
-              </div>
+              <EmptyState
+                isTaskMode={isTaskMode}
+                vibeMode={vibeMode}
+                selectedTask={selectedTask}
+                isCapabilityMode={isCapabilityMode}
+                selectedCapability={selectedCapability}
+                isPlannerMode={isPlannerMode}
+                plannerGoal={plannerGoal}
+              />
             }
-            terminalSurfaces={mountedChatTerminals.map((terminal) => {
-              const isActiveTerminal =
-                chatMode === "terminal" &&
-                activeSessionIdForReset === terminal.sessionId &&
-                activeTerminalInstanceId === terminal.id;
-              return (
-                <div
-                  key={terminal.id}
-                  className={isActiveTerminal ? "h-full min-h-0" : "hidden"}
-                >
-                  <Suspense fallback={null}>
-                    <ChatTerminalSurface
-                      ref={(node) => {
-                        terminalSurfaceRefs.current[terminal.id] = node;
-                        if (!node)
-                          delete terminalSurfaceRefs.current[terminal.id];
-                      }}
-                      active={isActiveTerminal}
-                      chatSessionId={terminal.sessionId}
-                      transport={terminal.transport}
-                      topToolbar={terminalTopControls}
-                      onAddToChat={addTerminalContextToChat}
-                      onChromeStateChange={(state) => {
-                        setTerminalChromeById((existing) => {
-                          const current = existing[terminal.id];
-                          if (
-                            current &&
-                            current.statusText === state.statusText &&
-                            current.inputLabel === state.inputLabel &&
-                            current.inputTone === state.inputTone &&
-                            current.actionBusy === state.actionBusy
-                          ) {
-                            return existing;
-                          }
-                          return { ...existing, [terminal.id]: state };
-                        });
-                      }}
-                      onConnectionStateChange={(state) => {
-                        recordTerminalConnectionState(terminal.id, state);
-                      }}
-                      onSessionEnded={(snapshot) =>
-                        void saveTerminalCheckpoint(terminal, snapshot)
-                      }
-                    />
-                  </Suspense>
-                </div>
-              );
-            })}
+            terminalSurfaces={terminalSurfaces}
           />
 
           {/* Composer — extracted to chat/surface/Composer (Step 3). All
@@ -2377,7 +1675,7 @@ export function KodyChat({
             hasComposerContent={hasComposerContent}
             terminalSendDisabled={terminalSendDisabled}
             terminalSendBusy={terminalSendBusy}
-            terminalInputLabel={activeTerminalChrome?.inputLabel}
+            terminalInputLabel={terminalInputLabel}
             onSend={sendMessage}
             onStop={handleStop}
             onEndLiveSession={endInteractiveSession}
