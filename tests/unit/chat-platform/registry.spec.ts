@@ -108,6 +108,13 @@ describe("chat plugin registry", () => {
         sessionState: [{ key: "k", parse: () => null, serialize: () => "" }],
       },
     },
+    {
+      field: "panels",
+      capability: "panels",
+      contribution: {
+        panels: [{ id: "p", title: "Panel", render: () => null }],
+      },
+    },
   ];
 
   for (const { field, capability, contribution } of CONTRIBUTION_FIXTURES) {
@@ -173,9 +180,39 @@ describe("chat plugin registry", () => {
       agents: ["a"],
       displayModes: [{ id: "d", priority: 1 }],
       sessionState: [{ key: "k", parse: () => null, serialize: () => "" }],
+      panels: [{ id: "p", title: "Panel", render: () => null }],
     };
     expect(() => registry.register(plugin, FULL_GRANT)).not.toThrow();
     expect(registry.pluginIds()).toEqual(["everything"]);
+  });
+
+  it("collects panel views in registration order (panels accessor)", () => {
+    const registry = createChatPluginRegistry();
+    const render = () => null;
+    registry.register(
+      {
+        id: "tasks",
+        capabilities: ["panels"],
+        panels: [{ id: "tasks-board", title: "Tasks", render }],
+      },
+      FULL_GRANT,
+    );
+    registry.register(
+      {
+        id: "previews",
+        capabilities: ["panels"],
+        panels: [{ id: "preview-list", title: "Previews", render }],
+      },
+      FULL_GRANT,
+    );
+    expect(registry.panels().map((p) => p.id)).toEqual([
+      "tasks-board",
+      "preview-list",
+    ]);
+    // Reads return new arrays (immutability rule).
+    const first = registry.panels();
+    first.pop();
+    expect(registry.panels()).toHaveLength(2);
   });
 
   it("orders middleware by order asc, ties broken by plugin id", () => {

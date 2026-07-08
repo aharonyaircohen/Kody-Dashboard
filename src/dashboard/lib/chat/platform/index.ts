@@ -24,6 +24,8 @@ export {
 export type {
   ChatDisplayMode,
   ChatHostEffect,
+  ChatPanelView,
+  ChatPanelViewProps,
   ChatPlugin,
   ChatSendMiddleware,
   ChatSendMiddlewareContext,
@@ -51,6 +53,15 @@ export {
   type ChatServerToolRegistry,
   type ChatToolServerContext,
 } from "./tools";
+export {
+  CHAT_TRACE_CAPACITY,
+  createChatTraceBuffer,
+  readChatTrace,
+  trace,
+  type ChatTraceBuffer,
+  type ChatTraceEntry,
+  type ChatTraceEvent,
+} from "./trace";
 export {
   ChatCatalogCollisionError,
   createChatCatalog,

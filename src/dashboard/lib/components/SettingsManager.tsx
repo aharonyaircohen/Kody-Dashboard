@@ -18,6 +18,7 @@ import { toast } from "sonner";
 import {
   AlertTriangle,
   Bot,
+  Columns2,
   Cpu,
   KeyRound,
   Link2,
@@ -28,6 +29,10 @@ import {
   Store,
   type LucideIcon,
 } from "lucide-react";
+import {
+  setChatFirstLayout,
+  useChatFirstLayout,
+} from "../hooks/use-chat-first-layout";
 import { Button } from "@dashboard/ui/button";
 import { Card, CardContent } from "@dashboard/ui/card";
 import { Input } from "@dashboard/ui/input";
@@ -56,6 +61,46 @@ function SectionHeader({
         {label}
       </h2>
     </div>
+  );
+}
+
+/**
+ * Per-user "chat-first layout" toggle (phase 2 step 2). Desktop-only flip:
+ * chat becomes the main column and the routed page renders in a side
+ * panel. Default OFF — the classic rail layout stays until parity.
+ */
+function ChatFirstLayoutCard() {
+  const enabled = useChatFirstLayout();
+  return (
+    <Card className="border-white/[0.08] bg-white/[0.03]">
+      <CardContent className="p-4 flex items-center justify-between gap-3">
+        <div className="min-w-0">
+          <div className="flex items-center gap-2">
+            <Columns2 className="w-4 h-4 text-violet-400" />
+            <h2 className="text-sm font-semibold">Chat-first layout (beta)</h2>
+          </div>
+          <p className="text-xs text-white/50 mt-1">
+            Chat becomes the main column; pages open in a collapsible side
+            panel. Desktop only — mobile keeps the current layout.
+          </p>
+        </div>
+        <Button
+          size="sm"
+          variant={enabled ? "default" : "outline"}
+          role="switch"
+          aria-checked={enabled}
+          aria-label="Chat-first layout (beta)"
+          onClick={() => {
+            setChatFirstLayout(!enabled);
+            toast.success(
+              !enabled ? "Chat-first layout enabled" : "Chat-first layout off",
+            );
+          }}
+        >
+          {enabled ? "On" : "Off"}
+        </Button>
+      </CardContent>
+    </Card>
   );
 }
 
@@ -234,6 +279,9 @@ export function SettingsManager() {
 
           {/* Default chat (which assistant loads on open) */}
           <DefaultChatCard />
+
+          {/* Chat-first layout flip (per-user, desktop-only, default off) */}
+          <ChatFirstLayoutCard />
 
           {/* Vercel preview bypass */}
           <Card className="border-white/[0.08] bg-white/[0.03]">

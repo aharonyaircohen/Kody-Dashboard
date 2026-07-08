@@ -8,6 +8,7 @@ import { FileText, FileCode } from "lucide-react";
 import {
   createChatPluginRegistry,
   FULL_GRANT,
+  trace,
   type ChatHostEffect,
 } from "../chat/platform";
 import { ChatSurfaceLayout } from "../chat/surface/ChatSurfaceLayout";
@@ -269,6 +270,7 @@ export function KodyChat({
     const grant = capabilityGrant ?? FULL_GRANT;
     for (const entry of plugins ?? []) {
       registry.register(entry.plugin, grant);
+      trace({ kind: "plugin:register", detail: entry.plugin.id });
     }
     return registry;
   });
@@ -312,6 +314,7 @@ export function KodyChat({
   // Host-effect switch. Plugins dispatch effects (scope changes, navigation
   // requests) here — unknown kinds are ignored by design.
   const handlePluginHostEffect = useCallback((effect: ChatHostEffect) => {
+    trace({ kind: "host-effect", detail: effect.kind });
     const terminalIntent = readTerminalIntentEffect(effect);
     if (terminalIntent) {
       pendingTerminalIntentRef.current = terminalIntent;
@@ -628,6 +631,11 @@ export function KodyChat({
     composerTextareaRef,
     setContextChips,
   });
+  // Client trace: record display-mode flips (ai ↔ terminal). Inspection
+  // only — no behavior change (trace never throws, never logs).
+  useEffect(() => {
+    trace({ kind: "display-mode", detail: chatMode });
+  }, [chatMode]);
   useEffect(() => {
     if (desiredSessionScope === sessionStoreScope) return;
     const t = setTimeout(() => setSessionStoreScope(desiredSessionScope), 150);

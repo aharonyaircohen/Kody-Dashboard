@@ -34,7 +34,7 @@ import type { MutableRefObject } from "react";
 import { toast } from "sonner";
 import { AGENT_KODY, AGENTS, type AgentId } from "../agents";
 import type { ChatDropdownEntry } from "../chat/platform/agent-entries";
-import type { createChatPluginRegistry } from "../chat/platform";
+import { trace, type createChatPluginRegistry } from "../chat/platform";
 import {
   repoBrainConversationKey,
   repoBrainScopeKey,
@@ -413,6 +413,39 @@ export type SendTextFn = (
 ) => Promise<string | null>;
 
 export async function runSendText(
+  deps: SendTextDeps,
+  messageContent: string,
+  currentAttachments: Attachment[] = [],
+  options: SendTextOptions = {},
+): Promise<string | null> {
+  // Client trace (phase 2 step 2): start/settle markers around the whole
+  // turn pipeline. Behavior-neutral — trace never throws, never logs.
+  // The empty-message guard below returns before any transport work, so
+  // mirror it here to avoid tracing no-op sends.
+  const traceAgentId = options.forceAgentId ?? deps.selectedAgentId;
+  const shouldTrace =
+    Boolean(messageContent.trim()) || currentAttachments.length > 0;
+  if (shouldTrace) {
+    trace({ kind: "transport:send-start", detail: { agentId: traceAgentId } });
+  }
+  try {
+    return await runSendTextInner(
+      deps,
+      messageContent,
+      currentAttachments,
+      options,
+    );
+  } finally {
+    if (shouldTrace) {
+      trace({
+        kind: "transport:send-settle",
+        detail: { agentId: traceAgentId },
+      });
+    }
+  }
+}
+
+async function runSendTextInner(
   deps: SendTextDeps,
   messageContent: string,
   currentAttachments: Attachment[] = [],

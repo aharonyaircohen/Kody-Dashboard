@@ -76,6 +76,25 @@ export interface ChatDisplayMode {
   priority: number;
 }
 
+/** Props the flipped shell passes to a rendered panel view. */
+export interface ChatPanelViewProps {
+  /** Host context snapshot at render time (read-only). */
+  host: Readonly<Record<string, unknown>>;
+}
+
+/**
+ * A side-panel view (phase 2 step 2): rendered BESIDE the chat when the
+ * chat-first shell is active. The host's built-in panel is the routed page
+ * content; plugins contribute additional views here (page plugins, step 3).
+ */
+export interface ChatPanelView {
+  /** Stable id for tests, deep links, and open/close tracing. */
+  id: string;
+  /** Human title shown in the panel header. */
+  title: string;
+  render: ComponentType<ChatPanelViewProps>;
+}
+
 export interface ChatThemeContribution {
   name?: string;
   accent?: string;
@@ -103,6 +122,8 @@ export interface ChatPlugin {
   middleware?: readonly ChatSendMiddleware[];
   sessionState?: readonly ChatSessionStateSpec[];
   displayModes?: readonly ChatDisplayMode[];
+  /** Side-panel views the flipped shell can render beside the chat. */
+  panels?: readonly ChatPanelView[];
   theme?: ChatThemeContribution;
   /** Additional agent ids this plugin surfaces in the picker. */
   agents?: readonly string[];

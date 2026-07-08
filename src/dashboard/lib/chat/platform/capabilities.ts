@@ -26,6 +26,8 @@ export const CHAT_CAPABILITIES = [
   "session-state",
   /** Dispatch effects to the host (scope changes, navigation requests). */
   "host-effects",
+  /** Contribute side-panel views the flipped shell can render beside chat. */
+  "panels",
 ] as const;
 
 export type ChatCapability = (typeof CHAT_CAPABILITIES)[number];
@@ -54,4 +56,5 @@ export const CONTRIBUTION_CAPABILITIES = {
   displayModes: "display-modes",
   sessionState: "session-state",
   hostEffects: "host-effects",
+  panels: "panels",
 } as const satisfies Record<string, ChatCapability>;

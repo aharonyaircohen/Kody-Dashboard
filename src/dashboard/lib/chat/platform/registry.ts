@@ -17,6 +17,7 @@ import {
 } from "./capabilities";
 import type {
   ChatHostEffect,
+  ChatPanelView,
   ChatPlugin,
   ChatSendMiddleware,
   ChatSendMiddlewareContext,
@@ -78,6 +79,7 @@ function contributionViolations(
     CONTRIBUTION_CAPABILITIES.sessionState,
     !!plugin.sessionState?.length,
   );
+  need("panels", CONTRIBUTION_CAPABILITIES.panels, !!plugin.panels?.length);
   for (const capability of plugin.capabilities) {
     if (!isGranted(grant, capability)) {
       violations.push(`capability "${capability}" is not granted`);
@@ -91,6 +93,8 @@ export interface ChatPluginRegistry {
   pluginIds(): string[];
   slots(slot: ChatSlotId): ChatSlotContribution[];
   middleware(): ChatSendMiddleware[];
+  /** Side-panel views in registration order (phase 2 step 2). */
+  panels(): ChatPanelView[];
   runSendMiddleware(
     text: string,
     ctx: ChatSendMiddlewareContext,
@@ -135,6 +139,10 @@ export function createChatPluginRegistry(): ChatPluginRegistry {
       return orderedPlugins().flatMap(
         (p) => p.slots?.filter((s) => s.slot === slot) ?? [],
       );
+    },
+
+    panels() {
+      return orderedPlugins().flatMap((p) => (p.panels ? [...p.panels] : []));
     },
 
     middleware() {
