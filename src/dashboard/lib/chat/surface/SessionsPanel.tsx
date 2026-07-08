@@ -86,7 +86,7 @@ export function SessionsPanel({
         className={
           railFullscreen
             ? "relative z-10 w-80 min-w-0 max-w-full basis-80 shrink shadow-none"
-            : `absolute left-0 top-0 bottom-0 w-full sm:w-72 z-50 ${
+            : `absolute start-0 top-0 bottom-0 w-full sm:w-72 z-50 ${
                 standalonePresentation ? "border-r-0 shadow-none" : "shadow-lg"
               }`
         }

@@ -233,7 +233,7 @@ export function TerminalModeToggle({
           chatMode === "ai" &&
           connectionState === "connected" && (
             <span
-              className="absolute right-0.5 top-0.5 h-1.5 w-1.5 rounded-full bg-emerald-500"
+              className="absolute end-0.5 top-0.5 h-1.5 w-1.5 rounded-full bg-emerald-500"
               aria-hidden="true"
             />
           )}

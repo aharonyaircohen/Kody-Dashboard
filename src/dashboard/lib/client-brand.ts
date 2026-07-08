@@ -10,7 +10,12 @@ export interface ClientBrand {
   slug: string;
   name: string;
   accent: string;
+  /** BCP-47-ish locale tag, normalized lowercase (default "en"). Drives the
+   *  surface-root text direction via `directionForLocale` (plan H7). */
+  locale?: string;
 }
+
+const DEFAULT_CLIENT_LOCALE = "en";
 
 const KNOWN_CLIENT_BRANDS: Record<string, ClientBrand> = {
   kody: {
@@ -18,7 +23,22 @@ const KNOWN_CLIENT_BRANDS: Record<string, ClientBrand> = {
     name: "Kody",
     accent: "#0f766e",
   },
+  // RTL reference brand (Step 5.5): same Kody surface, Hebrew locale.
+  // Pinned by the RTL e2e in tests/e2e/client-chat-surface.spec.ts.
+  "kody-he": {
+    slug: "kody-he",
+    name: "Kody",
+    accent: "#0f766e",
+    locale: "he",
+  },
 };
+
+export function normalizeClientBrandLocale(input?: string): string {
+  const normalized = (input ?? "").trim().toLowerCase().replace(/_/g, "-");
+  return /^[a-z]{2,3}(-[a-z0-9]{2,8})*$/.test(normalized)
+    ? normalized
+    : DEFAULT_CLIENT_LOCALE;
+}
 
 export function normalizeClientBrandSlug(input: string): string {
   const normalized = input
@@ -41,11 +61,11 @@ function titleFromSlug(slug: string): string {
 
 export function getClientBrand(slug: string): ClientBrand {
   const normalized = normalizeClientBrandSlug(slug);
-  return (
-    KNOWN_CLIENT_BRANDS[normalized] ?? {
-      slug: normalized,
-      name: titleFromSlug(normalized),
-      accent: "#0f766e",
-    }
-  );
+  const base = KNOWN_CLIENT_BRANDS[normalized] ?? {
+    slug: normalized,
+    name: titleFromSlug(normalized),
+    accent: "#0f766e",
+  };
+
+  return { ...base, locale: normalizeClientBrandLocale(base.locale) };
 }

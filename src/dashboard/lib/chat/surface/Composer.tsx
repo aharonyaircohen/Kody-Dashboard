@@ -230,7 +230,7 @@ export function Composer({
               </span>
               <button
                 onClick={() => onRemoveAttachment(attachment.id)}
-                className="ml-1 hover:text-destructive"
+                className="ms-1 hover:text-destructive"
                 disabled={activeLoading}
               >
                 <X className="w-3 h-3" />
@@ -255,7 +255,7 @@ export function Composer({
               <button
                 type="button"
                 onClick={() => onRemoveContextChip(chip.id)}
-                className="ml-0.5 hover:text-destructive"
+                className="ms-0.5 hover:text-destructive"
                 aria-label="Remove element context"
               >
                 <X className="w-3 h-3" />
@@ -346,7 +346,7 @@ export function Composer({
             <div className="flex-1 relative">
               {slashCommandMenu}
               {agentMentionsOpen && (
-                <div className="absolute bottom-full left-0 right-0 mb-2 rounded-md border border-white/10 bg-zinc-900/95 backdrop-blur-sm shadow-xl overflow-hidden max-h-64 overflow-y-auto">
+                <div className="absolute bottom-full start-0 end-0 mb-2 rounded-md border border-white/10 bg-zinc-900/95 backdrop-blur-sm shadow-xl overflow-hidden max-h-64 overflow-y-auto">
                   <ul role="listbox" className="py-1">
                     {agentMentions.map((agent, idx) => {
                       const isSelected = idx === agentMentionSelectedIndex;
@@ -372,7 +372,7 @@ export function Composer({
                           <span className="truncate text-body-xs text-white/55">
                             {agent.title}
                           </span>
-                          <span className="ml-auto shrink-0 rounded bg-emerald-500/15 px-2 py-1 text-label uppercase tracking-wide text-emerald-300/80">
+                          <span className="ms-auto shrink-0 rounded bg-emerald-500/15 px-2 py-1 text-label uppercase tracking-wide text-emerald-300/80">
                             Agent
                           </span>
                         </li>

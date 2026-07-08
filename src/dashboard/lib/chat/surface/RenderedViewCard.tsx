@@ -80,7 +80,7 @@ export function RenderedViewCard({
           type="button"
           disabled={disabled}
           onClick={() => onAction(node.action)}
-          className={`flex w-full items-center justify-between gap-3 rounded-md border px-3 py-2 text-left text-sm transition-colors disabled:cursor-not-allowed disabled:opacity-50 ${tone}`}
+          className={`flex w-full items-center justify-between gap-3 rounded-md border px-3 py-2 text-start text-sm transition-colors disabled:cursor-not-allowed disabled:opacity-50 ${tone}`}
         >
           <span className="min-w-0 truncate font-medium">{node.label}</span>
           <Icon className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
@@ -188,7 +188,7 @@ export function RenderedViewCard({
       return (
         <label
           key={key}
-          className={`flex w-full items-center gap-3 rounded-md border px-3 py-2 text-left text-sm transition-colors ${
+          className={`flex w-full items-center gap-3 rounded-md border px-3 py-2 text-start text-sm transition-colors ${
             checked
               ? "border-primary/50 bg-primary/10"
               : "border-border bg-background hover:bg-accent"

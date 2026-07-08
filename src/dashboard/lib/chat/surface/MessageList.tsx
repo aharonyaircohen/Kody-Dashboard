@@ -341,7 +341,7 @@ export function MessageList({
                     i === messages.length - 1 &&
                     msg.role === "assistant" &&
                     parsedAssistant?.answer.trim() && (
-                      <span className="inline-block ml-2 animate-pulse text-primary">
+                      <span className="inline-block ms-2 animate-pulse text-primary">
                         ●
                       </span>
                     )}

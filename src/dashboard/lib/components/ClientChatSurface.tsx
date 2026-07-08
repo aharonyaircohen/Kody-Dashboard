@@ -10,12 +10,20 @@
 import { Zap } from "lucide-react";
 
 import type { ClientBrand } from "@dashboard/lib/client-brand";
+import { directionForLocale } from "@dashboard/lib/chat/platform/i18n";
+import { getClientSurfaceCatalog } from "@dashboard/lib/client-chat-strings";
 import { KodyChat } from "./KodyChat";
 
 export function ClientChatSurface({ brand }: { brand: ClientBrand }) {
+  const locale = brand.locale ?? "en";
+  const catalog = getClientSurfaceCatalog(locale);
+
   return (
     <main
       data-testid="client-chat-surface"
+      // Surface-root direction only — per-message bubbles keep their own
+      // explicit `dir` (getMessageDirection in chat/surface/MessageList.tsx).
+      dir={directionForLocale(locale)}
       className="flex h-dvh min-h-dvh flex-col bg-background text-foreground"
     >
       <header className="shrink-0 border-b border-border bg-background px-4 py-3">
@@ -39,7 +47,7 @@ export function ClientChatSurface({ brand }: { brand: ClientBrand }) {
       </header>
 
       <div
-        aria-label="Kody chat"
+        aria-label={catalog.t("chat.client.chatRegionLabel")}
         className="flex min-h-0 w-full flex-1 flex-col"
       >
         <KodyChat presentation="standalone" hideTerminalMode railFullscreen />

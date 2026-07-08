@@ -9,6 +9,7 @@ import type { Metadata } from "next";
 
 import { ClientChatSurface } from "@dashboard/lib/components/ClientChatSurface";
 import { getClientBrand } from "@dashboard/lib/client-brand";
+import { getClientSurfaceCatalog } from "@dashboard/lib/client-chat-strings";
 
 interface ClientChatPageProps {
   params: Promise<{ brandSlug: string }>;
@@ -19,10 +20,13 @@ export async function generateMetadata({
 }: ClientChatPageProps): Promise<Metadata> {
   const { brandSlug } = await params;
   const brand = getClientBrand(brandSlug);
+  const catalog = getClientSurfaceCatalog(brand.locale ?? "en");
 
   return {
-    title: `${brand.name} Chat`,
-    description: `Chat with ${brand.name}.`,
+    title: catalog.t("chat.client.metaTitle", { brand: brand.name }),
+    description: catalog.t("chat.client.metaDescription", {
+      brand: brand.name,
+    }),
   };
 }
 

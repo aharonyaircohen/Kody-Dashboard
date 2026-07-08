@@ -192,7 +192,7 @@ export function HeaderControls({
             );
           })()}
           {messageCount > 0 && (
-            <span className="ml-1 rounded-full bg-primary/10 px-2 py-1 text-body-xs text-primary">
+            <span className="ms-1 rounded-full bg-primary/10 px-2 py-1 text-body-xs text-primary">
               {messageCount}
             </span>
           )}
@@ -250,7 +250,7 @@ export function HeaderControls({
                   {reasoningMenuOpen && (
                     <ul
                       role="listbox"
-                      className="absolute top-full left-0 mt-1 z-30 min-w-[140px] rounded-md border bg-popover shadow-md"
+                      className="absolute top-full start-0 mt-1 z-30 min-w-[140px] rounded-md border bg-popover shadow-md"
                     >
                       {currentReasoning.efforts.map((effort) => (
                         <li key={effort.value}>
@@ -266,7 +266,7 @@ export function HeaderControls({
                               }
                               setReasoningMenuOpen(false);
                             }}
-                            className={`w-full text-left px-3 py-2 text-sm hover:bg-accent ${
+                            className={`w-full text-start px-3 py-2 text-sm hover:bg-accent ${
                               effectiveReasoningEffort === effort.value
                                 ? "bg-accent/50 font-medium"
                                 : ""
@@ -289,7 +289,7 @@ export function HeaderControls({
           {!lockedAgentId && agentMenuOpen && (
             <ul
               role="listbox"
-              className="absolute top-full left-0 mt-1 z-30 min-w-[260px] rounded-md border bg-popover shadow-md"
+              className="absolute top-full start-0 mt-1 z-30 min-w-[260px] rounded-md border bg-popover shadow-md"
             >
               {agentList.map((a) => {
                 const isSelected =
@@ -300,7 +300,7 @@ export function HeaderControls({
                     <button
                       type="button"
                       onClick={() => onSelectEntry(a)}
-                      className={`w-full text-left px-3 py-2 hover:bg-accent text-sm flex items-start gap-2 ${
+                      className={`w-full text-start px-3 py-2 hover:bg-accent text-sm flex items-start gap-2 ${
                         isSelected ? "bg-accent/50" : ""
                       }`}
                       role="option"
@@ -397,7 +397,7 @@ export function HeaderControls({
                 railFullscreen ? "Restore chat width" : "Expand chat fullscreen"
               }
               title={railFullscreen ? "Restore" : "Fullscreen"}
-              className="ml-1 p-2 rounded-md text-muted-foreground hover:text-foreground hover:bg-background border border-transparent hover:border-border transition-all"
+              className="ms-1 p-2 rounded-md text-muted-foreground hover:text-foreground hover:bg-background border border-transparent hover:border-border transition-all"
             >
               {railFullscreen ? (
                 <Minimize2 className="w-4 h-4" />
@@ -427,7 +427,7 @@ export function HeaderControls({
               onClick={onClose}
               aria-label="Close chat"
               title="Close"
-              className="ml-1 p-2 rounded-md text-muted-foreground hover:text-foreground hover:bg-background border border-transparent hover:border-border transition-all"
+              className="ms-1 p-2 rounded-md text-muted-foreground hover:text-foreground hover:bg-background border border-transparent hover:border-border transition-all"
             >
               <X className="w-4 h-4" />
             </button>

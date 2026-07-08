@@ -51,7 +51,7 @@ export function SlashCommandMenu({
 
   if (filtered.length === 0) {
     return (
-      <div className="absolute bottom-full left-0 right-0 mb-2 rounded-md border border-white/10 bg-zinc-900/95 backdrop-blur-sm shadow-xl px-3 py-2 text-xs text-white/50">
+      <div className="absolute bottom-full start-0 end-0 mb-2 rounded-md border border-white/10 bg-zinc-900/95 backdrop-blur-sm shadow-xl px-3 py-2 text-xs text-white/50">
         No matching commands. Manage them at{" "}
         <RepoScopedLink
           className="underline hover:text-white/80"
@@ -65,7 +65,7 @@ export function SlashCommandMenu({
   }
 
   return (
-    <div className="absolute bottom-full left-0 right-0 mb-2 rounded-md border border-white/10 bg-zinc-900/95 backdrop-blur-sm shadow-xl overflow-hidden max-h-64 overflow-y-auto">
+    <div className="absolute bottom-full start-0 end-0 mb-2 rounded-md border border-white/10 bg-zinc-900/95 backdrop-blur-sm shadow-xl overflow-hidden max-h-64 overflow-y-auto">
       <ul role="listbox" className="py-1">
         {filtered.map((p, idx) => {
           const isSelected = idx === selectedIndex;
@@ -91,12 +91,12 @@ export function SlashCommandMenu({
                 </span>
               )}
               {p.description && (
-                <span className="text-xs text-white/55 truncate ml-1">
+                <span className="text-xs text-white/55 truncate ms-1">
                   {p.description}
                 </span>
               )}
               <span
-                className={`ml-auto text-[10px] uppercase tracking-wide px-1.5 py-0.5 rounded shrink-0 ${
+                className={`ms-auto text-[10px] uppercase tracking-wide px-1.5 py-0.5 rounded shrink-0 ${
                   p.source === "builtin"
                     ? "bg-white/[0.05] text-white/40"
                     : "bg-emerald-500/15 text-emerald-300/80"

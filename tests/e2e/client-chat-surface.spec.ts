@@ -87,6 +87,10 @@ test.describe("Client chat surface", () => {
     ).toBeVisible({
       timeout: 15_000,
     });
+    // Default (en) brand: surface root is explicitly LTR (Step 5.5 locale).
+    await expect(
+      page.locator('[data-testid="client-chat-surface"]'),
+    ).toHaveAttribute("dir", "ltr");
     await expect(page.locator('[data-testid="client-brand-name"]')).toHaveText(
       "Kody",
     );
@@ -148,5 +152,47 @@ test.describe("Client chat surface", () => {
     await chat.getByRole("button", { name: "Send message" }).click();
     await expect(chat.getByText("Hi! How can I help you today?")).toBeVisible();
     await expect(chat.getByText(/renderer-capable model/i)).toHaveCount(0);
+  });
+
+  test("/client/kody-he renders an RTL root while per-message dir survives", async ({
+    page,
+  }) => {
+    const hebrewReply = "שלום! איך אפשר לעזור?";
+    await page.route("**/api/kody/chat/kody", async (route) => {
+      await route.fulfill({
+        status: 200,
+        headers: {
+          "content-type": "text/event-stream; charset=utf-8",
+          "cache-control": "no-cache",
+        },
+        body: sseBody([{ type: "text-delta", delta: hebrewReply }]),
+      });
+    });
+    await page.goto(`${BASE_URL}/client/kody-he`);
+    await page.waitForLoadState("domcontentloaded");
+
+    const surface = page.locator('[data-testid="client-chat-surface"]');
+    await expect(surface).toBeVisible({ timeout: 15_000 });
+    // The he-locale brand flips the surface root to RTL (Step 5.5, plan H7).
+    await expect(surface).toHaveAttribute("dir", "rtl");
+
+    // Composer still works under the RTL root.
+    const chat = page.locator('[aria-label="Kody chat"]').first();
+    const composer = chat.locator("textarea").first();
+    await expect(composer).toBeEditable();
+    await composer.fill("Hello from an LTR message");
+    await chat.getByRole("button", { name: "Send message" }).click();
+    await expect(chat.getByText(hebrewReply)).toBeVisible();
+
+    // Per-message direction is explicit per bubble (getMessageDirection in
+    // chat/surface/MessageList.tsx) and must NOT be overridden by the RTL
+    // root: the LTR user bubble stays dir="ltr", the Hebrew assistant bubble
+    // stays dir="rtl".
+    await expect(
+      chat.locator('[data-role="user"] > div[dir="ltr"]'),
+    ).toBeVisible();
+    await expect(
+      chat.locator('[data-role="assistant"] > div[dir="rtl"]'),
+    ).toBeVisible();
   });
 });
