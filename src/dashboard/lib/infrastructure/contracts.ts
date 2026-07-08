@@ -6,9 +6,9 @@
  *   concepts; Fly/OpenComputer/Coolify are adapters behind them.
  */
 
-export type InfrastructureProviderId = "fly";
+export type InfrastructureProviderId = string;
 
-export type InfrastructureArea = "compute" | "deployments" | "browsers";
+export type InfrastructureArea = "servers" | "deployments" | "browsers";
 
 export type InfrastructureCapability =
   | "run-work"
@@ -27,14 +27,26 @@ export interface InfrastructureProviderBase {
   capabilities: ReadonlySet<InfrastructureCapability>;
 }
 
-export interface ComputeProvider<
-  TContext,
+export interface ServerContextBase {
+  owner: string;
+  repo: string;
+  octokit: unknown;
+}
+
+export type ServerContextResult<TContext extends ServerContextBase> =
+  | { ok: true; context: TContext }
+  | { ok: false; error: string; status: number };
+
+export interface ServerProvider<
+  TContext extends ServerContextBase,
   TRunInput,
   TRunResult,
   TClaimInput = never,
   TClaimResult = never,
 > extends InfrastructureProviderBase {
-  area: "compute";
+  area: "servers";
+  resolveContext?(input: unknown): Promise<ServerContextResult<TContext>>;
+  isAvailable?(context: TContext): boolean;
   run(input: TRunInput): Promise<TRunResult>;
   claimOrRun?(context: TContext, input: TClaimInput): Promise<TClaimResult>;
 }
@@ -61,4 +73,25 @@ export interface BrowserProvider<TSessionInput, TSession, TAction, TResult>
   createSession(input: TSessionInput): Promise<TSession>;
   act(session: TSession, action: TAction): Promise<TResult>;
   closeSession(session: TSession): Promise<void>;
+}
+
+export interface InfrastructureProviderSelection {
+  servers?: InfrastructureProviderId;
+  deployments?: InfrastructureProviderId;
+  browsers?: InfrastructureProviderId;
+}
+
+export interface InfrastructurePlugin {
+  id: InfrastructureProviderId;
+  providers: {
+    servers?: ServerProvider<
+      ServerContextBase,
+      unknown,
+      unknown,
+      unknown,
+      unknown
+    >;
+    deployments?: DeploymentProvider<unknown, unknown, unknown, unknown>;
+    browsers?: BrowserProvider<unknown, unknown, unknown, unknown>;
+  };
 }

@@ -14,38 +14,38 @@ function health(over: Partial<GitHubActionsHealth>): GitHubActionsHealth {
 }
 
 describe("chooseRunner", () => {
-  it("uses github when healthy, even if Fly is available", () => {
+  it("uses github when healthy, even if a server provider is available", () => {
     const d = chooseRunner({
       health: health({ healthy: true }),
-      flyAvailable: true,
+      serverAvailable: true,
     });
     expect(d.runner).toBe("github");
     expect(d.reason).toContain("github base");
   });
 
-  it("uses github when healthy and Fly is not available", () => {
+  it("uses github when healthy and a server provider is not available", () => {
     const d = chooseRunner({
       health: health({ healthy: true }),
-      flyAvailable: false,
+      serverAvailable: false,
     });
     expect(d.runner).toBe("github");
   });
 
-  it("falls back to Fly when status is degraded and Fly is available", () => {
+  it("falls back to server when status is degraded and a server provider is available", () => {
     const d = chooseRunner({
       health: health({
         healthy: false,
         statusDegraded: true,
         reason: "actions status degraded_performance",
       }),
-      flyAvailable: true,
+      serverAvailable: true,
     });
-    expect(d.runner).toBe("fly");
-    expect(d.reason).toContain("fly fallback");
+    expect(d.runner).toBe("server");
+    expect(d.reason).toContain("server fallback");
     expect(d.reason).toContain("degraded_performance");
   });
 
-  it("falls back to Fly when the queue is full and Fly is available", () => {
+  it("falls back to server when the queue is full and a server provider is available", () => {
     const d = chooseRunner({
       health: health({
         healthy: false,
@@ -53,17 +53,17 @@ describe("chooseRunner", () => {
         queuedCount: 25,
         reason: "queue full (25 ≥ 10)",
       }),
-      flyAvailable: true,
+      serverAvailable: true,
     });
-    expect(d.runner).toBe("fly");
+    expect(d.runner).toBe("server");
   });
 
-  it("stays on github when unhealthy but Fly is NOT available (nowhere else to go)", () => {
+  it("stays on github when unhealthy but a server provider is not available", () => {
     const d = chooseRunner({
       health: health({ healthy: false, statusDegraded: true }),
-      flyAvailable: false,
+      serverAvailable: false,
     });
     expect(d.runner).toBe("github");
-    expect(d.reason).toContain("no fly token");
+    expect(d.reason).toContain("no server provider");
   });
 });

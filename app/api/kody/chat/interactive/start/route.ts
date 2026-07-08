@@ -35,14 +35,17 @@ import {
   applyVibePrimerToContent,
   type VibeTaskContext,
 } from "@dashboard/lib/vibe/primer";
-import { resolveFlyContext } from "@dashboard/lib/runners/fly-context";
-import { claimOrSpawnFly } from "@dashboard/lib/runners/fly-run";
 import {
   chatRunRequest,
   withStoreTarget,
 } from "@dashboard/lib/runners/run-request";
 import { checkGitHubActionsHealth } from "@dashboard/lib/runners/github-health";
 import { dispatchRun } from "@dashboard/lib/runners/runner-dispatch";
+import {
+  claimOrRunServer,
+  isServerProviderAvailable,
+  resolveServerContext,
+} from "@dashboard/lib/runners/server-run";
 
 export const runtime = "nodejs";
 
@@ -167,22 +170,20 @@ export async function POST(req: NextRequest) {
       ...(headerAuth?.storeRef ? { storeRef: headerAuth.storeRef } : {}),
     };
 
-    // GitHub is the base runner; Fly is the fallback when GitHub Actions is
-    // degraded or its queue is backed up (proactive), or when the dispatch
-    // call itself throws (reactive). Resolve the Fly context up front so the
-    // fallback has everything it needs — flyAvailable is false when the repo
-    // has no FLY_API_TOKEN, in which case we just stay on GitHub.
-    const flyCtx = await resolveFlyContext(req, {
+    // GitHub is the base runner; the installed server provider is the fallback
+    // when GitHub Actions is degraded or its queue is backed up (proactive), or
+    // when the dispatch call itself throws (reactive).
+    const serverCtx = await resolveServerContext(req, {
       repoOverride: getChatRepoOverride(),
     }).catch(() => null);
-    const flyContext =
-      flyCtx && flyCtx.ok && flyCtx.context.flyToken
-        ? flyCtx.context
+    const serverContext =
+      serverCtx && serverCtx.ok && isServerProviderAvailable(serverCtx.context)
+        ? serverCtx.context
         : undefined;
-    const flyAvailable = !!flyContext;
+    const serverAvailable = !!serverContext;
 
     const outcome = await dispatchRun({
-      flyAvailable,
+      serverAvailable,
       checkHealth: () =>
         checkGitHubActionsHealth({
           countQueuedRuns: async () => {
@@ -206,8 +207,8 @@ export async function POST(req: NextRequest) {
             inputs: workflowInputs,
           })
           .then(() => undefined),
-      runFly: () =>
-        claimOrSpawnFly(flyCtx!.ok ? flyCtx!.context : (null as never), {
+      runServer: () =>
+        claimOrRunServer(serverCtx!.ok ? serverCtx!.context : (null as never), {
           taskId,
           runRequest: withStoreTarget(chatRunRequest(taskId), headerAuth),
           idleExitMs,
@@ -230,11 +231,13 @@ export async function POST(req: NextRequest) {
       runner: outcome.runner,
       reason: outcome.reason,
       ...(outcome.fellBackOnError ? { fellBackOnError: true } : {}),
-      ...(outcome.flyResult ? { machineId: outcome.flyResult.machineId } : {}),
+      ...(outcome.serverResult
+        ? { machineId: outcome.serverResult.machineId }
+        : {}),
       target:
         outcome.runner === "github"
           ? { owner, repo, branch: "main", workflow: "kody.yml" }
-          : { owner, repo, branch: "main", workflow: "fly" },
+          : { owner, repo, branch: "main", workflow: "server" },
     });
   } catch (err) {
     logger.error({ err, taskId }, "interactive: start failed");

@@ -5,9 +5,8 @@
  *
  * POST /api/kody/vibe/execute
  *
- * Spawns a Fly Machine that runs the engine in agent mode (run-implementation)
- * against a specific issue. The engine reads ISSUE_NUMBER from env (via
- * runner/entrypoint.sh translating it to `kody run --issue N`), then
+ * Starts the installed server provider in agent mode (run-implementation)
+ * against a specific issue. The engine reads ISSUE_NUMBER from env, then
  * branches, codes, commits, and opens a PR — using the issue body as the
  * already-finalized plan.
  *
@@ -20,9 +19,10 @@
 import { NextRequest, NextResponse } from "next/server";
 import { requireKodyAuth } from "@dashboard/lib/auth";
 import { logger } from "@dashboard/lib/logger";
-import { spawnRunner } from "@dashboard/lib/runners/fly";
-import { resolveFlyContext } from "@dashboard/lib/runners/fly-context";
-import { claimFromPool } from "@dashboard/lib/runners/pool-client";
+import {
+  claimOrRunServer,
+  resolveServerContext,
+} from "@dashboard/lib/runners/server-run";
 import {
   issueRunRequest,
   withStoreTarget,
@@ -32,6 +32,16 @@ export const runtime = "nodejs";
 
 /** Ceiling on the default-branch lookup; on timeout the runner falls back to main. */
 const BRANCH_LOOKUP_TIMEOUT_MS = 5_000;
+
+interface VibeRepoOctokit {
+  repos: {
+    get(input: {
+      owner: string;
+      repo: string;
+      request: { signal: AbortSignal };
+    }): Promise<{ data: { default_branch?: string } }>;
+  };
+}
 
 export async function POST(req: NextRequest) {
   const authError = await requireKodyAuth(req);
@@ -52,18 +62,18 @@ export async function POST(req: NextRequest) {
     );
   }
 
-  const ctxResult = await resolveFlyContext(req);
+  const ctxResult = await resolveServerContext(req);
   if (!ctxResult.ok) {
     return NextResponse.json(
       { error: ctxResult.error },
       { status: ctxResult.status },
     );
   }
-  const { owner, repo, githubToken, octokit, allSecrets, flyToken, perfTier } =
-    ctxResult.context;
+  const { owner, repo } = ctxResult.context;
+  const octokit = ctxResult.context.octokit as VibeRepoOctokit;
   const runRequest = withStoreTarget(
     issueRunRequest(issueNumber),
-    ctxResult.context,
+    ctxResult.context as Parameters<typeof withStoreTarget>[1],
   );
 
   // sessionId is traceable but unused by the engine in agent mode —
@@ -95,50 +105,24 @@ export async function POST(req: NextRequest) {
   }
 
   try {
-    const claim = await claimFromPool({
-      jobId: sessionId,
-      repo: `${owner}/${repo}`,
-      runRequest,
-      ref,
-    });
-    if (claim.ok) {
-      logger.info(
-        { issueNumber, machineId: claim.machineId, owner, repo, sessionId },
-        "vibe-execute: claimed warm pool machine",
-      );
-      return NextResponse.json({
-        ok: true,
-        issueNumber,
-        runner: "pool",
-        machineId: claim.machineId,
-        sessionId,
-      });
-    }
-
-    logger.info(
-      { issueNumber, owner, repo, sessionId, ref, poolMiss: claim.reason },
-      "vibe-execute: pool miss — spawning fresh runner",
+    const { runner, machineId } = await claimOrRunServer(
+      ctxResult.context,
+      {
+        taskId: sessionId,
+        runRequest,
+        ref,
+      },
     );
 
-    const { machineId, region } = await spawnRunner({
-      repo: `${owner}/${repo}`,
-      githubToken,
-      runRequest,
-      ref,
-      allSecrets,
-      flyToken,
-      perfTier,
-    });
-
     logger.info(
-      { issueNumber, machineId, region, owner, repo },
-      "vibe-execute: machine spawned",
+      { issueNumber, machineId, owner, repo, runner },
+      "vibe-execute: runner started",
     );
 
     return NextResponse.json({
       ok: true,
       issueNumber,
-      runner: "fly",
+      runner,
       machineId,
       sessionId,
     });

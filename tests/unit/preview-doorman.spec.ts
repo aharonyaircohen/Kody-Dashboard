@@ -249,8 +249,11 @@ describe("preview builder doorman wiring", () => {
       resolve(repoRoot, "builder/src/builder.ts"),
       "utf8",
     );
-    const lifecycle = readFileSync(
-      resolve(repoRoot, "src/dashboard/lib/previews/preview-lifecycle.ts"),
+    const deployments = readFileSync(
+      resolve(
+        repoRoot,
+        "src/dashboard/lib/infrastructure/plugins/fly/deployments.ts",
+      ),
       "utf8",
     );
 
@@ -264,7 +267,7 @@ describe("preview builder doorman wiring", () => {
       "await rm(target, { recursive: true, force: true })",
     );
     expect(builder).toContain("KODY_BRANCH");
-    expect(lifecycle).toContain(
+    expect(deployments).toContain(
       '...("branch" in input ? { branch: input.branch } : {})',
     );
   });
