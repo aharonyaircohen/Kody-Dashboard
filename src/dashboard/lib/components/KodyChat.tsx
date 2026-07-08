@@ -109,6 +109,19 @@ import {
   shouldRehydrateScope,
 } from "../chat/core/rehydration";
 import {
+  brainTransport,
+  type BrainTurnConfig,
+} from "../chat/core/transports/brain";
+import {
+  kodyDirectTransport,
+  type KodyDirectTurnConfig,
+} from "../chat/core/transports/kody-direct";
+import {
+  kodyLiveTransport,
+  type KodyLiveTurnConfig,
+} from "../chat/core/transports/kody-live";
+import { createTransportTurnHandler } from "./kody-chat-transport-events";
+import {
   bootPhaseLabel,
   composeUserWireContent,
   formatElapsed,
@@ -120,7 +133,6 @@ import { formatAttachmentForTextBackend } from "../chat/core/attachment-text";
 import {
   chatToMessage,
   messageToChat,
-  getCreatedIssueNumberFromToolOutput,
   type Message,
   type ToolCall,
   type Attachment,
@@ -201,13 +213,7 @@ import {
   type PreviewActDirective,
 } from "@dashboard/lib/chat-ui-actions";
 import { repoScopedHref } from "@dashboard/lib/routes";
-import {
-  FINAL_ANSWER_TOOL,
-  SHOW_VIEW_TOOL,
-  getFinalAnswerContent,
-  getToolErrorMessage,
-  isFinalAnswerOutput,
-} from "@dashboard/lib/chat-output-tools";
+import { SHOW_VIEW_TOOL } from "@dashboard/lib/chat-output-tools";
 import {
   terminalCheckpointLabel,
   type TerminalCheckpoint,
@@ -2948,306 +2954,84 @@ export function KodyChat({
           data: a.data,
         }));
 
-        // The Brain reply runs to completion server-side. The Vercel proxy is
-        // hard-killed at ~300s, so a long turn arrives across several proxy
-        // connections: the first POSTs the message, each subsequent attempt
-        // re-attaches with the last seen `seq` (and the text shown so far) and
-        // Brain replays the gap then live-tails. Bounded so a pathologically
-        // stuck turn can't loop forever.
-        const MAX_RECONNECTS = 60;
-        // Cold-start gate. The first turn against a suspended/new Brain machine
-        // must wait for Fly to boot it (~100s) plus the per-chat repo clone.
-        // The proxy waits server-side (waitForBrainHealth), but a cold boot can
-        // still hand back a 504 (health not ready in one request), a 503
-        // (transient Fly provisioning), or a 500 (function timeout) before the
-        // machine answers. Rather than surface
-        // that as a chat error, hold the message and retry on these transient
-        // statuses — both before the turn starts (resend the message) and
-        // after (resume from lastSeq, which is idempotent), so a hiccup on a
-        // mid-turn reconnect doesn't fail an otherwise-running reply. 502 is
-        // deliberately excluded for hard misconfigurations that must surface
-        // now, not after retries.
-        const MAX_COLD_START_RETRIES = 10;
-        const COLD_START_RETRY_MS = 3000;
-        const COLD_START_STATUSES = new Set([500, 503, 504]);
-        let coldStartRetries = 0;
-        // Until the Brain has accepted the message and started a turn, a retry
-        // must RESEND the message; once it has, a retry RESUMES from lastSeq.
-        let messageDelivered = false;
-        let latestAssistantText = "";
-        let lastSeq = 0;
+        // Everything protocol-shaped — the reconnect loop (the Vercel
+        // proxy is hard-killed at ~300s, so a long turn arrives across
+        // several connections), the cold-start retry gate, and the SSE
+        // parsing — lives in the brain transport adapter
+        // (chat/core/transports/brain.ts). This branch assembles the
+        // request body from component state, maps the adapter's
+        // ChatEvents back onto the UI via the shared turn handler, and
+        // keeps its historical abort/error semantics.
+        const brainTurnConfig = {
+          endpoint: brainEndpoint,
+          chatId: brainChatId,
+          initialBody: {
+            chatId: brainChatId,
+            message: wireContent,
+            // Brain has no ambient-context slot either; the route
+            // prefixes this onto the forwarded user message.
+            ...(currentPageRef.current
+              ? { currentPage: currentPageRef.current }
+              : {}),
+            // Send the dashboard Context block once, on the first
+            // turn — the route loads it server-side (vault access)
+            // and prefixes it onto the message. Brain keeps it for
+            // the chat's life, so later turns skip the token cost.
+            ...(brainFirstTurn ? { includeContext: true } : {}),
+            ...(taskContext ? { taskContext } : {}),
+            ...(selectedCapability
+              ? {
+                  capabilityContext: {
+                    slug: selectedCapability.slug,
+                    title: selectedCapability.title,
+                    body: selectedCapability.body,
+                  },
+                }
+              : {}),
+            ...(brainAttachments.length > 0
+              ? { attachments: brainAttachments }
+              : {}),
+            // Voice modality. Brain forwards this to the upstream
+            // chat server, which is responsible for appending the
+            // voice overlay to its system prompt for this turn.
+            ...(voiceMode ? { voiceMode: true } : {}),
+            // Thinking level. Brain chat rows don't surface a
+            // `reasoning` dropdown in the picker (Brain owns its
+            // own reasoning config), but we forward the field when
+            // it's set so a future Brain server version can pick
+            // it up without a route change.
+            ...(effectiveReasoningEffort
+              ? { reasoningEffort: effectiveReasoningEffort }
+              : {}),
+          },
+        } satisfies BrainTurnConfig;
+        const brainTurn = createTransportTurnHandler({
+          setMessages,
+          setLoading,
+          emitVoiceDelta,
+          voiceMode,
+        });
         try {
-          // Held on an object so TS doesn't narrow it to the initializer —
-          // the value is mutated inside the applyEvent closure below.
-          const turn: {
-            outcome: "done" | "error" | "aborted" | "exhausted";
-          } = { outcome: "exhausted" };
-
-          for (let attempt = 0; attempt <= MAX_RECONNECTS; attempt++) {
-            const isReconnect = messageDelivered;
-            const res = await fetch(brainEndpoint, {
-              method: "POST",
-              headers: {
-                "Content-Type": "application/json",
-                ...authHeaders(),
-                ...brainExtraHeaders,
-              },
-              body: JSON.stringify(
-                isReconnect
-                  ? {
-                      chatId: brainChatId,
-                      resumeSince: lastSeq,
-                      resumeText: latestAssistantText,
-                    }
-                  : {
-                      chatId: brainChatId,
-                      message: wireContent,
-                      // Brain has no ambient-context slot either; the route
-                      // prefixes this onto the forwarded user message.
-                      ...(currentPageRef.current
-                        ? { currentPage: currentPageRef.current }
-                        : {}),
-                      // Send the dashboard Context block once, on the first
-                      // turn — the route loads it server-side (vault access)
-                      // and prefixes it onto the message. Brain keeps it for
-                      // the chat's life, so later turns skip the token cost.
-                      ...(brainFirstTurn ? { includeContext: true } : {}),
-                      ...(taskContext ? { taskContext } : {}),
-                      ...(selectedCapability
-                        ? {
-                            capabilityContext: {
-                              slug: selectedCapability.slug,
-                              title: selectedCapability.title,
-                              body: selectedCapability.body,
-                            },
-                          }
-                        : {}),
-                      ...(brainAttachments.length > 0
-                        ? { attachments: brainAttachments }
-                        : {}),
-                      // Voice modality. Brain forwards this to the upstream
-                      // chat server, which is responsible for appending the
-                      // voice overlay to its system prompt for this turn.
-                      ...(voiceMode ? { voiceMode: true } : {}),
-                      // Thinking level. Brain chat rows don't surface a
-                      // `reasoning` dropdown in the picker (Brain owns its
-                      // own reasoning config), but we forward the field when
-                      // it's set so a future Brain server version can pick
-                      // it up without a route change.
-                      ...(effectiveReasoningEffort
-                        ? { reasoningEffort: effectiveReasoningEffort }
-                        : {}),
-                    },
-              ),
+          await brainTransport.send(
+            {
+              sessionId: uiSessionId,
+              text: wireContent,
+              agentId: effectiveAgentId,
+              ...(effectiveReasoningEffort
+                ? { reasoningEffort: effectiveReasoningEffort }
+                : {}),
+              context: brainTurnConfig,
+            },
+            {
+              authHeaders: { ...authHeaders(), ...brainExtraHeaders },
               signal: abort.signal,
-            });
-            if (!res.ok || !res.body) {
-              // Wait and retry rather than failing the message — for statuses
-              // that signal "not ready / transient" (a cold boot or a function
-              // timeout), not a hard misconfig like 400/401. This covers BOTH
-              // phases: before the turn starts the loop resends the message;
-              // after it starts (messageDelivered) the loop re-attaches with
-              // resumeSince, which is idempotent — so a transient 500 on a
-              // mid-turn reconnect (only long first turns need one) resumes the
-              // same running reply instead of surfacing the error. The retry
-              // budget bounds it so a genuinely broken turn still surfaces.
-              if (
-                !abort.signal.aborted &&
-                COLD_START_STATUSES.has(res.status) &&
-                coldStartRetries < MAX_COLD_START_RETRIES
-              ) {
-                coldStartRetries++;
-                await res.body?.cancel().catch(() => {});
-                await new Promise((r) => setTimeout(r, COLD_START_RETRY_MS));
-                continue;
-              }
-              const errorData = await res
-                .json()
-                .catch(() => ({ error: `HTTP ${res.status}` }));
-              throw new Error(errorData.error || `HTTP ${res.status}`);
-            }
-            // Message accepted; the Brain turn is running. Further loop
-            // iterations re-attach (resume) instead of resending.
-            messageDelivered = true;
+              emit: brainTurn.handleEvent,
+            },
+          );
 
-            const reader = res.body.getReader();
-            const decoder = new TextDecoder();
-            let buf = "";
-            // Per-connection: did the proxy ask us to reconnect, and did the
-            // turn reach a terminal event on this connection?
-            let reconnectRequested = false;
-
-            const applyEvent = (parsed: {
-              type?: string;
-              role?: string;
-              content?: string;
-              timestamp?: string;
-              error?: string;
-              id?: string;
-              name?: string;
-              input?: Record<string, unknown>;
-              seq?: number;
-            }) => {
-              if (typeof parsed.seq === "number" && parsed.seq > lastSeq) {
-                lastSeq = parsed.seq;
-              }
-              if (parsed.type === "chat.reconnect") {
-                // Proxy handed the turn back before the Vercel ceiling (or the
-                // upstream connection dropped). Reconnect from `lastSeq`.
-                reconnectRequested = true;
-                return;
-              }
-              if (parsed.type === "chat.message") {
-                if (
-                  parsed.role !== "user" &&
-                  typeof parsed.content === "string"
-                ) {
-                  latestAssistantText = parsed.content;
-                  emitVoiceDelta?.(latestAssistantText);
-                }
-                setMessages((prev) => {
-                  const copy = [...prev];
-                  const idx = copy.findIndex(
-                    (m) => m.role === "assistant" && m.isLoading,
-                  );
-                  if (idx >= 0) {
-                    // Preserve any toolCalls already attached to the in-flight
-                    // message so the thinking panel doesn't flicker on each text
-                    // delta.
-                    copy[idx] = {
-                      ...copy[idx],
-                      role: (parsed.role === "user"
-                        ? "user"
-                        : "assistant") as Message["role"],
-                      content: parsed.content ?? "",
-                      timestamp: parsed.timestamp ?? copy[idx].timestamp,
-                      isLoading: true,
-                    };
-                  } else {
-                    copy.push({
-                      role: (parsed.role === "user"
-                        ? "user"
-                        : "assistant") as Message["role"],
-                      content: parsed.content ?? "",
-                      timestamp: parsed.timestamp ?? new Date().toISOString(),
-                      isLoading: true,
-                    });
-                  }
-                  return copy;
-                });
-              } else if (parsed.type === "chat.tool_use") {
-                // Attach the tool call to the current in-flight assistant
-                // message. If the text deltas haven't started yet, create a
-                // placeholder loading bubble so the panel has somewhere to live.
-                setMessages((prev) => {
-                  const copy = [...prev];
-                  let idx = copy.findIndex(
-                    (m) => m.role === "assistant" && m.isLoading,
-                  );
-                  if (idx < 0) {
-                    copy.push({
-                      role: "assistant",
-                      content: "",
-                      timestamp: parsed.timestamp ?? new Date().toISOString(),
-                      isLoading: true,
-                      toolCalls: [],
-                    });
-                    idx = copy.length - 1;
-                  }
-                  const existing = copy[idx].toolCalls ?? [];
-                  copy[idx] = {
-                    ...copy[idx],
-                    toolCalls: [
-                      ...existing,
-                      {
-                        name: parsed.name ?? "tool",
-                        arguments: parsed.input ?? {},
-                        status: "success",
-                      },
-                    ],
-                  };
-                  return copy;
-                });
-              } else if (parsed.type === "chat.done") {
-                turn.outcome = "done";
-                setLoading(false);
-                setMessages((prev) =>
-                  prev.map((m) =>
-                    m.isLoading ? { ...m, isLoading: false } : m,
-                  ),
-                );
-              } else if (parsed.type === "chat.error") {
-                turn.outcome = "error";
-                setLoading(false);
-                setMessages((prev) => {
-                  const filtered = prev.filter(
-                    (m) => !(m.role === "assistant" && m.isLoading),
-                  );
-                  return [
-                    ...filtered,
-                    {
-                      role: "assistant",
-                      content: `Error: ${parsed.error ?? "Unknown error"}`,
-                      isLoading: false,
-                      isError: true,
-                    },
-                  ];
-                });
-              }
-            };
-
-            while (true) {
-              const { done, value } = await reader.read();
-              if (done) break;
-              buf += decoder.decode(value, { stream: true });
-              const lastNewline = buf.lastIndexOf("\n");
-              if (lastNewline === -1) continue;
-              const chunk = buf.slice(0, lastNewline + 1);
-              buf = buf.slice(lastNewline + 1);
-              for (const line of chunk.split("\n")) {
-                if (!line.startsWith("data: ")) continue;
-                const raw = line.slice(6).trim();
-                if (!raw) continue;
-                try {
-                  applyEvent(JSON.parse(raw));
-                } catch {
-                  /* skip malformed */
-                }
-              }
-            }
-            await reader.cancel().catch(() => {});
-
-            // The turn finished on this connection — stop reconnecting.
-            if (turn.outcome === "done" || turn.outcome === "error") break;
-            if (abort.signal.aborted) {
-              turn.outcome = "aborted";
-              break;
-            }
-            // Connection ended without a terminal event: either the proxy
-            // handed back before the Vercel ceiling (`chat.reconnect`) or the
-            // upstream dropped. Either way the turn keeps running on Brain —
-            // loop to re-attach from `lastSeq`. `reconnectRequested` is read
-            // here only to document intent; we reconnect regardless.
-            void reconnectRequested;
-          }
-
-          if (turn.outcome === "exhausted") {
-            setLoading(false);
-            setMessages((prev) => {
-              const filtered = prev.filter(
-                (m) => !(m.role === "assistant" && m.isLoading),
-              );
-              return [
-                ...filtered,
-                {
-                  role: "assistant",
-                  content:
-                    "Error: lost the connection to Brain and couldn't resume the reply after several attempts. The work may still be running — try again in a moment.",
-                  isLoading: false,
-                  isError: true,
-                },
-              ];
-            });
+          // Reconnect budget ran out — the handler already surfaced the
+          // error bubble; nothing to hand to TTS.
+          if (brainTurn.state.exhausted) {
             return null;
           }
 
@@ -3260,8 +3044,8 @@ export function KodyChat({
           // them when voiceMode is set, but the dashboard should never
           // narrate them even if an old server leaks them through.
           const spokenText = voiceMode
-            ? stripReasoning(latestAssistantText)
-            : latestAssistantText;
+            ? stripReasoning(brainTurn.state.latestAssistantText)
+            : brainTurn.state.latestAssistantText;
           return spokenText || null;
         } catch (error) {
           if (error instanceof Error && error.name === "AbortError") {
@@ -3380,12 +3164,22 @@ export function KodyChat({
         const kodyAbort = new AbortController();
         kodyAbortBySessionRef.current.set(uiSessionId, kodyAbort);
         kodyAbortRef.current = kodyAbort;
+        // Protocol mechanics — the SSE parse, tool bookkeeping, and
+        // directive shape detection — live in the kody-direct transport
+        // adapter (chat/core/transports/kody-direct.ts). This branch
+        // assembles the request body from component state, maps the
+        // adapter's ChatEvents onto the UI via the shared turn handler,
+        // then applies the deferred directives after the stream settles.
+        const kodyTurn = createTransportTurnHandler({
+          setMessages,
+          setLoading,
+          emitVoiceDelta,
+          voiceMode,
+        });
         try {
-          const res = await fetch("/api/kody/chat/kody", {
-            method: "POST",
-            headers: { "Content-Type": "application/json", ...authHeaders() },
-            signal: kodyAbort.signal,
-            body: JSON.stringify({
+          const kodyTurnConfig = {
+            endpoint: "/api/kody/chat/kody",
+            body: {
               messages: kodyMessages,
               task: kodyTaskContext,
               agentId: directAgentSlug ? "kody" : effectiveAgentId,
@@ -3457,366 +3251,40 @@ export function KodyChat({
                     },
                   }
                 : {}),
-            }),
-          });
+            },
+          } satisfies KodyDirectTurnConfig;
+          await kodyDirectTransport.send(
+            {
+              sessionId: uiSessionId,
+              text: wireContent,
+              agentId: directAgentSlug ? "kody" : effectiveAgentId,
+              ...(selectedModelId ? { modelId: selectedModelId } : {}),
+              ...(effectiveReasoningEffort
+                ? { reasoningEffort: effectiveReasoningEffort }
+                : {}),
+              context: kodyTurnConfig,
+            },
+            {
+              authHeaders: authHeaders(),
+              signal: kodyAbort.signal,
+              emit: kodyTurn.handleEvent,
+            },
+          );
 
-          if (!res.ok || !res.body) {
-            const errText = await res.text().catch(() => "");
-            throw new Error(errText || `HTTP ${res.status}`);
-          }
-
-          // The kody route streams Vercel AI SDK UI messages as SSE
-          // (`data: {json}\n\n`). Parse incrementally and split into two
-          // buffers: `reasoning` (model thought summaries — wrapped in
-          // <think>…</think> so ReasoningPanel renders them collapsed)
-          // and `text` (the visible answer).
-          const reader = res.body.getReader();
-          const decoder = new TextDecoder();
-          let sseBuf = "";
-          let reasoningBuf = "";
-          let textBuf = "";
-          // Map of toolCallId → toolName, populated from `tool-input-available`
-          // chunks so we can identify the source tool when its
-          // `tool-output-available` arrives (the output chunk omits the name).
-          const toolNameById = new Map<string, string>();
-          // Map of toolName → human-readable description, hydrated from the
-          // `data-tools-index` event the route emits at the start of the
-          // stream (issue #321). One event per turn — not one per call —
-          // so this map is small and stable for the lifetime of the turn.
-          // Each new `tool-input-available` chip looks its name up here to
-          // attach the description the model saw when picking the tool.
-          const toolDescriptionByName = new Map<string, string>();
-          // Pending UI directives surfaced by tools. Applied AFTER the stream
-          // closes so the assistant bubble settles before the agent flips —
-          // otherwise the in-flight message would be re-routed mid-render.
-          let pendingSwitchAgent: ReturnType<typeof JSON.parse> | null = null;
-          let pendingDashboardNavigate: ReturnType<typeof JSON.parse> | null =
-            null;
-          // Issue number returned by a `create_*` / `report_bug` tool, if
-          // any. Captured here so we can transfer the in-flight conversation
-          // to the new issue's chat store once the stream settles. See the
-          // detection block in `tool-output-available` and the post-stream
-          // handler that mirrors `pendingSwitchAgent`.
-          let pendingCreatedIssue: number | null = null;
-          // Preview action directives from `preview_act`. Like the switch
-          // directive, applied AFTER the stream closes so the chain (run
-          // → snapshot → follow-up user turn) doesn't race the in-flight
-          // assistant render.
-          let pendingPreviewAct: ReturnType<typeof JSON.parse> | null = null;
-          let pendingView: RenderedViewDirective | null = null;
-          let lastToolErrorText: string | null = null;
-          let lastToolErrorToolName: string | null = null;
-
-          const composeContent = () =>
-            (reasoningBuf ? `<think>${reasoningBuf}</think>\n\n` : "") +
-            textBuf;
-
-          while (true) {
-            const { done, value } = await reader.read();
-            if (done) break;
-            sseBuf += decoder.decode(value, { stream: true });
-
-            // Process complete SSE events (separated by blank lines).
-            let sep: number;
-            while ((sep = sseBuf.indexOf("\n\n")) !== -1) {
-              const event = sseBuf.slice(0, sep);
-              sseBuf = sseBuf.slice(sep + 2);
-              if (!event.startsWith("data:")) continue;
-              const payload = event.slice(5).trim();
-              if (!payload || payload === "[DONE]") continue;
-              try {
-                const chunk = JSON.parse(payload) as
-                  | { type: "text-delta"; delta: string }
-                  | { type: "reasoning-delta"; delta: string }
-                  | { type: "error"; errorText: string }
-                  | {
-                      type: "data-tools-index";
-                      data: Record<string, string>;
-                    }
-                  | {
-                      type: "tool-input-start";
-                      toolCallId: string;
-                      toolName: string;
-                    }
-                  | {
-                      type: "tool-input-available";
-                      toolCallId: string;
-                      toolName: string;
-                      input?: unknown;
-                    }
-                  | {
-                      type: "tool-output-available";
-                      toolCallId: string;
-                      output: unknown;
-                    }
-                  | {
-                      type: "tool-output-error";
-                      toolCallId: string;
-                      errorText?: string;
-                    }
-                  | { type: string };
-                if (chunk.type === "text-delta" && "delta" in chunk) {
-                  textBuf += chunk.delta;
-                  emitVoiceDelta?.(stripReasoning(textBuf));
-                } else if (
-                  chunk.type === "reasoning-delta" &&
-                  "delta" in chunk
-                ) {
-                  // Voice mode never shows or speaks reasoning. Drop the
-                  // chunks at the source so the bubble equals textBuf
-                  // and TTS gets exactly what the user reads. Server-side
-                  // we also disable thinking when voiceMode is set, but
-                  // the SDK can occasionally leak a stray reasoning event
-                  // — this is the belt-and-suspenders guard.
-                  if (!voiceMode) reasoningBuf += chunk.delta;
-                } else if (chunk.type === "error" && "errorText" in chunk) {
-                  textBuf += `\n\n[Error] ${chunk.errorText}`;
-                } else if (
-                  chunk.type === "data-tools-index" &&
-                  "data" in chunk &&
-                  chunk.data &&
-                  typeof chunk.data === "object"
-                ) {
-                  // The route ships one `data-tools-index` event at the
-                  // start of the stream with a name→description map for
-                  // every tool in the merged tool set (issue #321). The
-                  // thinking panel reads this back as a muted one-liner
-                  // under each tool name. Brain/Engine chats never emit
-                  // it — the map stays empty and the card omits the line.
-                  toolDescriptionByName.clear();
-                  for (const [name, desc] of Object.entries(chunk.data)) {
-                    if (typeof desc === "string" && desc.length > 0) {
-                      toolDescriptionByName.set(name, desc);
-                    }
-                  }
-                } else if (
-                  // The AI SDK emits `tool-input-start` *before* it
-                  // streams the input deltas, and `tool-input-available`
-                  // once the full input has been parsed. Both carry the
-                  // toolName for the same toolCallId — capture from
-                  // either, since `tool-input-available` can be skipped
-                  // in some edge cases (parse errors, providers that
-                  // bypass delta streaming). Without this fallback, the
-                  // map miss leaves `name` undefined and the issue-
-                  // creation detection below silently no-ops.
-                  chunk.type === "tool-input-start" &&
-                  "toolCallId" in chunk &&
-                  "toolName" in chunk
-                ) {
-                  toolNameById.set(chunk.toolCallId, chunk.toolName);
-                } else if (
-                  chunk.type === "tool-input-available" &&
-                  "toolCallId" in chunk &&
-                  "toolName" in chunk
-                ) {
-                  toolNameById.set(chunk.toolCallId, chunk.toolName);
-                  if (chunk.toolName === FINAL_ANSWER_TOOL) {
-                    continue;
-                  }
-                  // Push a "running" tool-call chip onto the in-flight
-                  // assistant bubble so the user sees live progress as the
-                  // model works — same UX as the kody-live runner path.
-                  // Without this the chat looks idle while github_search_code
-                  // / fetch_url / etc. fire under the hood.
-                  const toolInput =
-                    "input" in chunk &&
-                    chunk.input &&
-                    typeof chunk.input === "object"
-                      ? (chunk.input as Record<string, unknown>)
-                      : {};
-                  // Look up the tool's description from the index event
-                  // emitted at the start of the stream. Absent for
-                  // Brain/Engine chats; the card omits the line gracefully.
-                  const description = toolDescriptionByName.get(chunk.toolName);
-                  setMessages((prev) => {
-                    const copy = [...prev];
-                    let idx = copy.findIndex(
-                      (m) => m.role === "assistant" && m.isLoading,
-                    );
-                    if (idx < 0) {
-                      copy.push({
-                        role: "assistant",
-                        content: "",
-                        timestamp: new Date().toISOString(),
-                        isLoading: true,
-                        toolCalls: [],
-                      });
-                      idx = copy.length - 1;
-                    }
-                    const existing = copy[idx].toolCalls ?? [];
-                    copy[idx] = {
-                      ...copy[idx],
-                      toolCalls: [
-                        ...existing,
-                        {
-                          id: chunk.toolCallId,
-                          name: chunk.toolName,
-                          arguments: toolInput,
-                          status: "running",
-                          ...(description ? { description } : {}),
-                        },
-                      ],
-                    };
-                    return copy;
-                  });
-                } else if (
-                  chunk.type === "tool-output-available" &&
-                  "toolCallId" in chunk &&
-                  "output" in chunk
-                ) {
-                  const name = toolNameById.get(chunk.toolCallId);
-                  if (name === FINAL_ANSWER_TOOL) {
-                    const content = isFinalAnswerOutput(chunk.output)
-                      ? chunk.output.content
-                      : null;
-                    if (content !== null) {
-                      textBuf = content;
-                      emitVoiceDelta?.(stripReasoning(textBuf));
-                    }
-                    continue;
-                  }
-                  const toolErrorText = getToolErrorMessage(chunk.output);
-                  if (toolErrorText) {
-                    lastToolErrorText = toolErrorText;
-                    lastToolErrorToolName = name ?? null;
-                    if (name === SHOW_VIEW_TOOL) {
-                      textBuf = "";
-                    }
-                    setMessages((prev) => {
-                      const copy = [...prev];
-                      const idx = copy.findIndex(
-                        (m) => m.role === "assistant" && m.isLoading,
-                      );
-                      if (idx < 0) return copy;
-                      const existing = copy[idx].toolCalls ?? [];
-                      const next = existing.map((tc) =>
-                        tc.id === chunk.toolCallId
-                          ? { ...tc, status: "error" as const }
-                          : tc,
-                      );
-                      copy[idx] = {
-                        ...copy[idx],
-                        ...(name === SHOW_VIEW_TOOL ? { content: "" } : {}),
-                        toolCalls: next,
-                      };
-                      return copy;
-                    });
-                    continue;
-                  }
-                  // Any tool may emit a switch directive — match by shape,
-                  // not by tool name, so UI tools can remain thin.
-                  if (isSwitchAgentDirective(chunk.output)) {
-                    // Defer the dispatch — see comment on pendingSwitchAgent.
-                    pendingSwitchAgent = chunk.output;
-                  }
-                  if (isDashboardNavigateDirective(chunk.output)) {
-                    pendingDashboardNavigate = chunk.output;
-                  }
-                  if (isPreviewActDirective(chunk.output)) {
-                    pendingPreviewAct = chunk.output;
-                  }
-                  if (isRenderedViewDirective(chunk.output)) {
-                    const renderedView = chunk.output;
-                    pendingView = renderedView;
-                    textBuf = "";
-                    setMessages((prev) => {
-                      const copy = [...prev];
-                      let idx = copy.findIndex(
-                        (m) => m.role === "assistant" && m.isLoading,
-                      );
-                      if (idx < 0) {
-                        copy.push({
-                          role: "assistant",
-                          content: "",
-                          timestamp: new Date().toISOString(),
-                          isLoading: true,
-                          toolCalls: [],
-                        });
-                        idx = copy.length - 1;
-                      }
-                      copy[idx] = { ...copy[idx], view: renderedView };
-                      return copy;
-                    });
-                  }
-                  // Issue creation: one of the `create_*` / `report_bug`
-                  // tools that returned `{ number: <positive int> }` is a
-                  // newly opened GitHub issue. Capture so the post-stream
-                  // handler can migrate the conversation onto that issue.
-                  //
-                  // Match on tool NAME only. A shape-based fallback (any
-                  // `{ number, url:.../issues/... }`) is too broad — read
-                  // tools like `github_get_issue` / `github_list_issues`
-                  // and `github_comment_on_issue` return that exact shape
-                  // for an EXISTING issue, so during a normal analysis turn
-                  // they'd falsely flag a creation and the post-stream
-                  // handler would wipe the whole session. Creation is only
-                  // ever one of our whitelisted tools, so require the name.
-                  const createdIssueNumber =
-                    getCreatedIssueNumberFromToolOutput(name, chunk.output);
-                  if (createdIssueNumber !== null) {
-                    pendingCreatedIssue = createdIssueNumber;
-                  }
-                  void name;
-                  // Flip the matching running chip to "success".
-                  setMessages((prev) => {
-                    const copy = [...prev];
-                    const idx = copy.findIndex(
-                      (m) => m.role === "assistant" && m.isLoading,
-                    );
-                    if (idx < 0) return copy;
-                    const existing = copy[idx].toolCalls ?? [];
-                    const next = existing.map((tc) =>
-                      tc.id === chunk.toolCallId
-                        ? { ...tc, status: "success" as const }
-                        : tc,
-                    );
-                    copy[idx] = { ...copy[idx], toolCalls: next };
-                    return copy;
-                  });
-                } else if (
-                  chunk.type === "tool-output-error" &&
-                  "toolCallId" in chunk
-                ) {
-                  lastToolErrorText =
-                    "errorText" in chunk && typeof chunk.errorText === "string"
-                      ? chunk.errorText
-                      : "Tool call failed";
-                  // Flip the matching running chip to "error" so a failed
-                  // tool call is visible instead of staying stuck on
-                  // "running" forever.
-                  setMessages((prev) => {
-                    const copy = [...prev];
-                    const idx = copy.findIndex(
-                      (m) => m.role === "assistant" && m.isLoading,
-                    );
-                    if (idx < 0) return copy;
-                    const existing = copy[idx].toolCalls ?? [];
-                    const next = existing.map((tc) =>
-                      tc.id === chunk.toolCallId
-                        ? { ...tc, status: "error" as const }
-                        : tc,
-                    );
-                    copy[idx] = { ...copy[idx], toolCalls: next };
-                    return copy;
-                  });
-                }
-              } catch {
-                // Ignore malformed chunks rather than aborting the stream.
-              }
-            }
-
-            const content = composeContent();
-            setMessages((prev) => {
-              const copy = [...prev];
-              const idx = copy.findIndex(
-                (m) => m.role === "assistant" && m.isLoading,
-              );
-              if (idx >= 0) {
-                copy[idx] = { ...copy[idx], content, isLoading: true };
-              }
-              return copy;
-            });
-          }
+          // Per-turn results accumulated by the event handler. Pending UI
+          // directives are applied AFTER the stream settles (below) so the
+          // agent flip / navigation / preview chain doesn't race the
+          // in-flight assistant render.
+          const {
+            textBuf,
+            lastToolErrorText,
+            lastToolErrorToolName,
+            pendingSwitchAgent,
+            pendingDashboardNavigate,
+            pendingPreviewAct,
+            pendingView,
+            pendingCreatedIssue,
+          } = kodyTurn.state;
 
           const assistantText = textBuf.trim();
           let assistantDisplayOverride: string | null | void;
@@ -4126,44 +3594,50 @@ export function KodyChat({
         if (firstTurnPersistedByStart) {
           return null;
         }
+        // The append POST (dispatch mechanics) lives in the kody-live
+        // transport adapter (chat/core/transports/kody-live.ts). The
+        // runner lifecycle — start, rehydration, SSE, phase reducer —
+        // stays here, reducer-driven. Fire-and-ack: the reply arrives via
+        // the runner event stream, so there are no events to map.
         try {
-          const appendRes = await fetch("/api/kody/chat/interactive/append", {
-            method: "POST",
-            headers: {
-              "Content-Type": "application/json",
-              ...liveAuthHeaders(liveSessionId),
+          await kodyLiveTransport.send(
+            {
+              sessionId: liveSessionId,
+              text: liveUserContent,
+              agentId: effectiveAgentId,
+              context: {
+                kind: "append",
+                body: {
+                  taskId: liveSessionId,
+                  content: liveUserContent,
+                  timestamp,
+                  // Same as the trigger path: the live runner reads the turn from
+                  // the session JSONL, so page context travels in the turn.
+                  ...(currentPageRef.current
+                    ? { currentPage: currentPageRef.current }
+                    : {}),
+                  ...(vibeMode ? { vibeMode: true } : {}),
+                  ...(vibeMode && context?.kind === "task"
+                    ? {
+                        taskContext: {
+                          issueNumber: context.task.issueNumber,
+                          ...(context.task.associatedPR
+                            ? {
+                                prNumber: context.task.associatedPR.number,
+                                branch: context.task.associatedPR.head.ref,
+                              }
+                            : {}),
+                        },
+                      }
+                    : {}),
+                },
+              } satisfies KodyLiveTurnConfig,
             },
-            body: JSON.stringify({
-              taskId: liveSessionId,
-              content: liveUserContent,
-              timestamp,
-              // Same as the trigger path: the live runner reads the turn from
-              // the session JSONL, so page context travels in the turn.
-              ...(currentPageRef.current
-                ? { currentPage: currentPageRef.current }
-                : {}),
-              ...(vibeMode ? { vibeMode: true } : {}),
-              ...(vibeMode && context?.kind === "task"
-                ? {
-                    taskContext: {
-                      issueNumber: context.task.issueNumber,
-                      ...(context.task.associatedPR
-                        ? {
-                            prNumber: context.task.associatedPR.number,
-                            branch: context.task.associatedPR.head.ref,
-                          }
-                        : {}),
-                    },
-                  }
-                : {}),
-            }),
-          });
-          if (!appendRes.ok) {
-            const body = (await appendRes.json().catch(() => ({}))) as {
-              error?: string;
-            };
-            throw new Error(body.error ?? `HTTP ${appendRes.status}`);
-          }
+            {
+              authHeaders: liveAuthHeaders(liveSessionId),
+              emit: () => {},
+            },
+          );
           return null;
         } catch (error) {
           const errorMessage =
@@ -4212,43 +3686,48 @@ export function KodyChat({
         { role: "user" as const, content: engineUserContent, timestamp },
       ];
 
+      // The GH Actions dispatch (trigger POST) lives in the kody-live
+      // transport adapter — same fire-and-ack model as append: the reply
+      // streams back through the engine's event feed, not this call.
       try {
-        const triggerRes = await fetch("/api/kody/chat/trigger", {
-          method: "POST",
-          headers: { "Content-Type": "application/json", ...authHeaders() },
-          body: JSON.stringify({
-            taskId: sessionId,
-            messages: engineMessages,
-            dashboardUrl:
-              typeof window !== "undefined"
-                ? window.location.origin
-                : undefined,
-            // Engine has no system slot for ambient context; the route
-            // prefixes this onto the latest user turn the engine reads.
-            ...(currentPageRef.current
-              ? { currentPage: currentPageRef.current }
-              : {}),
-            ...(vibeMode ? { vibeMode: true } : {}),
-            ...(vibeMode && context?.kind === "task"
-              ? {
-                  taskContext: {
-                    issueNumber: context.task.issueNumber,
-                    ...(context.task.associatedPR
-                      ? {
-                          prNumber: context.task.associatedPR.number,
-                          branch: context.task.associatedPR.head.ref,
-                        }
-                      : {}),
-                  },
-                }
-              : {}),
-          }),
-        });
-
-        if (!triggerRes.ok) {
-          const errorData = await triggerRes.json();
-          throw new Error(errorData.error || `HTTP ${triggerRes.status}`);
-        }
+        await kodyLiveTransport.send(
+          {
+            sessionId,
+            text: engineUserContent,
+            agentId: effectiveAgentId,
+            context: {
+              kind: "trigger",
+              body: {
+                taskId: sessionId,
+                messages: engineMessages,
+                dashboardUrl:
+                  typeof window !== "undefined"
+                    ? window.location.origin
+                    : undefined,
+                // Engine has no system slot for ambient context; the route
+                // prefixes this onto the latest user turn the engine reads.
+                ...(currentPageRef.current
+                  ? { currentPage: currentPageRef.current }
+                  : {}),
+                ...(vibeMode ? { vibeMode: true } : {}),
+                ...(vibeMode && context?.kind === "task"
+                  ? {
+                      taskContext: {
+                        issueNumber: context.task.issueNumber,
+                        ...(context.task.associatedPR
+                          ? {
+                              prNumber: context.task.associatedPR.number,
+                              branch: context.task.associatedPR.head.ref,
+                            }
+                          : {}),
+                      },
+                    }
+                  : {}),
+              },
+            } satisfies KodyLiveTurnConfig,
+          },
+          { authHeaders: authHeaders(), emit: () => {} },
+        );
 
         // For task chats a separate useEffect opens the SSE on
         // selectedTask.id; global chats (no task) would otherwise never
