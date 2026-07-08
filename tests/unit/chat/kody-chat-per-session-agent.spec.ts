@@ -51,10 +51,20 @@ const SEND_PIPELINE_PATH = resolve(
   "../../../src/dashboard/lib/components/kody-chat-send.ts",
 );
 
+// Phase 1.6c: the agent/model selection region (per-session agent sync
+// effect, family snap, default resolution, rehydrate mirror) moved to
+// kody-chat-selection.ts. Region assertions read the file the code
+// lives in; whole-surface scans include it.
+const SELECTION_PATH = resolve(
+  __dirname,
+  "../../../src/dashboard/lib/components/kody-chat-selection.ts",
+);
+
 const CHAT_TYPES_SOURCE = readFileSync(CHAT_TYPES_PATH, "utf8");
 const HOOK_SOURCE = readFileSync(HOOK_PATH, "utf8");
 const KODY_CHAT_SOURCE = readFileSync(KODY_CHAT_PATH, "utf8");
 const SEND_PIPELINE_SOURCE = readFileSync(SEND_PIPELINE_PATH, "utf8");
+const SELECTION_SOURCE = readFileSync(SELECTION_PATH, "utf8");
 
 describe("SessionMeta.agentKey — per-session agent memory", () => {
   it("declares agentKey as an optional field on SessionMeta", () => {
@@ -185,7 +195,7 @@ describe("KodyChat — writes per-session agent on every change path", () => {
     // rehydrateForScope — the "Mirror the rehydrated runner agent"
     // comment sits directly above the setSessionAgent call.
     const rehydrateBlock = extractRegionAround(
-      KODY_CHAT_SOURCE,
+      SELECTION_SOURCE,
       "Mirror the rehydrated runner agent",
     );
     expect(rehydrateBlock).toMatch(
@@ -200,7 +210,7 @@ describe("KodyChat — writes per-session agent on every change path", () => {
     // pick back so legacy sessions are captured the first time the
     // user looks at them.
     const syncBlock = extractRegionAround(
-      KODY_CHAT_SOURCE,
+      SELECTION_SOURCE,
       "Per-session agent sync",
     );
     expect(syncBlock).toMatch(/session\.agentKey/);
@@ -218,7 +228,7 @@ describe("KodyChat — writes per-session agent on every change path", () => {
     // chat picker mutates the active session; it must not silently
     // change the default for new sessions.
     const importMatches = [
-      ...(KODY_CHAT_SOURCE + SEND_PIPELINE_SOURCE).matchAll(
+      ...(KODY_CHAT_SOURCE + SEND_PIPELINE_SOURCE + SELECTION_SOURCE).matchAll(
         /writeDefaultChatEntry/g,
       ),
     ];

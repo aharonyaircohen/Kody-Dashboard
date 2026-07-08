@@ -20,9 +20,13 @@ import {
 } from "@dashboard/lib/chat/platform/agent-entries";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
+// Phase 1.6c moved the per-session agent sync effect (and the rest of
+// the agent/model selection region) from KodyChat.tsx to
+// kody-chat-selection.ts. The assertions are unchanged and run against
+// the file the sync effect lives in now.
 const KODY_CHAT_PATH = resolve(
   __dirname,
-  "../../../src/dashboard/lib/components/KodyChat.tsx",
+  "../../../src/dashboard/lib/components/kody-chat-selection.ts",
 );
 const KODY_CHAT_SOURCE = readFileSync(KODY_CHAT_PATH, "utf8");
 

@@ -13,13 +13,6 @@ import { usePathname, useRouter } from "next/navigation";
 import { navLabelForPath } from "./settings-nav";
 import { useLiveRunner } from "./kody-chat-live-runner";
 import { FileText, FileCode } from "lucide-react";
-import { AGENT_KODY, AGENTS, type AgentId } from "../agents";
-import {
-  buildAgentList,
-  shouldWaitForModelBackedEntryResolution,
-  type ChatDropdownEntry,
-  type ChatModelEntry,
-} from "../chat/platform/agent-entries";
 import {
   createChatPluginRegistry,
   FULL_GRANT,
@@ -29,12 +22,6 @@ import {
   ChatPluginProvider,
   ChatPluginSlot,
 } from "../chat/surface/ChatPluginProvider";
-import { readDefaultChatEntry } from "../chat/platform/default-entry";
-import {
-  readReasoningEffort,
-  resolveEffort,
-} from "../chat/core/reasoning-pref";
-import { getStoredBrainConfig } from "../api";
 import { useAuth } from "../auth-context";
 import { toast } from "sonner";
 import type { KodyTask } from "../types";
@@ -108,14 +95,10 @@ import {
 } from "./ChatIssueReportDialog";
 import { useRemoteStatus } from "../hooks/useRemoteStatus";
 import { useAgents } from "../hooks/useAgents";
-import { useVoiceChat } from "../hooks/useVoiceChat";
-import { extractSentences } from "@dashboard/lib/speech-helpers";
-import {
-  PIPER_VOICES,
-  DEFAULT_VOICE_ID,
-  loadVoicePreference,
-  saveVoicePreference,
-} from "@dashboard/lib/voice/voices";
+import { useChatDataSources } from "./kody-chat-data";
+import { useAgentSelection } from "./kody-chat-selection";
+import { useVoiceOrchestration } from "./kody-chat-voice";
+import { PIPER_VOICES } from "@dashboard/lib/voice/voices";
 import { VoiceChatOverlay } from "./VoiceChatOverlay";
 import { useChatSessions } from "../chat/core/use-chat-sessions";
 import { useKodyActionState } from "../hooks/useKodyActionState";
@@ -334,13 +317,6 @@ export function KodyChat({
   const [, setLoading] = useState(false);
   const [toolCalls, setToolCalls] = useState<ToolCall[]>([]);
   const [usedViewIds, setUsedViewIds] = useState<Set<string>>(() => new Set());
-  const [selectedAgentId, setSelectedAgentId] = useState<AgentId>(
-    lockedAgentId ?? "kody-live",
-  );
-  // When the user picks a gateway-routed model (any LLM_MODELS entry), the
-  // dropdown sets `selectedAgentId='kody'` and stashes the gateway id here.
-  // The chat request forwards it as `body.model`. Null = no override.
-  const [selectedModelId, setSelectedModelId] = useState<string | null>(null);
   // ─── Chat plugin platform (Step 4 mechanics, Step 6 injection) ───
   // One registry PER MOUNT (plan H4: ChatRailShell mounts KodyChat twice;
   // plugin manifests are global pure data, instantiation is per mount).
@@ -430,16 +406,6 @@ export function KodyChat({
       unsubscribe();
     };
   }, [pluginRegistry, handlePluginHostEffect]);
-  const [agentMenuOpen, setAgentMenuOpen] = useState(false);
-  // Thinking-level state. The chat header shows a small `🧠` dropdown
-  // next to the agent picker when the current model declares a
-  // `reasoning` block (or one can be auto-detected from `modelName`).
-  // The pick is persisted per (repo, modelId) so switching models
-  // doesn't reset your "High" on Claude when you swap to GPT-5. Sent
-  // on every chat request as `body.reasoningEffort`; the chat route
-  // translates it to the provider's wire shape at request time.
-  const [reasoningMenuOpen, setReasoningMenuOpen] = useState(false);
-  const [reasoningEffort, setReasoningEffort] = useState<string | null>(null);
   // Reactive: re-derives whenever the auth context updates `brain`. Without
   // useAuth this stayed stale because KodyChat lives in the persistent rail
   // and never remounts after Settings saves a Brain config — the dropdown
@@ -450,6 +416,65 @@ export function KodyChat({
   // Stale-while-revalidate keeps autocomplete instant; the API itself
   // is cached on the server side via the GitHub client.
   const { commands: slashCommands } = useSlashCommands(auth);
+  // Brain visibility is driven exclusively by the per-user Settings entry
+  // (URL + API key in localStorage). A server-wide `BRAIN_CHAT_URL` env on
+  // the deployment used to also surface the row, but that meant every
+  // user of the deployment saw "Kody Brain" whether they'd configured it
+  // or not — confusing, and pickable into a 401 loop. Settings is now the
+  // single source of truth for whether the row appears.
+  const brainConfigured = Boolean(auth?.brain?.url && auth?.brain?.apiKey);
+  // Mount-time data loads (phase 1.6c: kody-chat-data.ts) — the chat model
+  // list, the Repo Brain chat toggle, and the FLY_API_TOKEN vault probe.
+  const { chatModels, chatModelsLoaded, brainFlyChatEnabled, flyConfigured } =
+    useChatDataSources();
+
+  // Use one session bucket for Vibe. The selected task is request context, not
+  // a separate visible conversation; otherwise issue creation navigates to an
+  // empty task chat and hides the message that created the issue.
+  const desiredSessionScope: import("../chat/core/use-chat-sessions").ChatSessionScope =
+    vibeMode ? "vibe-default" : "global";
+  // Commit scope changes only after they settle. A transient context flip
+  // (parent re-render / task refetch momentarily dropping the selection)
+  // would otherwise swap useChatSessions to the empty `vibe-default` bucket
+  // and wipe the visible history until a manual refresh. A short settle
+  // window absorbs flickers (they revert within the same tick) while real
+  // user-driven task select/clear persists well past it.
+  const [sessionStoreScope, setSessionStoreScope] =
+    useState<import("../chat/core/use-chat-sessions").ChatSessionScope>(
+      desiredSessionScope,
+    );
+  const sessionHook = useChatSessions(sessionStoreScope);
+  const createChatSession = sessionHook.createSession;
+
+  // Agent/model selection (phase 1.6c: kody-chat-selection.ts) — selected
+  // agent/model state, dropdown entries, default resolution, family snap,
+  // reasoning-effort wiring, and the per-session agent sync effect.
+  const {
+    selectedAgentId,
+    setSelectedAgentId,
+    selectedModelId,
+    setSelectedModelId,
+    agentMenuOpen,
+    setAgentMenuOpen,
+    reasoningMenuOpen,
+    setReasoningMenuOpen,
+    setReasoningEffort,
+    currentAgent,
+    agentList,
+    currentEntry,
+    currentReasoning,
+    effectiveReasoningEffort,
+    onRehydrateRestored,
+  } = useAgentSelection({
+    lockedAgentId,
+    brainConfigured,
+    flyConfigured,
+    brainFlyChatEnabled,
+    chatModels,
+    chatModelsLoaded,
+    sessionHook,
+  });
+
   // Read-only host snapshot handed to slot components and send middleware.
   // Minimal by design (plan H2 host-context channel) — grows per plugin
   // need, not speculatively. `slashCommands` feeds the commands plugin's
@@ -459,34 +484,6 @@ export function KodyChat({
   const pluginHost = useMemo(
     () => ({ pathname, agentId: selectedAgentId, slashCommands, knownGoals }),
     [pathname, selectedAgentId, slashCommands, knownGoals],
-  );
-  // Brain visibility is driven exclusively by the per-user Settings entry
-  // (URL + API key in localStorage). A server-wide `BRAIN_CHAT_URL` env on
-  // the deployment used to also surface the row, but that meant every
-  // user of the deployment saw "Kody Brain" whether they'd configured it
-  // or not — confusing, and pickable into a 401 loop. Settings is now the
-  // single source of truth for whether the row appears.
-  const brainConfigured = Boolean(auth?.brain?.url && auth?.brain?.apiKey);
-  // Mirrors brainConfigured: true only when the per-repo vault holds a
-  // non-empty FLY_API_TOKEN. The Fly dropdown row is hidden until then so
-  // users can't pick a runner that will fail at start-fly time.
-  const [flyConfigured, setFlyConfigured] = useState(false);
-  // Per-repo opt-in for the "Repo Brain" chat row (state repo dashboard.json,
-  // default false). Chat-only — does NOT gate Fly task execution.
-  const [brainFlyChatEnabled, setBrainFlyChatEnabled] = useState(false);
-  // User-managed chat models from /api/kody/models (LLM_MODELS variable).
-  // Empty until first load completes; renders only Kody Live (+ Brain) in
-  // the dropdown while empty.
-  const [chatModels, setChatModels] = useState<ChatModelEntry[]>([]);
-  const [chatModelsLoaded, setChatModelsLoaded] = useState(false);
-  // The user-chosen default chat dropdown entry key (any entry: Brain,
-  // Brain-Fly, or `kody:<modelId>`), a per-user preference persisted in
-  // localStorage (repo-scoped). Read synchronously on mount. Separate from a
-  // model's own `default` flag, which governs server-side gateway resolution.
-  // Read on mount here; written by Settings → "Default chat". The chat picker
-  // stores per-session picks separately.
-  const [defaultChatEntryKey] = useState<string | null>(() =>
-    readDefaultChatEntry(),
   );
   const brainAbortRef = useRef<AbortController | null>(null);
   const brainAbortBySessionRef = useRef(new Map<string, AbortController>());
@@ -559,6 +556,20 @@ export function KodyChat({
   const MAX_PREVIEW_ACT_CHAIN = 8;
   // Deferred handle to the send pipeline (type owned by kody-chat-send.ts).
   const sendTextRef = useRef<SendTextFn | null>(null);
+  // Voice orchestration (phase 1.6c: kody-chat-voice.ts) — overlay/mute
+  // state, the Piper voice preference, and the voice→sendText→TTS glue.
+  // Reads the send pipeline through `sendTextRef` (bound each render right
+  // after `sendText` is declared below), so it can mount before it.
+  const {
+    voiceChat,
+    voiceMuted,
+    setVoiceMuted,
+    voiceOverlayOpen,
+    setVoiceOverlayOpen,
+    voiceId,
+    handleSelectVoice,
+    handleVoiceToggleMute,
+  } = useVoiceOrchestration({ sendTextRef });
   // Initialized lazily below — `sendText` is declared further down.
   const runPreviewActionFromDirective = useCallback(
     async (directive: PreviewActDirective) => {
@@ -589,13 +600,6 @@ export function KodyChat({
     },
     [auth, router],
   );
-  const currentAgent = AGENTS[selectedAgentId] ?? AGENT_KODY;
-  const agentList = buildAgentList(
-    brainConfigured,
-    flyConfigured,
-    brainFlyChatEnabled,
-    chatModels,
-  );
   const { data: repoAgents = [] } = useAgents();
   const repoAgentSlugs = useMemo(
     () => repoAgents.map((agent) => agent.slug),
@@ -612,223 +616,11 @@ export function KodyChat({
   // Generic switch-agent auto-kickoff queue lives in the live-session reducer.
   // Vibe execution does not use this path; it is owned by the Vibe page's
   // `/api/kody/vibe/execute` workflow.
-  // What to show in the header — when a gateway model is active, prefer
-  // its label over the static `kody` agent name.
-  const currentEntry =
-    agentList.find(
-      (e) =>
-        e.agentId === selectedAgentId &&
-        (e.modelId ?? null) === selectedModelId,
-    ) ?? null;
-  // Effective thinking config for the active model. `null` when the model
-  // has no `reasoning` block AND the model-name auto-detect couldn't pick
-  // one — the header hides the dropdown in that case (no clutter for
-  // models that don't reason).
-  const currentReasoning = currentEntry?.reasoning ?? null;
-  // Resolved effort. Read directly from localStorage on every render so
-  // the dropdown never flashes the model's `default` before snapping to
-  // the stored pick on mount. The `reasoningEffort` state still wins
-  // during the current session (overrides the storage read with the
-  // user's just-clicked pick before the localStorage write is observed
-  // by React's next render). Per-(repo, modelId) scoping lives in
-  // `reasoning-pref.ts`.
-  const effectiveReasoningEffort = useMemo(() => {
-    if (!currentReasoning) return null;
-    if (
-      reasoningEffort &&
-      currentReasoning.efforts.some((e) => e.value === reasoningEffort)
-    ) {
-      return reasoningEffort;
-    }
-    if (selectedModelId) {
-      const stored = readReasoningEffort(selectedModelId);
-      if (stored && currentReasoning.efforts.some((e) => e.value === stored)) {
-        return stored;
-      }
-    }
-    return currentReasoning.default;
-  }, [currentReasoning, selectedModelId, reasoningEffort]);
-
-  // Load the user-managed model list once on mount. The dropdown stays in
-  // Kody Live-only mode until this resolves; failures are silent — chat
-  // still works through the engine path.
-  useEffect(() => {
-    let cancelled = false;
-    fetch("/api/kody/models", { headers: authHeaders() })
-      .then((res) => (res.ok ? res.json() : Promise.reject(res)))
-      .then((json: { models?: ChatModelEntry[] }) => {
-        if (cancelled) return;
-        setChatModels(Array.isArray(json.models) ? json.models : []);
-        setChatModelsLoaded(true);
-      })
-      .catch(() => {
-        if (!cancelled) {
-          setChatModels([]);
-          setChatModelsLoaded(true);
-        }
-      });
-    return () => {
-      cancelled = true;
-    };
-  }, []);
-
-  // Load the repo-wide Repo Brain chat toggle once on mount. The default
-  // chat entry is no longer fetched here — it's a per-user localStorage
-  // preference, read synchronously into state above. Silent on failure.
-  useEffect(() => {
-    let cancelled = false;
-    fetch("/api/kody/dashboard-config", { headers: authHeaders() })
-      .then((res) => (res.ok ? res.json() : Promise.reject(res)))
-      .then(
-        (json: {
-          config?: {
-            brainFlyChatEnabled?: boolean;
-          };
-        }) => {
-          if (cancelled) return;
-          setBrainFlyChatEnabled(json.config?.brainFlyChatEnabled === true);
-        },
-      )
-      .catch(() => {
-        if (!cancelled) setBrainFlyChatEnabled(false);
-      });
-    return () => {
-      cancelled = true;
-    };
-  }, []);
-
-  // Resolve the global default agent entry — the value a session with
-  // no per-session pick falls back to. Used as the catch-all when
-  // a session's `agentKey` is missing (legacy sessions created
-  // before this field existed) or points at an entry that has
-  // since been removed from the list.
-  //
-  // Resolution order:
-  //   1. `defaultChatEntryKey` — Settings → "Default chat" pick.
-  //   2. Legacy: a Kody model with `default: true` on the Models page.
-  //   3. First configured Kody model.
-  //   4. Brain if configured.
-  //   5. First valid Live entry (Kody Live, or Live-Fly when on Fly).
-  //
-  // Renderers are part of the in-process Kody chat protocol. If a repo has
-  // a Kody model configured but no saved default, default to that renderer-
-  // capable path instead of Live, while still letting Settings override it.
-  const defaultAgentEntry = useMemo<ChatDropdownEntry | null>(() => {
-    if (defaultChatEntryKey) {
-      const entry = agentList.find((e) => e.key === defaultChatEntryKey);
-      if (entry) return entry;
-    }
-    const defModel = chatModels.find(
-      (m) => m.default === true && m.enabled !== false,
-    );
-    if (defModel) {
-      const entry = agentList.find((e) => e.key === `kody:${defModel.id}`);
-      if (entry) return entry;
-    }
-    const firstKodyModel = agentList.find((e) => e.agentId === "kody");
-    if (firstKodyModel) return firstKodyModel;
-    if (brainConfigured) {
-      const entry = agentList.find(
-        (e) => e.key === "brain" || e.key === "brain-fly",
-      );
-      if (entry) return entry;
-    }
-    return (
-      agentList.find(
-        (e) => e.key === "kody-live-fly" || e.key === "kody-live",
-      ) ??
-      agentList[0] ??
-      null
-    );
-  }, [defaultChatEntryKey, chatModels, brainConfigured, agentList]);
-
-  // Family snap. When a probe flips availability (Fly token added/removed,
-  // Brain Fly toggle flipped), a session's `agentKey` may point at a
-  // dropdown row that's no longer in the list. The same agent is still
-  // available under a sibling key (Live ↔ Live-Fly, Brain ↔ Brain-Fly);
-  // use that instead of bouncing the user back to a different family.
-  // For removed gateway models, fall back to any other Kody row, then
-  // Live if no Kody rows exist.
-  const familySnap = useCallback(
-    (key: string): ChatDropdownEntry | null => {
-      if (key === "kody-live" || key === "kody-live-fly") {
-        return (
-          agentList.find(
-            (e) => e.key === "kody-live-fly" || e.key === "kody-live",
-          ) ?? null
-        );
-      }
-      if (key === "brain" || key === "brain-fly") {
-        return (
-          agentList.find((e) => e.key === "brain-fly" || e.key === "brain") ??
-          null
-        );
-      }
-      if (key.startsWith("kody:")) {
-        return (
-          agentList.find((e) => e.agentId === "kody") ??
-          agentList.find(
-            (e) => e.key === "kody-live-fly" || e.key === "kody-live",
-          ) ??
-          null
-        );
-      }
-      return null;
-    },
-    [agentList],
-  );
-
-  // Probe the per-repo vault for FLY_API_TOKEN so the dropdown can hide the
-  // Fly row when no token is configured. Silent on any error — the row just
-  // stays hidden, matching the "not configured" state.
-  useEffect(() => {
-    let cancelled = false;
-    const headers = authHeaders();
-    if (Object.keys(headers).length === 0) {
-      setFlyConfigured(false);
-      return;
-    }
-    fetch("/api/kody/secrets/FLY_API_TOKEN/value", { headers })
-      .then(async (res) => {
-        if (cancelled) return;
-        if (!res.ok) {
-          setFlyConfigured(false);
-          return;
-        }
-        const body = (await res.json().catch(() => ({}))) as { value?: string };
-        setFlyConfigured(Boolean(body.value && body.value.trim().length > 0));
-      })
-      .catch(() => {
-        if (!cancelled) setFlyConfigured(false);
-      });
-    return () => {
-      cancelled = true;
-    };
-  }, []);
-
-  // When a parent toggles `lockedAgentId` on/off (route change), keep state in sync.
-  useEffect(() => {
-    if (lockedAgentId && selectedAgentId !== lockedAgentId) {
-      setSelectedAgentId(lockedAgentId);
-    }
-  }, [lockedAgentId, selectedAgentId]);
 
   const [showClearConfirm, setShowClearConfirm] = useState(false);
   const [showIssueReport, setShowIssueReport] = useState(false);
   const [issueReportState, setIssueReportState] =
     useState<ChatIssueReportState | null>(null);
-  const [voiceMuted, setVoiceMuted] = useState(false);
-  const [voiceOverlayOpen, setVoiceOverlayOpen] = useState(false);
-  // Per-user Piper voice choice. Starts at the default to keep SSR/first
-  // render deterministic, then hydrates from localStorage after mount.
-  const [voiceId, setVoiceId] = useState<string>(DEFAULT_VOICE_ID);
-  useEffect(() => {
-    setVoiceId(loadVoicePreference());
-  }, []);
-  const handleSelectVoice = useCallback((id: string) => {
-    setVoiceId(id);
-    saveVoicePreference(id);
-  }, []);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   // The vibe issue this chat JUST created (set in the issue-creation transfer
@@ -867,96 +659,7 @@ export function KodyChat({
     if (sessionSidebarPinned) setShowSessionSidebar(true);
   }, [sessionSidebarPinned]);
 
-  // Use one session bucket for Vibe. The selected task is request context, not
-  // a separate visible conversation; otherwise issue creation navigates to an
-  // empty task chat and hides the message that created the issue.
-  const desiredSessionScope: import("../chat/core/use-chat-sessions").ChatSessionScope =
-    vibeMode ? "vibe-default" : "global";
-  // Commit scope changes only after they settle. A transient context flip
-  // (parent re-render / task refetch momentarily dropping the selection)
-  // would otherwise swap useChatSessions to the empty `vibe-default` bucket
-  // and wipe the visible history until a manual refresh. A short settle
-  // window absorbs flickers (they revert within the same tick) while real
-  // user-driven task select/clear persists well past it.
-  const [sessionStoreScope, setSessionStoreScope] =
-    useState<import("../chat/core/use-chat-sessions").ChatSessionScope>(
-      desiredSessionScope,
-    );
-  const sessionHook = useChatSessions(sessionStoreScope);
-  const createChatSession = sessionHook.createSession;
 
-  // Per-session agent sync. The active session's `agentKey` is the
-  // source of truth for the visible agent — switching sessions
-  // restores the agent that was active for that thread, and the
-  // user's picker write is captured on the session.
-  //
-  // Three flows collapse into one effect:
-  //   1. Session has a valid `agentKey` → adopt it. (Covers session
-  //      switches, where the active session changes underneath us.)
-  //   2. Session's `agentKey` points at an entry that's no longer
-  //      in the list (e.g. FLY_API_TOKEN probe flipped, or the user
-  //      removed the model on the Models page) → family snap to
-  //      a sibling entry, then default chain.
-  //   3. Session has no `agentKey` (legacy session) → use the
-  //      default chain and write it back so the next switch
-  //      restores it directly. Also covers the "no active session"
-  //      case, where the local state is just seeded with the default
-  //      (the first send then auto-creates a session and the sync
-  //      effect will re-run to capture the pick).
-  useEffect(() => {
-    if (lockedAgentId) return; // Vibe page owns the agent
-    const session = sessionHook.activeSession;
-    if (
-      shouldWaitForModelBackedEntryResolution({
-        sessionHydrated: sessionHook.hydrated,
-        chatModelsLoaded,
-        sessionAgentKey: session?.agentKey,
-      })
-    ) {
-      return;
-    }
-    if (agentList.length === 0) return; // Wait for the list to load.
-
-    let targetEntry: ChatDropdownEntry | null = null;
-    if (session?.agentKey) {
-      targetEntry = agentList.find((e) => e.key === session.agentKey) ?? null;
-      if (!targetEntry) {
-        targetEntry = familySnap(session.agentKey);
-      }
-    }
-    if (!targetEntry) {
-      targetEntry = defaultAgentEntry;
-    }
-    if (!targetEntry) return;
-
-    if (
-      targetEntry.agentId !== selectedAgentId ||
-      (targetEntry.modelId ?? null) !== selectedModelId
-    ) {
-      setSelectedAgentId(targetEntry.agentId);
-      setSelectedModelId(targetEntry.modelId);
-    }
-
-    // Persist the resolved pick on the active session so future
-    // switches restore it directly without re-running the fallback
-    // chain. Skipped when there's no session (local-state-only
-    // adjustment) or when the session already has this key.
-    if (session && session.agentKey !== targetEntry.key) {
-      sessionHook.setSessionAgent(session.id, targetEntry.key);
-    }
-  }, [
-    sessionHook.activeSession?.id,
-    sessionHook.activeSession?.agentKey,
-    sessionHook.hydrated,
-    agentList,
-    defaultAgentEntry,
-    familySnap,
-    chatModelsLoaded,
-    lockedAgentId,
-    selectedAgentId,
-    selectedModelId,
-    sessionHook.setSessionAgent,
-  ]);
 
   // Reset the visible stream state on agent switch. Session switches are
   // intentionally allowed while a reply is running; each send now writes
@@ -1255,23 +958,6 @@ export function KodyChat({
   );
   const activeLoading = messages.some((m) => m.isLoading);
 
-  // UI side effects of a live-session restore. Runs from the live-runner
-  // hook's rehydrateForScope when a saved record exists for the scope.
-  const onRehydrateRestored = useCallback(() => {
-    setSelectedAgentId("kody-live");
-    // Mirror the rehydrated runner agent onto the active session so
-    // a refresh / re-open lands back on Kody Live. The Fly variant
-    // is also valid here — the entry list is the source of truth
-    // for which one is available.
-    const rehydrateEntry = agentList.find(
-      (e) => e.key === "kody-live-fly" || e.key === "kody-live",
-    );
-    const rehydrateId = sessionHook.activeSession?.id;
-    if (rehydrateId && rehydrateEntry) {
-      sessionHook.setSessionAgent(rehydrateId, rehydrateEntry.key);
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [agentList, sessionHook]);
 
   // Kody Live runner lifecycle — reducer orchestration, event poll, SSE,
   // localStorage persistence + scope rehydration, and the zombie watchdog
@@ -1889,74 +1575,6 @@ export function KodyChat({
       sendText,
     });
 
-  // ─── Voice chat integration ───
-
-  const handleVoiceSend = useCallback(
-    async (transcript: string) => {
-      // Voice is a modality, not an agent. We keep the user's selected
-      // agent and just flip the voiceMode flag — the server appends the
-      // voice overlay onto that agent's system prompt.
-      //
-      // Stream the reply into TTS sentence-by-sentence so it starts
-      // speaking ~1 sentence in, instead of waiting for the whole answer.
-      // `spokenPtr` tracks how much of the cumulative spoken text we've
-      // already queued; each delta yields any newly-completed sentences.
-      let spokenPtr = 0;
-      const flushSentences = (full: string) => {
-        if (full.length < spokenPtr) return; // safety: never go backwards
-        const { sentences, consumed } = extractSentences(full.slice(spokenPtr));
-        if (consumed > 0) spokenPtr += consumed;
-        for (const s of sentences) voiceChatRef.current?.speakChunk(s);
-      };
-      try {
-        const response = await sendText(transcript, [], {
-          voiceMode: true,
-          onVoiceDelta: flushSentences,
-        });
-        // Flush the trailing partial (a final sentence without terminal
-        // punctuation).
-        if (response) {
-          const tail = response.slice(spokenPtr).trim();
-          if (tail) voiceChatRef.current?.speakChunk(tail);
-        }
-      } finally {
-        // Always mark the reply complete — even on error/throw — so TTS
-        // hands back to listening and the mic never strands "off".
-        voiceChatRef.current?.endResponse();
-      }
-    },
-    [sendText],
-  );
-
-  const voiceChat = useVoiceChat({
-    enabled: voiceOverlayOpen,
-    onSendMessage: handleVoiceSend,
-    voiceId,
-  });
-  const voiceChatRef = useRef(voiceChat);
-  useEffect(() => {
-    voiceChatRef.current = voiceChat;
-  }, [voiceChat]);
-
-  const handleVoiceToggleMute = useCallback(() => {
-    setVoiceMuted((prev) => {
-      const next = !prev;
-      if (next) voiceChat.pauseConversation();
-      else voiceChat.resumeConversation();
-      return next;
-    });
-  }, [voiceChat]);
-
-  // Belt-and-suspenders cleanup: every code path that closes the voice
-  // overlay should already call stopConversation, but if any future
-  // close path forgets (or a streamed reply lands AFTER the user
-  // closes), we still want speech + recognition to shut down. Driving
-  // it off voiceOverlayOpen guarantees no orphan TTS keeps narrating
-  // once the window is gone.
-  useEffect(() => {
-    if (voiceOverlayOpen) return;
-    voiceChatRef.current?.stopConversation();
-  }, [voiceOverlayOpen]);
 
   // Apply a slash command to the input: replaces the entire input with
   // "/slug " so the user can immediately type arguments, OR sends right

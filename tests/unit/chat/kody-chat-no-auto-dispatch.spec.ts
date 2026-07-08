@@ -48,13 +48,35 @@ const SEND_PIPELINE_PATH = resolve(
   "../../../src/dashboard/lib/components/kody-chat-send.ts",
 );
 
+// Phase 1.6c moved the selection / data-load / voice effects to their
+// own hook modules; the effect scan covers them too so a future
+// regression can't hide a mount dispatch in an extracted hook.
+const SELECTION_PATH = resolve(
+  __dirname,
+  "../../../src/dashboard/lib/components/kody-chat-selection.ts",
+);
+const DATA_PATH = resolve(
+  __dirname,
+  "../../../src/dashboard/lib/components/kody-chat-data.ts",
+);
+const VOICE_PATH = resolve(
+  __dirname,
+  "../../../src/dashboard/lib/components/kody-chat-voice.ts",
+);
+
 const LIVE_RUNNER_SOURCE = readFileSync(LIVE_RUNNER_PATH, "utf8");
 const SOURCE =
   readFileSync(KODY_CHAT_PATH, "utf8") +
   "\n" +
   LIVE_RUNNER_SOURCE +
   "\n" +
-  readFileSync(SEND_PIPELINE_PATH, "utf8");
+  readFileSync(SEND_PIPELINE_PATH, "utf8") +
+  "\n" +
+  readFileSync(SELECTION_PATH, "utf8") +
+  "\n" +
+  readFileSync(DATA_PATH, "utf8") +
+  "\n" +
+  readFileSync(VOICE_PATH, "utf8");
 
 /**
  * Iterate every `useEffect` in `source` and return its body + dep array
