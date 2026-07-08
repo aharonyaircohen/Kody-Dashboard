@@ -23,6 +23,17 @@ src/dashboard/lib/chat/
 - **Surface** renders core state + registered slots. `KodyChat` becomes a
   thin composition; `ClientChatSurface` becomes core + branding plugin.
 
+## Standing rules (every step)
+
+- **Clean architecture**: one module per concern, files ≤ 800 lines
+  (target 200–400), no god-components, no cross-layer imports
+  (core never imports surface; plugins import platform, never each other).
+- **Coding standards**: immutable updates only, zod at boundaries,
+  explicit error handling, no `console.log`, no `any` in new code.
+- **i18n from the start**: every new/extracted UI string goes through the
+  locale layer (no hardcoded user-facing text in new modules); layouts use
+  logical CSS (`start`/`end`) so RTL works by direction flip.
+
 ## Test layers (all four required at every step)
 
 | Layer | Runner | Scope | Script |
@@ -76,6 +87,14 @@ composer toggle, its registry hook). 5b slash commands → `plugins/commands`.
 5e attachments/voice stay core (they're chat-shaped, not dashboard-shaped).
 After each: unit tests for the plugin, int test for its registration, e2e
 regression green.
+
+**Step 5.5 — Locale + RTL layer.**
+`chat/platform/i18n`: locale provider (default `en`), message catalog with
+per-plugin namespaces (`plugin.terminal.toggle`), `dir` derived from locale
+and applied at the surface root, logical-CSS audit of extracted surface
+pieces. Brand config gains an optional `locale`. Unit tests for catalog
+resolution + fallback; e2e asserts an RTL locale flips direction without
+breaking layout (extends existing `text-direction` / rtl spec patterns).
 
 **Step 6 — Branding as a plugin.**
 `plugins/branding` provides name/logo/accent/welcome text via the theme
