@@ -30,7 +30,19 @@ const KODY_CHAT_PATH = resolve(
   "../../../src/dashboard/lib/components/KodyChat.tsx",
 );
 
-const SOURCE = readFileSync(KODY_CHAT_PATH, "utf8");
+// Phase 1.6a moved the live-runner lifecycle (startInteractiveSession,
+// rehydrateForScope, the poll/SSE/rehydrate/watchdog effects) into the
+// useLiveRunner hook (kody-chat-live-runner.ts). The invariant is
+// unchanged; the effect scan now covers BOTH files and the
+// rehydrateForScope assertions read the hook source.
+const LIVE_RUNNER_PATH = resolve(
+  __dirname,
+  "../../../src/dashboard/lib/components/kody-chat-live-runner.ts",
+);
+
+const LIVE_RUNNER_SOURCE = readFileSync(LIVE_RUNNER_PATH, "utf8");
+const SOURCE =
+  readFileSync(KODY_CHAT_PATH, "utf8") + "\n" + LIVE_RUNNER_SOURCE;
 
 /**
  * Iterate every `useEffect` in `source` and return its body + dep array
@@ -124,12 +136,12 @@ describe("KodyChat — no auto-dispatch on dashboard open (issue #134)", () => {
     // return — never call startInteractiveSession, which would
     // POST /api/kody/chat/interactive/start and create a fresh
     // GitHub Actions workflow.
-    const rehydrateMatch = SOURCE.match(
+    const rehydrateMatch = LIVE_RUNNER_SOURCE.match(
       /const\s+rehydrateForScope\s*=\s*useCallback\(\s*[\s\S]*?\n\s*\}\s*,\s*\[/,
     );
     expect(
       rehydrateMatch,
-      "KodyChat must define a rehydrateForScope callback",
+      "useLiveRunner must define a rehydrateForScope callback",
     ).not.toBeNull();
     const body = rehydrateMatch![0];
     // Locate the "no saved session" branch — guarded by
@@ -156,7 +168,7 @@ describe("KodyChat — no auto-dispatch on dashboard open (issue #134)", () => {
     // so the user can see (and pick) the actual default; this
     // assertion pins the runtime contract that rehydration never
     // invents a new runner.
-    const rehydrateMatch = SOURCE.match(
+    const rehydrateMatch = LIVE_RUNNER_SOURCE.match(
       /const\s+rehydrateForScope\s*=\s*useCallback\(\s*[\s\S]*?\n\s*\}\s*,\s*\[/,
     );
     expect(rehydrateMatch).not.toBeNull();
