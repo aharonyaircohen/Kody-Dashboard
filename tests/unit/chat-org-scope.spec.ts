@@ -12,10 +12,20 @@ import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
-const KODY_CHAT_SOURCE = readFileSync(
-  resolve(__dirname, "../../src/dashboard/lib/components/KodyChat.tsx"),
-  "utf8",
-);
+// Phase 1.6b moved the send pipeline (org forwarding lives in the
+// kody-direct request body) to kody-chat-send.ts; the mode flags stay
+// in KodyChat.tsx. The assertions are unchanged and run against the
+// concatenation of both files.
+const KODY_CHAT_SOURCE =
+  readFileSync(
+    resolve(__dirname, "../../src/dashboard/lib/components/KodyChat.tsx"),
+    "utf8",
+  ) +
+  "\n" +
+  readFileSync(
+    resolve(__dirname, "../../src/dashboard/lib/components/kody-chat-send.ts"),
+    "utf8",
+  );
 const USE_CHAT_SESSIONS_SOURCE = readFileSync(
   resolve(__dirname, "../../src/dashboard/lib/chat/core/use-chat-sessions.ts"),
   "utf8",

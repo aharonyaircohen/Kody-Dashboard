@@ -40,9 +40,21 @@ const LIVE_RUNNER_PATH = resolve(
   "../../../src/dashboard/lib/components/kody-chat-live-runner.ts",
 );
 
+// Phase 1.6b moved the send pipeline (sendText/sendMessage, including
+// the first-turn startInteractiveSession call) to kody-chat-send.ts;
+// the effect scan covers all three files.
+const SEND_PIPELINE_PATH = resolve(
+  __dirname,
+  "../../../src/dashboard/lib/components/kody-chat-send.ts",
+);
+
 const LIVE_RUNNER_SOURCE = readFileSync(LIVE_RUNNER_PATH, "utf8");
 const SOURCE =
-  readFileSync(KODY_CHAT_PATH, "utf8") + "\n" + LIVE_RUNNER_SOURCE;
+  readFileSync(KODY_CHAT_PATH, "utf8") +
+  "\n" +
+  LIVE_RUNNER_SOURCE +
+  "\n" +
+  readFileSync(SEND_PIPELINE_PATH, "utf8");
 
 /**
  * Iterate every `useEffect` in `source` and return its body + dep array

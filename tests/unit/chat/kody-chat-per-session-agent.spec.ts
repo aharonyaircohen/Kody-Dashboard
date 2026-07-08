@@ -43,9 +43,18 @@ const KODY_CHAT_PATH = resolve(
   "../../../src/dashboard/lib/components/KodyChat.tsx",
 );
 
+// Phase 1.6b: the send pipeline (including the model-emitted
+// switch_agent mirror) moved to kody-chat-send.ts. Region assertions
+// read the file the code lives in; whole-surface scans use both.
+const SEND_PIPELINE_PATH = resolve(
+  __dirname,
+  "../../../src/dashboard/lib/components/kody-chat-send.ts",
+);
+
 const CHAT_TYPES_SOURCE = readFileSync(CHAT_TYPES_PATH, "utf8");
 const HOOK_SOURCE = readFileSync(HOOK_PATH, "utf8");
 const KODY_CHAT_SOURCE = readFileSync(KODY_CHAT_PATH, "utf8");
+const SEND_PIPELINE_SOURCE = readFileSync(SEND_PIPELINE_PATH, "utf8");
 
 describe("SessionMeta.agentKey — per-session agent memory", () => {
   it("declares agentKey as an optional field on SessionMeta", () => {
@@ -159,7 +168,7 @@ describe("KodyChat — writes per-session agent on every change path", () => {
     // The per-session fix also writes the resolved entry key back to
     // the active session so a refresh keeps the new agent.
     const switchBlock = extractRegionAround(
-      KODY_CHAT_SOURCE,
+      SEND_PIPELINE_SOURCE,
       "isSwitchAgentDirective(pendingSwitchAgent)",
     );
     expect(switchBlock).toMatch(
@@ -209,7 +218,9 @@ describe("KodyChat — writes per-session agent on every change path", () => {
     // chat picker mutates the active session; it must not silently
     // change the default for new sessions.
     const importMatches = [
-      ...KODY_CHAT_SOURCE.matchAll(/writeDefaultChatEntry/g),
+      ...(KODY_CHAT_SOURCE + SEND_PIPELINE_SOURCE).matchAll(
+        /writeDefaultChatEntry/g,
+      ),
     ];
     expect(importMatches.length).toBe(0);
   });

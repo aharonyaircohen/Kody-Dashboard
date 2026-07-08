@@ -9,8 +9,11 @@ import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { describe, expect, it } from "vitest";
 
+// The send pipeline (sendText) moved from KodyChat.tsx to
+// kody-chat-send.ts in the phase-1.6b extraction — the guarded code
+// lives there now; assertions are unchanged.
 const KODY_CHAT_SOURCE = readFileSync(
-  resolve(__dirname, "../../src/dashboard/lib/components/KodyChat.tsx"),
+  resolve(__dirname, "../../src/dashboard/lib/components/kody-chat-send.ts"),
   "utf8",
 );
 const KODY_ROUTE_SOURCE = readFileSync(
@@ -27,7 +30,7 @@ describe("image-grounded chat turns", () => {
       "hasImageAttachments: imageTurnHasVisualEvidence",
     );
     expect(KODY_CHAT_SOURCE).toContain(
-      "await collectPreviewContextRef.current()\n        : null",
+      "await collectPreviewContextRef.current()\n    : null",
     );
   });
 
