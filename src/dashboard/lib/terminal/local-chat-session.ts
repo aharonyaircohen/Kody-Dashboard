@@ -57,6 +57,7 @@ interface LocalTerminalSession extends LocalTerminalSessionInfo {
   touchedAt: number;
   nextEventId: number;
   events: LocalTerminalEvent[];
+  eventWaiters: Set<LocalTerminalEventWaiter>;
 }
 
 type LocalTerminalBackend = "pty" | "tmux";
@@ -83,6 +84,18 @@ interface NodePtyModule {
       env: Record<string, string>;
     },
   ): LocalPtyProcess;
+}
+
+interface LocalTerminalEventWaiter {
+  cursor: number;
+  resolve: (
+    value: {
+      events: LocalTerminalEvent[];
+      cursor: number;
+      alive: boolean;
+    } | null,
+  ) => void;
+  timeout: ReturnType<typeof setTimeout>;
 }
 
 const NODE_PTY_PACKAGE = "node" + "-pty";
@@ -315,6 +328,7 @@ function pushEvent(
     const removed = session.events.shift();
     if (removed?.type === "output") charCount -= removed.data.length;
   }
+  resolveReadyLocalTerminalWaiters(session);
 }
 
 function closeSession(session: LocalTerminalSession): void {
@@ -327,6 +341,28 @@ function closeSession(session: LocalTerminalSession): void {
     session.pty.kill();
   } catch {
     /* process may already be gone */
+  }
+  resolveReadyLocalTerminalWaiters(session);
+}
+
+function readLocalTerminalSessionEvents(
+  session: LocalTerminalSession,
+  cursor: number,
+): { events: LocalTerminalEvent[]; cursor: number; alive: boolean } {
+  return {
+    events: session.events.filter((event) => event.id > cursor),
+    cursor: session.cursor,
+    alive: session.alive,
+  };
+}
+
+function resolveReadyLocalTerminalWaiters(session: LocalTerminalSession): void {
+  for (const waiter of [...session.eventWaiters]) {
+    const result = readLocalTerminalSessionEvents(session, waiter.cursor);
+    if (result.events.length === 0 && result.alive) continue;
+    clearTimeout(waiter.timeout);
+    session.eventWaiters.delete(waiter);
+    waiter.resolve(result);
   }
 }
 
@@ -457,6 +493,7 @@ export async function startLocalTerminalSession(input: {
     touchedAt: Date.now(),
     nextEventId: 1,
     events: [],
+    eventWaiters: new Set(),
   };
 
   proc.onData((data) => {
@@ -541,12 +578,39 @@ export function readLocalTerminalEvents(
 ): { events: LocalTerminalEvent[]; cursor: number; alive: boolean } | null {
   const session = getLocalTerminalSession(sessionId, auth);
   if (!session) return null;
-  const events = session.events.filter((event) => event.id > cursor);
-  return {
-    events,
-    cursor: session.cursor,
-    alive: session.alive,
-  };
+  return readLocalTerminalSessionEvents(session, cursor);
+}
+
+export function waitForLocalTerminalEvents(
+  sessionId: string,
+  auth: { owner: string; repo: string },
+  cursor: number,
+  options: { timeoutMs?: number } = {},
+): Promise<{
+  events: LocalTerminalEvent[];
+  cursor: number;
+  alive: boolean;
+} | null> {
+  const session = getLocalTerminalSession(sessionId, auth);
+  if (!session) return Promise.resolve(null);
+
+  const immediate = readLocalTerminalSessionEvents(session, cursor);
+  const timeoutMs = Math.max(0, options.timeoutMs ?? 0);
+  if (immediate.events.length > 0 || !immediate.alive || timeoutMs === 0) {
+    return Promise.resolve(immediate);
+  }
+
+  return new Promise((resolve) => {
+    const waiter: LocalTerminalEventWaiter = {
+      cursor,
+      resolve,
+      timeout: setTimeout(() => {
+        session.eventWaiters.delete(waiter);
+        resolve(readLocalTerminalSessionEvents(session, cursor));
+      }, timeoutMs),
+    };
+    session.eventWaiters.add(waiter);
+  });
 }
 
 export function writeLocalTerminalInput(

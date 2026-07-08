@@ -5,13 +5,13 @@
  *
  * GET /api/kody/chat/terminal/output?sessionId=...&cursor=...
  *
- * Polls terminal output produced after the supplied cursor.
+ * Reads terminal output produced after the supplied cursor.
  */
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 
 import { getRequestAuth, requireKodyAuth } from "@dashboard/lib/auth";
-import { readLocalTerminalEvents } from "@dashboard/lib/terminal/local-chat-session";
+import { waitForLocalTerminalEvents } from "@dashboard/lib/terminal/local-chat-session";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -19,6 +19,7 @@ export const dynamic = "force-dynamic";
 const Query = z.object({
   sessionId: z.string().min(1).max(120),
   cursor: z.coerce.number().int().min(0).default(0),
+  waitMs: z.coerce.number().int().min(0).max(5_000).default(0),
 });
 
 export async function GET(req: NextRequest) {
@@ -33,6 +34,7 @@ export async function GET(req: NextRequest) {
   const parsed = Query.safeParse({
     sessionId: req.nextUrl.searchParams.get("sessionId"),
     cursor: req.nextUrl.searchParams.get("cursor") ?? "0",
+    waitMs: req.nextUrl.searchParams.get("waitMs") ?? "0",
   });
   if (!parsed.success) {
     return NextResponse.json(
@@ -41,10 +43,11 @@ export async function GET(req: NextRequest) {
     );
   }
 
-  const result = readLocalTerminalEvents(
+  const result = await waitForLocalTerminalEvents(
     parsed.data.sessionId,
     auth,
     parsed.data.cursor,
+    { timeoutMs: parsed.data.waitMs },
   );
   if (!result) {
     return NextResponse.json(

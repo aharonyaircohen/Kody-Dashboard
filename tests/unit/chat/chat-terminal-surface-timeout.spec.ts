@@ -18,13 +18,14 @@ const SOURCE = readFileSync(
 );
 
 describe("ChatTerminalSurface timeout guard", () => {
-  it("bounds terminal input and output fetches so one stuck request cannot freeze polling", () => {
+  it("bounds terminal input and output fetches so one stuck request cannot freeze output reads", () => {
     expect(SOURCE).toContain("function fetchWithTimeout(");
     expect(SOURCE).toContain("TERMINAL_RESIZE_TIMEOUT_MS");
     expect(SOURCE).toContain("TERMINAL_INPUT_TIMEOUT_MS");
     expect(SOURCE).toContain("TERMINAL_STOP_TIMEOUT_MS");
     expect(SOURCE).toContain("TERMINAL_START_TIMEOUT_MS");
-    expect(SOURCE).toContain("LOCAL_POLL_TIMEOUT_MS");
+    expect(SOURCE).toContain("LOCAL_OUTPUT_READ_TIMEOUT_MS");
+    expect(SOURCE).toContain("LOCAL_OUTPUT_WAIT_MS");
     expect(SOURCE).toContain("FLY_CONNECT_TIMEOUT_MS");
     expect(SOURCE).toContain("const FLY_CONNECT_TIMEOUT_MS = 75_000;");
     expect(SOURCE).toContain(
@@ -44,6 +45,9 @@ describe("ChatTerminalSurface timeout guard", () => {
       'fetchWithTimeout(\n        "/api/kody/chat/terminal/stop"',
     );
     expect(SOURCE).toContain("pollBusyRef.current = false");
+    expect(SOURCE).toContain("waitMs: LOCAL_OUTPUT_WAIT_MS");
+    expect(SOURCE).toContain("while (!cancelled)");
+    expect(SOURCE).not.toContain("setInterval(() => void pollOutput(), 200)");
   });
 
   it("guards Fly socket writes so stale connect attempts cannot duplicate terminal output", () => {
@@ -53,16 +57,10 @@ describe("ChatTerminalSurface timeout guard", () => {
     expect(SOURCE).toContain("flySocketRef.current !== ws");
   });
 
-  it("queues Fly input until the remote shell is ready", () => {
+  it("blocks Fly input until the remote shell is ready", () => {
     expect(SOURCE).toContain("type TerminalInputSignal");
-    expect(SOURCE).toContain("MAX_PENDING_INPUT_CHARS");
-    expect(SOURCE).toContain("pendingFlyInputRef");
-    expect(SOURCE).toContain("flushPendingFlyInput");
-    expect(SOURCE).toContain('flyConnectionStateRef.current === "connecting"');
     expect(SOURCE).toContain("Ready for input");
     expect(SOURCE).toContain("Input sent");
-    expect(SOURCE).toContain("Input queued");
-    expect(SOURCE).toContain("Queued input sent");
     expect(SOURCE).toContain("Waiting for terminal");
     expect(SOURCE).toContain("Input blocked");
     expect(SOURCE).toContain("onChromeStateChange");
@@ -108,7 +106,7 @@ describe("ChatTerminalSurface timeout guard", () => {
     expect(SOURCE).not.toContain("flyRestorePending");
     expect(SOURCE).not.toContain('message.type === "restoring"');
     expect(SOURCE).not.toContain('message.type === "restore-failed"');
-    expect(SOURCE).not.toContain('label: "Restoring terminal"');
+    expect(SOURCE).toContain('label: "Restoring terminal"');
     expect(SOURCE).not.toContain(
       "reconnectFlyRef.current({ force: true, resetSession: true });",
     );

@@ -63,6 +63,10 @@ function isFlyBridgeAuthError(err: unknown): boolean {
   );
 }
 
+function unavailable(reason: string) {
+  return NextResponse.json({ ok: true, alive: false, reason });
+}
+
 export async function POST(req: NextRequest) {
   const authError = await requireKodyAuth(req);
   if (authError) return authError;
@@ -84,11 +88,11 @@ export async function POST(req: NextRequest) {
 
   const ctx = await resolveFlyContext(req);
   if (!ctx.ok) {
-    return NextResponse.json({ ok: true, alive: false });
+    return unavailable("fly_context_unavailable");
   }
   const cfg = flyConfigFromContext(ctx.context);
   if (!cfg) {
-    return NextResponse.json({ ok: true, alive: false });
+    return unavailable("fly_config_unavailable");
   }
 
   let targetCfg = cfg;
@@ -121,7 +125,7 @@ export async function POST(req: NextRequest) {
       targetInput = resolveBrainTerminalTargetInput(inventory, targetInput);
     }
     if (!targetInput) {
-      return NextResponse.json({ ok: true, alive: false });
+      return unavailable("target_not_found");
     }
     const target = resolveTerminalTargetMachine(inventory, targetInput);
     if (!target) {
@@ -129,7 +133,7 @@ export async function POST(req: NextRequest) {
         targetApp = parsed.data.app;
         targetMachineId = parsed.data.machineId;
       } else {
-        return NextResponse.json({ ok: true, alive: false });
+        return unavailable("target_machine_not_found");
       }
     } else {
       targetCfg = terminalFlyConfigForMachine(cfg, target, savedBrain);
@@ -138,7 +142,7 @@ export async function POST(req: NextRequest) {
     }
   } catch {
     if (brainRequested) {
-      return NextResponse.json({ ok: true, alive: false });
+      return unavailable("brain_resolution_failed");
     }
     targetCfg = cfg;
   }
@@ -157,10 +161,10 @@ export async function POST(req: NextRequest) {
     }
   }
   if (!bridge) {
-    return NextResponse.json({ ok: true, alive: false });
+    return unavailable("bridge_not_found");
   }
   if (!targetApp || !targetMachineId) {
-    return NextResponse.json({ ok: true, alive: false });
+    return unavailable("target_not_resolved");
   }
 
   const token = mintTerminalBridgeToken({
@@ -188,7 +192,7 @@ export async function POST(req: NextRequest) {
     const res = await fetch(statusUrl, {
       signal: AbortSignal.timeout(8_000),
     });
-    if (!res.ok) return NextResponse.json({ ok: true, alive: false });
+    if (!res.ok) return unavailable("bridge_status_failed");
     const data = (await res.json().catch(() => ({}))) as {
       alive?: boolean;
       ready?: boolean;
@@ -203,6 +207,6 @@ export async function POST(req: NextRequest) {
       lastTouched: data.lastTouched ?? null,
     });
   } catch {
-    return NextResponse.json({ ok: true, alive: false });
+    return unavailable("bridge_unreachable");
   }
 }

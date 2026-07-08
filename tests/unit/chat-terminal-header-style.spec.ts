@@ -113,6 +113,15 @@ describe("terminal chrome style", () => {
     expect(SURFACE_SOURCE).not.toContain("selectionCopy");
   });
 
+  it("blocks remote input during terminal restore", () => {
+    expect(SURFACE_SOURCE).toContain('| "restoring"');
+    expect(SURFACE_SOURCE).toContain('state === "restoring"');
+    expect(SURFACE_SOURCE).toContain('flyConnectionStateRef.current === "connected"');
+    expect(SURFACE_SOURCE).not.toContain(
+      'flySocketRef.current?.readyState === WebSocket.OPEN ||\n          flyConnectionStateRef.current === "connecting"',
+    );
+  });
+
   it("loads web links in the terminal UI surface", () => {
     expect(PACKAGE_SOURCE).toContain('"@xterm/addon-web-links"');
     expect(SURFACE_SOURCE).toContain('import("@xterm/addon-web-links")');

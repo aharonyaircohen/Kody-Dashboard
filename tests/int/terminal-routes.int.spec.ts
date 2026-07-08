@@ -1112,7 +1112,7 @@ describe("POST /api/kody/terminal/session", () => {
 
 describe("POST /api/kody/terminal/status", () => {
   it("returns alive false without creating a bridge", async () => {
-    bridge.findTerminalBridge.mockResolvedValueOnce(null);
+    bridge.findTerminalBridge.mockResolvedValue(null);
 
     const res = await statusPOST(
       makeStatusReq({
@@ -1123,8 +1123,54 @@ describe("POST /api/kody/terminal/status", () => {
     );
 
     expect(res.status).toBe(200);
-    expect(await res.json()).toEqual({ ok: true, alive: false });
+    expect(await res.json()).toEqual({
+      ok: true,
+      alive: false,
+      reason: "bridge_not_found",
+    });
     expect(bridge.ensureTerminalBridge).not.toHaveBeenCalled();
+  });
+
+  it("returns a reason when Fly context is unavailable", async () => {
+    flyContext.resolveFlyContext.mockResolvedValueOnce({
+      ok: false,
+      reason: "missing_fly_token",
+    } as never);
+
+    const res = await statusPOST(
+      makeStatusReq({
+        app: "kody-runner",
+        machineId: "runner-1",
+        chatSessionId: "chat-1",
+      }),
+    );
+
+    expect(res.status).toBe(200);
+    expect(await res.json()).toEqual({
+      ok: true,
+      alive: false,
+      reason: "fly_context_unavailable",
+    });
+  });
+
+  it("returns a reason when Brain target resolution fails", async () => {
+    inventoryServer.resolveSavedBrainServiceForRequest.mockRejectedValueOnce(
+      new Error("stored Brain is missing"),
+    );
+
+    const res = await statusPOST(
+      makeStatusReq({
+        target: "brain",
+        chatSessionId: "chat-1",
+      }),
+    );
+
+    expect(res.status).toBe(200);
+    expect(await res.json()).toEqual({
+      ok: true,
+      alive: false,
+      reason: "brain_resolution_failed",
+    });
   });
 
   it("proxies alive status from the bridge", async () => {

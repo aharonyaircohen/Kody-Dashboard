@@ -12,12 +12,28 @@ vi.mock("node:child_process", () => ({
 }));
 
 function makePty() {
+  let dataHandler: ((data: string) => void) | undefined;
+  let exitHandler:
+    | ((event: { exitCode: number; signal?: number }) => void)
+    | undefined;
   return {
     kill: vi.fn(),
-    onData: vi.fn(),
-    onExit: vi.fn(),
+    onData: vi.fn((callback: (data: string) => void) => {
+      dataHandler = callback;
+    }),
+    onExit: vi.fn(
+      (callback: (event: { exitCode: number; signal?: number }) => void) => {
+        exitHandler = callback;
+      },
+    ),
     resize: vi.fn(),
     write: vi.fn(),
+    emitData(data: string) {
+      dataHandler?.(data);
+    },
+    emitExit(event: { exitCode: number; signal?: number }) {
+      exitHandler?.(event);
+    },
   };
 }
 
@@ -170,8 +186,9 @@ describe("local chat terminal session registry", () => {
     spawnMock.mockImplementationOnce(() => {
       throw new Error("Cannot find module './prebuilds/linux-x64//pty.node'");
     });
-    const { LocalTerminalUnavailableError, startLocalTerminalSession } =
-      await import("@dashboard/lib/terminal/local-chat-session");
+    const { startLocalTerminalSession } = await import(
+      "@dashboard/lib/terminal/local-chat-session"
+    );
 
     await expect(
       startLocalTerminalSession({
@@ -269,5 +286,32 @@ describe("local chat terminal session registry", () => {
     );
 
     expect(pty.write).toHaveBeenCalledWith("echo one\n");
+  });
+
+  it("wakes a waiting output read when terminal data arrives", async () => {
+    const pty = makePty();
+    spawnMock.mockReturnValueOnce(pty);
+    const { startLocalTerminalSession, waitForLocalTerminalEvents } =
+      await import("@dashboard/lib/terminal/local-chat-session");
+
+    const session = await startLocalTerminalSession({
+      owner: "acme",
+      repo: "widgets",
+      chatSessionId: "chat-1",
+    });
+
+    const waiting = waitForLocalTerminalEvents(
+      session.sessionId,
+      { owner: "acme", repo: "widgets" },
+      0,
+      { timeoutMs: 1000 },
+    );
+    pty.emitData("typed");
+
+    await expect(waiting).resolves.toMatchObject({
+      cursor: 1,
+      alive: true,
+      events: [{ id: 1, type: "output", data: "typed" }],
+    });
   });
 });

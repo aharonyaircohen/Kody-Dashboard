@@ -11,6 +11,7 @@ import crypto from "node:crypto";
 import { logger } from "@dashboard/lib/logger";
 import type { FlyPreviewConfig } from "@dashboard/lib/previews/fly-previews";
 import { allocateIpsIfMissing } from "@dashboard/lib/runners/brain-fly";
+import { TERMINAL_BRIDGE_RUNTIME_HELPERS_SCRIPT } from "./bridge-runtime";
 
 const FLY_API_BASE = "https://api.machines.dev/v1";
 const REQUEST_TIMEOUT_MS = 90_000;
@@ -216,6 +217,8 @@ if (!secret) {
   console.error("BRIDGE_AUTH_SECRET missing");
   process.exit(1);
 }
+
+${TERMINAL_BRIDGE_RUNTIME_HELPERS_SCRIPT}
 
 function fromBase64url(input) {
   const padded = input.padEnd(input.length + ((4 - (input.length % 4)) % 4), "=");
@@ -859,22 +862,6 @@ function isRetryableFlySshStartupFailure(output) {
   );
 }
 
-function normalizeTerminalSize(cols, rows) {
-  const nextCols = Number(cols);
-  const nextRows = Number(rows);
-  if (!Number.isFinite(nextCols) || !Number.isFinite(nextRows)) return null;
-  return {
-    cols: Math.min(1000, Math.max(1, Math.floor(nextCols))),
-    rows: Math.min(1000, Math.max(1, Math.floor(nextRows))),
-  };
-}
-
-function stripTerminalMouseInput(value) {
-  return String(value || "")
-    .replace(/\x1b\[<\d+;\d+;\d+[mM]/g, "")
-    .replace(/\x1b\[M[\s\S]{3}/g, "");
-}
-
 function sendResizeToPty(session, cols, rows) {
   const size = normalizeTerminalSize(cols, rows);
   const control = session.resizeControl;
@@ -1130,6 +1117,17 @@ function attachSocketToSession(socket, session) {
   socket.on("end", detach);
   socket.on("error", detach);
 
+  const isRestoring = Boolean(session.key && session.ready);
+  if (isRestoring) {
+    sendJson(socket, restoreStartMessage(session.outputBuffer || ""));
+    setTimeout(() => {
+      if (session.sockets.has(socket)) {
+        sendJson(socket, restoreCompleteMessage());
+        sendJson(socket, { type: "ready" });
+      }
+    }, 250);
+  }
+
   parseFrames(socket, (text) => {
     let msg;
     try {
@@ -1185,7 +1183,7 @@ function attachSocketToSession(socket, session) {
       data: "Opening real terminal...\r\n",
     });
   }
-  if (session.ready) {
+  if (session.ready && !isRestoring) {
     sendJson(socket, { type: "ready" });
   }
 }

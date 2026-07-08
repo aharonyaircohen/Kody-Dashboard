@@ -16,6 +16,13 @@ export type TerminalBridgeServerMessage =
       data: string;
     }
   | {
+      type: "restore-start";
+      replayBytes?: number;
+    }
+  | {
+      type: "restore-complete";
+    }
+  | {
       type: "ready";
     }
   | {
@@ -54,12 +61,23 @@ export function parseTerminalBridgeServerMessage(
     code?: unknown;
     id?: unknown;
     bytes?: unknown;
+    replayBytes?: unknown;
   };
   switch (message.type) {
     case "output":
       return typeof message.data === "string"
         ? { type: "output", data: message.data }
         : null;
+    case "restore-start":
+      return {
+        type: "restore-start",
+        replayBytes:
+          typeof message.replayBytes === "number"
+            ? message.replayBytes
+            : undefined,
+      };
+    case "restore-complete":
+      return { type: "restore-complete" };
     case "ready":
       return { type: "ready" };
     case "input-accepted":

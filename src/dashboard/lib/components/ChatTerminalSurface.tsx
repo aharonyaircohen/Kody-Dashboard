@@ -49,6 +49,7 @@ export type ChatTerminalTransport =
 export type ChatTerminalConnectionState =
   | "idle"
   | "connecting"
+  | "restoring"
   | "connected"
   | "closed"
   | "error";
@@ -115,11 +116,11 @@ const MAX_CAPTURE_LINES = 160;
 const TERMINAL_RESIZE_TIMEOUT_MS = 3_000;
 const TERMINAL_INPUT_TIMEOUT_MS = 8_000;
 const TERMINAL_STOP_TIMEOUT_MS = 8_000;
-const LOCAL_POLL_TIMEOUT_MS = 5_000;
+const LOCAL_OUTPUT_WAIT_MS = 1_500;
+const LOCAL_OUTPUT_READ_TIMEOUT_MS = 5_000;
 const TERMINAL_START_TIMEOUT_MS = 20_000;
 const FLY_CONNECT_TIMEOUT_MS = 75_000;
 const FLY_RECONNECT_DELAY_MS = 750;
-const MAX_PENDING_INPUT_CHARS = 8_000;
 
 function fetchWithTimeout(
   input: RequestInfo | URL,
@@ -224,7 +225,6 @@ export const ChatTerminalSurface = forwardRef<
   const disposedRef = useRef(false);
   const activeRef = useRef(active);
   const outputCaptureRef = useRef("");
-  const pendingFlyInputRef = useRef("");
   const inputSignalTimerRef = useRef<number | null>(null);
   const sessionEndNotifiedRef = useRef(false);
   const pollBusyRef = useRef(false);
@@ -295,10 +295,11 @@ export const ChatTerminalSurface = forwardRef<
       notifyConnectionState(state);
       if (state === "connected") {
         setInputSignal({ tone: "ready", label: "Ready for input" });
+      } else if (state === "restoring") {
+        setInputSignal({ tone: "blocked", label: "Restoring terminal" });
       } else if (state === "connecting") {
         setInputSignal({ tone: "blocked", label: "Waiting for terminal" });
       } else if (state === "closed" || state === "error") {
-        pendingFlyInputRef.current = "";
         if (pendingFlyInputAckTimerRef.current !== null) {
           window.clearTimeout(pendingFlyInputAckTimerRef.current);
           pendingFlyInputAckTimerRef.current = null;
@@ -438,21 +439,6 @@ export const ChatTerminalSurface = forwardRef<
     [clearPendingFlyInputAck, setInputSignalBriefly],
   );
 
-  const flushPendingFlyInput = useCallback(() => {
-    const queuedInput = pendingFlyInputRef.current;
-    if (!queuedInput) return;
-    const ws = flySocketRef.current;
-    if (
-      ws?.readyState !== WebSocket.OPEN ||
-      flyConnectionStateRef.current !== "connected"
-    ) {
-      return;
-    }
-    pendingFlyInputRef.current = "";
-    ws.send(JSON.stringify({ type: "input", data: queuedInput }));
-    setInputSignalBriefly({ tone: "sent", label: "Queued input sent" });
-  }, [setInputSignalBriefly]);
-
   const sendResize = useCallback((cols: number, rows: number) => {
     if (isRemoteTerminalTransport(transportRef.current)) {
       const ws = flySocketRef.current;
@@ -496,22 +482,13 @@ export const ChatTerminalSurface = forwardRef<
           };
           ws.send(JSON.stringify(message));
           waitForFlyInputAck(inputId);
-        } else if (
-          ws?.readyState === WebSocket.OPEN ||
-          flyConnectionStateRef.current === "connecting"
-        ) {
-          pendingFlyInputRef.current =
-            `${pendingFlyInputRef.current}${input}`.slice(
-              -MAX_PENDING_INPUT_CHARS,
-            );
-          setInputSignalBriefly(
-            { tone: "queued", label: "Input queued" },
-            { tone: "blocked", label: "Waiting for terminal" },
-          );
         } else {
           setInputSignalBriefly({
             tone: "blocked",
-            label: "Input blocked",
+            label:
+              flyConnectionStateRef.current === "restoring"
+                ? "Restoring terminal"
+                : "Input blocked",
           });
         }
         return;
@@ -541,8 +518,8 @@ export const ChatTerminalSurface = forwardRef<
 
   const canSendInput = useCallback(() => {
     return isRemoteTerminalTransport(transportRef.current)
-      ? flySocketRef.current?.readyState === WebSocket.OPEN ||
-          flyConnectionStateRef.current === "connecting"
+      ? flySocketRef.current?.readyState === WebSocket.OPEN &&
+          flyConnectionStateRef.current === "connected"
       : !!sessionRef.current?.alive;
   }, []);
 
@@ -800,7 +777,6 @@ export const ChatTerminalSurface = forwardRef<
       }
       flySocketRef.current?.close(1000, "reconnecting terminal");
       flySocketRef.current = null;
-      pendingFlyInputRef.current = "";
       flyTargetKeyRef.current = key;
       const seq = flyConnectSeqRef.current + 1;
       flyConnectSeqRef.current = seq;
@@ -933,9 +909,16 @@ export const ChatTerminalSurface = forwardRef<
             terminalRef.current?.write(message.data);
             return;
           }
+          if (message.type === "restore-start") {
+            updateFlyConnectionState("restoring");
+            return;
+          }
+          if (message.type === "restore-complete") {
+            updateFlyConnectionState("connected");
+            return;
+          }
           if (message.type === "ready") {
             updateFlyConnectionState("connected");
-            flushPendingFlyInput();
             return;
           }
           if (message.type === "input-accepted") {
@@ -1001,7 +984,6 @@ export const ChatTerminalSurface = forwardRef<
       appendCapturedOutput,
       chatSessionId,
       clearScheduledFlyReconnect,
-      flushPendingFlyInput,
       notifyTerminalSessionEnded,
       scheduleFlyReconnect,
       updateFlyConnectionState,
@@ -1047,9 +1029,9 @@ export const ChatTerminalSurface = forwardRef<
     };
   }, [connectFly]);
 
-  const pollOutput = useCallback(async () => {
+  const pollOutput = useCallback(async (options: { waitMs?: number } = {}) => {
     const current = sessionRef.current;
-    if (!current || pollBusyRef.current) return;
+    if (!current || pollBusyRef.current) return false;
 
     pollBusyRef.current = true;
     try {
@@ -1057,10 +1039,13 @@ export const ChatTerminalSurface = forwardRef<
         sessionId: current.sessionId,
         cursor: String(current.cursor),
       });
+      if (options.waitMs) {
+        params.set("waitMs", String(options.waitMs));
+      }
       const res = await fetchWithTimeout(
         `/api/kody/chat/terminal/output?${params}`,
         { headers: authHeaders() },
-        LOCAL_POLL_TIMEOUT_MS,
+        LOCAL_OUTPUT_READ_TIMEOUT_MS,
       );
       const data = (await res.json().catch(() => ({}))) as {
         events?: TerminalOutputEvent[];
@@ -1098,6 +1083,7 @@ export const ChatTerminalSurface = forwardRef<
       if (current.alive && data.alive === false) {
         notifyTerminalSessionEnded();
       }
+      return true;
     } catch (err) {
       if (err instanceof DOMException && err.name === "AbortError") {
         setError("Terminal output stalled; retrying.");
@@ -1105,6 +1091,7 @@ export const ChatTerminalSurface = forwardRef<
         const message = err instanceof Error ? err.message : String(err);
         setError(message);
       }
+      return false;
     } finally {
       pollBusyRef.current = false;
     }
@@ -1131,9 +1118,18 @@ export const ChatTerminalSurface = forwardRef<
 
   useEffect(() => {
     if (!active || !session?.sessionId || transport.type !== "local") return;
-    const interval = setInterval(() => void pollOutput(), 200);
-    void pollOutput();
-    return () => clearInterval(interval);
+    let cancelled = false;
+    void (async () => {
+      while (!cancelled) {
+        const ok = await pollOutput({ waitMs: LOCAL_OUTPUT_WAIT_MS });
+        if (!ok) {
+          await new Promise((resolve) => window.setTimeout(resolve, 250));
+        }
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
   }, [
     active,
     currentTransportKey,
@@ -1227,7 +1223,6 @@ export const ChatTerminalSurface = forwardRef<
   }, [selectedTerminalText]);
 
   const restart = useCallback(() => {
-    pendingFlyInputRef.current = "";
     clearScheduledFlyReconnect();
     flyReconnectNoticeRef.current = false;
     setInputSignal({ tone: "blocked", label: "Waiting for terminal" });
@@ -1292,7 +1287,10 @@ export const ChatTerminalSurface = forwardRef<
       } · ${flyConnectionState}`)
     : (error ??
       (session?.alive ? session.cwd : connecting ? "starting" : "closed"));
-  const actionBusy = connecting || flyConnectionState === "connecting";
+  const actionBusy =
+    connecting ||
+    flyConnectionState === "connecting" ||
+    flyConnectionState === "restoring";
 
   useEffect(() => {
     onChromeStateChange?.({

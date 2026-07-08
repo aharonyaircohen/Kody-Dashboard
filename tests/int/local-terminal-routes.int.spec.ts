@@ -17,11 +17,13 @@ const auth = vi.hoisted(() => ({
 
 const localTerminal = vi.hoisted(() => ({
   startLocalTerminalSession: vi.fn(),
+  waitForLocalTerminalEvents: vi.fn(),
 }));
 
 vi.mock("@dashboard/lib/auth", () => auth);
 vi.mock("@dashboard/lib/terminal/local-chat-session", () => localTerminal);
 
+import { GET as outputGET } from "../../app/api/kody/chat/terminal/output/route";
 import { POST as startPOST } from "../../app/api/kody/chat/terminal/start/route";
 
 function makeStartReq(body: unknown): NextRequest {
@@ -30,6 +32,12 @@ function makeStartReq(body: unknown): NextRequest {
     headers: { "content-type": "application/json" },
     body: JSON.stringify(body),
   });
+}
+
+function makeOutputReq(query: string): NextRequest {
+  return new NextRequest(
+    `https://dash.test/api/kody/chat/terminal/output?${query}`,
+  );
 }
 
 beforeEach(() => {
@@ -49,6 +57,11 @@ beforeEach(() => {
     cwd: "/workspace/acme/widgets",
     shell: "zsh",
     startedAt: "2026-06-11T00:00:00.000Z",
+    cursor: 0,
+    alive: true,
+  });
+  localTerminal.waitForLocalTerminalEvents.mockResolvedValue({
+    events: [],
     cursor: 0,
     alive: true,
   });
@@ -98,5 +111,43 @@ describe("POST /api/kody/chat/terminal/start", () => {
       error: "terminal_start_failed",
       message: "node-pty unavailable",
     });
+  });
+});
+
+describe("GET /api/kody/chat/terminal/output", () => {
+  it("waits for local terminal output when requested", async () => {
+    localTerminal.waitForLocalTerminalEvents.mockResolvedValueOnce({
+      events: [{ id: 2, type: "output", data: "typed", at: "now" }],
+      cursor: 2,
+      alive: true,
+    });
+
+    const res = await outputGET(
+      makeOutputReq("sessionId=terminal-chat-1&cursor=1&waitMs=1500"),
+    );
+
+    expect(res.status).toBe(200);
+    expect(await res.json()).toMatchObject({
+      ok: true,
+      cursor: 2,
+      alive: true,
+      events: [{ id: 2, type: "output", data: "typed" }],
+    });
+    expect(localTerminal.waitForLocalTerminalEvents).toHaveBeenCalledWith(
+      "terminal-chat-1",
+      { owner: "acme", repo: "widgets", token: "ghp_test" },
+      1,
+      { timeoutMs: 1500 },
+    );
+  });
+
+  it("rejects invalid output wait windows", async () => {
+    const res = await outputGET(
+      makeOutputReq("sessionId=terminal-chat-1&cursor=1&waitMs=99999"),
+    );
+
+    expect(res.status).toBe(400);
+    expect(await res.json()).toMatchObject({ error: "validation_error" });
+    expect(localTerminal.waitForLocalTerminalEvents).not.toHaveBeenCalled();
   });
 });
