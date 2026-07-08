@@ -697,7 +697,11 @@ export function useChatTerminalRegistry({
       return mountedTerminals.some((terminal) => {
         if (terminal.sessionId !== sessionId) return false;
         const state = connectionStateByInstanceId[terminal.id];
-        return state === "connected" || state === "connecting";
+        return (
+          state === "connected" ||
+          state === "connecting" ||
+          state === "restoring"
+        );
       });
     },
     [connectionStateByInstanceId, mountedTerminals],

@@ -111,4 +111,8 @@ describe("ChatTerminalSurface timeout guard", () => {
       "reconnectFlyRef.current({ force: true, resetSession: true });",
     );
   });
+
+  it("does not reopen a remote terminal while the existing connection is restoring", () => {
+    expect(SOURCE).toContain('existingState === "restoring"');
+  });
 });

@@ -53,6 +53,13 @@ describe("terminal checkpoint UI", () => {
     expect(SURFACE_SOURCE).toContain("notifyTerminalSessionEnded");
   });
 
+  it("does not replay a checkpoint over a live terminal session", () => {
+    expect(CHAT_SOURCE).toContain("activeSessionHasLiveTerminal");
+    expect(CHAT_SOURCE).toContain(
+      'if (activeSessionHasLiveTerminal) return;',
+    );
+  });
+
   it("uses the save icon for Brain image saves from the terminal toolbar", () => {
     expect(CHAT_SOURCE).toContain("Save Brain image");
     expect(CHAT_SOURCE).toContain("handleSaveBrainImage");

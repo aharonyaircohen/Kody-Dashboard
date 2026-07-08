@@ -1390,6 +1390,7 @@ export function KodyChat({
   );
   useEffect(() => {
     if (chatMode !== "terminal" || !activeSessionIdForReset) return;
+    if (activeSessionHasLiveTerminal) return;
     const checkpointKey = JSON.stringify({
       actorLogin,
       activeSessionIdForReset,
@@ -1405,6 +1406,7 @@ export function KodyChat({
     activeSessionIdForReset,
     activeTerminalTransport,
     activeTerminalValue,
+    activeSessionHasLiveTerminal,
     actorLogin,
     chatMode,
     loadTerminalCheckpoint,

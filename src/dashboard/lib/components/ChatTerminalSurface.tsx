@@ -767,7 +767,9 @@ export const ChatTerminalSurface = forwardRef<
       if (
         !opts.force &&
         flyTargetKeyRef.current === key &&
-        (existingState === "connecting" || existingState === "connected")
+        (existingState === "connecting" ||
+          existingState === "restoring" ||
+          existingState === "connected")
       ) {
         return;
       }
