@@ -83,17 +83,11 @@ describe("terminal checkpoint UI", () => {
     expect(CHAT_SOURCE).toContain("activeTerminalSurface?.restart()");
     expect(CHAT_SOURCE).toContain("activeTerminalSurface?.addToChat()");
     expect(CHAT_SOURCE).toContain("activeTerminalSurface?.clear()");
-    expect(CHAT_SOURCE).toContain("flex min-h-10 items-center gap-2");
-    expect(CHAT_SOURCE).toContain(
-      '{chatMode === "terminal" && terminalBottomControls}',
-    );
-    expect(CHAT_SOURCE).toContain(
-      'chatMode === "terminal" && <div className="flex-1" />',
-    );
-    expect(CHAT_SOURCE).toContain(
-      '{chatMode === "terminal" && chatModeToggle}',
-    );
-    expect(CHAT_SOURCE).toContain('{chatMode === "ai" && chatModeToggle}');
+    // The action-row placement of chatModeToggle / terminalBottomControls
+    // moved to chat/surface/Composer in Step 3.4 — placement pins are a
+    // Playwright concern (phase-1 DOM decision), so those source
+    // assertions retired. The elements themselves stay host-built until
+    // Step 5a moves them into plugins/terminal (pinned above).
     expect(CHAT_SOURCE).toContain(
       "relative inline-flex h-8 w-8 items-center justify-center rounded",
     );

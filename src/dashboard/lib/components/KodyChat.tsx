@@ -11,25 +11,18 @@ import {
   type LiveAction,
   type LiveSessionState,
 } from "../chat/core/kody-chat-reducer";
-import { MarkdownEditor } from "./MarkdownEditor";
 import {
   ClipboardCopy,
-  Paperclip,
-  Send,
-  X,
   Image as ImageIcon,
   FileText,
   FileCode,
   MessageSquare,
   Eraser,
   Loader2,
-  MousePointerClick,
   RefreshCw,
   RotateCcw,
   Save,
-  Square,
   SquareTerminal,
-  Bug,
 } from "lucide-react";
 import { AGENT_KODY, AGENTS, type AgentId } from "../agents";
 import {
@@ -71,7 +64,7 @@ import { useElementPicker } from "../picker/useElementPicker";
 import { formatPageInfo } from "../picker/protocol";
 import { runPreviewAction } from "../picker/run-preview-action";
 import { formatMacrosCatalog, type Macro } from "../macros";
-import { SlashCommandMenu, filterCommands } from "./SlashCommandMenu";
+import { filterCommands } from "./SlashCommandMenu";
 import {
   authHeaders,
   stickyBrainChatId,
@@ -104,11 +97,8 @@ import {
 } from "../chat/core/transports/kody-live";
 import { createTransportTurnHandler } from "./kody-chat-transport-events";
 import {
-  bootPhaseLabel,
   composeUserWireContent,
-  formatElapsed,
   formatFileSize,
-  getFileIcon,
   shouldCollectPreviewContextForTurn,
 } from "./kody-chat-helpers";
 import { formatAttachmentForTextBackend } from "../chat/core/attachment-text";
@@ -146,7 +136,6 @@ import {
   ChatIssueReportDialog,
   type ChatIssueReportState,
 } from "./ChatIssueReportDialog";
-import { SimpleTooltip } from "./SimpleTooltip";
 import { useRemoteStatus } from "../hooks/useRemoteStatus";
 import { useAgents } from "../hooks/useAgents";
 import { useVoiceChat } from "../hooks/useVoiceChat";
@@ -157,7 +146,6 @@ import {
   loadVoicePreference,
   saveVoicePreference,
 } from "@dashboard/lib/voice/voices";
-import { VoiceButton } from "./VoiceButton";
 import { VoiceChatOverlay } from "./VoiceChatOverlay";
 import { RepoScopedLink } from "./RepoScopedLink";
 import { useChatSessions } from "../chat/core/use-chat-sessions";
@@ -166,6 +154,7 @@ import { useMediaQuery } from "../hooks/useMediaQuery";
 import { SessionsPanel } from "../chat/surface/SessionsPanel";
 import { HeaderControls } from "../chat/surface/HeaderControls";
 import { MessageList } from "../chat/surface/MessageList";
+import { Composer } from "../chat/surface/Composer";
 import { parseReasoning, stripReasoning } from "../chat/core/reasoning";
 import {
   extractFirstStaffMentionCandidate,
@@ -4235,6 +4224,14 @@ export function KodyChat({
     setInput(`/${slug} `);
   };
 
+  // Close the slash menu + mention popover. The Composer calls this from
+  // its onBlur after a small delay so the menus' onMouseDown can fire
+  // before close (see the comment at the blur handler).
+  const closeComposerMenus = useCallback(() => {
+    setSlashMenuOpen(false);
+    setAgentMentionTrigger(null);
+  }, []);
+
   const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
     if (
       chatMode === "ai" &&
@@ -5039,474 +5036,95 @@ export function KodyChat({
           })}
         />
 
-        {/* Attachments preview */}
-        {chatMode === "ai" && attachments.length > 0 && (
-          <div className="flex flex-wrap gap-2 px-3 pb-3 sm:px-4">
-            {attachments.map((attachment) => (
-              <div
-                key={attachment.id}
-                className="flex items-center gap-2 rounded-md bg-muted px-3 py-1.5 text-body-xs"
-              >
-                {getFileIcon(attachment.mimeType)}
-                <span className="max-w-[100px] truncate">
-                  {attachment.name}
-                </span>
-                <span className="text-muted-foreground">
-                  {formatFileSize(attachment.size)}
-                </span>
-                <button
-                  onClick={() => removeAttachment(attachment.id)}
-                  className="ml-1 hover:text-destructive"
-                  disabled={activeLoading}
-                >
-                  <X className="w-3 h-3" />
-                </button>
-              </div>
-            ))}
-          </div>
-        )}
-
-        {/* Context chips (e.g. picked preview elements) — compact removable
-          pills; the full element details ride along on send, not in the box. */}
-        {chatMode === "ai" && contextChips.length > 0 && (
-          <div className="flex flex-wrap gap-2 px-3 pb-3 sm:px-4">
-            {contextChips.map((chip) => (
-              <div
-                key={chip.id}
-                className="flex items-center gap-2 rounded-md border border-blue-500/30 bg-blue-500/15 px-3 py-1.5 font-mono text-body-xs text-blue-300"
-                title={chip.context}
-              >
-                <MousePointerClick className="w-3 h-3 shrink-0" />
-                <span className="max-w-[180px] truncate">{chip.label}</span>
-                <button
-                  type="button"
-                  onClick={() => removeContextChip(chip.id)}
-                  className="ml-0.5 hover:text-destructive"
-                  aria-label="Remove element context"
-                >
-                  <X className="w-3 h-3" />
-                </button>
-              </div>
-            ))}
-          </div>
-        )}
-
-        {/* Input area */}
-        <div className="relative z-10 shrink-0 border-t bg-background px-2.5 py-3 sm:p-4">
-          <div>
-            {/* Kody Live status dot — compact indicator above the composer.
-              Color encodes state; hover for full detail + links. Restart
-              affordance only surfaces on stuck/error. */}
-            {chatMode === "ai" && isKodyLive ? (
-              <div className="mb-1 flex items-center gap-2">
-                <SimpleTooltip
-                  content={(() => {
-                    if (interactiveState === "booting") {
-                      const phase = bootPhaseLabel(
-                        bootElapsed,
-                        selectedAgentId === "kody-live-fly" ? "fly" : "gh",
-                      );
-                      const elapsed = formatElapsed(bootElapsed);
-                      const watch =
-                        interactiveTarget && selectedAgentId !== "kody-live-fly"
-                          ? ` · watching ${interactiveTarget.owner}/${interactiveTarget.repo}`
-                          : "";
-                      return `${phase} · ${elapsed} elapsed${watch}`;
-                    }
-                    if (interactiveState === "ready") {
-                      return "Live runner ready. Chat normally — clear the box and hit Stop to end.";
-                    }
-                    if (interactiveState === "awaiting") {
-                      return "Live runner is processing — waiting for reply...";
-                    }
-                    if (
-                      interactiveState === "stuck" ||
-                      interactiveState === "error"
-                    ) {
-                      return liveState.errorMessage
-                        ? `Runner stuck — ${liveState.errorMessage}`
-                        : "Runner stuck — click Restart.";
-                    }
-                    if (interactiveState === "ended") {
-                      return "Live runner ended. Start a new session to chat.";
-                    }
-                    return "Live runner is offline. Start it to enable chat.";
-                  })()}
-                >
-                  <span
-                    className={`inline-block h-2.5 w-2.5 rounded-full ${
-                      interactiveState === "ready"
-                        ? "bg-green-500"
-                        : interactiveState === "booting" ||
-                            interactiveState === "awaiting"
-                          ? "animate-pulse bg-yellow-500"
-                          : interactiveState === "stuck" ||
-                              interactiveState === "error"
-                            ? "bg-red-500"
-                            : "bg-muted-foreground/50"
-                    }`}
-                    aria-label={`Live runner: ${interactiveState}`}
-                  />
-                </SimpleTooltip>
-                {interactiveState === "stuck" ||
-                interactiveState === "error" ? (
-                  <button
-                    type="button"
-                    onClick={() => void restartInteractiveSession()}
-                    className="rounded-md bg-red-600/90 px-3 py-1 text-body-xs font-medium text-white hover:bg-red-700"
-                  >
-                    Restart
-                  </button>
-                ) : null}
-              </div>
-            ) : null}
-            {/* Composer input row (issue #131): the textarea and a single
-              trailing send/stop icon button share this row, with the
-              button swapped by state. The action row below (Paperclip,
-              VoiceButton) no longer hosts the send affordance — the
-              hairline separates input from action rows. */}
-            <div
-              className={`flex items-center gap-2 ${
-                chatMode === "terminal" ? "border-b border-border/40 pb-2" : ""
-              }`}
-            >
-              <div className="flex-1 relative">
-                {slashMenuOpen && (
-                  <SlashCommandMenu
-                    commands={slashCommands}
-                    filter={parseSlashTrigger(input).filter}
-                    selectedIndex={slashSelectedIndex}
-                    onSelect={applySlashSelection}
-                    onHover={setSlashSelectedIndex}
-                  />
-                )}
-                {agentMentionTrigger && filteredAgentMentions.length > 0 && (
-                  <div className="absolute bottom-full left-0 right-0 mb-2 rounded-md border border-white/10 bg-zinc-900/95 backdrop-blur-sm shadow-xl overflow-hidden max-h-64 overflow-y-auto">
-                    <ul role="listbox" className="py-1">
-                      {filteredAgentMentions.map((agent, idx) => {
-                        const isSelected = idx === agentMentionSelectedIndex;
-                        return (
-                          <li
-                            key={agent.slug}
-                            role="option"
-                            aria-selected={isSelected}
-                            onMouseEnter={() =>
-                              setAgentMentionSelectedIndex(idx)
-                            }
-                            onMouseDown={(e) => {
-                              e.preventDefault();
-                              applyAgentMentionSelection(agent.slug);
-                            }}
-                            className={`flex cursor-pointer items-center gap-2.5 px-3 py-2 ${
-                              isSelected
-                                ? "bg-white/[0.08]"
-                                : "hover:bg-white/[0.04]"
-                            }`}
-                          >
-                            <span className="font-mono text-code-sm text-white/90">
-                              @{agent.slug}
-                            </span>
-                            <span className="truncate text-body-xs text-white/55">
-                              {agent.title}
-                            </span>
-                            <span className="ml-auto shrink-0 rounded bg-emerald-500/15 px-2 py-1 text-label uppercase tracking-wide text-emerald-300/80">
-                              Agent
-                            </span>
-                          </li>
-                        );
-                      })}
-                    </ul>
-                    <div className="border-t border-white/[0.06] px-3 py-2 text-body-xs text-white/35">
-                      ↑↓ navigate · Enter/Tab select · Esc close
-                    </div>
-                  </div>
-                )}
-                {richComposerEnabled ? (
-                  <MarkdownEditor
-                    value={input}
-                    onChange={(next, event) =>
-                      handleComposerInputChange(
-                        next,
-                        event?.target.selectionStart ??
-                          composerTextareaRef.current?.selectionStart ??
-                          next.length,
-                      )
-                    }
-                    onKeyDown={handleKeyDown}
-                    onSelect={(e) => {
-                      refreshAgentMentionTrigger(
-                        e.currentTarget.value,
-                        e.currentTarget.selectionStart,
-                      );
-                    }}
-                    onClick={(e) => {
-                      refreshAgentMentionTrigger(
-                        e.currentTarget.value,
-                        e.currentTarget.selectionStart,
-                      );
-                    }}
-                    onPaste={handlePaste}
-                    onBlur={() => {
-                      // Small delay so the menu's onMouseDown can fire before
-                      // close — onMouseDown uses preventDefault to avoid blur,
-                      // but defensive close keeps stale menus from hanging.
-                      setTimeout(() => {
-                        setSlashMenuOpen(false);
-                        setAgentMentionTrigger(null);
-                      }, 120);
-                    }}
-                    placeholder={placeholder}
-                    rows={5}
-                    disabled={composerDisabled}
-                    textareaRef={composerTextareaRef}
-                    textareaClassName="min-h-[104px] max-h-[36vh]"
-                    className="min-w-0"
-                  />
-                ) : (
-                  <textarea
-                    ref={composerTextareaRef}
-                    value={input}
-                    onChange={(e) => {
-                      handleComposerInputChange(
-                        e.target.value,
-                        e.target.selectionStart,
-                        e.target,
-                      );
-                    }}
-                    onKeyDown={handleKeyDown}
-                    onSelect={(e) => {
-                      refreshAgentMentionTrigger(
-                        e.currentTarget.value,
-                        e.currentTarget.selectionStart,
-                      );
-                    }}
-                    onClick={(e) => {
-                      refreshAgentMentionTrigger(
-                        e.currentTarget.value,
-                        e.currentTarget.selectionStart,
-                      );
-                    }}
-                    onPaste={handlePaste}
-                    onBlur={() => {
-                      // Small delay so the menu's onMouseDown can fire before
-                      // close — onMouseDown uses preventDefault to avoid blur,
-                      // but defensive close keeps stale menus from hanging.
-                      setTimeout(() => {
-                        setSlashMenuOpen(false);
-                        setAgentMentionTrigger(null);
-                      }, 120);
-                    }}
-                    placeholder={placeholder}
-                    rows={1}
-                    dir="auto"
-                    aria-label={
-                      chatMode === "terminal"
-                        ? "Terminal command input"
-                        : undefined
-                    }
-                    className={`w-full px-3 py-2 text-base rounded-md border focus:outline-none focus:ring-1 resize-none overflow-hidden disabled:opacity-50 disabled:cursor-not-allowed ${
-                      chatMode === "terminal"
-                        ? "border-border bg-background text-foreground placeholder:text-muted-foreground focus:ring-ring"
-                        : "bg-background focus:ring-primary"
-                    }`}
-                    disabled={composerDisabled}
-                    style={{ height: "auto" }}
-                  />
-                )}
-              </div>
-              {/* Trailing send/stop icon button — single role that swaps by
-                state (issue #131 refinement):
-                  * Idle / no in-flight run → paper-plane Send icon
-                  * In-flight run (loading or stop/cancel) → Square stop icon
-                Replaces both the old red `bg-destructive` Stop text button
-                in the input row and the inline Send button that used to
-                live in the action row below. The button is hidden when
-                there's no content and the agent isn't Kody-Live, matching
-                the previous "no send affordance when empty" behavior. */}
-              {(() => {
-                const isInFlight =
-                  chatMode === "ai" &&
-                  (activeLoading ||
-                    composerAction === "stop" ||
-                    composerAction === "cancel");
-                const showTrailingButton =
-                  chatMode === "terminal"
-                    ? hasComposerContent
-                    : isInFlight
-                      ? true
-                      : hasComposerContent || isKodyLive;
-                if (!showTrailingButton) return null;
-                const title =
-                  chatMode === "terminal"
-                    ? terminalSendDisabled
-                      ? (activeTerminalChrome?.inputLabel ??
-                        "Input unavailable")
-                      : terminalSendBusy
-                        ? "Sending command"
-                        : "Send command"
-                    : isInFlight
-                      ? composerAction === "cancel"
-                        ? "Cancel boot"
-                        : "Stop run"
-                      : composerAction === "start"
-                        ? "Boot runner"
-                        : "Send message";
-                return (
-                  <button
-                    type="button"
-                    disabled={terminalSendDisabled}
-                    onClick={() => {
-                      if (chatMode === "terminal") {
-                        void sendMessage();
-                      } else if (activeLoading) {
-                        handleStop();
-                      } else if (
-                        composerAction === "stop" ||
-                        composerAction === "cancel"
-                      ) {
-                        endInteractiveSession();
-                      } else if (composerAction === "start") {
-                        void startInteractiveSession();
-                      } else {
-                        void sendMessage();
-                      }
-                    }}
-                    className={`p-2 text-muted-foreground hover:text-foreground hover:bg-muted rounded-md transition-colors disabled:cursor-not-allowed disabled:opacity-50 ${
-                      richComposerEnabled ? "mb-1 self-end" : ""
-                    }`}
-                    title={title}
-                    aria-label={title}
-                  >
-                    {isInFlight ? (
-                      <Square className="w-5 h-5" fill="currentColor" />
-                    ) : terminalSendBusy ? (
-                      <Loader2 className="w-5 h-5 animate-spin" />
-                    ) : (
-                      <Send className="w-5 h-5" />
-                    )}
-                  </button>
-                );
-              })()}
-            </div>
-            {terminalProblemMessage && (
-              <div className="mt-1 text-[11px] text-amber-600" role="status">
-                {terminalProblemMessage}
-              </div>
-            )}
-            {chatMode === "ai" && <div className="border-t border-border/40" />}
-          </div>
-          <div
-            className={`flex min-h-10 items-center gap-2 ${
-              chatMode === "terminal" ? "pt-2" : ""
-            }`}
-          >
-            {chatMode === "ai" && (
-              <>
-                {/* Attachment button — hidden file input lives alongside the
-                  Paperclip so the picker click handler still targets the
-                  same ref. */}
-                <input
-                  ref={fileInputRef}
-                  type="file"
-                  multiple
-                  accept="image/*,.txt,.md,.json,.js,.ts,.jsx,.tsx,.html,.css,.scss,.yaml,.yml,.sh"
-                  onChange={handleFileSelect}
-                  className="hidden"
-                  disabled={activeLoading}
-                />
-                <button
-                  onClick={() => fileInputRef.current?.click()}
-                  disabled={activeLoading}
-                  className="p-2 text-muted-foreground hover:text-foreground hover:bg-muted rounded-md transition-colors"
-                  title="Attach files"
-                >
-                  <Paperclip className="w-5 h-5" />
-                </button>
-
-                {/* Voice button — gated on `agent.supportsVoice`. Each agent
-                  declares whether its backend can honor the voice overlay
-                  (see AgentConfig.supportsVoice). Brain agents support it
-                  once the brain server applies the overlay server-side;
-                  kody-live/engine agents don't (latency). The mic stays
-                  hidden for unsupported agents so the dropdown never lies. */}
-                <VoiceButton
-                  isActive={voiceOverlayOpen}
-                  isSupported={
-                    voiceChat.isSupported && currentAgent.supportsVoice
-                  }
-                  onTap={() => {
-                    // Handle tap based on current voice state:
-                    // - If AI is speaking: interrupt and start listening (voice interrupt)
-                    // - If listening/processing: stop conversation
-                    // - If idle: start conversation
-                    if (voiceChat.state === "speaking") {
-                      // Voice interrupt: cancel AI speech and start listening
-                      voiceChat.interruptConversation();
-                      setVoiceOverlayOpen(true);
-                      setVoiceMuted(false);
-                    } else if (voiceOverlayOpen) {
-                      // Already in voice mode - stop it
-                      voiceChat.stopConversation();
-                      setVoiceOverlayOpen(false);
-                      setVoiceMuted(false);
-                    } else {
-                      // Not in voice mode - start it
-                      voiceChat.startConversation();
-                      setVoiceOverlayOpen(true);
-                    }
-                  }}
-                  onLongPressStart={() => {
-                    voiceChat.startConversation();
-                    setVoiceOverlayOpen(true);
-                  }}
-                  onLongPressEnd={() => {
-                    /* let conversation handle it */
-                  }}
-                  disabled={activeLoading}
-                />
-                {messages.length > 0 && !activeLoading && (
-                  <button
-                    type="button"
-                    onClick={() => setShowClearConfirm(true)}
-                    className="p-2 text-muted-foreground hover:text-foreground hover:bg-muted rounded-md transition-colors"
-                    title="Clear history"
-                    aria-label="Clear history"
-                  >
-                    <Eraser className="w-5 h-5" aria-hidden="true" />
-                  </button>
-                )}
-                <div className="flex-1" />
-              </>
-            )}
-            {chatMode === "terminal" && terminalBottomControls}
-            {chatMode === "terminal" && <div className="flex-1" />}
-            {chatMode === "terminal" && (
-              <button
-                type="button"
-                onClick={openIssueReport}
-                className="inline-flex h-8 w-8 items-center justify-center rounded-md border border-red-200 bg-red-50 text-red-600 transition-colors hover:border-red-300 hover:bg-red-100 hover:text-red-700 dark:border-red-900/50 dark:bg-red-950/30 dark:text-red-300 dark:hover:bg-red-950/50"
-                title="Report issue to Kody"
-                aria-label="Report issue to Kody"
-              >
-                <Bug className="h-4 w-4" aria-hidden="true" />
-              </button>
-            )}
-            {chatMode === "terminal" && chatModeToggle}
-            {chatMode === "ai" && <div className="flex-1" />}
-            {chatMode === "ai" && (
-              <button
-                type="button"
-                onClick={openIssueReport}
-                className="inline-flex h-8 w-8 items-center justify-center rounded-md border border-red-200 bg-red-50 text-red-600 transition-colors hover:border-red-300 hover:bg-red-100 hover:text-red-700 dark:border-red-900/50 dark:bg-red-950/30 dark:text-red-300 dark:hover:bg-red-950/50"
-                title="Report issue to Kody"
-                aria-label="Report issue to Kody"
-              >
-                <Bug className="h-4 w-4" aria-hidden="true" />
-              </button>
-            )}
-            {chatMode === "ai" && chatModeToggle}
-          </div>
-        </div>
+        {/* Composer — extracted to chat/surface/Composer (Step 3). All
+          state (input, slash menu, mentions, attachments, chips, voice)
+          and every handler stay here; the region is presentation-only.
+          The context-chip pills render the ChatRailApi `composerInjection`
+          contract fed through the effect above. */}
+        <Composer
+          chatMode={chatMode}
+          activeLoading={activeLoading}
+          attachments={attachments}
+          onRemoveAttachment={removeAttachment}
+          contextChips={contextChips}
+          onRemoveContextChip={removeContextChip}
+          isKodyLive={isKodyLive}
+          interactiveState={interactiveState}
+          bootElapsed={bootElapsed}
+          selectedAgentId={selectedAgentId}
+          interactiveTarget={interactiveTarget}
+          liveErrorMessage={liveState.errorMessage}
+          onRestartLive={restartInteractiveSession}
+          input={input}
+          composerTextareaRef={composerTextareaRef}
+          richComposerEnabled={richComposerEnabled}
+          placeholder={placeholder}
+          composerDisabled={composerDisabled}
+          onInputChange={handleComposerInputChange}
+          onKeyDown={handleKeyDown}
+          onPaste={handlePaste}
+          onCaretMove={refreshAgentMentionTrigger}
+          onMenusClose={closeComposerMenus}
+          slashMenuOpen={slashMenuOpen}
+          slashCommands={slashCommands}
+          slashSelectedIndex={slashSelectedIndex}
+          onSlashSelect={applySlashSelection}
+          onSlashHover={setSlashSelectedIndex}
+          agentMentionsOpen={
+            Boolean(agentMentionTrigger) && filteredAgentMentions.length > 0
+          }
+          agentMentions={filteredAgentMentions}
+          agentMentionSelectedIndex={agentMentionSelectedIndex}
+          onAgentMentionHover={setAgentMentionSelectedIndex}
+          onAgentMentionSelect={applyAgentMentionSelection}
+          composerAction={composerAction}
+          hasComposerContent={hasComposerContent}
+          terminalSendDisabled={terminalSendDisabled}
+          terminalSendBusy={terminalSendBusy}
+          terminalInputLabel={activeTerminalChrome?.inputLabel}
+          onSend={sendMessage}
+          onStop={handleStop}
+          onEndLiveSession={endInteractiveSession}
+          onStartLiveSession={startInteractiveSession}
+          terminalProblemMessage={terminalProblemMessage}
+          fileInputRef={fileInputRef}
+          onFileSelect={handleFileSelect}
+          voiceActive={voiceOverlayOpen}
+          voiceSupported={voiceChat.isSupported && currentAgent.supportsVoice}
+          onVoiceTap={() => {
+            // Handle tap based on current voice state:
+            // - If AI is speaking: interrupt and start listening (voice interrupt)
+            // - If listening/processing: stop conversation
+            // - If idle: start conversation
+            if (voiceChat.state === "speaking") {
+              // Voice interrupt: cancel AI speech and start listening
+              voiceChat.interruptConversation();
+              setVoiceOverlayOpen(true);
+              setVoiceMuted(false);
+            } else if (voiceOverlayOpen) {
+              // Already in voice mode - stop it
+              voiceChat.stopConversation();
+              setVoiceOverlayOpen(false);
+              setVoiceMuted(false);
+            } else {
+              // Not in voice mode - start it
+              voiceChat.startConversation();
+              setVoiceOverlayOpen(true);
+            }
+          }}
+          onVoiceLongPressStart={() => {
+            voiceChat.startConversation();
+            setVoiceOverlayOpen(true);
+          }}
+          onVoiceLongPressEnd={() => {
+            /* let conversation handle it */
+          }}
+          messageCount={messages.length}
+          onClearHistory={() => setShowClearConfirm(true)}
+          onReportIssue={openIssueReport}
+          terminalBottomControls={terminalBottomControls}
+          chatModeToggle={chatModeToggle}
+        />
 
         <ConfirmDialog
           open={showClearConfirm}

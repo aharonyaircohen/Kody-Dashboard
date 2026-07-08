@@ -2,11 +2,14 @@
  * @fileType component
  * @domain layout
  * @pattern chat-rail-shell
- * @ai-summary Root-level chrome that owns ONE persistent <KodyChat /> for
- *   the entire authenticated dashboard. Pages render as `{children}` and
- *   push their chat context up via `useChatScope()`. The chat instance
- *   stays mounted across every navigation — scroll position, streaming
- *   state, and message history all persist.
+ * @ai-summary Root-level chrome that hosts the dashboard's KodyChat. Pages
+ *   render as `{children}` and push their chat context up via
+ *   `useChatScope()`. KodyChat mounts TWICE: a persistent desktop instance
+ *   (full pane on /chat, side rail elsewhere — hidden, not unmounted, so
+ *   scroll position, streaming state, and message history persist across
+ *   navigation) plus a second instance in the mobile sheet while it is
+ *   open on non-chat routes. Anything host-fed (composerInjection,
+ *   attachmentInjection, previewContext) reaches BOTH instances.
  *
  *   The rail is hidden while `useAuth().loading` is true or when no
  *   credentials are stored, since the chat itself needs a PAT to function.
@@ -368,12 +371,13 @@ export function ChatRailShell({ children }: { children: ReactNode }) {
     );
   }
 
-  // The single KodyChat is mounted once so history/streaming survive
-  // navigation. It renders two ways:
+  // The desktop KodyChat stays mounted (hidden, not unmounted) so
+  // history/streaming survive navigation. It renders two ways:
   //   • /chat  → full-width main pane (the primary assistant view)
   //   • else   → fixed-width side rail beside the page (tasks, vibe,
-  //              settings…); on mobile non-chat it hides and opens as a
-  //              sheet via the FAB below.
+  //              settings…); on mobile non-chat it hides and a SECOND
+  //              KodyChat instance mounts in the sheet opened from the
+  //              header's chat button (see the fixed panel below).
   // Kody Live remains the default agent (only it can edit code); the model
   // dropdown still lets the user pick any configured LLM for chat-only turns.
   const isChatRoute = currentRepoPath === "/chat";

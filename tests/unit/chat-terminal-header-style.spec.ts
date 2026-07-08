@@ -70,17 +70,15 @@ describe("terminal chrome style", () => {
 
   it("uses shared Kody tokens for terminal footer controls", () => {
     expect(CHAT_SOURCE).toContain('data-testid="chat-terminal-bottom-status"');
-    expect(CHAT_SOURCE).toContain(
-      "relative z-10 shrink-0 border-t bg-background px-2.5 py-3 sm:p-4",
-    );
     expect(CHAT_SOURCE).not.toContain(
       'data-testid="chat-terminal-bottom-status"\n        className="flex min-w-0 shrink items-center gap-2 rounded-md border border-border bg-background px-2 py-1"',
     );
     expect(CHAT_SOURCE).not.toContain(
       'chatMode === "terminal" ? "bg-[#050608]"',
     );
-    expect(CHAT_SOURCE).toContain('"border-b border-border/40 pb-2"');
-    expect(CHAT_SOURCE).toContain('"pt-2"');
+    // The composer container / input-row / action-row chrome moved to
+    // chat/surface/Composer in Step 3.4 — style pins are a Playwright
+    // concern (phase-1 DOM decision), so those source assertions retired.
   });
 
   it("does not render redundant terminal footer status text", () => {
@@ -96,9 +94,10 @@ describe("terminal chrome style", () => {
     expect(CHAT_SOURCE).toContain("terminalSendBusy");
     expect(CHAT_SOURCE).toContain("terminalSendDisabled");
     expect(CHAT_SOURCE).toContain("terminalProblemMessage");
-    expect(CHAT_SOURCE).toContain("disabled={terminalSendDisabled}");
-    expect(CHAT_SOURCE).toContain("Sending command");
-    expect(CHAT_SOURCE).toContain("{terminalProblemMessage}");
+    // The trailing send/stop button + problem line JSX moved to
+    // chat/surface/Composer in Step 3.4 (the state computations above
+    // stay host-side) — the rendered-markup pins are a Playwright
+    // concern (phase-1 DOM decision), so those source assertions retired.
     expect(CHAT_SOURCE).not.toContain(
       'data-testid="chat-terminal-input-status-icon"',
     );
@@ -120,7 +119,9 @@ describe("terminal chrome style", () => {
   it("blocks remote input during terminal restore", () => {
     expect(SURFACE_SOURCE).toContain('| "restoring"');
     expect(SURFACE_SOURCE).toContain('state === "restoring"');
-    expect(SURFACE_SOURCE).toContain('flyConnectionStateRef.current === "connected"');
+    expect(SURFACE_SOURCE).toContain(
+      'flyConnectionStateRef.current === "connected"',
+    );
     expect(SURFACE_SOURCE).not.toContain(
       'flySocketRef.current?.readyState === WebSocket.OPEN ||\n          flyConnectionStateRef.current === "connecting"',
     );

@@ -148,9 +148,7 @@ test.describe("Admin Kody chat regression", () => {
     await expect(chat.locator("textarea").first()).toBeEditable();
   });
 
-  test("send streams SSE and renders the assistant reply", async ({
-    page,
-  }) => {
+  test("send streams SSE and renders the assistant reply", async ({ page }) => {
     await page.route("**/api/kody/chat/kody", (route) =>
       route.fulfill({
         status: 200,
@@ -253,9 +251,7 @@ test.describe("Admin Kody chat regression", () => {
 
     // Back to idle: stop affordance gone, composer editable again, and no
     // error bubble (AbortError is swallowed by design).
-    await expect(chat.getByRole("button", { name: "Stop run" })).toHaveCount(
-      0,
-    );
+    await expect(chat.getByRole("button", { name: "Stop run" })).toHaveCount(0);
     await expect(chat.locator("textarea").first()).toBeEditable();
     await expect(chat.getByText(/^Error:/)).toHaveCount(0);
   });
@@ -355,6 +351,80 @@ test.describe("Admin Kody chat regression", () => {
     await sidebar.getByRole("button", { name: "New conversation" }).click();
     await expect(sidebar).toBeVisible();
     await expect(chat.locator("textarea").first()).toBeEditable();
+  });
+
+  test("ChatRailApi composer injection renders a removable context chip", async ({
+    page,
+  }) => {
+    // Drives the frozen host contract (phase-1 H4) end to end: a page-side
+    // feature calls ChatRailApi.setComposerInjection (here: a todo item's
+    // "Ask Kody" action), ChatRailShell re-renders KodyChat with the
+    // `composerInjection` prop, and the composer renders it as a removable
+    // context chip. This is the same path the element-picker browser
+    // extension feeds — prop names and semantics are an external contract.
+    const todo = {
+      slug: "inject-list",
+      title: "Inject list",
+      description: "",
+      items: [
+        {
+          id: "item-1",
+          title: "Wire the header",
+          body: "Header wiring details",
+          assignee: null,
+          completed: false,
+          createdAt: "2026-07-01T00:00:00.000Z",
+          completedAt: null,
+        },
+      ],
+      createdAt: "2026-07-01T00:00:00.000Z",
+      sha: "abc123",
+      updatedAt: "2026-07-01T00:00:00.000Z",
+      htmlUrl:
+        "https://github.com/test-owner/test-repo/blob/kody-state/todos/inject-list.json",
+    };
+    await page.route("**/api/kody/todos", (route) =>
+      route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify({ todos: [todo] }),
+      }),
+    );
+    await page.route("**/api/kody/todos/inject-list", (route) =>
+      route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify({ todo }),
+      }),
+    );
+    await page.route("**/api/kody/collaborators", (route) =>
+      route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify({ collaborators: [] }),
+      }),
+    );
+
+    await page.goto(`${BASE_URL}/todos/inject-list`);
+
+    const askKody = page.getByRole("button", {
+      name: "Ask Kody about Wire the header",
+    });
+    await expect(askKody).toBeVisible({ timeout: 15_000 });
+    await askKody.click();
+
+    // The chip renders inside the persistent desktop rail chat (the only
+    // element carrying the "Kody chat" label on non-chat routes).
+    const chat = page.locator('[aria-label="Kody chat"]').first();
+    const chip = chat.getByText("Ask Kody: Wire the header");
+    await expect(chip).toBeVisible({ timeout: 15_000 });
+
+    // The chip is a removable composer pill, not a sent message.
+    await chat
+      .getByRole("button", { name: "Remove element context" })
+      .first()
+      .click();
+    await expect(chip).toBeHidden();
   });
 
   test("/chat mounts exactly one KodyChat instance (regression pin)", async ({
