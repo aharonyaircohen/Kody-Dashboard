@@ -18,7 +18,7 @@ const BRIDGE_HEALTH_TIMEOUT_MS = 90_000;
 const BRIDGE_HEALTH_INTERVAL_MS = 2_000;
 const BRIDGE_CREATE_ATTEMPTS = 3;
 
-export const TERMINAL_BRIDGE_VERSION = "2026-07-08.1";
+export const TERMINAL_BRIDGE_VERSION = "2026-07-08.2";
 export const TERMINAL_BRIDGE_BASE_IMAGE =
   process.env.KODY_TERMINAL_BRIDGE_BASE_IMAGE ?? "node:22-bookworm";
 
@@ -778,7 +778,7 @@ function hasTmuxSession(sessionName) {
 function configureTmuxSession(sessionName) {
   const options = [
     ["status", "off"],
-    ["mouse", "on"],
+    ["mouse", "off"],
     ["history-limit", TERMINAL_TMUX_HISTORY_LIMIT],
   ];
   for (const [name, value] of options) {
@@ -867,6 +867,12 @@ function normalizeTerminalSize(cols, rows) {
     cols: Math.min(1000, Math.max(1, Math.floor(nextCols))),
     rows: Math.min(1000, Math.max(1, Math.floor(nextRows))),
   };
+}
+
+function stripTerminalMouseInput(value) {
+  return String(value || "")
+    .replace(/\x1b\[<\d+;\d+;\d+[mM]/g, "")
+    .replace(/\x1b\[M[\s\S]{3}/g, "");
 }
 
 function sendResizeToPty(session, cols, rows) {
@@ -1132,9 +1138,18 @@ function attachSocketToSession(socket, session) {
       return;
     }
     if (msg.type === "input" && typeof msg.data === "string") {
-      session.inputBytes += Buffer.byteLength(msg.data);
+      const inputData = stripTerminalMouseInput(msg.data);
+      session.inputBytes += Buffer.byteLength(inputData);
       session.lastTouched = Date.now();
       console.log("terminal input bytes=" + session.inputBytes);
+      if (!inputData) {
+        sendJson(socket, {
+          type: "input-accepted",
+          id: msg.id,
+          bytes: 0,
+        });
+        return;
+      }
       if (session.child.stdin.destroyed || !session.child.stdin.writable) {
         sendJson(socket, {
           type: "input-rejected",
@@ -1143,7 +1158,7 @@ function attachSocketToSession(socket, session) {
         });
         return;
       }
-      session.child.stdin.write(msg.data, (err) => {
+      session.child.stdin.write(inputData, (err) => {
         sendJson(socket, err
           ? {
               type: "input-rejected",
@@ -1153,7 +1168,7 @@ function attachSocketToSession(socket, session) {
           : {
               type: "input-accepted",
               id: msg.id,
-              bytes: Buffer.byteLength(msg.data),
+              bytes: Buffer.byteLength(inputData),
             });
       });
       return;

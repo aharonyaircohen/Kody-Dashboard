@@ -173,7 +173,8 @@ describe("ensureTerminalBridge", () => {
     expect(TERMINAL_BRIDGE_SCRIPT).toContain('"status"');
     expect(TERMINAL_BRIDGE_SCRIPT).toContain('"off"');
     expect(TERMINAL_BRIDGE_SCRIPT).toContain('"mouse"');
-    expect(TERMINAL_BRIDGE_SCRIPT).toContain('"on"');
+    expect(TERMINAL_BRIDGE_SCRIPT).toContain('["mouse", "off"]');
+    expect(TERMINAL_BRIDGE_SCRIPT).toContain("stripTerminalMouseInput");
     expect(TERMINAL_BRIDGE_SCRIPT).toContain('"history-limit"');
     expect(TERMINAL_BRIDGE_SCRIPT).toContain("TERMINAL_TMUX_HISTORY_LIMIT");
     expect(TERMINAL_BRIDGE_SCRIPT).toContain("function tmuxPaneCommand");

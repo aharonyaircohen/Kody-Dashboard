@@ -165,6 +165,8 @@ if (args[0] === "set-option") {
   }
   if (args.includes("mouse") && args.includes("on")) {
     state.mouseOn = true;
+  } else if (args.includes("mouse")) {
+    state.mouseOn = false;
   }
   const historyLimitIndex = args.indexOf("history-limit");
   if (historyLimitIndex !== -1) {
@@ -185,7 +187,10 @@ if (args[0] === "attach-session") {
   if (!state.statusOff) {
     process.stdout.write("[" + name.slice(0, 10) + ":flyctl]*\\r\\n");
   }
-  if (!state.mouseOn || Number(state.historyLimit) < 50000) {
+  if (state.mouseOn) {
+    process.stdout.write("TMUX_MOUSE_CAPTURED\\r\\n");
+  }
+  if (Number(state.historyLimit) < 50000) {
     process.stdout.write("TMUX_SCROLL_DISABLED\\r\\n");
   }
   if (state.marker) {
@@ -195,6 +200,9 @@ if (args[0] === "attach-session") {
   let ready = false;
   process.stdin.on("data", (chunk) => {
     const text = String(chunk);
+    if (/\x1b\[<\d+;\d+;\d+[mM]/.test(text)) {
+      process.stdout.write("MOUSE_INPUT_FORWARDED\\r\\n");
+    }
     const readyMarker = text.match(/__KR_[a-f0-9]+__/);
     if (readyMarker && !ready) {
       ready = true;
@@ -461,6 +469,32 @@ describe("terminal bridge runtime restore", () => {
     ).toBe(false);
   }
 
+  function expectTmuxMouseDisabled(probe: RuntimeSocket): void {
+    expect(
+      probe.messages.some(
+        (message) =>
+          message.type === "output" &&
+          typeof message.data === "string" &&
+          message.data.includes("TMUX_MOUSE_CAPTURED"),
+      ),
+    ).toBe(false);
+  }
+
+  async function expectNoOutputContaining(
+    probe: RuntimeSocket,
+    text: string,
+  ): Promise<void> {
+    await new Promise((resolve) => setTimeout(resolve, 250));
+    expect(
+      probe.messages.some(
+        (message) =>
+          message.type === "output" &&
+          typeof message.data === "string" &&
+          message.data.includes(text),
+      ),
+    ).toBe(false);
+  }
+
   it(
     "reattaches a refreshed websocket to the same live terminal",
     async () => {
@@ -495,6 +529,8 @@ describe("terminal bridge runtime restore", () => {
       expectNoTmuxStatusLine(secondProbe);
       expectTmuxScrollEnabled(firstProbe);
       expectTmuxScrollEnabled(secondProbe);
+      expectTmuxMouseDisabled(firstProbe);
+      expectTmuxMouseDisabled(secondProbe);
       const secondMarker = `KODY_RUNTIME_SECOND_${Date.now()}`;
       secondSocket.send(
         JSON.stringify({ type: "input", id: 2, data: `printf "${secondMarker}\\n"\r` }),
@@ -544,6 +580,8 @@ describe("terminal bridge runtime restore", () => {
       expectNoTmuxStatusLine(secondProbe);
       expectTmuxScrollEnabled(firstProbe);
       expectTmuxScrollEnabled(secondProbe);
+      expectTmuxMouseDisabled(firstProbe);
+      expectTmuxMouseDisabled(secondProbe);
       secondSocket.close(1000, "done");
     },
     TEST_TIMEOUT_MS,
@@ -566,6 +604,29 @@ describe("terminal bridge runtime restore", () => {
           typeof message.data === "string" &&
           message.data.includes("PTY_RESIZE:120x44"),
       );
+      socket.close(1000, "done");
+    },
+    TEST_TIMEOUT_MS,
+  );
+
+  it(
+    "does not forward browser mouse packets as terminal input",
+    async () => {
+      const { port } = await startBridge();
+      const token = terminalToken();
+
+      const socket = await openSocket(port, token);
+      await socket.waitFor((message) => message.type === "ready");
+
+      socket.send(
+        JSON.stringify({
+          type: "input",
+          id: 1,
+          data: "\u001b[<0;12;5M\u001b[<0;12;5m",
+        }),
+      );
+
+      await expectNoOutputContaining(socket, "MOUSE_INPUT_FORWARDED");
       socket.close(1000, "done");
     },
     TEST_TIMEOUT_MS,
