@@ -14,7 +14,6 @@ import { describe, expect, it } from "vitest";
 import {
   TASKS_PANEL_ID,
   TASKS_PLUGIN_ID,
-  TasksPanelView,
   tasksChatPlugin,
 } from "@dashboard/lib/chat/plugins/tasks";
 import { FULL_GRANT } from "@dashboard/lib/chat/platform/capabilities";
@@ -43,7 +42,9 @@ describe("tasks chat plugin manifest", () => {
     const [panel] = tasksChatPlugin.panels ?? [];
     expect(panel?.id).toBe(TASKS_PANEL_ID);
     expect(panel?.title).toBe("Tasks");
-    expect(panel?.render).toBe(TasksPanelView);
+    // Step 5: the panel renders through createLazyPanel — the manifest no
+    // longer statically imports (or re-exports) the panel component.
+    expect(typeof panel?.render).toBe("function");
   });
 
   it("registers under the admin FULL_GRANT and exposes its panel", () => {

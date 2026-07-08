@@ -16,12 +16,23 @@ import { useEffect, useState } from "react";
 export const CHAT_FIRST_LAYOUT_KEY = "kody:chat-first-layout";
 const CHANGE_EVENT = "kody:chat-first-layout-changed";
 
-/** Read the persisted toggle. Default OFF; storage failures read as OFF. */
+/**
+ * The default when the user has never touched the toggle (absent key /
+ * unavailable storage). Phase 2 step 5 prepares the flip: change this ONE
+ * constant to `true` to make chat-first the default shell — an explicit
+ * "0" (user opted out) still wins.
+ */
+export const CHAT_FIRST_DEFAULT = false;
+
+/** Read the persisted toggle. Absent key → CHAT_FIRST_DEFAULT; an explicit
+ *  stored value always wins; storage failures read as the default. */
 export function readChatFirstLayout(): boolean {
   try {
-    return localStorage.getItem(CHAT_FIRST_LAYOUT_KEY) === "1";
+    const raw = localStorage.getItem(CHAT_FIRST_LAYOUT_KEY);
+    if (raw === null) return CHAT_FIRST_DEFAULT;
+    return raw === "1";
   } catch {
-    return false;
+    return CHAT_FIRST_DEFAULT;
   }
 }
 

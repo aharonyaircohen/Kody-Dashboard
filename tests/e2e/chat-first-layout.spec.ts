@@ -50,7 +50,20 @@ test.describe("Chat-first layout (beta toggle)", () => {
         status: 200,
         contentType: "application/json",
         body: JSON.stringify({
-          models: [{ id: "gpt-x", label: "GPT X", enabled: true }],
+          // Fully-shaped ChatModel: the /models page renders this list too
+          // (engineModelSpec reads id/provider/modelName — a bare id used
+          // to crash the page the instant its lazy panel mounted).
+          models: [
+            {
+              id: "openai/gpt-x",
+              label: "GPT X",
+              enabled: true,
+              provider: "openai",
+              protocol: "openai",
+              modelName: "gpt-x",
+              baseURL: "",
+            },
+          ],
         }),
       }),
     );

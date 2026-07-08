@@ -7,6 +7,7 @@
  *   eslint.config.mjs).
  */
 
+export { createLazyPanel } from "./lazy-panel";
 export {
   CHAT_CAPABILITIES,
   CONTRIBUTION_CAPABILITIES,

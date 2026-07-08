@@ -21,8 +21,7 @@
  *   passes this plugin; ClientChatSurface does not (no admin task board on
  *   client brand surfaces).
  */
-import type { ChatPlugin } from "../../platform";
-import { TasksPanelView, TASKS_PANEL_TESTID } from "./panel";
+import { createLazyPanel, type ChatPlugin } from "../../platform";
 
 export const TASKS_PLUGIN_ID = "tasks";
 export const TASKS_PANEL_ID = "tasks";
@@ -34,9 +33,11 @@ export const tasksChatPlugin: ChatPlugin = {
     {
       id: TASKS_PANEL_ID,
       title: "Tasks",
-      render: TasksPanelView,
+      render: createLazyPanel(
+        "tasks",
+        () => import("./panel").then((m) => ({ default: m.TasksPanelView })),
+      ),
     },
   ],
 };
 
-export { TASKS_PANEL_TESTID, TasksPanelView };

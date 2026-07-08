@@ -9,8 +9,7 @@
  *   nothing changes anywhere. Server half intentionally absent (honest
  *   boundary — see the tasks pilot manifest).
  */
-import type { ChatPlugin } from "../../platform";
-import { DocsPanelView, DOCS_PANEL_TESTID } from "./panel";
+import { createLazyPanel, type ChatPlugin } from "../../platform";
 
 export const DOCS_PLUGIN_ID = "docs";
 export const DOCS_PANEL_ID = "docs";
@@ -22,9 +21,11 @@ export const docsChatPlugin: ChatPlugin = {
     {
       id: DOCS_PANEL_ID,
       title: "Docs",
-      render: DocsPanelView,
+      render: createLazyPanel(
+        "docs",
+        () => import("./panel").then((m) => ({ default: m.DocsPanelView })),
+      ),
     },
   ],
 };
 
-export { DOCS_PANEL_TESTID, DocsPanelView };
