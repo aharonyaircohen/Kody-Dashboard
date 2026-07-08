@@ -1,17 +1,20 @@
 /**
  * @fileType component
- * @domain commands
+ * @domain chat-plugin-commands
  * @pattern slash-menu
  * @ai-summary Floating menu shown above the chat composer while the
  *   user types a slash command. Filters commands by prefix, supports
  *   keyboard navigation (handled by the parent via onKeyDown to keep
  *   focus inside the textarea), and dispatches selection to the parent.
+ *   Position-coupled to the composer textarea, so the host builds this
+ *   node and passes it into the Composer as a ReactNode — same pattern
+ *   as the terminal plugin's chrome (Step 5b).
  */
 "use client";
 
-import { RepoScopedLink } from "./RepoScopedLink";
 import { useMemo } from "react";
-import type { SlashCommand } from "../commands/useSlashCommands";
+import { RepoScopedLink } from "../../../components/RepoScopedLink";
+import type { SlashCommand } from "./useSlashCommands";
 
 interface Props {
   commands: SlashCommand[];

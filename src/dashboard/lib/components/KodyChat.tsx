@@ -64,16 +64,19 @@ import {
   type TerminalIntentEffectPayload,
 } from "../chat/plugins/terminal";
 import {
-  useSlashCommands,
+  SlashCommandMenu,
+  commandsChatPlugin,
+  filterCommands,
   parseSlashTrigger,
-  expandSlashCommand,
-} from "../commands/useSlashCommands";
+  readSlashExpansionEffect,
+  useSlashCommands,
+  type SlashExpansionEffectPayload,
+} from "../chat/plugins/commands";
 import { parseGoalMention, type GoalRef } from "../goal-mention";
 import { useElementPicker } from "../picker/useElementPicker";
 import { formatPageInfo } from "../picker/protocol";
 import { runPreviewAction } from "../picker/run-preview-action";
 import { formatMacrosCatalog, type Macro } from "../macros";
-import { filterCommands } from "./SlashCommandMenu";
 import {
   authHeaders,
   stickyBrainChatId,
@@ -359,14 +362,16 @@ export function KodyChat({
   // useState initializer, never re-registered on re-render. The terminal
   // plugin (Step 5a) registers by default; `hideTerminalMode` surfaces
   // (ClientChatSurface) skip it, so they carry no terminal display mode or
-  // terminal-intent middleware. With no plugins at all the registry is
-  // inert: slots render nothing and the send-middleware chain passes
-  // through.
+  // terminal-intent middleware. The commands plugin (Step 5b) registers on
+  // every surface — slash expansion ran unconditionally before the move.
+  // With no plugins at all the registry is inert: slots render nothing and
+  // the send-middleware chain passes through.
   const [pluginRegistry] = useState(() => {
     const registry = createChatPluginRegistry();
     const grant = capabilityGrant ?? FULL_GRANT;
     const entries = [
       ...(hideTerminalMode ? [] : [{ plugin: terminalChatPlugin }]),
+      { plugin: commandsChatPlugin },
       ...(plugins ?? []),
     ];
     for (const entry of entries) {
@@ -386,12 +391,30 @@ export function KodyChat({
       pendingTerminalIntentRef.current = null;
       return intent;
     }, []);
+  // Slash-expansion hand-off (Step 5b): same synchronous ref pattern —
+  // the commands plugin's middleware dispatches the expansion effect
+  // during runSendMiddleware; sendMessage reads the raw typed text for
+  // the user bubble right after the chain returns.
+  const pendingSlashExpansionRef = useRef<SlashExpansionEffectPayload | null>(
+    null,
+  );
+  const consumePendingSlashExpansion =
+    useCallback((): SlashExpansionEffectPayload | null => {
+      const expansion = pendingSlashExpansionRef.current;
+      pendingSlashExpansionRef.current = null;
+      return expansion;
+    }, []);
   // Host-effect switch. Plugins dispatch effects (scope changes, navigation
   // requests) here — unknown kinds are ignored by design.
   const handlePluginHostEffect = useCallback((effect: ChatHostEffect) => {
     const terminalIntent = readTerminalIntentEffect(effect);
     if (terminalIntent) {
       pendingTerminalIntentRef.current = terminalIntent;
+      return;
+    }
+    const slashExpansion = readSlashExpansionEffect(effect);
+    if (slashExpansion) {
+      pendingSlashExpansionRef.current = slashExpansion;
       return;
     }
     switch (effect.kind) {
@@ -405,13 +428,6 @@ export function KodyChat({
       unsubscribe();
     };
   }, [pluginRegistry, handlePluginHostEffect]);
-  // Read-only host snapshot handed to slot components and send middleware.
-  // Minimal by design (plan H2 host-context channel) — grows per plugin
-  // need, not speculatively.
-  const pluginHost = useMemo(
-    () => ({ pathname, agentId: selectedAgentId }),
-    [pathname, selectedAgentId],
-  );
   const [agentMenuOpen, setAgentMenuOpen] = useState(false);
   // Thinking-level state. The chat header shows a small `🧠` dropdown
   // next to the agent picker when the current model declares a
@@ -432,6 +448,15 @@ export function KodyChat({
   // Stale-while-revalidate keeps autocomplete instant; the API itself
   // is cached on the server side via the GitHub client.
   const { commands: slashCommands } = useSlashCommands(auth);
+  // Read-only host snapshot handed to slot components and send middleware.
+  // Minimal by design (plan H2 host-context channel) — grows per plugin
+  // need, not speculatively. `slashCommands` feeds the commands plugin's
+  // slash-expansion middleware (Step 5b): the manifest is static pure
+  // data, so the async-loaded command list travels via host context.
+  const pluginHost = useMemo(
+    () => ({ pathname, agentId: selectedAgentId, slashCommands }),
+    [pathname, selectedAgentId, slashCommands],
+  );
   // Brain visibility is driven exclusively by the per-user Settings entry
   // (URL + API key in localStorage). A server-wide `BRAIN_CHAT_URL` env on
   // the deployment used to also surface the row, but that meant every
@@ -3836,11 +3861,6 @@ export function KodyChat({
       return;
     // A real user prompt restarts the budget for chained preview actions.
     previewActChainRef.current = 0;
-    // Expand slash commands before send: `/review` or `/explain foo` →
-    // the prompt body with $ARGUMENTS substituted. The model never sees
-    // the slash form (every backend just gets normal text). Unknown
-    // slugs pass through unchanged so users can still type "/" prefixed
-    // text freely.
     const typedInput = input.trim();
 
     // "Direct chat to a goal by id": if the message mentions a known
@@ -3926,13 +3946,19 @@ export function KodyChat({
     }
 
     // Plugin send-middleware chain (Step 4). The terminal plugin's
-    // terminal-intent middleware (order 100, Step 5a) runs here: it
-    // rewrites `/terminal <x>` to the Kody terminal prompt and hands the
-    // raw typed text back through a synchronous host effect. Slash
-    // expansion stays a built-in until Step 5b (order 200) — it keeps
-    // running on the chain's output, skipped for terminal intents exactly
-    // as before. A middleware that consumes the message stops the send.
+    // terminal-intent middleware (order 100, Step 5a) rewrites
+    // `/terminal <x>` to the Kody terminal prompt; the commands plugin's
+    // slash-expansion middleware (order 200, Step 5b) expands
+    // `/review` / `/explain foo` into the command body with $ARGUMENTS
+    // substituted. The model never sees the slash form (every backend
+    // just gets normal text); unknown slugs pass through unchanged so
+    // users can still type "/"-prefixed text freely. Terminal intents
+    // skip expansion by construction — the order-100 rewrite no longer
+    // starts with "/". Each middleware hands the raw typed text back
+    // through a synchronous host effect for the user bubble. A middleware
+    // that consumes the message stops the send.
     pendingTerminalIntentRef.current = null;
+    pendingSlashExpansionRef.current = null;
     const middlewareOutcome = pluginRegistry.runSendMiddleware(typedInput, {
       host: pluginHost,
       dispatchHostEffect: handlePluginHostEffect,
@@ -3945,20 +3971,16 @@ export function KodyChat({
       return;
     }
     const terminalIntent = consumePendingTerminalIntent();
+    const slashExpansion = consumePendingSlashExpansion();
 
-    // For terminal intents the user bubble shows the raw typed text while
-    // the model receives the middleware-built Kody prompt.
+    // The user bubble shows the raw typed text while the model receives
+    // the chain's output (Kody terminal prompt / expanded command body).
     const rawInput = terminalIntent
       ? terminalIntent.rawText
-      : middlewareOutcome.text;
-    const expanded = terminalIntent
-      ? null
-      : expandSlashCommand(rawInput, slashCommands);
-    const baseMessage = terminalIntent
-      ? middlewareOutcome.text
-      : expanded
-        ? expanded.text
-        : rawInput;
+      : slashExpansion
+        ? slashExpansion.rawText
+        : middlewareOutcome.text;
+    const baseMessage = middlewareOutcome.text;
     // Append any attached context chips (picked preview elements) to the
     // outgoing message, so the model sees the element details even though the
     // composer only showed compact pills.
@@ -4021,7 +4043,7 @@ export function KodyChat({
             return "Sent to terminal";
           },
         }
-      : expanded || currentChips.length > 0
+      : slashExpansion || currentChips.length > 0
         ? { displayContent: visibleUserMessage }
         : undefined;
 
@@ -4871,11 +4893,17 @@ export function KodyChat({
             onPaste={handlePaste}
             onCaretMove={refreshAgentMentionTrigger}
             onMenusClose={closeComposerMenus}
-            slashMenuOpen={slashMenuOpen}
-            slashCommands={slashCommands}
-            slashSelectedIndex={slashSelectedIndex}
-            onSlashSelect={applySlashSelection}
-            onSlashHover={setSlashSelectedIndex}
+            slashCommandMenu={
+              slashMenuOpen ? (
+                <SlashCommandMenu
+                  commands={slashCommands}
+                  filter={parseSlashTrigger(input).filter}
+                  selectedIndex={slashSelectedIndex}
+                  onSelect={applySlashSelection}
+                  onHover={setSlashSelectedIndex}
+                />
+              ) : null
+            }
             agentMentionsOpen={
               Boolean(agentMentionTrigger) && filteredAgentMentions.length > 0
             }

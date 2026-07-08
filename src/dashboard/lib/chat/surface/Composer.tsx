@@ -37,13 +37,8 @@ import {
   X,
 } from "lucide-react";
 import { MarkdownEditor } from "../../components/MarkdownEditor";
-import { SlashCommandMenu } from "../../components/SlashCommandMenu";
 import { VoiceButton } from "../../components/VoiceButton";
 import { SimpleTooltip } from "../../components/SimpleTooltip";
-import {
-  parseSlashTrigger,
-  type SlashCommand,
-} from "../../commands/useSlashCommands";
 import {
   bootPhaseLabel,
   formatElapsed,
@@ -105,12 +100,13 @@ interface ComposerProps {
   /** Close slash menu + mention popover (deferred on blur). */
   onMenusClose: () => void;
 
-  /** Slash-command menu state — owned by the host (keyboard nav lives there). */
-  slashMenuOpen: boolean;
-  slashCommands: SlashCommand[];
-  slashSelectedIndex: number;
-  onSlashSelect: (slug: string) => void;
-  onSlashHover: (index: number) => void;
+  /**
+   * Slash-command menu, host-built from the commands plugin (Step 5b moved
+   * it into `plugins/commands`); null while closed. Open/index state and
+   * keyboard nav stay with the host — the composer owns only placement,
+   * same pattern as the terminal chrome nodes below.
+   */
+  slashCommandMenu: ReactNode;
 
   /** Agent @-mention popover — open when a trigger + matches exist. */
   agentMentionsOpen: boolean;
@@ -188,11 +184,7 @@ export function Composer({
   onPaste,
   onCaretMove,
   onMenusClose,
-  slashMenuOpen,
-  slashCommands,
-  slashSelectedIndex,
-  onSlashSelect,
-  onSlashHover,
+  slashCommandMenu,
   agentMentionsOpen,
   agentMentions,
   agentMentionSelectedIndex,
@@ -352,15 +344,7 @@ export function Composer({
             }`}
           >
             <div className="flex-1 relative">
-              {slashMenuOpen && (
-                <SlashCommandMenu
-                  commands={slashCommands}
-                  filter={parseSlashTrigger(input).filter}
-                  selectedIndex={slashSelectedIndex}
-                  onSelect={onSlashSelect}
-                  onHover={onSlashHover}
-                />
-              )}
+              {slashCommandMenu}
               {agentMentionsOpen && (
                 <div className="absolute bottom-full left-0 right-0 mb-2 rounded-md border border-white/10 bg-zinc-900/95 backdrop-blur-sm shadow-xl overflow-hidden max-h-64 overflow-y-auto">
                   <ul role="listbox" className="py-1">

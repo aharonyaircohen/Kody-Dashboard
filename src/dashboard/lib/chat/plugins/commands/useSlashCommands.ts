@@ -1,18 +1,21 @@
 /**
  * @fileType hook
- * @domain commands
+ * @domain chat-plugin-commands
  * @pattern slash-commands
  * @ai-summary React-query hook that fetches the merged command list
  *   (builtins + repo) and provides parse/match helpers for the chat
  *   composer. Kept separate from the API surface so the chat component
- *   doesn't need to know about builtins vs repo files.
+ *   doesn't need to know about builtins vs repo files. The commands DATA
+ *   layer (files/index/substitute + API routes) stays in `lib/commands/`
+ *   — it is shared with the /commands page; only the chat-composer wiring
+ *   lives in this plugin (Step 5b).
  */
 "use client";
 
 import { useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { buildAuthHeaders, type KodyAuth } from "../auth-context";
-import { substitute, type SubstituteResult } from "./substitute";
+import { buildAuthHeaders, type KodyAuth } from "../../../auth-context";
+import { substitute, type SubstituteResult } from "../../../commands/substitute";
 
 export interface SlashCommand {
   slug: string;

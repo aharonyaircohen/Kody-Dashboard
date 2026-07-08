@@ -47,7 +47,7 @@ describe("repo-scoped panel route surfaces", () => {
       "SettingsManager.tsx",
       "CompanyIntentsView.tsx",
       "VariablesManager.tsx",
-      "SlashCommandMenu.tsx",
+      "src/dashboard/lib/chat/plugins/commands/SlashCommandMenu.tsx",
       "OperatorsWarningBanner.tsx",
       "RunnerManager.tsx",
       "NotificationsManager.tsx",

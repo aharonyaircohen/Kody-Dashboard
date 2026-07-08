@@ -12,7 +12,7 @@ import {
   parseSlashTrigger,
   expandSlashCommand,
   type SlashCommand,
-} from "@dashboard/lib/commands/useSlashCommands";
+} from "@dashboard/lib/chat/plugins/commands";
 import {
   substitute,
   tokenizeArguments,
