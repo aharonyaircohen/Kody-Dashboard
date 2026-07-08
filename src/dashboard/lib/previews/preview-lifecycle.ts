@@ -108,30 +108,13 @@
  * state of its own.
  */
 
-import { logger } from "@dashboard/lib/logger";
-import {
-  getPreviewBuilderStatus,
-  spawnPreviewBuilder,
-  type SpawnBuilderResult,
-} from "@dashboard/lib/previews/builder-client";
-import {
-  appExists,
-  destroyApp,
-  flyHostname,
-  startMachine,
-  type FlyPreviewConfig,
-  type MachineInfo,
-  listMachines,
-  waitForMachineStarted,
-} from "@dashboard/lib/previews/fly-previews";
+import { flyDeploymentProvider } from "@dashboard/lib/infrastructure/providers/fly/deployments";
+import type { FlyPreviewConfig } from "@dashboard/lib/previews/fly-previews";
 import {
   type BranchPreviewKey,
   type PreviewKey,
   type PrPreviewKey,
-  previewAppName,
 } from "@dashboard/lib/previews/preview-key";
-import { loadVaultContextForBuild } from "@dashboard/lib/previews/vault-build-context";
-import { resolveFlyPreviewsForRepo } from "@dashboard/lib/previews/config";
 
 /**
  * The builder path only handles git-backed previews (PR or branch) — it
@@ -156,172 +139,30 @@ export interface PreviewInfo {
   builderMachineId?: string;
 }
 
-const PREVIEW_WAKE_WAIT_MS = 20_000;
-
-async function getEmptyPreviewInfo(
-  key: PreviewKey,
-  appName: string,
-  cfg: FlyPreviewConfig,
-): Promise<PreviewInfo> {
-  const builder = await getPreviewBuilderStatus(appName, cfg.token);
-  return {
-    key,
-    appName,
-    url: null,
-    state: builder?.state ?? "failed",
-    region: cfg.defaultRegion,
-    builderMachineId: builder?.machineId,
-  };
-}
-
-function previewInfoFromMachine(
-  key: PreviewKey,
-  appName: string,
-  machine: MachineInfo,
-  cfg: FlyPreviewConfig,
-): PreviewInfo {
-  return {
-    key,
-    appName,
-    url: flyHostname(appName),
-    machineId: machine.id,
-    state:
-      machine.state === "started"
-        ? "running"
-        : machine.state === "starting"
-          ? "starting"
-          : "unknown",
-    region: machine.region ?? cfg.defaultRegion,
-  };
-}
-
 export async function createPreview(
   input: CreatePreviewInput,
   cfg: FlyPreviewConfig,
 ): Promise<PreviewInfo> {
-  const key: PreviewKey =
-    "pr" in input
-      ? { repo: input.repo, pr: input.pr }
-      : { repo: input.repo, branch: input.branch };
-  const appName = previewAppName(key);
-
-  // Build-time secrets + build mode — read once from the target repo's
-  // vault. Secrets are baked into .env.production.local during build.
-  // Build mode picks the bundled Dockerfile.preview variant ("dev"
-  // skips `next build`; "prod" matches Vercel's flow). `input.githubToken`
-  // (when set by the webhook handler) reuses the already-resolved
-  // background token — same token that resolved the Fly config —
-  // avoiding a second GitHub API call and a class of silent-empty bugs.
-  const { buildEnv, buildMode } = await loadVaultContextForBuild(
-    input.repo,
-    input.githubToken,
-  );
-
-  // Per-repo preview machine knobs (size, idle-suspend, health-check) from
-  // kody.config.json. Reuses the same githubToken so this adds no extra
-  // GitHub round-trip on the hot path. Never throws — falls back to defaults.
-  const previews = await resolveFlyPreviewsForRepo(
-    input.repo,
-    input.githubToken,
-  );
-
-  let spawned: SpawnBuilderResult;
-  try {
-    spawned = await spawnPreviewBuilder({
-      repo: input.repo,
-      // PR builds get a PR_NUMBER (the builder comments the URL on the PR);
-      // branch builds omit it — there's no PR to comment on.
-      ...("pr" in input ? { pr: input.pr } : {}),
-      ...("branch" in input ? { branch: input.branch } : {}),
-      ref: input.ref,
-      appName,
-      imageTag: input.imageTag,
-      flyToken: cfg.token,
-      flyOrgSlug: cfg.orgSlug,
-      flyRegion: cfg.defaultRegion,
-      githubToken: input.githubToken,
-      buildEnv,
-      buildMode,
-      previewVmCpus: previews.cpus,
-      previewVmMemoryMb: previews.memoryMb,
-      previewIdleSuspend: previews.idleSuspend,
-      previewHealthCheck: previews.healthCheck,
-      builderCpus: previews.builderCpus,
-      builderMemoryMb: previews.builderMemoryMb,
-    });
-  } catch (err) {
-    logger.error(
-      { err, repo: input.repo, appName, ref: input.ref },
-      "preview: builder spawn failed",
-    );
-    throw err;
-  }
-
-  // Builder is now running independently. Return the deterministic URL
-  // immediately — the URL won't be reachable for ~2-5 min while the
-  // builder works, but the dashboard's GET endpoint can probe Fly for
-  // current state at any time.
-  return {
-    key,
-    appName,
-    url: spawned.expectedUrl,
-    state: "pending",
-    region: cfg.defaultRegion,
-    builderMachineId: spawned.machineId,
-  };
+  return flyDeploymentProvider.create(input, cfg);
 }
 
 export async function destroyPreview(
   key: PreviewKey,
   cfg: FlyPreviewConfig,
 ): Promise<void> {
-  await destroyApp(previewAppName(key), cfg);
+  await flyDeploymentProvider.destroy(key, cfg);
 }
 
 export async function getPreview(
   key: PreviewKey,
   cfg: FlyPreviewConfig,
 ): Promise<PreviewInfo | null> {
-  const appName = previewAppName(key);
-  if (!(await appExists(appName, cfg))) return null;
-
-  const machines = await listMachines(appName, cfg);
-  const first = machines[0];
-  if (!first) return getEmptyPreviewInfo(key, appName, cfg);
-
-  return previewInfoFromMachine(key, appName, first, cfg);
+  return flyDeploymentProvider.get(key, cfg);
 }
 
 export async function wakePreview(
   key: PreviewKey,
   cfg: FlyPreviewConfig,
 ): Promise<PreviewInfo | null> {
-  const appName = previewAppName(key);
-  if (!(await appExists(appName, cfg))) return null;
-
-  const machines = await listMachines(appName, cfg);
-  const first = machines[0];
-  if (!first) return getEmptyPreviewInfo(key, appName, cfg);
-
-  if (first.state !== "started") {
-    if (first.state !== "starting") {
-      await startMachine(appName, first.id, cfg);
-    }
-
-    try {
-      await waitForMachineStarted(appName, first.id, cfg, PREVIEW_WAKE_WAIT_MS);
-    } catch (err) {
-      logger.warn(
-        { err, appName, machineId: first.id, state: first.state },
-        "previews: wake wait did not reach started state",
-      );
-    }
-
-    const refreshed = (await listMachines(appName, cfg)).find(
-      (machine) => machine.id === first.id,
-    );
-    if (refreshed) return previewInfoFromMachine(key, appName, refreshed, cfg);
-  }
-
-  return previewInfoFromMachine(key, appName, first, cfg);
+  return flyDeploymentProvider.wake!(key, cfg);
 }

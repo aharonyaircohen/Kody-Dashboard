@@ -6,10 +6,8 @@
  *   first, fall through to spawning a fresh one on any miss. Chat, issue,
  *   goal, and workflow callers all pass the same runRequest contract.
  */
-import { claimFromPool } from "./pool-client";
-import { spawnRunner } from "./fly";
+import { flyComputeProvider } from "@dashboard/lib/infrastructure/providers/fly/compute";
 import type { FlyContext } from "./fly-context";
-import { logger } from "@dashboard/lib/logger";
 import type { KodyRunRequest } from "./run-request";
 
 export interface ClaimOrSpawnOpts {
@@ -44,43 +42,5 @@ export async function claimOrSpawnFly(
   ctx: FlyContext,
   opts: ClaimOrSpawnOpts,
 ): Promise<ClaimOrSpawnResult> {
-  const { owner, repo, githubToken, allSecrets, flyToken, perfTier } = ctx;
-
-  const claim = await claimFromPool({
-    jobId: opts.taskId,
-    repo: `${owner}/${repo}`,
-    runRequest: opts.runRequest,
-    ...(opts.idleExitMs ? { idleExitMs: opts.idleExitMs } : {}),
-    ...(opts.hardCapMs ? { hardCapMs: opts.hardCapMs } : {}),
-    dashboardUrl: opts.dashboardUrl,
-    ...(opts.reasoningEffort ? { reasoningEffort: opts.reasoningEffort } : {}),
-    ...(opts.ref ? { ref: opts.ref } : {}),
-  });
-  if (claim.ok) {
-    logger.info(
-      { taskId: opts.taskId, machineId: claim.machineId, owner, repo },
-      "fly: claimed warm pool machine",
-    );
-    return { runner: "pool", machineId: claim.machineId };
-  }
-
-  logger.info(
-    { taskId: opts.taskId, owner, repo, poolMiss: claim.reason },
-    "fly: pool miss — spawning fresh runner",
-  );
-
-  const { machineId } = await spawnRunner({
-    repo: `${owner}/${repo}`,
-    githubToken,
-    runRequest: opts.runRequest,
-    dashboardUrl: opts.dashboardUrl,
-    ...(opts.idleExitMs ? { idleExitMs: opts.idleExitMs } : {}),
-    ...(opts.hardCapMs ? { hardCapMs: opts.hardCapMs } : {}),
-    ...(opts.reasoningEffort ? { reasoningEffort: opts.reasoningEffort } : {}),
-    ...(opts.ref ? { ref: opts.ref } : {}),
-    allSecrets,
-    flyToken,
-    perfTier,
-  });
-  return { runner: "fly", machineId };
+  return flyComputeProvider.claimOrRun!(ctx, opts);
 }

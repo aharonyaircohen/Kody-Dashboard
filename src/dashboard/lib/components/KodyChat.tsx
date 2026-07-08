@@ -10,10 +10,7 @@ import {
   FULL_GRANT,
   type ChatHostEffect,
 } from "../chat/platform";
-import {
-  ChatPluginProvider,
-  ChatPluginSlot,
-} from "../chat/surface/ChatPluginProvider";
+import { ChatSurfaceLayout } from "../chat/surface/ChatSurfaceLayout";
 import { useAuth } from "../auth-context";
 import { toast } from "sonner";
 import type { KodyTask } from "../types";
@@ -1434,30 +1431,20 @@ export function KodyChat({
               : genericPlaceholder;
 
   return (
-    // Plugin platform mount (Step 4): the provider exposes THIS mount's
-    // registry to the surface pieces (HeaderControls / Composer slots and
-    // the footer slot below). With no plugins the provider is inert and
-    // every slot renders nothing — zero DOM diff.
-    <ChatPluginProvider registry={pluginRegistry} host={pluginHost}>
-      <div
-        data-testid="kody-chat-root"
-        className={`relative flex h-full overflow-hidden bg-background ${
-          standalonePresentation ? "" : "md:border-l"
-        }`}
-        onDragEnter={handleDragEnter}
-        onDragOver={handleDragOver}
-        onDragLeave={handleDragLeave}
-        onDrop={handleDrop}
-      >
-        {/* Drag overlay — visible while a file is being dragged over the chat */}
-        {isDraggingFile && (
-          <div className="pointer-events-none absolute inset-0 z-50 flex items-center justify-center bg-primary/10 border-2 border-dashed border-primary rounded-md backdrop-blur-sm">
-            <div className="px-4 py-3 bg-background/90 rounded-lg shadow-lg text-base font-medium text-primary">
-              Drop to attach
-            </div>
-          </div>
-        )}
-        {/* Session Sidebar */}
+    // Surface layout (Phase 1.6e): ChatSurfaceLayout owns the structural
+    // JSX (plugin provider mount, drag chrome, waiting banner, footer
+    // slot). Every region node below is built HERE so state, handlers,
+    // and the per-session agent writes stay in this file.
+    <ChatSurfaceLayout
+      pluginRegistry={pluginRegistry}
+      pluginHost={pluginHost}
+      standalonePresentation={standalonePresentation}
+      isDraggingFile={isDraggingFile}
+      onDragEnter={handleDragEnter}
+      onDragOver={handleDragOver}
+      onDragLeave={handleDragLeave}
+      onDrop={handleDrop}
+      sessionsPanel={
         <SessionsPanel
           open={showSessionSidebar}
           isGlobalMode={isGlobalMode}
@@ -1479,250 +1466,232 @@ export function KodyChat({
           onTogglePinned={() => setSessionSidebarPinned((prev) => !prev)}
           onClose={() => setShowSessionSidebar(false)}
         />
-
-        <div className="relative flex min-w-0 flex-1 flex-col">
-          {/* Voice Chat Overlay */}
-          {voiceOverlayOpen && (
-            <VoiceChatOverlay
-              state={voiceChat.state}
-              currentTranscript={voiceChat.currentTranscript}
-              turnCount={voiceChat.turnCount}
-              error={voiceChat.error}
-              ttsEngine={voiceChat.ttsEngine}
-              ttsError={voiceChat.ttsError}
-              voiceId={voiceId}
-              voices={PIPER_VOICES}
-              onSelectVoice={handleSelectVoice}
-              messages={messages}
-              agentName={currentAgent.name}
-              onStop={() => {
-                voiceChat.stopConversation();
-                setVoiceOverlayOpen(false);
-                setVoiceMuted(false);
-              }}
-              onInterrupt={() => {
-                voiceChat.interruptConversation();
-              }}
-              onToggleMute={handleVoiceToggleMute}
-              isMuted={voiceMuted}
-            />
-          )}
-          {/* Header with context — extracted to chat/surface/HeaderControls.
-          Menu open/close state, selection state, and the per-session agent
-          pick stay here; the region is presentation-only. */}
-          <HeaderControls
-            currentEntry={currentEntry}
-            currentAgent={currentAgent}
-            lockedAgentId={lockedAgentId}
-            agentMenuOpen={agentMenuOpen}
-            setAgentMenuOpen={setAgentMenuOpen}
-            messageCount={messages.length}
-            currentReasoning={currentReasoning}
-            effectiveReasoningEffort={effectiveReasoningEffort}
-            setReasoningEffort={setReasoningEffort}
-            reasoningMenuOpen={reasoningMenuOpen}
-            setReasoningMenuOpen={setReasoningMenuOpen}
-            agentList={agentList}
-            selectedAgentId={selectedAgentId}
-            selectedModelId={selectedModelId}
-            onSelectEntry={(a) => {
-              setSelectedAgentId(a.agentId);
-              setSelectedModelId(a.modelId);
-              // Per-session pick: the same agent stays active when the user
-              // comes back to THIS conversation. Each session remembers its
-              // own choice — switching to another chat and back restores the
-              // agent that was active for that thread, not whichever one the
-              // user just clicked.
-              //
-              // The global `defaultChatEntryKey` is intentionally NOT touched
-              // here. Settings → "Default chat" is the single owner of the
-              // default for new sessions; the chat picker only mutates the
-              // active session.
-              const activeId = sessionHook.activeSession?.id;
-              if (activeId) {
-                sessionHook.setSessionAgent(activeId, a.key);
-              }
-              setAgentMenuOpen(false);
-            }}
-            remoteStatus={remoteStatus}
-            onNewConversation={() => {
-              // Seed the new session with the current effective agent so a
-              // fresh conversation inherits the agent the user is currently
-              // on. Without this, the new session would have no agentKey and
-              // fall back to the global default on first render — which is
-              // fine for the very first session but surprises users who
-              // expect a "new chat" to start where the last one left off.
-              const seed = currentEntry?.key;
-              sessionHook.createSession(seed ? { agentKey: seed } : undefined);
-              setToolCalls([]);
-            }}
-            activeLoading={activeLoading}
-            showSessionSidebar={showSessionSidebar}
-            onToggleSessionSidebar={() =>
-              setShowSessionSidebar(!showSessionSidebar)
-            }
-            onToggleFullscreen={onToggleFullscreen}
-            railFullscreen={railFullscreen}
-            onCollapseRail={onCollapseRail}
-            onClose={onClose}
-            isTaskMode={isTaskMode}
-            selectedTask={selectedTask}
-            isCapabilityMode={isCapabilityMode}
-            selectedCapability={selectedCapability}
-            isPlannerMode={isPlannerMode}
-            plannerGoal={plannerGoal}
-            onPlannerExit={onPlannerExit}
-            activeSessionTitle={sessionHook.activeSession?.title}
-          />
-
-          {/* Kody waiting for instructions banner */}
-          {isKodyWaiting && actionState && (
-            <div className="px-4 py-2 bg-amber-50 border-b border-amber-200 flex items-center gap-2 text-sm text-amber-800">
-              <span className="relative flex h-3 w-3">
-                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-amber-400 opacity-75" />
-                <span className="relative inline-flex rounded-full h-3 w-3 bg-amber-500" />
-              </span>
-              <span className="font-medium">
-                Kody is waiting for your instructions
-              </span>
-              {actionState.step && (
-                <span className="text-amber-600">
-                  — paused at{" "}
-                  <code className="bg-amber-100 px-1 rounded">
-                    {actionState.step}
-                  </code>
-                </span>
-              )}
-            </div>
-          )}
-
-          {/* Messages area */}
-          <MessageList
-            chatMode={chatMode}
+      }
+      voiceOverlay={
+        voiceOverlayOpen ? (
+          <VoiceChatOverlay
+            state={voiceChat.state}
+            currentTranscript={voiceChat.currentTranscript}
+            turnCount={voiceChat.turnCount}
+            error={voiceChat.error}
+            ttsEngine={voiceChat.ttsEngine}
+            ttsError={voiceChat.ttsError}
+            voiceId={voiceId}
+            voices={PIPER_VOICES}
+            onSelectVoice={handleSelectVoice}
             messages={messages}
-            setMessages={setMessages}
-            onResend={(content) => {
-              void sendText(content, []);
-            }}
-            activeLoading={activeLoading}
             agentName={currentAgent.name}
-            activeSessionId={sessionHook.activeSession?.id}
-            toolCalls={toolCalls}
-            usedViewIds={usedViewIds}
-            onRenderedViewAction={handleRenderedViewAction}
-            emptyState={
-              <EmptyState
-                isTaskMode={isTaskMode}
-                vibeMode={vibeMode}
-                selectedTask={selectedTask}
-                isCapabilityMode={isCapabilityMode}
-                selectedCapability={selectedCapability}
-                isPlannerMode={isPlannerMode}
-                plannerGoal={plannerGoal}
-              />
-            }
-            terminalSurfaces={terminalSurfaces}
-          />
-
-          {/* Composer — extracted to chat/surface/Composer (Step 3). All
-          state (input, slash menu, mentions, attachments, chips, voice)
-          and every handler stay here; the region is presentation-only.
-          The context-chip pills render the ChatRailApi `composerInjection`
-          contract fed through the effect above. */}
-          <Composer
-            chatMode={chatMode}
-            activeLoading={activeLoading}
-            attachments={attachments}
-            onRemoveAttachment={removeAttachment}
-            contextChips={contextChips}
-            onRemoveContextChip={removeContextChip}
-            isKodyLive={isKodyLive}
-            interactiveState={interactiveState}
-            bootElapsed={bootElapsed}
-            selectedAgentId={selectedAgentId}
-            interactiveTarget={interactiveTarget}
-            liveErrorMessage={liveState.errorMessage}
-            onRestartLive={restartInteractiveSession}
-            input={input}
-            composerTextareaRef={composerTextareaRef}
-            richComposerEnabled={richComposerEnabled}
-            placeholder={placeholder}
-            composerDisabled={composerDisabled}
-            onInputChange={handleComposerInputChange}
-            onKeyDown={handleKeyDown}
-            onPaste={handlePaste}
-            onCaretMove={refreshAgentMentionTrigger}
-            onMenusClose={closeComposerMenus}
-            slashCommandMenu={
-              slashMenuOpen ? (
-                <SlashCommandMenu
-                  commands={slashCommands}
-                  filter={parseSlashTrigger(input).filter}
-                  selectedIndex={slashSelectedIndex}
-                  onSelect={applySlashSelection}
-                  onHover={setSlashSelectedIndex}
-                />
-              ) : null
-            }
-            agentMentionsOpen={
-              Boolean(agentMentionTrigger) && filteredAgentMentions.length > 0
-            }
-            agentMentions={filteredAgentMentions}
-            agentMentionSelectedIndex={agentMentionSelectedIndex}
-            onAgentMentionHover={setAgentMentionSelectedIndex}
-            onAgentMentionSelect={applyAgentMentionSelection}
-            composerAction={composerAction}
-            hasComposerContent={hasComposerContent}
-            terminalSendDisabled={terminalSendDisabled}
-            terminalSendBusy={terminalSendBusy}
-            terminalInputLabel={terminalInputLabel}
-            onSend={sendMessage}
-            onStop={handleStop}
-            onEndLiveSession={endInteractiveSession}
-            onStartLiveSession={startInteractiveSession}
-            terminalProblemMessage={terminalProblemMessage}
-            fileInputRef={fileInputRef}
-            onFileSelect={handleFileSelect}
-            voiceActive={voiceOverlayOpen}
-            voiceSupported={voiceChat.isSupported && currentAgent.supportsVoice}
-            onVoiceTap={() => {
-              // Handle tap based on current voice state:
-              // - If AI is speaking: interrupt and start listening (voice interrupt)
-              // - If listening/processing: stop conversation
-              // - If idle: start conversation
-              if (voiceChat.state === "speaking") {
-                // Voice interrupt: cancel AI speech and start listening
-                voiceChat.interruptConversation();
-                setVoiceOverlayOpen(true);
-                setVoiceMuted(false);
-              } else if (voiceOverlayOpen) {
-                // Already in voice mode - stop it
-                voiceChat.stopConversation();
-                setVoiceOverlayOpen(false);
-                setVoiceMuted(false);
-              } else {
-                // Not in voice mode - start it
-                voiceChat.startConversation();
-                setVoiceOverlayOpen(true);
-              }
+            onStop={() => {
+              voiceChat.stopConversation();
+              setVoiceOverlayOpen(false);
+              setVoiceMuted(false);
             }}
-            onVoiceLongPressStart={() => {
+            onInterrupt={() => {
+              voiceChat.interruptConversation();
+            }}
+            onToggleMute={handleVoiceToggleMute}
+            isMuted={voiceMuted}
+          />
+        ) : null
+      }
+      header={
+        // Header with context — extracted to chat/surface/HeaderControls.
+        // Menu open/close state, selection state, and the per-session agent
+        // pick stay here; the region is presentation-only.
+        <HeaderControls
+          currentEntry={currentEntry}
+          currentAgent={currentAgent}
+          lockedAgentId={lockedAgentId}
+          agentMenuOpen={agentMenuOpen}
+          setAgentMenuOpen={setAgentMenuOpen}
+          messageCount={messages.length}
+          currentReasoning={currentReasoning}
+          effectiveReasoningEffort={effectiveReasoningEffort}
+          setReasoningEffort={setReasoningEffort}
+          reasoningMenuOpen={reasoningMenuOpen}
+          setReasoningMenuOpen={setReasoningMenuOpen}
+          agentList={agentList}
+          selectedAgentId={selectedAgentId}
+          selectedModelId={selectedModelId}
+          onSelectEntry={(a) => {
+            setSelectedAgentId(a.agentId);
+            setSelectedModelId(a.modelId);
+            // Per-session pick: the same agent stays active when the user
+            // comes back to THIS conversation. Each session remembers its
+            // own choice — switching to another chat and back restores the
+            // agent that was active for that thread, not whichever one the
+            // user just clicked.
+            //
+            // The global `defaultChatEntryKey` is intentionally NOT touched
+            // here. Settings → "Default chat" is the single owner of the
+            // default for new sessions; the chat picker only mutates the
+            // active session.
+            const activeId = sessionHook.activeSession?.id;
+            if (activeId) {
+              sessionHook.setSessionAgent(activeId, a.key);
+            }
+            setAgentMenuOpen(false);
+          }}
+          remoteStatus={remoteStatus}
+          onNewConversation={() => {
+            // Seed the new session with the current effective agent so a
+            // fresh conversation inherits the agent the user is currently
+            // on. Without this, the new session would have no agentKey and
+            // fall back to the global default on first render — which is
+            // fine for the very first session but surprises users who
+            // expect a "new chat" to start where the last one left off.
+            const seed = currentEntry?.key;
+            sessionHook.createSession(seed ? { agentKey: seed } : undefined);
+            setToolCalls([]);
+          }}
+          activeLoading={activeLoading}
+          showSessionSidebar={showSessionSidebar}
+          onToggleSessionSidebar={() =>
+            setShowSessionSidebar(!showSessionSidebar)
+          }
+          onToggleFullscreen={onToggleFullscreen}
+          railFullscreen={railFullscreen}
+          onCollapseRail={onCollapseRail}
+          onClose={onClose}
+          isTaskMode={isTaskMode}
+          selectedTask={selectedTask}
+          isCapabilityMode={isCapabilityMode}
+          selectedCapability={selectedCapability}
+          isPlannerMode={isPlannerMode}
+          plannerGoal={plannerGoal}
+          onPlannerExit={onPlannerExit}
+          activeSessionTitle={sessionHook.activeSession?.title}
+        />
+      }
+      showKodyWaitingBanner={Boolean(isKodyWaiting && actionState)}
+      kodyWaitingStep={actionState?.step}
+      messageList={
+        <MessageList
+          chatMode={chatMode}
+          messages={messages}
+          setMessages={setMessages}
+          onResend={(content) => {
+            void sendText(content, []);
+          }}
+          activeLoading={activeLoading}
+          agentName={currentAgent.name}
+          activeSessionId={sessionHook.activeSession?.id}
+          toolCalls={toolCalls}
+          usedViewIds={usedViewIds}
+          onRenderedViewAction={handleRenderedViewAction}
+          emptyState={
+            <EmptyState
+              isTaskMode={isTaskMode}
+              vibeMode={vibeMode}
+              selectedTask={selectedTask}
+              isCapabilityMode={isCapabilityMode}
+              selectedCapability={selectedCapability}
+              isPlannerMode={isPlannerMode}
+              plannerGoal={plannerGoal}
+            />
+          }
+          terminalSurfaces={terminalSurfaces}
+        />
+      }
+      composer={
+        // Composer — extracted to chat/surface/Composer (Step 3). All
+        // state (input, slash menu, mentions, attachments, chips, voice)
+        // and every handler stay here; the region is presentation-only.
+        // The context-chip pills render the ChatRailApi `composerInjection`
+        // contract fed through the effect above.
+        <Composer
+          chatMode={chatMode}
+          activeLoading={activeLoading}
+          attachments={attachments}
+          onRemoveAttachment={removeAttachment}
+          contextChips={contextChips}
+          onRemoveContextChip={removeContextChip}
+          isKodyLive={isKodyLive}
+          interactiveState={interactiveState}
+          bootElapsed={bootElapsed}
+          selectedAgentId={selectedAgentId}
+          interactiveTarget={interactiveTarget}
+          liveErrorMessage={liveState.errorMessage}
+          onRestartLive={restartInteractiveSession}
+          input={input}
+          composerTextareaRef={composerTextareaRef}
+          richComposerEnabled={richComposerEnabled}
+          placeholder={placeholder}
+          composerDisabled={composerDisabled}
+          onInputChange={handleComposerInputChange}
+          onKeyDown={handleKeyDown}
+          onPaste={handlePaste}
+          onCaretMove={refreshAgentMentionTrigger}
+          onMenusClose={closeComposerMenus}
+          slashCommandMenu={
+            slashMenuOpen ? (
+              <SlashCommandMenu
+                commands={slashCommands}
+                filter={parseSlashTrigger(input).filter}
+                selectedIndex={slashSelectedIndex}
+                onSelect={applySlashSelection}
+                onHover={setSlashSelectedIndex}
+              />
+            ) : null
+          }
+          agentMentionsOpen={
+            Boolean(agentMentionTrigger) && filteredAgentMentions.length > 0
+          }
+          agentMentions={filteredAgentMentions}
+          agentMentionSelectedIndex={agentMentionSelectedIndex}
+          onAgentMentionHover={setAgentMentionSelectedIndex}
+          onAgentMentionSelect={applyAgentMentionSelection}
+          composerAction={composerAction}
+          hasComposerContent={hasComposerContent}
+          terminalSendDisabled={terminalSendDisabled}
+          terminalSendBusy={terminalSendBusy}
+          terminalInputLabel={terminalInputLabel}
+          onSend={sendMessage}
+          onStop={handleStop}
+          onEndLiveSession={endInteractiveSession}
+          onStartLiveSession={startInteractiveSession}
+          terminalProblemMessage={terminalProblemMessage}
+          fileInputRef={fileInputRef}
+          onFileSelect={handleFileSelect}
+          voiceActive={voiceOverlayOpen}
+          voiceSupported={voiceChat.isSupported && currentAgent.supportsVoice}
+          onVoiceTap={() => {
+            // Handle tap based on current voice state:
+            // - If AI is speaking: interrupt and start listening (voice interrupt)
+            // - If listening/processing: stop conversation
+            // - If idle: start conversation
+            if (voiceChat.state === "speaking") {
+              // Voice interrupt: cancel AI speech and start listening
+              voiceChat.interruptConversation();
+              setVoiceOverlayOpen(true);
+              setVoiceMuted(false);
+            } else if (voiceOverlayOpen) {
+              // Already in voice mode - stop it
+              voiceChat.stopConversation();
+              setVoiceOverlayOpen(false);
+              setVoiceMuted(false);
+            } else {
+              // Not in voice mode - start it
               voiceChat.startConversation();
               setVoiceOverlayOpen(true);
-            }}
-            onVoiceLongPressEnd={() => {
-              /* let conversation handle it */
-            }}
-            messageCount={messages.length}
-            onClearHistory={() => setShowClearConfirm(true)}
-            onReportIssue={openIssueReport}
-            terminalBottomControls={terminalBottomControls}
-            chatModeToggle={chatModeToggle}
-          />
-
-          {/* Plugin footer slot — renders nothing until a plugin contributes. */}
-          <ChatPluginSlot slot="footer" />
-
+            }
+          }}
+          onVoiceLongPressStart={() => {
+            voiceChat.startConversation();
+            setVoiceOverlayOpen(true);
+          }}
+          onVoiceLongPressEnd={() => {
+            /* let conversation handle it */
+          }}
+          messageCount={messages.length}
+          onClearHistory={() => setShowClearConfirm(true)}
+          onReportIssue={openIssueReport}
+          terminalBottomControls={terminalBottomControls}
+          chatModeToggle={chatModeToggle}
+        />
+      }
+      dialogs={
+        <>
           <ConfirmDialog
             open={showClearConfirm}
             title="Clear history"
@@ -1737,8 +1706,8 @@ export function KodyChat({
             onClose={() => setShowIssueReport(false)}
             capturedState={issueReportState}
           />
-        </div>
-      </div>
-    </ChatPluginProvider>
+        </>
+      }
+    />
   );
 }

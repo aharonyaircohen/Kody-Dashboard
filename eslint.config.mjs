@@ -107,14 +107,13 @@ export default [
   {
     // KodyChat size RATCHET: the file lives outside the chat/** zone, so
     // nothing else stops regrowth. Lower this cap with every phase-1.6
-    // extraction — never raise it. (Raw lines; currently 1,751 after the
-    // phase-1.6d terminal-host / empty-state / composer-handlers extraction
-    // to kody-chat-terminal-host.tsx / chat/surface/EmptyState.tsx /
-    // kody-chat-composer-handlers.ts.)
+    // extraction — never raise it. (Raw lines; currently 1,713 after the
+    // phase-1.6e surface-layout extraction to
+    // chat/surface/ChatSurfaceLayout.tsx.)
     name: "kodychat-size-ratchet",
     files: ["src/dashboard/lib/components/KodyChat.tsx"],
     rules: {
-      "max-lines": ["error", { max: 1800, skipBlankLines: false, skipComments: false }],
+      "max-lines": ["error", { max: 1760, skipBlankLines: false, skipComments: false }],
     },
   },
   {
