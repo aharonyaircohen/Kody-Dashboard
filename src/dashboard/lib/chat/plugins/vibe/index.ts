@@ -37,9 +37,11 @@
  *   display modes, or tools): vibe behavior is gated on the host's
  *   `vibeMode` prop, which can flip mid-mount as the persistent rail
  *   navigates onto/off /vibe — mount-time registry state must not encode
- *   it. KodyChat registers this plugin on every surface (like commands);
- *   registration is inert and exists to reserve the id and pin the
- *   boundary above.
+ *   it. Registration is HOST-owned (Step 6): the admin hosts
+ *   (ChatRailShell, GoalControl's planner) pass this plugin;
+ *   ClientChatSurface omits it (the manifest is inert, so nothing changes
+ *   there). Registration exists to reserve the id and pin the boundary
+ *   above.
  */
 import type { ChatPlugin } from "../../platform";
 

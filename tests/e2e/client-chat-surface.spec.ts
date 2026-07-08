@@ -94,6 +94,11 @@ test.describe("Client chat surface", () => {
     await expect(page.locator('[data-testid="client-brand-name"]')).toHaveText(
       "Kody",
     );
+    // Brand accent flows brand config → branding plugin theme → header
+    // inline style (Step 6). #0f766e for the default kody brand.
+    await expect(
+      page.locator('[data-testid="client-brand-accent"]'),
+    ).toHaveCSS("background-color", "rgb(15, 118, 110)");
     await expect(page.locator("aside, nav").first()).toHaveCount(0);
 
     const chats = page.locator('[aria-label="Kody chat"]');
@@ -152,6 +157,71 @@ test.describe("Client chat surface", () => {
     await chat.getByRole("button", { name: "Send message" }).click();
     await expect(chat.getByText("Hi! How can I help you today?")).toBeVisible();
     await expect(chat.getByText(/renderer-capable model/i)).toHaveCount(0);
+  });
+
+  test("/client/acme renders the themed brand from the branding plugin", async ({
+    page,
+  }) => {
+    await page.goto(`${BASE_URL}/client/acme`);
+    await page.waitForLoadState("domcontentloaded");
+
+    const surface = page.locator('[data-testid="client-chat-surface"]');
+    await expect(surface).toBeVisible({ timeout: 15_000 });
+    // Themed reference brand (lib/client-brand.ts "acme"): distinct name
+    // and accent, both contributed via the branding plugin's theme.
+    await expect(page.locator('[data-testid="client-brand-name"]')).toHaveText(
+      "Acme",
+    );
+    await expect(
+      page.locator('[data-testid="client-brand-accent"]'),
+    ).toHaveCSS("background-color", "rgb(124, 58, 237)");
+    // Default locale brand — root stays LTR.
+    await expect(surface).toHaveAttribute("dir", "ltr");
+    // No admin plugin affordances leak in: terminal is absent on /client.
+    const chat = page.locator('[aria-label="Kody chat"]').first();
+    await expect(chat.getByRole("button", { name: /Terminal/i })).toHaveCount(
+      0,
+    );
+  });
+
+  test("slash menu lists mocked commands on the client surface", async ({
+    page,
+  }) => {
+    // The commands plugin is registered on /client under the minimal grant
+    // (middleware + host-effects), so the slash menu must keep working
+    // exactly as it did pre-Step-6.
+    await page.route("**/api/kody/commands", (route) =>
+      route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify({
+          commands: [
+            {
+              slug: "plan",
+              description: "Plan work",
+              argumentHint: "",
+              body: "x",
+              source: "builtin",
+            },
+          ],
+        }),
+      }),
+    );
+
+    const commandsLoaded = page.waitForResponse("**/api/kody/commands");
+    await page.goto(`${BASE_URL}/client/kody`);
+    const chat = page.locator('[aria-label="Kody chat"]').first();
+    await expect(chat).toBeVisible({ timeout: 15_000 });
+    await commandsLoaded;
+
+    const composer = chat.locator("textarea").first();
+    await expect(composer).toBeEditable({ timeout: 15_000 });
+    await composer.fill("/");
+
+    const option = chat.getByRole("option", { name: /\/plan/ });
+    await expect(option).toBeVisible({ timeout: 10_000 });
+    await option.click();
+    await expect(chat.locator("textarea").first()).toHaveValue("/plan ");
   });
 
   test("/client/kody-he renders an RTL root while per-message dir survives", async ({

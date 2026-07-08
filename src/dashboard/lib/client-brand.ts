@@ -13,6 +13,9 @@ export interface ClientBrand {
   /** BCP-47-ish locale tag, normalized lowercase (default "en"). Drives the
    *  surface-root text direction via `directionForLocale` (plan H7). */
   locale?: string;
+  /** Optional brand welcome copy, contributed to the chat theme by the
+   *  branding plugin (chat/plugins/branding). */
+  welcomeText?: string;
 }
 
 const DEFAULT_CLIENT_LOCALE = "en";
@@ -30,6 +33,13 @@ const KNOWN_CLIENT_BRANDS: Record<string, ClientBrand> = {
     name: "Kody",
     accent: "#0f766e",
     locale: "he",
+  },
+  // Theming reference brand (Step 6): distinct name + accent, pinned by the
+  // branding-plugin e2e in tests/e2e/client-chat-surface.spec.ts.
+  acme: {
+    slug: "acme",
+    name: "Acme",
+    accent: "#7c3aed",
   },
 };
 

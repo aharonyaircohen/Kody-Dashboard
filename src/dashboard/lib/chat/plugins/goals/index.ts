@@ -12,12 +12,12 @@
  *   re-scope chat to that goal's planner and leaves the rest of the
  *   message in the composer.
  *
- *   Registration is CONDITIONAL on the mount routing goals: KodyChat
- *   registers this plugin only when the host passes `onDirectToGoal`
- *   (ChatRailShell's desktop rail + mobile sheet do; ClientChatSurface and
- *   GoalControl's planner dialog don't) — pre-move the whole goal block
- *   was gated on `onDirectToGoal && knownGoals`, so surfaces without the
- *   props never routed goals and must not now. The goals list itself
+ *   Registration is HOST-owned (Step 6) and only hosts that route goals
+ *   pass this plugin: ChatRailShell's desktop rail + mobile sheet do (they
+ *   always supply `onDirectToGoal`); ClientChatSurface and GoalControl's
+ *   planner dialog don't — pre-move the whole goal block was gated on
+ *   `onDirectToGoal && knownGoals`, so surfaces without the props never
+ *   routed goals and must not now. The goals list itself
  *   loads asynchronously (useGoals in ChatRailShell), so it travels via
  *   host context (`knownGoals` key), not the static manifest.
  *

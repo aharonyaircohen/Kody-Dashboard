@@ -52,7 +52,6 @@ import {
   shouldLoadTerminalCheckpoint,
   terminalCheckpointLoadKey,
   terminalCheckpointSearchParams,
-  terminalChatPlugin,
   useBrainImageSave,
   useChatTerminalRegistry,
   ChatTerminalSurface,
@@ -65,7 +64,6 @@ import {
 } from "../chat/plugins/terminal";
 import {
   SlashCommandMenu,
-  commandsChatPlugin,
   filterCommands,
   parseSlashTrigger,
   readSlashExpansionEffect,
@@ -73,7 +71,6 @@ import {
   type SlashExpansionEffectPayload,
 } from "../chat/plugins/commands";
 import {
-  goalsChatPlugin,
   readGoalDirectEffect,
   type GoalDirectEffectPayload,
 } from "../chat/plugins/goals";
@@ -172,7 +169,6 @@ import {
 } from "../mentions/agent-mentions";
 import {
   pickVibeRequestIssueNumber,
-  vibeChatPlugin,
   vibeLiveTaskContext,
   vibeTurnFields,
   VIBE_TASK_EMPTY_STATE_HINT,
@@ -363,37 +359,25 @@ export function KodyChat({
   // dropdown sets `selectedAgentId='kody'` and stashes the gateway id here.
   // The chat request forwards it as `body.model`. Null = no override.
   const [selectedModelId, setSelectedModelId] = useState<string | null>(null);
-  // ─── Chat plugin platform (Step 4) ───
+  // ─── Chat plugin platform (Step 4 mechanics, Step 6 injection) ───
   // One registry PER MOUNT (plan H4: ChatRailShell mounts KodyChat twice;
   // plugin manifests are global pure data, instantiation is per mount).
   // `plugins`/`capabilityGrant` are mount-time config — read once in the
-  // useState initializer, never re-registered on re-render. The terminal
-  // plugin (Step 5a) registers by default; `hideTerminalMode` surfaces
-  // (ClientChatSurface) skip it, so they carry no terminal display mode or
-  // terminal-intent middleware. The commands plugin (Step 5b) registers on
-  // every surface — slash expansion ran unconditionally before the move.
-  // The vibe plugin (Step 5c) also registers on every surface: its manifest
-  // is contribution-free (vibe is a HOST mode — see plugins/vibe/index.ts),
-  // and behavior stays gated on the `vibeMode` prop, which can flip
-  // mid-mount as the persistent rail navigates onto/off /vibe.
-  // The goals plugin (Step 5d) registers only when the host can route
-  // goals (`onDirectToGoal` supplied — ChatRailShell's two mounts; the
-  // client surface and GoalControl's planner dialog never pass it, so
-  // they carry no goal-mention middleware). Prop PRESENCE is stable per
-  // surface, so the mount-time read is safe.
+  // useState initializer, never re-registered on re-render.
+  // KodyChat owns ONLY the registration mechanics; the HOST surface passes
+  // its plugin list (Step 6 / M6 — per-surface imports, so /client sheds
+  // admin plugin code): ChatRailShell registers terminal + commands + vibe
+  // + goals on both of its mounts, GoalControl's planner dialog registers
+  // terminal + commands + vibe (it never routes goals), ClientChatSurface
+  // registers branding + commands under its minimal grant. Registration
+  // order = array order (theme/slot merge order); middleware ordering is
+  // registry-sorted by `order` regardless.
   // With no plugins at all the registry is inert: slots render nothing and
   // the send-middleware chain passes through.
   const [pluginRegistry] = useState(() => {
     const registry = createChatPluginRegistry();
     const grant = capabilityGrant ?? FULL_GRANT;
-    const entries = [
-      ...(hideTerminalMode ? [] : [{ plugin: terminalChatPlugin }]),
-      { plugin: commandsChatPlugin },
-      { plugin: vibeChatPlugin },
-      ...(onDirectToGoal ? [{ plugin: goalsChatPlugin }] : []),
-      ...(plugins ?? []),
-    ];
-    for (const entry of entries) {
+    for (const entry of plugins ?? []) {
       registry.register(entry.plugin, grant);
     }
     return registry;
@@ -1129,7 +1113,9 @@ export function KodyChat({
   // "terminal" mode; the platform resolves it. Vibe is a HOST mode — the
   // host forces "ai", which always wins, so vibe-suppresses-terminal never
   // becomes a plugin→plugin import. With the terminal plugin unregistered
-  // (hideTerminalMode) the mode can never resolve to "terminal".
+  // (hosts that omit it, e.g. ClientChatSurface) the mode can never
+  // resolve to "terminal"; `hideTerminalMode` stays as the belt-and-braces
+  // visibility gate on the toggle below.
   const resolvedDisplayMode = pluginRegistry.resolveDisplayMode(
     [terminalRegistry.mode],
     vibeMode ? "ai" : undefined,

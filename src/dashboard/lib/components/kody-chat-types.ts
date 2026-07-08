@@ -216,8 +216,12 @@ export interface KodyChatProps {
    * Chat plugins to register into this mount's registry (plan H4: one
    * registry per KodyChat instance — plugin manifests are global pure data,
    * instantiation is per mount). Mount-time config: the list is read once
-   * when the mount's registry is created. Default: no plugins — the surface
-   * renders exactly as before the platform existed.
+   * when the mount's registry is created. Since Step 6 (M6) the HOST owns
+   * the full list — KodyChat registers no built-ins of its own, so each
+   * surface bundles only the plugins it imports (ChatRailShell: terminal +
+   * commands + vibe + goals; GoalControl planner: terminal + commands +
+   * vibe; ClientChatSurface: branding + commands). Default: no plugins —
+   * the surface renders exactly as before the platform existed.
    */
   plugins?: Array<{ plugin: ChatPlugin }>;
   /**

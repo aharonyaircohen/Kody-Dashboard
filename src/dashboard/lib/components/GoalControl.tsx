@@ -79,6 +79,19 @@ import { TaskList } from "./TaskList";
 import { GoalDiscussion } from "./GoalDiscussion";
 import { GoalAssigneePicker } from "./GoalAssigneePicker";
 import { KodyChat } from "./KodyChat";
+import { terminalChatPlugin } from "../chat/plugins/terminal";
+import { commandsChatPlugin } from "../chat/plugins/commands";
+import { vibeChatPlugin } from "../chat/plugins/vibe";
+
+// Planner-dialog plugin composition (Step 6 / M6: the host owns the plugin
+// list). Matches the pre-Step-6 built-ins for this mount: terminal +
+// commands + vibe, NO goals plugin — the planner dialog never passes
+// `onDirectToGoal`, so goal-mention routing was never active here.
+const PLANNER_CHAT_PLUGINS = [
+  { plugin: terminalChatPlugin },
+  { plugin: commandsChatPlugin },
+  { plugin: vibeChatPlugin },
+];
 
 interface GoalProgress {
   total: number;
@@ -667,6 +680,7 @@ export function PlanGoalDialog({
               onTasksCreated,
             }}
             actorLogin={actorLogin}
+            plugins={PLANNER_CHAT_PLUGINS}
           />
         </div>
       </DialogContent>

@@ -7,8 +7,9 @@
  *   middleware (order 100 — before slash expansion at 200). The terminal
  *   chrome (mode toggle, toolbars) stays host-passed ReactNodes built from
  *   this plugin's components so the admin DOM is byte-identical (see
- *   TerminalControls.tsx). KodyChat registers this plugin whenever
- *   `hideTerminalMode` is not set; ClientChatSurface hides it. Brain
+ *   TerminalControls.tsx). Registration is HOST-owned (Step 6 / M6):
+ *   ChatRailShell's two mounts and GoalControl's planner dialog pass this
+ *   plugin; ClientChatSurface never imports it. Brain
  *   terminal coupling (BRAIN_TERMINAL_TRANSPORT, brain image saves) stays
  *   INSIDE this plugin by decision — brain is not a plugin (plan M2).
  */

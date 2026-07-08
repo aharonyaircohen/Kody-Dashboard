@@ -52,6 +52,23 @@ import {
   resolveRepoRouteAuthSync,
 } from "../routes";
 import { routeOwnsAppHeader } from "./header-ownership";
+import { terminalChatPlugin } from "../chat/plugins/terminal";
+import { commandsChatPlugin } from "../chat/plugins/commands";
+import { vibeChatPlugin } from "../chat/plugins/vibe";
+import { goalsChatPlugin } from "../chat/plugins/goals";
+
+// Admin plugin composition (Step 6 / M6: the HOST owns the plugin list, so
+// each surface bundles only what it imports). Both KodyChat mounts (desktop
+// rail + mobile sheet) register the same set under the default FULL_GRANT.
+// Order matches the pre-Step-6 built-in registration order: terminal,
+// commands, vibe, goals (goals last — both mounts always pass
+// `onDirectToGoal`, so the pre-move conditional was always true here).
+const ADMIN_CHAT_PLUGINS = [
+  { plugin: terminalChatPlugin },
+  { plugin: commandsChatPlugin },
+  { plugin: vibeChatPlugin },
+  { plugin: goalsChatPlugin },
+];
 
 interface ChatRailApi {
   scope: ChatContext | null;
@@ -424,6 +441,7 @@ export function ChatRailShell({ children }: { children: ReactNode }) {
       composerInjection={composerInjection}
       attachmentInjection={attachmentInjection}
       previewContext={previewContext}
+      plugins={ADMIN_CHAT_PLUGINS}
       // Expand = navigate to the /chat page; restore = back to the previous
       // page. On /chat the button reads as "restore" (railFullscreen).
       onToggleFullscreen={toggleExpandedChat}
@@ -532,6 +550,7 @@ export function ChatRailShell({ children }: { children: ReactNode }) {
                     composerInjection={composerInjection}
                     attachmentInjection={attachmentInjection}
                     previewContext={previewContext}
+                    plugins={ADMIN_CHAT_PLUGINS}
                   />
                 ) : (
                   <div className="flex-1 flex items-center justify-center p-6">
