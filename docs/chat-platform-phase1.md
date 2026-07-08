@@ -245,6 +245,13 @@ fixture plugin.
   transport. Core lands vibe-aware by decision (M2: host mode) but
   brain-terminal coupling moves out of the registry where cheap.
 
+> **Outcome note (post-ship, 2026-07-08):** phase 1 landed all steps, but
+> KodyChat.tsx settled at ~5,000 lines, not the < 800 target — the remaining
+> mass is send orchestration and the live-runner lifecycle, which proved
+> host-shaped rather than plugin-shaped. A size ratchet in eslint.config.mjs
+> now prevents regrowth; phase 1.6 (hook extraction: live-runner, send,
+> agent/model selection, data loading, voice) carries the rest.
+
 **Step 3 — Split the surface, one piece per commit (H8).**
 Composer, MessageList (**extracted from KodyChat's inline transcript block —
 `MessagesView` is the /messages team-messaging page, not this**),

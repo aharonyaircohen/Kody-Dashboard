@@ -316,3 +316,22 @@ consume behavior), an int spec if it has a server half (fixture pattern in
 `tests/int/chat-platform-plugin.int.spec.ts`), and a Playwright assertion if
 it contributes slots (vitest is node-only — nothing that renders React is
 asserted in vitest).
+
+## State ownership map
+
+Who owns what (phase-1 end state — update when phase 1.6 moves a row):
+
+| State | Owner | Persistence |
+| ----- | ----- | ----------- |
+| Sessions (list, active id, per-session agent) | `chat/core/use-chat-sessions.ts` | `kody-sessions-v3:<owner>/<repo>` |
+| Live-runner lifecycle (booting/ready/awaiting) | reducer `chat/core/kody-chat-reducer.ts`, orchestrated by KodyChat | `kody-live-sessions:<owner>/<repo>` via `chat/core/kody-chat-live-session.ts` |
+| Rehydration ordering | `chat/core/rehydration.ts` (pure), effects in KodyChat | — |
+| Messages / streaming buffers | per-turn handler `components/kody-chat-transport-events.ts`, state in KodyChat | in the session store |
+| Plugin registry (slots, middleware, modes, theme) | per-mount, created by KodyChat from host-supplied lists | — |
+| Display mode (ai/terminal) | registry arbitration; vibe forces "ai" (host mode by decision M2) | terminal plugin session state |
+| Composer input, slash/mention menus, attachments | KodyChat (host), rendered by `chat/surface/Composer` | — |
+| composerInjection / previewContext | ChatRailShell (frozen `ChatRailApi` contract) | — |
+| Agent/model selection, reasoning effort | KodyChat (phase 1.6: extract) | `kody-default-chat-entry:<owner>/<repo>`, reasoning-pref |
+| Data loading (models, dashboard config, Fly probe) | KodyChat (phase 1.6: extract) | — |
+| Voice | KodyChat + `useKodyTTS*` hooks (phase 1.6: extract) | — |
+| Brand/theme on /client | `plugins/branding` via `registry.theme()` | brand config in `client-brand.ts` |

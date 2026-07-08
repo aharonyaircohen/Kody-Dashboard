@@ -105,6 +105,16 @@ export default [
     },
   },
   {
+    // KodyChat size RATCHET: the file lives outside the chat/** zone, so
+    // nothing else stops regrowth. Lower this cap with every phase-1.6
+    // extraction — never raise it. (Raw lines; currently 5,025.)
+    name: "kodychat-size-ratchet",
+    files: ["src/dashboard/lib/components/KodyChat.tsx"],
+    rules: {
+      "max-lines": ["error", { max: 5100, skipBlankLines: false, skipComments: false }],
+    },
+  },
+  {
     // Layer zones, alias form. no-restricted-paths only sees resolvable
     // relative imports; these blocks close the @dashboard/@ alias route.
     name: "chat-core-alias-zones",
