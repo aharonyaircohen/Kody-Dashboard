@@ -125,7 +125,7 @@ describe("ManagedModelsView model form", () => {
     );
   });
 
-  it("uses one visible trust-level control on goal and loop pages", () => {
+  it("uses one visible trust-level control on goal pages only", () => {
     expect(source).not.toContain("RunModeControl");
     expect(source).not.toContain("RunModeBadge");
     expect(source).not.toContain("managedModelCapabilitySlugs(");
@@ -133,28 +133,29 @@ describe("ManagedModelsView model form", () => {
     expect(source).toContain("TrustLevelControl");
     expect(source).toContain("trustLevelForSubject");
     expect(source).toContain("trust.setTrustLevel");
+    expect(source).toContain('trustSubjectKey("goal"');
+    expect(source).toContain("{!isRoutine ? (");
     expect(source).not.toContain("KodyTriggerControl");
+    expect(source).not.toContain('trustSubjectKey("loop"');
     expect(source).toContain("runManagedGoal.mutateAsync(selectedGoal.id)");
     expect(source).toContain('const basePath = model === "agentLoop"');
     expect(source).toContain('"/agent-loops"');
     expect(source).toContain('"/agent-goals"');
   });
 
-  it("places the loop auto-run toggle next to the trust control", () => {
+  it("keeps the loop auto-run toggle in the loop header without a trust control", () => {
     const headerActions = source.slice(
-      source.indexOf("<TrustLevelControl"),
+      source.indexOf("{canActivate ? ("),
       source.indexOf(
         "<Button",
         source.indexOf("Manage ${copy.singular} todos"),
       ),
     );
 
-    expect(headerActions.indexOf("<TrustLevelControl")).toBe(0);
-    expect(headerActions.indexOf("{canActivate ? (")).toBeGreaterThan(
-      headerActions.indexOf("<TrustLevelControl"),
-    );
+    expect(headerActions).not.toContain("<TrustLevelControl");
+    expect(headerActions.indexOf("{canActivate ? (")).toBe(0);
     expect(headerActions.indexOf("{canPause ? (")).toBeGreaterThan(
-      headerActions.indexOf("<TrustLevelControl"),
+      headerActions.indexOf("{canActivate ? ("),
     );
     expect(source).toContain('"Enable loop auto-run"');
     expect(source).toContain('"Disable loop auto-run"');

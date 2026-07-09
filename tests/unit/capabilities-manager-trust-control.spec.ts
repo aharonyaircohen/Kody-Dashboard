@@ -8,11 +8,11 @@ const source = readFileSync(
 );
 
 describe("CapabilitiesManager trust control", () => {
-  it("renders the shared trust-level control on capability details", () => {
-    expect(source).toContain("TrustLevelControl");
-    expect(source).toContain("trustLevelForCapability");
-    expect(source).toContain('trustSubjectKey("capability"');
-    expect(source).toContain("trust.setTrustLevel");
-    expect(source).toContain("capability: selected.slug");
+  it("does not expose runnable trust on capability details", () => {
+    expect(source).not.toContain("TrustLevelControl");
+    expect(source).not.toContain("trustLevelForCapability");
+    expect(source).not.toContain('trustSubjectKey("capability"');
+    expect(source).not.toContain("trust.setTrustLevel");
+    expect(source).not.toContain("capability: selected.slug");
   });
 });

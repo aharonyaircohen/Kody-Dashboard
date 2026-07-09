@@ -2056,11 +2056,13 @@ function GoalDetail({
               </div>
             </div>
             <div className="flex items-center gap-2 shrink-0">
-              <TrustLevelControl
-                value={trustLevel}
-                pending={trustPending}
-                onChange={(level) => void onTrustLevelChange(level)}
-              />
+              {!isRoutine ? (
+                <TrustLevelControl
+                  value={trustLevel}
+                  pending={trustPending}
+                  onChange={(level) => void onTrustLevelChange(level)}
+                />
+              ) : null}
               {canActivate ? (
                 <Button
                   variant="outline"
@@ -2781,18 +2783,17 @@ export function ManagedModelsView({
     () => modelGoals.find((goal) => goal.id === selectedId) ?? null,
     [modelGoals, selectedId],
   );
-  const selectedGoalSubject = selectedGoal
-    ? trustSubjectKey(
-        managedGoalModel(selectedGoal) === "agentLoop" ? "loop" : "goal",
-        selectedGoal.id,
-      )
-    : null;
-  const selectedTrustLevel = selectedGoal
-    ? trustLevelForSubject(
-        selectedGoalSubject ? trust.subjects[selectedGoalSubject] : undefined,
-        selectedGoal.state.runWithoutApproval === true,
-      )
-    : "approval-required";
+  const selectedGoalSubject =
+    selectedGoal && managedGoalModel(selectedGoal) === "agentGoal"
+      ? trustSubjectKey("goal", selectedGoal.id)
+      : null;
+  const selectedTrustLevel =
+    selectedGoal && selectedGoalSubject
+      ? trustLevelForSubject(
+          trust.subjects[selectedGoalSubject],
+          selectedGoal.state.runWithoutApproval === true,
+        )
+      : "approval-required";
   const deleteGoalStoreBacked = deleteGoal
     ? isStoreBackedManagedGoal(deleteGoal)
     : false;

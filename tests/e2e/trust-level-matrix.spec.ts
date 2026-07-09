@@ -239,12 +239,7 @@ test.describe("runnable trust levels", () => {
     await seedAuth(page);
   });
 
-  const cases = [
-    {
-      name: "loop",
-      path: "/agent-loops/daily-web-release-loop",
-      expected: { subject: "loop:daily-web-release-loop" },
-    },
+  const trustedCases = [
     {
       name: "goal",
       path: "/agent-goals/web-release",
@@ -255,14 +250,9 @@ test.describe("runnable trust levels", () => {
       path: "/workflows/web-release",
       expected: { subject: "workflow:web-release" },
     },
-    {
-      name: "capability",
-      path: "/capabilities/release-prepare",
-      expected: { capability: "release-prepare" },
-    },
   ] as const;
 
-  for (const item of cases) {
+  for (const item of trustedCases) {
     test(`${item.name} detail lets the user select every trust level`, async ({
       page,
     }) => {
@@ -294,4 +284,34 @@ test.describe("runnable trust levels", () => {
       ).toHaveAttribute("data-trust-level", "approval-required");
     });
   }
+
+  test("loop detail has auto-run but no trust level control", async ({
+    page,
+  }) => {
+    await mockDashboardApis(page);
+    await page.goto(`${BASE_URL}/agent-loops/daily-web-release-loop`, {
+      waitUntil: "domcontentloaded",
+    });
+
+    await expect(
+      page.getByRole("button", { name: "Disable loop auto-run" }),
+    ).toBeVisible({ timeout: 15_000 });
+    await expect(
+      page.getByRole("button", { name: /Trust level:/ }),
+    ).toHaveCount(0);
+  });
+
+  test("capability detail has no trust level control", async ({ page }) => {
+    await mockDashboardApis(page);
+    await page.goto(`${BASE_URL}/capabilities/release-prepare`, {
+      waitUntil: "domcontentloaded",
+    });
+
+    await expect(
+      page.getByRole("heading", { name: "release-prepare" }),
+    ).toBeVisible({ timeout: 15_000 });
+    await expect(
+      page.getByRole("button", { name: /Trust level:/ }),
+    ).toHaveCount(0);
+  });
 });
