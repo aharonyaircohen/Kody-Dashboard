@@ -3,11 +3,15 @@
  * @domain client-auth
  * @pattern provider-credentials
  * @ai-summary Resolve Google OAuth client credentials for the client-surface
- *   sign-in. Vault-first (the connected repo named by the public brand-repo
- *   cookie, via the unauthenticated bootstrap reader), then process.env —
- *   the same vault→env fallthrough contract as `getSecret`.
+ *   sign-in. The client ID is public config and lives in /variables
+ *   (GOOGLE_CLIENT_ID); the secret lives in the /secrets vault
+ *   (GOOGLE_CLIENT_SECRET). Both fall through to process.env — the same
+ *   vault→env fallthrough contract as `getSecret`.
  */
-import { resolveVaultGithubToken } from "../vault/bootstrap";
+import {
+  resolvePublicStateVariable,
+  resolveVaultGithubToken,
+} from "../vault/bootstrap";
 import {
   type ClientBrandRepoContext,
 } from "../client-brand-repo-cookie";
@@ -20,14 +24,11 @@ export interface GoogleClientCredentials {
 async function resolveOne(
   name: string,
   context: ClientBrandRepoContext | null,
+  read: (owner: string, repo: string, name: string) => Promise<string | null>,
 ): Promise<string | null> {
   if (context) {
-    const fromVault = await resolveVaultGithubToken(
-      context.owner,
-      context.repo,
-      name,
-    );
-    if (fromVault) return fromVault;
+    const fromState = await read(context.owner, context.repo, name);
+    if (fromState) return fromState;
   }
   return process.env[name] ?? null;
 }
@@ -36,8 +37,10 @@ export async function resolveGoogleCredentials(
   context: ClientBrandRepoContext | null,
 ): Promise<GoogleClientCredentials | null> {
   const [clientId, clientSecret] = await Promise.all([
-    resolveOne("GOOGLE_CLIENT_ID", context),
-    resolveOne("GOOGLE_CLIENT_SECRET", context),
+    resolveOne("GOOGLE_CLIENT_ID", context, resolvePublicStateVariable),
+    resolveOne("GOOGLE_CLIENT_SECRET", context, (owner, repo, name) =>
+      resolveVaultGithubToken(owner, repo, name),
+    ),
   ]);
   if (!clientId || !clientSecret) return null;
   return { clientId, clientSecret };

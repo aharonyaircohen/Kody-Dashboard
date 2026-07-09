@@ -58,8 +58,9 @@ export function ClientAuthGate({
                 yet. Please contact whoever manages this space.
               </p>
               <p className="mt-3 text-xs text-muted-foreground/70">
-                Admin: add GOOGLE_CLIENT_ID and GOOGLE_CLIENT_SECRET on the
-                dashboard Secrets page to enable Google sign-in.
+                Admin: add GOOGLE_CLIENT_ID on the Variables page and
+                GOOGLE_CLIENT_SECRET on the Secrets page to enable Google
+                sign-in.
               </p>
             </>
           ) : deniedEmail ? (

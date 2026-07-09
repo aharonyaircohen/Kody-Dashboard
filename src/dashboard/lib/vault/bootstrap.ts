@@ -71,6 +71,44 @@ export async function resolveVaultGithubToken(
   return token;
 }
 
+/**
+ * Read a non-secret variable from a public repo's state `variables.json`
+ * without holding a token — the plain-config sibling of
+ * `resolveVaultGithubToken`. Null on any failure. Never throws.
+ */
+export async function resolvePublicStateVariable(
+  owner: string,
+  repo: string,
+  name: string,
+  fetchImpl: typeof fetch = fetch,
+): Promise<string | null> {
+  const key = `var:${owner}/${repo}/${name}`.toLowerCase();
+  const hit = cache.get(key);
+  if (hit && hit.expiresAt > Date.now()) return hit.token;
+
+  let value: string | null = null;
+  try {
+    const target = await resolvePublicStateRepo(owner, repo, fetchImpl);
+    const file = await createGitHubStorageAdapter(
+      createGitHubStorageFetchClient(fetchImpl),
+    ).readText(
+      { owner: target.owner, repo: target.repo },
+      stateRepoPath(target, "variables.json"),
+    );
+    if (file) {
+      const doc = JSON.parse(file.content) as {
+        variables?: Record<string, { value?: unknown }>;
+      };
+      const raw = doc.variables?.[name]?.value;
+      value = typeof raw === "string" && raw.trim() ? raw : null;
+    }
+  } catch {
+    value = null;
+  }
+  cache.set(key, { token: value, expiresAt: Date.now() + CACHE_TTL_MS });
+  return value;
+}
+
 async function readOnce(
   owner: string,
   repo: string,
