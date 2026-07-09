@@ -50,6 +50,7 @@ const brandInputSchema = z.object({
   auth: z
     .object({
       required: z.boolean().optional(),
+      providers: z.array(z.string().trim().max(40)).max(10).optional(),
       allowedEmails: z.array(z.string().trim().max(320)).max(500).optional(),
       allowedDomains: z.array(z.string().trim().max(255)).max(100).optional(),
     })

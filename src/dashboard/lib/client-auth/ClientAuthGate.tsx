@@ -11,20 +11,29 @@ import { Zap } from "lucide-react";
 
 import type { ClientBrand } from "../client-brand";
 import { directionForLocale } from "../chat/platform/i18n";
+import type { ClientAuthProvider } from "./allowlist";
 import { signIn, signOut } from "./auth";
+
+const PROVIDER_LABELS: Record<ClientAuthProvider, string> = {
+  google: "Continue with Google",
+  github: "Continue with GitHub",
+};
 
 interface ClientAuthGateProps {
   brand: ClientBrand;
   callbackUrl: string;
+  /** Configured sign-in methods to offer (chooser state). */
+  providers?: ClientAuthProvider[];
   /** Signed-in email that failed the allowlist; absent = not signed in. */
   deniedEmail?: string;
-  /** True when Google credentials are missing server-side. */
+  /** True when no provider credentials are configured server-side. */
   misconfigured?: boolean;
 }
 
 export function ClientAuthGate({
   brand,
   callbackUrl,
+  providers = ["google"],
   deniedEmail,
   misconfigured,
 }: ClientAuthGateProps) {
@@ -58,9 +67,9 @@ export function ClientAuthGate({
                 yet. Please contact whoever manages this space.
               </p>
               <p className="mt-3 text-xs text-muted-foreground/70">
-                Admin: add GOOGLE_CLIENT_ID on the Variables page and
-                GOOGLE_CLIENT_SECRET on the Secrets page to enable Google
-                sign-in.
+                Admin: add the provider&apos;s client ID on the Variables page
+                (e.g. GOOGLE_CLIENT_ID) and its secret on the Secrets page
+                (e.g. GOOGLE_CLIENT_SECRET) to enable sign-in.
               </p>
             </>
           ) : deniedEmail ? (
@@ -82,17 +91,20 @@ export function ClientAuthGate({
               <p className="text-sm text-muted-foreground">
                 Sign in to continue.
               </p>
-              <form
-                action={async () => {
-                  "use server";
-                  await signIn("google", { redirectTo: callbackUrl });
-                }}
-              >
-                <GateButton
-                  accent={brand.accent}
-                  label="Continue with Google"
-                />
-              </form>
+              {providers.map((provider) => (
+                <form
+                  key={provider}
+                  action={async () => {
+                    "use server";
+                    await signIn(provider, { redirectTo: callbackUrl });
+                  }}
+                >
+                  <GateButton
+                    accent={brand.accent}
+                    label={PROVIDER_LABELS[provider]}
+                  />
+                </form>
+              ))}
             </>
           )}
         </div>

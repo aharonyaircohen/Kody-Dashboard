@@ -9,32 +9,40 @@
  *   Separate from dashboard operator auth (header-based PAT) by design.
  */
 import NextAuth from "next-auth";
+import type { Provider } from "next-auth/providers";
+import GitHub from "next-auth/providers/github";
 import Google from "next-auth/providers/google";
 
 import { parseClientBrandRepoCookie, CLIENT_BRAND_REPO_COOKIE } from "../client-brand-repo-cookie";
-import { resolveGoogleCredentials } from "./credentials";
+import { CLIENT_AUTH_PROVIDERS, type ClientAuthProvider } from "./allowlist";
+import { resolveProviderCredentials } from "./credentials";
 import { deriveClientAuthSecret } from "./secret";
 
 export const CLIENT_AUTH_SESSION_COOKIE = "kody_client_session";
+
+const PROVIDER_FACTORIES: Record<
+  ClientAuthProvider,
+  (creds: { clientId: string; clientSecret: string }) => Provider
+> = {
+  google: (creds) => Google(creds),
+  github: (creds) => GitHub(creds),
+};
 
 export const { handlers, auth, signIn, signOut } = NextAuth(async (req) => {
   const repoContext = parseClientBrandRepoCookie(
     req?.cookies.get(CLIENT_BRAND_REPO_COOKIE)?.value,
   );
-  const google = await resolveGoogleCredentials(repoContext);
+  const providers: Provider[] = [];
+  for (const provider of CLIENT_AUTH_PROVIDERS) {
+    const creds = await resolveProviderCredentials(provider, repoContext);
+    if (creds) providers.push(PROVIDER_FACTORIES[provider](creds));
+  }
 
   return {
     secret: deriveClientAuthSecret(),
     session: { strategy: "jwt" },
     trustHost: true,
-    providers: google
-      ? [
-          Google({
-            clientId: google.clientId,
-            clientSecret: google.clientSecret,
-          }),
-        ]
-      : [],
+    providers,
     cookies: {
       sessionToken: { name: CLIENT_AUTH_SESSION_COOKIE },
     },

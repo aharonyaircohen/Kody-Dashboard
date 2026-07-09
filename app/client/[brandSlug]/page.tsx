@@ -22,8 +22,11 @@ import {
 import { mintClientSurfaceTicket } from "@dashboard/lib/chat/platform/surface-scope";
 import { resolveVaultGithubToken } from "@dashboard/lib/vault/bootstrap";
 import { auth, signIn } from "@dashboard/lib/client-auth/auth";
-import { isEmailAllowed } from "@dashboard/lib/client-auth/allowlist";
-import { resolveGoogleCredentials } from "@dashboard/lib/client-auth/credentials";
+import {
+  brandAuthProviders,
+  isEmailAllowed,
+} from "@dashboard/lib/client-auth/allowlist";
+import { resolveConfiguredProviders } from "@dashboard/lib/client-auth/credentials";
 import { ClientAuthGate } from "@dashboard/lib/client-auth/ClientAuthGate";
 
 interface ClientChatPageProps {
@@ -71,16 +74,28 @@ export default async function ClientChatPage({ params }: ClientChatPageProps) {
 
   if (brand.auth?.required) {
     const callbackUrl = `/client/${brand.slug}`;
-    const google = await resolveGoogleCredentials(context);
-    if (!google) {
+    const providers = await resolveConfiguredProviders(
+      brandAuthProviders(brand.auth),
+      context,
+    );
+    if (!providers.length) {
       return <ClientAuthGate brand={brand} callbackUrl={callbackUrl} misconfigured />;
     }
     const session = await auth();
     const email = session?.user?.email;
     if (!email) {
-      // No session → straight to Google, no interstitial click.
-      await signIn("google", { redirectTo: callbackUrl });
-      return null;
+      if (providers.length === 1) {
+        // Single method → straight to the provider, no interstitial click.
+        await signIn(providers[0], { redirectTo: callbackUrl });
+        return null;
+      }
+      return (
+        <ClientAuthGate
+          brand={brand}
+          callbackUrl={callbackUrl}
+          providers={providers}
+        />
+      );
     }
     if (!isEmailAllowed(brand.auth, email)) {
       return (

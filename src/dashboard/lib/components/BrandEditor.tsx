@@ -20,6 +20,10 @@ import { Input } from "@dashboard/ui/input";
 import { Label } from "@dashboard/ui/label";
 import { Textarea } from "@dashboard/ui/textarea";
 import { slugifyTitle } from "@dashboard/lib/slug";
+import {
+  CLIENT_AUTH_PROVIDERS,
+  type ClientAuthProvider,
+} from "@dashboard/lib/client-auth/allowlist";
 import type {
   BrandAgentOption,
   BrandModelOption,
@@ -67,6 +71,9 @@ export function BrandEditor({
   const [agentSlug, setAgentSlug] = useState(initial?.agentSlug ?? "");
   const [authRequired, setAuthRequired] = useState(
     initial?.auth?.required ?? false,
+  );
+  const [authProviders, setAuthProviders] = useState<ClientAuthProvider[]>(
+    initial?.auth?.providers?.length ? initial.auth.providers : ["google"],
   );
   const [allowedList, setAllowedList] = useState(
     [
@@ -237,9 +244,36 @@ export function BrandEditor({
                 checked={authRequired}
                 onChange={(event) => setAuthRequired(event.target.checked)}
               />
-              Require Google sign-in
+              Require sign-in
             </label>
           </div>
+
+          {authRequired && (
+            <div className="sm:col-span-2">
+              <Label className="text-xs">Sign-in methods</Label>
+              <div className="mt-1 flex gap-4">
+                {CLIENT_AUTH_PROVIDERS.map((provider) => (
+                  <label
+                    key={provider}
+                    className="flex items-center gap-2 text-sm capitalize"
+                  >
+                    <input
+                      type="checkbox"
+                      checked={authProviders.includes(provider)}
+                      onChange={(event) =>
+                        setAuthProviders(
+                          event.target.checked
+                            ? [...authProviders, provider]
+                            : authProviders.filter((p) => p !== provider),
+                        )
+                      }
+                    />
+                    {provider}
+                  </label>
+                ))}
+              </div>
+            </div>
+          )}
 
           {authRequired && (
             <div className="sm:col-span-2">
@@ -294,6 +328,7 @@ export function BrandEditor({
                 agentSlug: agentSlug.trim() || undefined,
                 auth: {
                   required: authRequired,
+                  providers: authProviders,
                   allowedEmails: splitLines(allowedList).filter((entry) =>
                     entry.includes("@"),
                   ),
