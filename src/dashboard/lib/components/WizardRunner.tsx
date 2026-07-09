@@ -18,6 +18,7 @@ import { Input } from "@dashboard/ui/input";
 import { Label } from "@dashboard/ui/label";
 import { buildAuthHeaders, useAuth } from "@dashboard/lib/auth-context";
 import type { WizardDefinition, WizardStep } from "@dashboard/lib/wizards/types";
+import { PageShell } from "./PageShell";
 
 interface WizardRunnerProps {
   definition: WizardDefinition;
@@ -136,11 +137,12 @@ export function WizardRunner({
     step.type === "instructions" || state.status === "done";
 
   return (
-    <div className="mx-auto w-full max-w-2xl p-4">
-      <h1 className="text-lg font-semibold">{definition.title}</h1>
-      <p className="mt-1 text-sm text-muted-foreground">{definition.description}</p>
-
-      <div className="mt-3 flex items-center gap-1.5" aria-label="Progress">
+    <PageShell
+      title={definition.title}
+      subtitle={definition.description}
+      backHref="/setup"
+    >
+      <div className="flex items-center gap-1.5" aria-label="Progress">
         {definition.steps.map((s, i) => (
           <span
             key={s.id}
@@ -272,6 +274,6 @@ export function WizardRunner({
           </Button>
         )}
       </div>
-    </div>
+    </PageShell>
   );
 }

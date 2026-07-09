@@ -11,6 +11,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 
 import { AuthGuard } from "@dashboard/lib/auth-guard";
+import { PageShell } from "@dashboard/lib/components/PageShell";
 import { WizardRunner } from "@dashboard/lib/components/WizardRunner";
 import {
   PROVIDER_CATALOG,
@@ -56,25 +57,24 @@ export default async function WizardPage({
   if (!provider) {
     return (
       <AuthGuard>
-        <div className="mx-auto w-full max-w-2xl p-4">
-          <h1 className="text-lg font-semibold">Client sign-in setup</h1>
-          <p className="mt-1 text-sm text-muted-foreground">
-            Pick the sign-in method to configure. You can run this wizard once
-            per method.
-          </p>
-          <ul className="mt-4 grid gap-2 sm:grid-cols-2">
+        <PageShell
+          title="Client sign-in setup"
+          subtitle="Pick the sign-in method to configure — run once per method."
+          backHref="/setup"
+        >
+          <ul className="grid gap-2 sm:grid-cols-2">
             {Object.keys(PROVIDER_CATALOG).map((id) => (
               <li key={id}>
                 <Link
                   href={`/setup/${CLIENT_SIGNIN_WIZARD_SLUG}?provider=${id}`}
-                  className="block rounded-lg border border-border bg-card px-4 py-3 text-sm font-medium hover:border-primary"
+                  className="block rounded-lg border border-border bg-card px-4 py-3 text-sm font-medium transition-colors hover:border-teal-500/40"
                 >
                   {providerLabel(id)}
                 </Link>
               </li>
             ))}
           </ul>
-        </div>
+        </PageShell>
       </AuthGuard>
     );
   }
