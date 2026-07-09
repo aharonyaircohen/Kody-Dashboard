@@ -75,6 +75,8 @@ describe("appendSavedBrainMachineToInventory", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     vi.unstubAllEnvs();
+    delete process.env.FLY_API_TOKEN;
+    delete process.env.FLY_IO_TOKEN;
     vi.mocked(brainResolver.resolveBrainService).mockReset();
     vi.mocked(brainResolver.resolveBrainService).mockResolvedValue({
       app: "custom-brain",
