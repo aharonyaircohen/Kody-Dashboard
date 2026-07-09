@@ -21,7 +21,7 @@ import {
 } from "@dashboard/lib/client-brand-repo-cookie";
 import { mintClientSurfaceTicket } from "@dashboard/lib/chat/platform/surface-scope";
 import { resolveVaultGithubToken } from "@dashboard/lib/vault/bootstrap";
-import { auth, signIn } from "@dashboard/lib/client-auth/auth";
+import { auth, signIn, signOut } from "@dashboard/lib/client-auth/auth";
 import {
   brandAuthProviders,
   isEmailAllowed,
@@ -72,6 +72,10 @@ export default async function ClientChatPage({ params }: ClientChatPageProps) {
   const brand = await resolveClientBrand(brandSlug, context);
   if (!brand) notFound();
 
+  let surfaceUser:
+    | { name?: string | null; email?: string | null; image?: string | null }
+    | undefined;
+
   if (brand.auth?.required) {
     const callbackUrl = `/client/${brand.slug}`;
     const providers = await resolveConfiguredProviders(
@@ -106,6 +110,11 @@ export default async function ClientChatPage({ params }: ClientChatPageProps) {
         />
       );
     }
+    surfaceUser = {
+      name: session?.user?.name,
+      email,
+      image: session?.user?.image,
+    };
   }
 
   let ticket: string | undefined;
@@ -121,5 +130,20 @@ export default async function ClientChatPage({ params }: ClientChatPageProps) {
     }
   }
 
-  return <ClientChatSurface brand={brand} surfaceTicket={ticket} />;
+  const callbackUrl = `/client/${brand.slug}`;
+  return (
+    <ClientChatSurface
+      brand={brand}
+      surfaceTicket={ticket}
+      user={surfaceUser}
+      signOutAction={
+        surfaceUser
+          ? async () => {
+              "use server";
+              await signOut({ redirectTo: callbackUrl });
+            }
+          : undefined
+      }
+    />
+  );
 }

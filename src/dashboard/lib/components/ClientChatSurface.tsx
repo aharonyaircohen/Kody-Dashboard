@@ -35,12 +35,24 @@ const CLIENT_CHAT_GRANT: ChatCapabilityGrant = [
 
 const SURFACE_TICKET_HEADER = "x-kody-surface-ticket";
 
+export interface ClientSurfaceUser {
+  name?: string | null;
+  email?: string | null;
+  image?: string | null;
+}
+
 export function ClientChatSurface({
   brand,
   surfaceTicket,
+  user,
+  signOutAction,
 }: {
   brand: ClientBrand;
   surfaceTicket?: string;
+  /** Signed-in client user (auth-gated brands only). */
+  user?: ClientSurfaceUser;
+  /** Server action that ends the session and returns to the brand page. */
+  signOutAction?: () => Promise<void>;
 }) {
   // The branding plugin is the single source for what this shell displays:
   // the header reads the SAME theme contribution the registry merges via
@@ -85,6 +97,35 @@ export function ClientChatSurface({
               {theme.name}
             </span>
           </div>
+          {user && (
+            <div
+              data-testid="client-user-menu"
+              className="flex min-w-0 items-center gap-2"
+            >
+              {user.image ? (
+                // eslint-disable-next-line @next/next/no-img-element -- external avatar host
+                <img
+                  src={user.image}
+                  alt=""
+                  className="h-7 w-7 shrink-0 rounded-full"
+                  referrerPolicy="no-referrer"
+                />
+              ) : null}
+              <span className="hidden max-w-40 truncate text-xs text-muted-foreground sm:block">
+                {user.name || user.email}
+              </span>
+              {signOutAction && (
+                <form action={signOutAction}>
+                  <button
+                    type="submit"
+                    className="rounded-md border border-border px-2.5 py-1 text-xs text-muted-foreground transition-colors hover:text-foreground"
+                  >
+                    Sign out
+                  </button>
+                </form>
+              )}
+            </div>
+          )}
         </div>
       </header>
 
