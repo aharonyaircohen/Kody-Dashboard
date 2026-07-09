@@ -683,6 +683,18 @@ export async function POST(req: NextRequest) {
   let context: string | null = null;
   let viewRendererRules: string | null = null;
   let viewRendererDefinitions: ViewRendererDefinition[] = [];
+  if (repo && clientSurface) {
+    // Client-surface turns still need the module github context for
+    // repo-scoped reads (e.g. the brand's agent file) — but skip the
+    // admin-only prompt extras (memory/instructions/context) below.
+    setGitHubContext(
+      repo.owner,
+      repo.repo,
+      repo.token,
+      repo.storeRepoUrl,
+      repo.storeRef,
+    );
+  }
   if (repo && !clientSurface) {
     setGitHubContext(
       repo.owner,
