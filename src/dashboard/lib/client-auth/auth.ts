@@ -12,6 +12,7 @@ import NextAuth from "next-auth";
 import type { Provider } from "next-auth/providers";
 
 import { parseClientBrandRepoCookie, CLIENT_BRAND_REPO_COOKIE } from "../client-brand-repo-cookie";
+import { defaultClientBrandRepoContext } from "../client-brand-default-repo";
 import { PROVIDER_CATALOG, isSupportedProviderId } from "./catalog";
 import { resolveProviderCredentials } from "./credentials";
 import { deriveClientAuthSecret } from "./secret";
@@ -60,9 +61,10 @@ async function loadProvider(
 }
 
 export const { handlers, auth, signIn, signOut } = NextAuth(async (req) => {
-  const repoContext = parseClientBrandRepoCookie(
-    req?.cookies.get(CLIENT_BRAND_REPO_COOKIE)?.value,
-  );
+  const repoContext =
+    parseClientBrandRepoCookie(
+      req?.cookies.get(CLIENT_BRAND_REPO_COOKIE)?.value,
+    ) ?? defaultClientBrandRepoContext();
   // Register every catalog provider whose credentials are configured for
   // this repo; per-brand `providers` lists then choose what to offer.
   const loaded = await Promise.all(

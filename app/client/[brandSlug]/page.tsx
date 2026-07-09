@@ -18,9 +18,11 @@ import { getClientSurfaceCatalog } from "@dashboard/lib/client-chat-strings";
 import {
   CLIENT_BRAND_REPO_COOKIE,
   parseClientBrandRepoCookie,
+  type ClientBrandRepoContext,
 } from "@dashboard/lib/client-brand-repo-cookie";
 import { mintClientSurfaceTicket } from "@dashboard/lib/chat/platform/surface-scope";
 import { resolveVaultGithubToken } from "@dashboard/lib/vault/bootstrap";
+import { defaultClientBrandRepoContext } from "@dashboard/lib/client-brand-default-repo";
 import { auth, signIn, signOut } from "@dashboard/lib/client-auth/auth";
 import {
   brandAuthProviders,
@@ -33,12 +35,9 @@ interface ClientChatPageProps {
   params: Promise<{ brandSlug: string }>;
 }
 
-async function clientBrandRepoContext(): Promise<ClientBrandResolveContext | null> {
-  const cookieStore = await cookies();
-  const context = parseClientBrandRepoCookie(
-    cookieStore.get(CLIENT_BRAND_REPO_COOKIE)?.value,
-  );
-  if (!context) return null;
+async function withVaultToken(
+  context: ClientBrandRepoContext,
+): Promise<ClientBrandResolveContext> {
   const token = await resolveVaultGithubToken(context.owner, context.repo);
   return {
     ...context,
@@ -46,14 +45,53 @@ async function clientBrandRepoContext(): Promise<ClientBrandResolveContext | nul
   };
 }
 
+/**
+ * Resolve the brand plus the repo context it was found under. Client
+ * visitors don't carry the dashboard's brand-repo cookie (and since the
+ * cookie started tracking the last-visited repo it may point at a repo
+ * with no brands at all), so fall back to the configured default repo
+ * whenever the cookie context is absent or doesn't know the brand.
+ */
+async function resolveBrandAndContext(brandSlug: string): Promise<{
+  brand: Awaited<ReturnType<typeof resolveClientBrand>>;
+  context: ClientBrandResolveContext | null;
+}> {
+  const cookieStore = await cookies();
+  const cookieContext = parseClientBrandRepoCookie(
+    cookieStore.get(CLIENT_BRAND_REPO_COOKIE)?.value,
+  );
+
+  if (cookieContext) {
+    const context = await withVaultToken(cookieContext);
+    const brand = await resolveClientBrand(brandSlug, context);
+    // Repo brands carry their auth block; a builtin/default fallback does
+    // not, so a brand without one may live in the default repo instead.
+    if (brand?.auth) return { brand, context };
+  }
+
+  const defaultContext = defaultClientBrandRepoContext();
+  if (
+    defaultContext &&
+    (defaultContext.owner !== cookieContext?.owner ||
+      defaultContext.repo !== cookieContext?.repo)
+  ) {
+    const context = await withVaultToken(defaultContext);
+    const brand = await resolveClientBrand(brandSlug, context);
+    if (brand) return { brand, context };
+  }
+
+  if (cookieContext) {
+    const context = await withVaultToken(cookieContext);
+    return { brand: await resolveClientBrand(brandSlug, context), context };
+  }
+  return { brand: await resolveClientBrand(brandSlug, null), context: null };
+}
+
 export async function generateMetadata({
   params,
 }: ClientChatPageProps): Promise<Metadata> {
   const { brandSlug } = await params;
-  const brand = await resolveClientBrand(
-    brandSlug,
-    await clientBrandRepoContext(),
-  );
+  const { brand } = await resolveBrandAndContext(brandSlug);
   if (!brand) notFound();
 
   const catalog = getClientSurfaceCatalog(brand.locale ?? "en");
@@ -68,8 +106,7 @@ export async function generateMetadata({
 
 export default async function ClientChatPage({ params }: ClientChatPageProps) {
   const { brandSlug } = await params;
-  const context = await clientBrandRepoContext();
-  const brand = await resolveClientBrand(brandSlug, context);
+  const { brand, context } = await resolveBrandAndContext(brandSlug);
   if (!brand) notFound();
 
   let surfaceUser:
