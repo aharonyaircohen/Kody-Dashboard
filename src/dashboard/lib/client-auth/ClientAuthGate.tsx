@@ -45,15 +45,44 @@ export function ClientAuthGate({
           textAlign: "center",
         }}
       >
+        <div
+          style={{
+            width: 40,
+            height: 40,
+            borderRadius: 12,
+            margin: "0 auto 0.75rem",
+            background: brand.accent,
+            color: "#ffffff",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            fontWeight: 700,
+            fontSize: "1.1rem",
+          }}
+        >
+          {brand.name.charAt(0).toUpperCase()}
+        </div>
         <h1 style={{ fontSize: "1.25rem", margin: "0 0 0.5rem" }}>
           {brand.name}
         </h1>
 
         {misconfigured ? (
-          <p style={{ color: "#64748b", fontSize: "0.9rem" }}>
-            Sign-in is required for this space but is not configured yet.
-            Please contact your administrator.
-          </p>
+          <>
+            <p style={{ color: "#64748b", fontSize: "0.9rem" }}>
+              This space requires sign-in, but sign-in isn&apos;t set up yet.
+              Please contact whoever manages this space.
+            </p>
+            <p
+              style={{
+                marginTop: "0.75rem",
+                color: "#94a3b8",
+                fontSize: "0.75rem",
+              }}
+            >
+              Admin: add GOOGLE_CLIENT_ID and GOOGLE_CLIENT_SECRET on the
+              dashboard Secrets page to enable Google sign-in.
+            </p>
+          </>
         ) : deniedEmail ? (
           <>
             <p style={{ color: "#64748b", fontSize: "0.9rem" }}>

@@ -143,6 +143,7 @@ export async function resolveClientBrand(
         ...(repoBrand.agentSlug !== undefined
           ? { agentSlug: repoBrand.agentSlug }
           : {}),
+        ...(repoBrand.auth !== undefined ? { auth: repoBrand.auth } : {}),
       };
     }
   } catch {
