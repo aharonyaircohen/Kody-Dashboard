@@ -18,6 +18,7 @@ import { decrypt, isVaultConfigured } from "./crypto";
 import { VAULT_PATH } from "./store";
 import { KODY_CONFIG_PATH } from "../engine/config";
 import {
+  normalizeStateBasePath,
   normalizeStateBranch,
   normalizeStatePath,
   parseStateRepoSlug,
@@ -157,8 +158,9 @@ async function resolvePublicStateRepo(
     owner: parsed.owner,
     repo: parsed.repo,
     basePath:
-      typeof pathRaw === "string" && pathRaw.trim().length > 0
-        ? normalizeStatePath(pathRaw, "state.path")
+      typeof pathRaw === "string"
+        ? // Explicit path — "" means root (fix: Allow root Kody state path).
+          normalizeStateBasePath(pathRaw, "state.path")
         : normalizeStatePath(repo, "state.path"),
     branch:
       typeof branchRaw === "string" && branchRaw.trim().length > 0
