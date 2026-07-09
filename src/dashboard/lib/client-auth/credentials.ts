@@ -19,6 +19,22 @@ import {
 } from "../vault/bootstrap";
 import { type ClientBrandRepoContext } from "../client-brand-repo-cookie";
 
+/** Repo scope for credential reads; `token` (when the caller already
+ *  resolved one) authenticates the GitHub reads so they don't burn the
+ *  60-req/hr unauthenticated IP budget. */
+export type CredentialRepoContext = ClientBrandRepoContext & {
+  token?: string;
+};
+
+function fetchWithToken(token: string | undefined): typeof fetch {
+  if (!token) return fetch;
+  return (input, init) =>
+    fetch(input, {
+      ...init,
+      headers: { ...(init?.headers ?? {}), Authorization: `Bearer ${token}` },
+    });
+}
+
 export interface ProviderCredentials {
   clientId: string;
   clientSecret: string;
@@ -28,11 +44,21 @@ export interface ProviderCredentials {
 
 async function resolveOne(
   name: string,
-  context: ClientBrandRepoContext | null,
-  read: (owner: string, repo: string, name: string) => Promise<string | null>,
+  context: CredentialRepoContext | null,
+  read: (
+    owner: string,
+    repo: string,
+    name: string,
+    fetchImpl: typeof fetch,
+  ) => Promise<string | null>,
 ): Promise<string | null> {
   if (context) {
-    const fromState = await read(context.owner, context.repo, name);
+    const fromState = await read(
+      context.owner,
+      context.repo,
+      name,
+      fetchWithToken(context.token),
+    );
     if (fromState) return fromState;
   }
   return process.env[name] ?? null;
@@ -40,15 +66,13 @@ async function resolveOne(
 
 export async function resolveProviderCredentials(
   provider: ClientAuthProvider,
-  context: ClientBrandRepoContext | null,
+  context: CredentialRepoContext | null,
 ): Promise<ProviderCredentials | null> {
   if (!isSupportedProviderId(provider)) return null;
   const names = credentialNames(provider);
   const [clientId, clientSecret] = await Promise.all([
     resolveOne(names.id, context, resolvePublicStateVariable),
-    resolveOne(names.secret, context, (owner, repo, name) =>
-      resolveVaultGithubToken(owner, repo, name),
-    ),
+    resolveOne(names.secret, context, resolveVaultGithubToken),
   ]);
   if (!clientId || !clientSecret) return null;
 
@@ -74,7 +98,7 @@ export async function resolveProviderCredentials(
 /** Providers from `wanted` that actually have credentials configured. */
 export async function resolveConfiguredProviders(
   wanted: ClientAuthProvider[],
-  context: ClientBrandRepoContext | null,
+  context: CredentialRepoContext | null,
 ): Promise<ClientAuthProvider[]> {
   const checks = await Promise.all(
     wanted.map(async (provider) => ({
