@@ -64,4 +64,17 @@ describe("model run without approval flag", () => {
       })?.runWithoutApproval,
     ).toBeUndefined();
   });
+
+  it("normalizes Store workflow steps as capabilities", () => {
+    expect(
+      normalizeWorkflowDefinition({
+        version: 1,
+        name: "Task Delivery",
+        steps: [
+          { capability: "task-verifier" },
+          { capability: "assigned-task-runner" },
+        ],
+      })?.capabilities,
+    ).toEqual(["task-verifier", "assigned-task-runner"]);
+  });
 });

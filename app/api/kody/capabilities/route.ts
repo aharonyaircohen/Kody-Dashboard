@@ -27,24 +27,12 @@ import {
 } from "@dashboard/lib/capabilities";
 import { getEngineConfig } from "@dashboard/lib/engine/config";
 import { recordAudit } from "@dashboard/lib/activity/audit";
+import { resolveInstalledCapabilitySlugs } from "@dashboard/lib/company-store/installed-capabilities";
 
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
 
 const NO_STORE_HEADERS = { "Cache-Control": "no-store, max-age=0" };
-
-function activeCapabilitySlugs(company: unknown): string[] {
-  if (!company || typeof company !== "object") return [];
-  const raw = company as {
-    activeCapabilities?: unknown;
-  };
-  if (Array.isArray(raw.activeCapabilities)) {
-    return raw.activeCapabilities.filter(
-      (entry): entry is string => typeof entry === "string",
-    );
-  }
-  return [];
-}
 
 export async function GET(req: NextRequest) {
   const authResult = await requireKodyAuth(req);
@@ -61,7 +49,7 @@ export async function GET(req: NextRequest) {
     );
 
   try {
-    const activeCapabilities = new Set<string>();
+    let activeCapabilities = new Set<string>();
     let defaults = { issue: null as string | null, pr: null as string | null };
     if (headerAuth) {
       const userOctokit = await getUserOctokit(req);
@@ -75,9 +63,10 @@ export async function GET(req: NextRequest) {
           issue: config.defaultImplementation ?? null,
           pr: config.defaultPrImplementation ?? null,
         };
-        for (const slug of activeCapabilitySlugs(config.company)) {
-          activeCapabilities.add(slug);
-        }
+        activeCapabilities = await resolveInstalledCapabilitySlugs(
+          userOctokit,
+          config,
+        );
       }
     }
     const capabilities = (

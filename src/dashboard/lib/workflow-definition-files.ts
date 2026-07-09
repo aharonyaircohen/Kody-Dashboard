@@ -16,6 +16,7 @@ import {
 } from "./state-repo";
 import {
   buildCompanyStoreHtmlUrl,
+  companyStoreAssetPath,
   listCompanyStoreDirectorySafe,
   readCompanyStoreText,
 } from "./company-store/assets";
@@ -117,7 +118,12 @@ export async function readCompanyStoreWorkflowDefinitionFile(
   octokit: Octokit = getOctokit(),
 ): Promise<WorkflowDefinitionRecord | null> {
   if (!isWorkflowDefinitionId(id)) return null;
-  const path = `.kody/workflows/${id}/workflow.json`;
+  const path = await companyStoreAssetPath(
+    octokit,
+    "workflows",
+    id,
+    "workflow.json",
+  );
   const raw = await readCompanyStoreText(octokit, path);
   if (!raw) return null;
 
@@ -143,7 +149,8 @@ export async function readCompanyStoreWorkflowDefinitionFile(
 export async function listCompanyStoreWorkflowDefinitionFiles(
   octokit: Octokit = getOctokit(),
 ): Promise<WorkflowDefinitionRecord[]> {
-  const dirs = await listCompanyStoreDirectorySafe(octokit, ".kody/workflows");
+  const root = await companyStoreAssetPath(octokit, "workflows");
+  const dirs = await listCompanyStoreDirectorySafe(octokit, root);
   const workflows = await Promise.all(
     dirs
       .filter(

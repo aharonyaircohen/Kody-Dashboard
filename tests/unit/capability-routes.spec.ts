@@ -18,6 +18,7 @@ const h = vi.hoisted(() => ({
   readResolvedCapabilityFile: vi.fn(),
   writeCapabilityFile: vi.fn(),
   deleteCapabilityFile: vi.fn(),
+  resolveInstalledCapabilitySlugs: vi.fn(),
   getEngineConfig: vi.fn(),
   writeConfigPatch: vi.fn(),
   recordAudit: vi.fn(),
@@ -48,6 +49,10 @@ vi.mock("@dashboard/lib/capabilities", () => ({
 vi.mock("@dashboard/lib/engine/config", () => ({
   getEngineConfig: h.getEngineConfig,
   writeConfigPatch: h.writeConfigPatch,
+}));
+
+vi.mock("@dashboard/lib/company-store/installed-capabilities", () => ({
+  resolveInstalledCapabilitySlugs: h.resolveInstalledCapabilitySlugs,
 }));
 
 vi.mock("@dashboard/lib/activity/audit", () => ({
@@ -103,6 +108,7 @@ describe("GET /api/kody/capabilities", () => {
       },
       sha: "config-sha",
     });
+    h.resolveInstalledCapabilitySlugs.mockResolvedValue(new Set(["store-on"]));
   });
 
   it("lists local capabilities and active Store capabilities only", async () => {
@@ -120,6 +126,14 @@ describe("GET /api/kody/capabilities", () => {
       json.capabilities.map((entry: { slug: string }) => entry.slug),
     ).toEqual(["local-one", "store-on"]);
     expect(json.implementations).toBeUndefined();
+    expect(h.resolveInstalledCapabilitySlugs).toHaveBeenCalledWith(
+      { rest: {} },
+      {
+        company: {
+          activeCapabilities: ["store-on"],
+        },
+      },
+    );
     expect(h.listCapabilityFiles).toHaveBeenCalledWith({
       activeStoreSlugs: new Set(["store-on"]),
     });

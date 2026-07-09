@@ -78,13 +78,36 @@ export function normalizeWorkflowCapabilities(value: unknown): string[] {
   return capabilities;
 }
 
+function normalizeWorkflowStepCapabilities(value: unknown): string[] {
+  if (!Array.isArray(value)) return [];
+  const seen = new Set<string>();
+  const capabilities: string[] = [];
+  for (const item of value) {
+    const slug =
+      typeof item === "string"
+        ? item.trim()
+        : item && typeof item === "object" && !Array.isArray(item)
+          ? typeof (item as { capability?: unknown }).capability === "string"
+            ? (item as { capability: string }).capability.trim()
+            : ""
+          : "";
+    if (!CAPABILITY_ID_PATTERN.test(slug) || seen.has(slug)) continue;
+    seen.add(slug);
+    capabilities.push(slug);
+  }
+  return capabilities;
+}
+
 export function normalizeWorkflowDefinition(
   value: unknown,
 ): WorkflowDefinition | null {
   if (!value || typeof value !== "object") return null;
   const raw = value as Record<string, unknown>;
   const name = typeof raw.name === "string" ? raw.name.trim() : "";
-  const capabilities = normalizeWorkflowCapabilities(raw.capabilities);
+  const capabilities = [
+    ...normalizeWorkflowCapabilities(raw.capabilities),
+    ...normalizeWorkflowStepCapabilities(raw.steps),
+  ];
   const createdAt =
     typeof raw.createdAt === "string" && raw.createdAt.trim()
       ? raw.createdAt
