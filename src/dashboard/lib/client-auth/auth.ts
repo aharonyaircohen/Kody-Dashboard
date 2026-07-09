@@ -13,6 +13,7 @@ import type { Provider } from "next-auth/providers";
 
 import { parseClientBrandRepoCookie, CLIENT_BRAND_REPO_COOKIE } from "../client-brand-repo-cookie";
 import { defaultClientBrandRepoContext } from "../client-brand-default-repo";
+import { resolveVaultGithubToken } from "../vault/bootstrap";
 import { PROVIDER_CATALOG, isSupportedProviderId } from "./catalog";
 import { resolveProviderCredentials } from "./credentials";
 import { deriveClientAuthSecret } from "./secret";
@@ -61,10 +62,23 @@ async function loadProvider(
 }
 
 export const { handlers, auth, signIn, signOut } = NextAuth(async (req) => {
-  const repoContext =
+  const cookieContext =
     parseClientBrandRepoCookie(
       req?.cookies.get(CLIENT_BRAND_REPO_COOKIE)?.value,
     ) ?? defaultClientBrandRepoContext();
+  // Authenticate credential reads with the repo's vault token (same as the
+  // page does) — unauthenticated reads share the 60-req/hr IP budget and
+  // silently drop every provider when it's drained.
+  const repoContext = cookieContext
+    ? {
+        ...cookieContext,
+        token:
+          (await resolveVaultGithubToken(
+            cookieContext.owner,
+            cookieContext.repo,
+          )) ?? undefined,
+      }
+    : null;
   // Register every catalog provider whose credentials are configured for
   // this repo; per-brand `providers` lists then choose what to offer.
   const loaded = await Promise.all(
