@@ -23,7 +23,7 @@ import {
 import { mintClientSurfaceTicket } from "@dashboard/lib/chat/platform/surface-scope";
 import { resolveVaultGithubToken } from "@dashboard/lib/vault/bootstrap";
 import { defaultClientBrandRepoContext } from "@dashboard/lib/client-brand-default-repo";
-import { auth, signIn, signOut } from "@dashboard/lib/client-auth/auth";
+import { auth, signOut } from "@dashboard/lib/client-auth/auth";
 import {
   brandAuthProviders,
   isEmailAllowed,
@@ -125,11 +125,9 @@ export default async function ClientChatPage({ params }: ClientChatPageProps) {
     const session = await auth();
     const email = session?.user?.email;
     if (!email) {
-      if (providers.length === 1) {
-        // Single method → straight to the provider, no interstitial click.
-        await signIn(providers[0], { redirectTo: callbackUrl });
-        return null;
-      }
+      // No auto-signIn here: OAuth signIn needs to set CSRF/PKCE cookies,
+      // which a Server Component render can't do — it silently produced a
+      // blank page. The gate's button submits a server action instead.
       return (
         <ClientAuthGate
           brand={brand}
