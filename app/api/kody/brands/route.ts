@@ -45,6 +45,8 @@ const brandInputSchema = z.object({
     .regex(/^#[0-9a-fA-F]{6}$/),
   locale: z.string().trim().max(35).optional(),
   welcomeText: z.string().trim().max(1000).optional(),
+  modelId: z.string().trim().min(1).max(160).optional(),
+  agentSlug: z.string().trim().min(1).max(80).optional(),
   actorLogin: z.string().optional(),
 });
 
@@ -145,6 +147,8 @@ export async function POST(req: NextRequest) {
       accent: parsed.accent,
       locale: normalizeClientBrandLocale(parsed.locale),
       welcomeText: parsed.welcomeText,
+      modelId: parsed.modelId,
+      agentSlug: parsed.agentSlug,
     });
 
     recordAudit(req, {

@@ -42,3 +42,24 @@ export function isToolErrorOutput(output: unknown): output is ToolErrorOutput {
 export function isFinalAnswerRequiresViewOutput(output: unknown): boolean {
   return getToolErrorMessage(output) === FINAL_ANSWER_REQUIRES_VIEW_ERROR;
 }
+
+export function selectChatOutputActiveTools<T extends string>({
+  toolNames,
+  requireViewOutput,
+  allowPreRenderTools,
+  finalAnswerNeedsView,
+}: {
+  toolNames: readonly T[];
+  requireViewOutput: boolean;
+  allowPreRenderTools: boolean;
+  finalAnswerNeedsView: boolean;
+}): T[] {
+  const showViewOnly = toolNames.filter((name) => name === SHOW_VIEW_TOOL);
+  if (finalAnswerNeedsView) return showViewOnly;
+  if (requireViewOutput) {
+    return allowPreRenderTools
+      ? toolNames.filter((name) => name !== FINAL_ANSWER_TOOL)
+      : showViewOnly;
+  }
+  return toolNames.filter((name) => name !== SHOW_VIEW_TOOL);
+}

@@ -142,8 +142,8 @@ describe("Kody chat evals", () => {
     expect(route).toContain("shouldRequireViewOutputForTurn");
     expect(route).toContain("shouldAllowPreRenderToolCallsForTurn");
     expect(route).toContain("definitions: viewRendererDefinitions");
-    expect(route).toContain("activeToolsWithoutFinalAnswer");
-    expect(route).toContain("showViewOnlyTools");
+    expect(route).toContain("selectChatOutputActiveTools");
+    expect(route).toContain("allActiveTools");
     expect(route).toContain("Do not finish with `final_answer`");
     expect(route).toContain("terminalToolAttempt(SHOW_VIEW_TOOL)");
     expect(route).toContain("successfulToolResult(FINAL_ANSWER_TOOL)");

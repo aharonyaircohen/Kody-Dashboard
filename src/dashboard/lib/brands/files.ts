@@ -4,8 +4,8 @@
  * @pattern brands-files
  * @ai-summary Read/write operator-managed client brand JSON files under
  *   `brands/<slug>.json` in the resolved Kody state repo. These records feed
- *   `/client/<slug>` and the branding chat plugin; they do not grant tools or
- *   change chat behavior.
+ *   `/client/<slug>`, the branding chat plugin, and client-surface chat
+ *   defaults enforced by the chat route.
  */
 
 import type { Octokit } from "@octokit/rest";
@@ -49,6 +49,8 @@ const brandFileSchema = z.object({
     .regex(/^#[0-9a-fA-F]{6}$/),
   locale: z.string().trim().max(35).optional(),
   welcomeText: z.string().trim().max(1000).optional(),
+  modelId: z.string().trim().min(1).max(160).optional(),
+  agentSlug: z.string().trim().min(1).max(80).optional(),
 });
 
 type BrandFileInput = z.infer<typeof brandFileSchema>;
@@ -114,6 +116,10 @@ function normalizeAccent(input: string): string {
   return input.trim().toLowerCase();
 }
 
+function normalizeAgentSlug(input: string): string {
+  return input.trim().toLowerCase().replace(/[^a-z0-9_-]+/g, "-");
+}
+
 function parseBrandJson(raw: string, fallbackSlug: string): ClientBrand {
   let parsed: unknown;
   try {
@@ -151,6 +157,10 @@ function normalizeBrandInput(input: BrandFileInput, fallbackSlug?: string) {
     locale: normalizeClientBrandLocale(input.locale),
     ...(input.welcomeText?.trim()
       ? { welcomeText: input.welcomeText.trim() }
+      : {}),
+    ...(input.modelId?.trim() ? { modelId: input.modelId.trim() } : {}),
+    ...(input.agentSlug?.trim()
+      ? { agentSlug: normalizeAgentSlug(input.agentSlug) }
       : {}),
   } satisfies ClientBrand;
 }
@@ -291,6 +301,8 @@ export interface WriteBrandOptions {
   accent: string;
   locale?: string;
   welcomeText?: string;
+  modelId?: string;
+  agentSlug?: string;
   sha?: string;
   message?: string;
 }
@@ -302,6 +314,8 @@ function buildFileContent(opts: Omit<WriteBrandOptions, "octokit" | "sha">) {
     accent: opts.accent,
     locale: opts.locale,
     welcomeText: opts.welcomeText,
+    modelId: opts.modelId,
+    agentSlug: opts.agentSlug,
   });
   return `${JSON.stringify(brand, null, 2)}\n`;
 }
@@ -337,6 +351,8 @@ export async function writeBrandFile(
     accent: opts.accent,
     locale: opts.locale,
     welcomeText: opts.welcomeText,
+    modelId: opts.modelId,
+    agentSlug: opts.agentSlug,
   });
   const filePath = brandFilePath(brand.slug);
   await writeStateText({

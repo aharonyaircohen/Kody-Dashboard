@@ -98,7 +98,7 @@ async function mockDashboardApis(page: Page) {
   await page.route("**/api/kody/goals/managed", (route) =>
     fulfillJson(route, {
       goals: [
-        managedGoal("web-release", "agentGoal", "manual"),
+        workflowBackedGoal("web-release"),
         managedGoal("daily-web-release-loop", "agentLoop", "1d"),
       ],
     }),
@@ -234,6 +234,32 @@ function capabilityDetail() {
   };
 }
 
+function workflowBackedGoal(id: string) {
+  return {
+    ...managedGoal(id, "agentGoal", "manual"),
+    state: {
+      ...managedGoal(id, "agentGoal", "manual").state,
+      type: "web-release",
+      templateId: "web-release",
+      sourceTemplate: "web-release",
+      workflowRef: { source: "store", id: "web-release" },
+      capabilities: [],
+      route: [],
+      stage: "workflow",
+      destination: {
+        outcome: "Release is prepared and verified on production.",
+        evidence: [
+          "releasePrExists",
+          "defaultBranchMerged",
+          "releasePromotionPrExists",
+          "releaseBranchMerged",
+          "productionDeployed",
+        ],
+      },
+    },
+  };
+}
+
 test.describe("runnable trust levels", () => {
   test.beforeEach(async ({ page }) => {
     await seedAuth(page);
@@ -298,6 +324,27 @@ test.describe("runnable trust levels", () => {
     ).toBeVisible({ timeout: 15_000 });
     await expect(
       page.getByRole("button", { name: /Trust level:/ }),
+    ).toHaveCount(0);
+  });
+
+  test("workflow-backed goal detail shows workflow instead of empty capabilities", async ({
+    page,
+  }) => {
+    await mockDashboardApis(page);
+    await page.goto(`${BASE_URL}/agent-goals/web-release`, {
+      waitUntil: "domcontentloaded",
+    });
+
+    await expect(
+      page.getByRole("heading", { name: "web-release" }),
+    ).toBeVisible({ timeout: 15_000 });
+    await expect(
+      page.getByRole("heading", { name: "Workflow" }),
+    ).toBeVisible();
+    await expect(page.getByText("Web release", { exact: true })).toBeVisible();
+    await expect(page.getByText("release-prepare").first()).toBeVisible();
+    await expect(
+      page.getByText("No capabilities are attached to this goal."),
     ).toHaveCount(0);
   });
 

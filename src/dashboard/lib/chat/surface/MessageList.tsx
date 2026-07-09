@@ -41,31 +41,17 @@ import {
   type RenderedViewDirective,
 } from "@dashboard/lib/chat-ui-actions";
 import { RenderedViewCard } from "./RenderedViewCard";
+import {
+  resolveTextDirection,
+  rtlAwareMarkdownClassName,
+  textIsolationStyle,
+} from "../../text-direction";
 
-type MessageDirection = "ltr" | "rtl" | "auto";
-
-const LETTER_RE = /\p{L}/u;
-
-function isRtlCodePoint(codePoint: number): boolean {
-  return (
-    codePoint === 0x061c ||
-    codePoint === 0x200f ||
-    (codePoint >= 0x0590 && codePoint <= 0x08ff) ||
-    (codePoint >= 0xfb1d && codePoint <= 0xfdff) ||
-    (codePoint >= 0xfe70 && codePoint <= 0xfefc)
-  );
+export function getMessageDirection(text: string) {
+  return resolveTextDirection(text);
 }
 
-function getMessageDirection(text: string): MessageDirection {
-  for (const char of text) {
-    const codePoint = char.codePointAt(0);
-    if (!codePoint) continue;
-    if (isRtlCodePoint(codePoint)) return "rtl";
-    if (codePoint === 0x200e || LETTER_RE.test(char)) return "ltr";
-  }
-
-  return "auto";
-}
+export const messageTextDirectionStyle = textIsolationStyle;
 
 interface MessageListProps {
   /** Current surface mode — terminal mode swaps the container chrome. */
@@ -95,6 +81,17 @@ interface MessageListProps {
   emptyState: ReactNode;
   /** Mounted terminal surfaces, rendered inside the scroll container. */
   terminalSurfaces: ReactNode;
+  /** Role alignment policy. Defaults to dashboard chat behavior. */
+  roleLayout?: "dashboard" | "client";
+}
+
+export function messageJustifyClass(
+  role: Message["role"],
+  layout: NonNullable<MessageListProps["roleLayout"]>,
+): string {
+  const alignRight =
+    layout === "client" ? role === "assistant" : role === "user";
+  return alignRight ? "justify-end" : "justify-start";
 }
 
 export function MessageList({
@@ -110,6 +107,7 @@ export function MessageList({
   onRenderedViewAction,
   emptyState,
   terminalSurfaces,
+  roleLayout = "dashboard",
 }: MessageListProps) {
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const messagesContainerRef = useRef<HTMLDivElement>(null);
@@ -188,10 +186,11 @@ export function MessageList({
               <div
                 key={i}
                 data-role={msg.role}
-                className={`group flex ${msg.role === "user" ? "justify-end" : "justify-start"} relative`}
+                className={`group flex ${messageJustifyClass(msg.role, roleLayout)} relative`}
               >
                 <div
                   dir={messageDirection}
+                  style={messageTextDirectionStyle}
                   className={`max-w-[92%] sm:max-w-[85%] min-w-0 break-words rounded-lg px-3 py-2 text-[17px] leading-relaxed ${
                     msg.role === "user"
                       ? "bg-primary text-primary-foreground"
@@ -287,7 +286,8 @@ export function MessageList({
                               <MarkdownPreview
                                 content={answer}
                                 dir={messageDirection}
-                                className="chat-message-text prose-base break-words [&_pre]:max-w-full [&_pre]:overflow-x-auto [&_code]:break-words"
+                                style={messageTextDirectionStyle}
+                                className={`chat-message-text text-start prose-base break-words ${rtlAwareMarkdownClassName} [&_pre]:max-w-full [&_pre]:overflow-x-auto [&_code]:break-words`}
                               />
                             )}
                             {msg.view && isRenderedViewDirective(msg.view) && (
@@ -331,8 +331,9 @@ export function MessageList({
                         <MarkdownPreview
                           content={softFormatUserMessageForDisplay(msg.content)}
                           dir={messageDirection}
+                          style={messageTextDirectionStyle}
                           variant="compact"
-                          className="chat-message-text prose-base break-words prose-invert prose-headings:my-1 prose-headings:text-primary-foreground prose-p:my-0 prose-p:whitespace-pre-wrap prose-p:leading-relaxed prose-p:text-primary-foreground prose-strong:text-primary-foreground prose-a:text-primary-foreground prose-a:underline prose-code:bg-primary-foreground/20 prose-code:text-primary-foreground prose-pre:bg-primary-foreground/15 prose-ul:my-1 prose-ul:text-primary-foreground prose-ol:my-1 prose-ol:text-primary-foreground prose-li:my-0 prose-li:marker:text-primary-foreground/70 prose-blockquote:my-1 prose-blockquote:text-primary-foreground prose-table:text-primary-foreground prose-th:text-primary-foreground [&_pre]:max-w-full [&_pre]:overflow-x-auto [&_code]:break-words"
+                          className={`chat-message-text text-start prose-base break-words prose-invert ${rtlAwareMarkdownClassName} prose-headings:my-1 prose-headings:text-primary-foreground prose-p:my-0 prose-p:whitespace-pre-wrap prose-p:leading-relaxed prose-p:text-primary-foreground prose-strong:text-primary-foreground prose-a:text-primary-foreground prose-a:underline prose-code:bg-primary-foreground/20 prose-code:text-primary-foreground prose-pre:bg-primary-foreground/15 prose-ul:my-1 prose-ul:text-primary-foreground prose-ol:my-1 prose-ol:text-primary-foreground prose-li:my-0 prose-li:marker:text-primary-foreground/70 prose-blockquote:my-1 prose-blockquote:text-primary-foreground prose-table:text-primary-foreground prose-th:text-primary-foreground [&_pre]:max-w-full [&_pre]:overflow-x-auto [&_code]:break-words`}
                         />
                       )}
                     </>

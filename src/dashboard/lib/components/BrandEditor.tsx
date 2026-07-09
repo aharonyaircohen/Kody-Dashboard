@@ -19,7 +19,12 @@ import {
 import { Input } from "@dashboard/ui/input";
 import { Label } from "@dashboard/ui/label";
 import { Textarea } from "@dashboard/ui/textarea";
-import type { BrandRow, SavePayload } from "./brands-manager-types";
+import type {
+  BrandAgentOption,
+  BrandModelOption,
+  BrandRow,
+  SavePayload,
+} from "./brands-manager-types";
 
 const SLUG_RE = /^[a-z0-9][a-z0-9-]{0,63}$/;
 const HEX_RE = /^#[0-9a-fA-F]{6}$/;
@@ -38,6 +43,8 @@ interface BrandEditorProps {
   isNew: boolean;
   saving: boolean;
   existingSlugs: Set<string>;
+  modelOptions: BrandModelOption[];
+  agentOptions: BrandAgentOption[];
   onClose: () => void;
   onSave: (payload: SavePayload) => Promise<void>;
 }
@@ -47,6 +54,8 @@ export function BrandEditor({
   isNew,
   saving,
   existingSlugs,
+  modelOptions,
+  agentOptions,
   onClose,
   onSave,
 }: BrandEditorProps) {
@@ -55,6 +64,8 @@ export function BrandEditor({
   const [accent, setAccent] = useState(initial?.accent ?? "#0f766e");
   const [locale, setLocale] = useState(initial?.locale ?? "en");
   const [welcomeText, setWelcomeText] = useState(initial?.welcomeText ?? "");
+  const [modelId, setModelId] = useState(initial?.modelId ?? "");
+  const [agentSlug, setAgentSlug] = useState(initial?.agentSlug ?? "");
   const [touchedSlug, setTouchedSlug] = useState(false);
 
   const slugError = (() => {
@@ -168,6 +179,44 @@ export function BrandEditor({
           </div>
 
           <div className="sm:col-span-2">
+            <Label htmlFor="brand-model" className="text-xs">
+              Chat model
+            </Label>
+            <select
+              id="brand-model"
+              value={modelId}
+              onChange={(event) => setModelId(event.target.value)}
+              className="mt-1 h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm text-foreground"
+            >
+              <option value="">Repo default model</option>
+              {modelOptions.map((model) => (
+                <option key={model.id} value={model.id}>
+                  {model.label}
+                </option>
+              ))}
+            </select>
+          </div>
+
+          <div className="sm:col-span-2">
+            <Label htmlFor="brand-agent" className="text-xs">
+              Agency agent
+            </Label>
+            <select
+              id="brand-agent"
+              value={agentSlug}
+              onChange={(event) => setAgentSlug(event.target.value)}
+              className="mt-1 h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm text-foreground"
+            >
+              <option value="">Kody default agent</option>
+              {agentOptions.map((agent) => (
+                <option key={agent.slug} value={agent.slug}>
+                  {agent.title}
+                </option>
+              ))}
+            </select>
+          </div>
+
+          <div className="sm:col-span-2">
             <Label htmlFor="brand-welcome" className="text-xs">
               Welcome text
             </Label>
@@ -196,6 +245,8 @@ export function BrandEditor({
                 accent,
                 locale: locale.trim() || undefined,
                 welcomeText: welcomeText.trim() || undefined,
+                modelId: modelId.trim() || undefined,
+                agentSlug: agentSlug.trim() || undefined,
                 isUpdate: !isNew,
               });
             }}

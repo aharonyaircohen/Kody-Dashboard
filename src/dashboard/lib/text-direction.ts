@@ -7,7 +7,7 @@
 
 export type TextDirection = "auto" | "ltr" | "rtl";
 
-const isolatedTextStyle = { unicodeBidi: "plaintext" } as const;
+export const textIsolationStyle = { unicodeBidi: "plaintext" } as const;
 const rtlStrongCharacterPattern = /[\u0590-\u08FF\uFB1D-\uFDFD\uFE70-\uFEFC]/;
 const ltrStrongCharacterPattern = /[A-Za-z\u00C0-\u024F\u0370-\u052F]/;
 
@@ -21,17 +21,17 @@ export function resolveTextDirection(text: string): TextDirection {
 
 export function textDirectionProps(text: string): {
   dir: TextDirection;
-  style: typeof isolatedTextStyle;
+  style: typeof textIsolationStyle;
 } {
   return {
     dir: resolveTextDirection(text),
-    style: isolatedTextStyle,
+    style: textIsolationStyle,
   };
 }
 
 export const autoDirProps = {
   dir: "auto",
-  style: isolatedTextStyle,
+  style: textIsolationStyle,
 } as const;
 
 export const rtlAwareMarkdownClassName =

@@ -127,6 +127,14 @@ export function KodyChat({
   onToggleFullscreen,
   railFullscreen,
   lockedAgentId,
+  lockedModelId,
+  lockedAgentSlug,
+  hideAgentPicker,
+  compactHeader,
+  allowSessionSidebarPin = true,
+  autoOpenSessionSidebar = true,
+  kodyDirectHeaders,
+  messageRoleLayout,
   vibeMode,
   onIssueCreated,
   knownGoals,
@@ -401,7 +409,8 @@ export function KodyChat({
     effectiveReasoningEffort,
     onRehydrateRestored,
   } = useAgentSelection({
-    lockedAgentId,
+    lockedAgentId: lockedAgentId ?? (lockedModelId ? "kody" : undefined),
+    lockedModelId,
     brainConfigured,
     flyConfigured,
     brainFlyChatEnabled,
@@ -572,6 +581,7 @@ export function KodyChat({
   const [showSessionSidebar, setShowSessionSidebar] = useState(false);
   const previousRailFullscreenRef = useRef(railFullscreen);
   const [sessionSidebarPinned, setSessionSidebarPinned] = useState(() => {
+    if (!allowSessionSidebarPin) return false;
     if (typeof window === "undefined") return false;
     return (
       window.localStorage.getItem("kody-chat:sessions-panel-pinned") === "1"
@@ -586,13 +596,14 @@ export function KodyChat({
     }
   }, [railFullscreen]);
   useEffect(() => {
+    if (!allowSessionSidebarPin) return;
     if (typeof window === "undefined") return;
     window.localStorage.setItem(
       "kody-chat:sessions-panel-pinned",
       sessionSidebarPinned ? "1" : "0",
     );
-    if (sessionSidebarPinned) setShowSessionSidebar(true);
-  }, [sessionSidebarPinned]);
+    if (sessionSidebarPinned && isDesktop) setShowSessionSidebar(true);
+  }, [allowSessionSidebarPin, isDesktop, sessionSidebarPinned]);
 
   // Reset the visible stream state on agent switch. Session switches are
   // intentionally allowed while a reply is running; each send now writes
@@ -658,10 +669,10 @@ export function KodyChat({
   const isGlobalMode = !isTaskMode && !isCapabilityMode && !isPlannerMode;
 
   useEffect(() => {
-    if (railFullscreen && isGlobalMode) {
+    if (autoOpenSessionSidebar && railFullscreen && isGlobalMode) {
       setShowSessionSidebar(true);
     }
-  }, [railFullscreen, isGlobalMode]);
+  }, [autoOpenSessionSidebar, railFullscreen, isGlobalMode]);
 
   // All chat messages live in the global session store. The sessionHook
   // owns a single `messages` list per active session; the page/scope
@@ -1061,6 +1072,8 @@ export function KodyChat({
           actorLogin,
           repoAgentSlugs,
           agentList,
+          lockedAgentSlug,
+          kodyDirectHeaders,
           sessionHook,
           messages,
           setMessagesForSession,
@@ -1100,6 +1113,10 @@ export function KodyChat({
       messages,
       repoAgentSlugs,
       selectedAgentId,
+      selectedModelId,
+      effectiveReasoningEffort,
+      lockedAgentSlug,
+      kodyDirectHeaders,
       actorLogin,
       runDashboardNavigateFromDirective,
       sessionHook,
@@ -1358,7 +1375,10 @@ export function KodyChat({
       try {
         const res = await fetch("/api/kody/chat/title", {
           method: "POST",
-          headers: { "Content-Type": "application/json", ...authHeaders() },
+          headers: {
+            "Content-Type": "application/json",
+            ...(kodyDirectHeaders ?? authHeaders()),
+          },
           body: JSON.stringify({
             messages: convo,
             ...(selectedModelId ? { model: selectedModelId } : {}),
@@ -1377,7 +1397,14 @@ export function KodyChat({
       }
       sessionHook.renameSession(session.id, sliceTitle);
     })();
-  }, [isGlobalMode, activeLoading, messages, sessionHook, selectedModelId]);
+  }, [
+    isGlobalMode,
+    activeLoading,
+    messages,
+    sessionHook,
+    selectedModelId,
+    kodyDirectHeaders,
+  ]);
 
   // Both `kody-live` (GH Actions) and `kody-live-fly` (Fly Machines) use
   // the same interactive session model, so they share this UI state.
@@ -1395,7 +1422,8 @@ export function KodyChat({
   const hasComposerContent =
     input.trim().length > 0 ||
     (chatMode === "ai" && (attachments.length > 0 || contextChips.length > 0));
-  const richComposerEnabled = chatMode === "ai" && Boolean(railFullscreen);
+  const richComposerEnabled =
+    chatMode === "ai" && Boolean(railFullscreen) && isDesktop;
   const composerDisabled =
     chatMode === "ai" &&
     (activeLoading || (isKodyLive && interactiveState !== "ready"));
@@ -1456,7 +1484,7 @@ export function KodyChat({
         <SessionsPanel
           open={showSessionSidebar}
           isGlobalMode={isGlobalMode}
-          pinned={sessionSidebarPinned}
+          pinned={allowSessionSidebarPin && isDesktop && sessionSidebarPinned}
           railFullscreen={railFullscreen}
           standalonePresentation={standalonePresentation}
           sessions={sessionHook.sessions}
@@ -1471,7 +1499,11 @@ export function KodyChat({
           onDeleteSession={sessionHook.deleteSession}
           onRenameSession={sessionHook.renameSession}
           onPinSession={sessionHook.pinSession}
-          onTogglePinned={() => setSessionSidebarPinned((prev) => !prev)}
+          onTogglePinned={
+            allowSessionSidebarPin && isDesktop
+              ? () => setSessionSidebarPinned((prev) => !prev)
+              : undefined
+          }
           onClose={() => setShowSessionSidebar(false)}
         />
       }
@@ -1510,6 +1542,8 @@ export function KodyChat({
           currentEntry={currentEntry}
           currentAgent={currentAgent}
           lockedAgentId={lockedAgentId}
+          hideAgentPicker={hideAgentPicker}
+          compact={compactHeader}
           agentMenuOpen={agentMenuOpen}
           setAgentMenuOpen={setAgentMenuOpen}
           messageCount={messages.length}
@@ -1587,6 +1621,7 @@ export function KodyChat({
           toolCalls={toolCalls}
           usedViewIds={usedViewIds}
           onRenderedViewAction={handleRenderedViewAction}
+          roleLayout={messageRoleLayout}
           emptyState={
             <EmptyState
               isTaskMode={isTaskMode}

@@ -279,6 +279,7 @@ export function mergeManagedGoalStateWithTemplate(
     scheduleMode: template.scheduleMode,
     preferredRunTime: template.preferredRunTime,
     loopTarget: template.loopTarget,
+    workflowRef: template.workflowRef ?? state.workflowRef,
     saveReport: template.saveReport,
     facts: {
       ...template.facts,

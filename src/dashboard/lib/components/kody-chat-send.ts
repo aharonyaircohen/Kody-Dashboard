@@ -375,6 +375,8 @@ export interface SendTextDeps {
   actorLogin: KodyChatProps["actorLogin"];
   repoAgentSlugs: string[];
   agentList: ChatDropdownEntry[];
+  lockedAgentSlug?: string;
+  kodyDirectHeaders?: Record<string, string>;
   // Session store
   sessionHook: SessionHook;
   messages: Message[];
@@ -960,8 +962,13 @@ async function runSendTextInner(
         body: {
           messages: kodyMessages,
           task: kodyTaskContext,
-          agentId: directAgentSlug ? "kody" : effectiveAgentId,
-          ...(directAgentSlug ? { agentSlug: directAgentSlug } : {}),
+          agentId:
+            directAgentSlug || deps.lockedAgentSlug
+              ? "kody"
+              : effectiveAgentId,
+          ...(directAgentSlug || deps.lockedAgentSlug
+            ? { agentSlug: directAgentSlug ?? deps.lockedAgentSlug }
+            : {}),
           // Voice modality flag. When true the server appends the
           // voice overlay (no markdown, short sentences, etc.) to
           // the selected agent's system prompt and prefers the
@@ -1036,7 +1043,10 @@ async function runSendTextInner(
         {
           sessionId: uiSessionId,
           text: wireContent,
-          agentId: directAgentSlug ? "kody" : effectiveAgentId,
+          agentId:
+            directAgentSlug || deps.lockedAgentSlug
+              ? "kody"
+              : effectiveAgentId,
           ...(selectedModelId ? { modelId: selectedModelId } : {}),
           ...(effectiveReasoningEffort
             ? { reasoningEffort: effectiveReasoningEffort }
@@ -1044,7 +1054,7 @@ async function runSendTextInner(
           context: kodyTurnConfig,
         },
         {
-          authHeaders: authHeaders(),
+          authHeaders: deps.kodyDirectHeaders ?? authHeaders(),
           signal: kodyAbort.signal,
           emit: kodyTurn.handleEvent,
         },

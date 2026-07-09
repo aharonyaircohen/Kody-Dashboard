@@ -42,6 +42,10 @@ interface HeaderControlsProps {
   currentAgent: AgentConfig;
   /** When set, the picker is a locked label — no dropdown. */
   lockedAgentId?: AgentId;
+  /** Presentation-only lock for surfaces that pin chat defaults elsewhere. */
+  hideAgentPicker?: boolean;
+  /** Shorter one-row header for standalone surfaces that keep shared controls. */
+  compact?: boolean;
   agentMenuOpen: boolean;
   setAgentMenuOpen: Dispatch<SetStateAction<boolean>>;
   /** Transcript length — renders the count chip when > 0. */
@@ -105,6 +109,8 @@ export function HeaderControls({
   currentEntry,
   currentAgent,
   lockedAgentId,
+  hideAgentPicker,
+  compact,
   agentMenuOpen,
   setAgentMenuOpen,
   messageCount,
@@ -135,62 +141,78 @@ export function HeaderControls({
   onPlannerExit,
   activeSessionTitle,
 }: HeaderControlsProps) {
+  const headerClassName = compact
+    ? "border-b bg-gradient-to-r from-muted/80 to-muted/40 px-3 py-1.5 sm:px-4"
+    : "border-b bg-gradient-to-r from-muted/80 to-muted/40 px-3 py-2.5 sm:px-5 sm:py-4";
+  const mainIconButtonClassName = compact
+    ? "p-1.5 rounded-md border transition-all"
+    : "p-2 rounded-md border transition-all";
+  const quietIconButtonClassName = compact
+    ? "p-1.5 rounded-md text-muted-foreground hover:text-foreground hover:bg-background border border-transparent hover:border-border transition-all"
+    : "p-2 rounded-md text-muted-foreground hover:text-foreground hover:bg-background border border-transparent hover:border-border transition-all";
+  const showContextBar =
+    !compact ||
+    (isTaskMode && selectedTask) ||
+    (isCapabilityMode && selectedCapability) ||
+    (isPlannerMode && plannerGoal);
+
   return (
-    <div className="border-b bg-gradient-to-r from-muted/80 to-muted/40 px-3 py-2.5 sm:px-5 sm:py-4">
+    <div className={headerClassName} data-testid="chat-header-controls">
       <div className="flex items-center justify-between">
         {/* Left: agent picker (locked label when parent forces an agent) */}
         <div className="relative flex items-center gap-2">
-          {(() => {
-            // Header label/icon prefers the matched dropdown entry — that
-            // way a user-managed model surfaces its own label (e.g.
-            // "Claude Sonnet 4.6") rather than the generic "Kody" agent
-            // name. Falls back to the static agent for locked views or
-            // when the selection points at a model that was just removed.
-            const headerIcon = currentEntry?.icon ?? currentAgent.icon;
-            const headerName = currentEntry?.name ?? currentAgent.name;
-            return lockedAgentId ? (
-              <div
-                className="flex items-center gap-2.5 px-3 py-2"
-                title={`${headerName} (locked for this view)`}
-                aria-label={`${headerName} (locked)`}
-              >
-                {(() => {
-                  const Icon = headerIcon;
-                  return <Icon className="w-5 h-5" aria-label={headerName} />;
-                })()}
-                <span className="font-semibold text-base">{headerName}</span>
-              </div>
-            ) : (
-              <button
-                type="button"
-                onClick={() => setAgentMenuOpen((v) => !v)}
-                className="flex items-center gap-2.5 rounded-md px-3 py-2 hover:bg-accent focus:outline-none focus:ring-2 focus:ring-ring"
-                aria-haspopup="listbox"
-                aria-expanded={agentMenuOpen}
-                title={`Switch assistant (current: ${headerName})`}
-              >
-                {(() => {
-                  const Icon = headerIcon;
-                  return <Icon className="w-5 h-5" aria-label={headerName} />;
-                })()}
-                <span className="font-semibold text-base">{headerName}</span>
-                <svg
-                  xmlns="http://www.w3.org/2000/svg"
-                  width="14"
-                  height="14"
-                  viewBox="0 0 24 24"
-                  fill="none"
-                  stroke="currentColor"
-                  strokeWidth="2"
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  aria-hidden="true"
+          {!hideAgentPicker &&
+            (() => {
+              // Header label/icon prefers the matched dropdown entry — that
+              // way a user-managed model surfaces its own label (e.g.
+              // "Claude Sonnet 4.6") rather than the generic "Kody" agent
+              // name. Falls back to the static agent for locked views or
+              // when the selection points at a model that was just removed.
+              const headerIcon = currentEntry?.icon ?? currentAgent.icon;
+              const headerName = currentEntry?.name ?? currentAgent.name;
+              return lockedAgentId ? (
+                <div
+                  className="flex items-center gap-2.5 px-3 py-2"
+                  title={`${headerName} (fixed for this view)`}
+                  aria-label={`${headerName} (fixed)`}
                 >
-                  <path d="m6 9 6 6 6-6" />
-                </svg>
-              </button>
-            );
-          })()}
+                  {(() => {
+                    const Icon = headerIcon;
+                    return <Icon className="w-5 h-5" aria-label={headerName} />;
+                  })()}
+                  <span className="font-semibold text-base">{headerName}</span>
+                </div>
+              ) : (
+                <button
+                  type="button"
+                  onClick={() => setAgentMenuOpen((v) => !v)}
+                  className="flex items-center gap-2.5 rounded-md px-3 py-2 hover:bg-accent focus:outline-none focus:ring-2 focus:ring-ring"
+                  aria-haspopup="listbox"
+                  aria-expanded={agentMenuOpen}
+                  title={`Switch assistant (current: ${headerName})`}
+                >
+                  {(() => {
+                    const Icon = headerIcon;
+                    return <Icon className="w-5 h-5" aria-label={headerName} />;
+                  })()}
+                  <span className="font-semibold text-base">{headerName}</span>
+                  <svg
+                    xmlns="http://www.w3.org/2000/svg"
+                    width="14"
+                    height="14"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="2"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    aria-hidden="true"
+                  >
+                    <path d="m6 9 6 6 6-6" />
+                  </svg>
+                </button>
+              );
+            })()}
           {messageCount > 0 && (
             <span className="ms-1 rounded-full bg-primary/10 px-2 py-1 text-body-xs text-primary">
               {messageCount}
@@ -202,7 +224,7 @@ export function HeaderControls({
               • 1 effort  → static pill (e.g. o1 / R1 → "On")
               • 2+ efforts → dropdown, current value highlighted
               • no reasoning → nothing rendered (most models) */}
-          {currentReasoning && (
+          {currentReasoning && !hideAgentPicker && (
             <div className="relative">
               {currentReasoning.efforts.length === 1 ? (
                 <span
@@ -286,7 +308,7 @@ export function HeaderControls({
               )}
             </div>
           )}
-          {!lockedAgentId && agentMenuOpen && (
+          {!lockedAgentId && !hideAgentPicker && agentMenuOpen && (
             <ul
               role="listbox"
               className="absolute top-full start-0 mt-1 z-30 min-w-[260px] rounded-md border bg-popover shadow-md"
@@ -357,12 +379,12 @@ export function HeaderControls({
             button is visible everywhere except on locked views (Vibe),
             where the parent owns the chat lifecycle. Icon-only to
             match the other header controls (collapse, fullscreen). */}
-          {!lockedAgentId && (
+          {!lockedAgentId && !hideAgentPicker && (
             <button
               type="button"
               onClick={onNewConversation}
               disabled={activeLoading}
-              className="p-2 rounded-md border border-transparent text-muted-foreground hover:text-foreground hover:bg-background hover:border-border transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+              className={`${quietIconButtonClassName} disabled:opacity-50 disabled:cursor-not-allowed`}
               title="Start a new conversation"
               aria-label="New conversation"
             >
@@ -377,7 +399,7 @@ export function HeaderControls({
           <button
             type="button"
             onClick={onToggleSessionSidebar}
-            className={`p-2 rounded-md border transition-all ${
+            className={`${mainIconButtonClassName} ${
               showSessionSidebar
                 ? "bg-primary text-primary-foreground border-primary"
                 : "text-muted-foreground hover:text-foreground hover:bg-background border-transparent hover:border-border"
@@ -397,7 +419,7 @@ export function HeaderControls({
                 railFullscreen ? "Restore chat width" : "Expand chat fullscreen"
               }
               title={railFullscreen ? "Restore" : "Fullscreen"}
-              className="ms-1 p-2 rounded-md text-muted-foreground hover:text-foreground hover:bg-background border border-transparent hover:border-border transition-all"
+              className={`ms-1 ${quietIconButtonClassName}`}
             >
               {railFullscreen ? (
                 <Minimize2 className="w-4 h-4" />
@@ -414,7 +436,7 @@ export function HeaderControls({
               onClick={onCollapseRail}
               aria-label="Collapse chat"
               title="Collapse"
-              className="p-2 rounded-md text-muted-foreground hover:text-foreground hover:bg-background border border-transparent hover:border-border transition-all"
+              className={quietIconButtonClassName}
             >
               <PanelLeftClose className="w-4 h-4" />
             </button>
@@ -427,7 +449,7 @@ export function HeaderControls({
               onClick={onClose}
               aria-label="Close chat"
               title="Close"
-              className="ms-1 p-2 rounded-md text-muted-foreground hover:text-foreground hover:bg-background border border-transparent hover:border-border transition-all"
+              className={`ms-1 ${quietIconButtonClassName}`}
             >
               <X className="w-4 h-4" />
             </button>
@@ -436,64 +458,66 @@ export function HeaderControls({
       </div>
 
       {/* Context bar: task, capability, planner, or global */}
-      <div className="mt-1 sm:mt-2">
-        {isTaskMode && selectedTask ? (
-          <div className="flex items-center gap-2 text-sm">
-            <span className="px-1.5 py-0.5 bg-primary text-primary-foreground rounded font-medium">
-              #{selectedTask.issueNumber}
-            </span>
-            <span className="truncate text-muted-foreground">
-              {selectedTask.title}
-            </span>
-          </div>
-        ) : isCapabilityMode && selectedCapability ? (
-          <div className="flex items-center gap-2 text-sm">
-            <span className="px-1.5 py-0.5 bg-emerald-500/15 text-emerald-400 rounded font-medium inline-flex items-center gap-1">
-              <Target className="w-3 h-3" />
-              {selectedCapability.slug}
-            </span>
-            <span className="truncate text-muted-foreground">
-              {selectedCapability.title}
-            </span>
-          </div>
-        ) : isPlannerMode && plannerGoal ? (
-          <div className="flex items-center gap-2 text-sm">
-            <span className="px-1.5 py-0.5 bg-sky-500/15 text-sky-400 rounded font-medium inline-flex items-center gap-1">
-              Planning
-            </span>
-            <span className="truncate text-muted-foreground flex-1 min-w-0">
-              {plannerGoal.name}
-            </span>
-            {onPlannerExit ? (
-              <button
-                type="button"
-                onClick={onPlannerExit}
-                className="shrink-0 text-muted-foreground hover:text-foreground p-0.5 rounded hover:bg-accent"
-                aria-label="Stop planning this goal"
-                title="Stop planning"
-              >
-                <X className="w-3.5 h-3.5" />
-              </button>
-            ) : null}
-          </div>
-        ) : (
-          (() => {
-            const sessionTitle = activeSessionTitle;
-            const hasRealTitle =
-              !!sessionTitle && sessionTitle !== "New conversation";
-            return (
-              <div className="text-sm text-muted-foreground flex items-center gap-1.5">
-                <Globe className="w-3 h-3 shrink-0" />
-                <span className="truncate">
-                  {hasRealTitle
-                    ? sessionTitle
-                    : "Global chat — not tied to any task"}
-                </span>
-              </div>
-            );
-          })()
-        )}
-      </div>
+      {showContextBar ? (
+        <div className={compact ? "mt-1" : "mt-1 sm:mt-2"}>
+          {isTaskMode && selectedTask ? (
+            <div className="flex items-center gap-2 text-sm">
+              <span className="px-1.5 py-0.5 bg-primary text-primary-foreground rounded font-medium">
+                #{selectedTask.issueNumber}
+              </span>
+              <span className="truncate text-muted-foreground">
+                {selectedTask.title}
+              </span>
+            </div>
+          ) : isCapabilityMode && selectedCapability ? (
+            <div className="flex items-center gap-2 text-sm">
+              <span className="px-1.5 py-0.5 bg-emerald-500/15 text-emerald-400 rounded font-medium inline-flex items-center gap-1">
+                <Target className="w-3 h-3" />
+                {selectedCapability.slug}
+              </span>
+              <span className="truncate text-muted-foreground">
+                {selectedCapability.title}
+              </span>
+            </div>
+          ) : isPlannerMode && plannerGoal ? (
+            <div className="flex items-center gap-2 text-sm">
+              <span className="px-1.5 py-0.5 bg-sky-500/15 text-sky-400 rounded font-medium inline-flex items-center gap-1">
+                Planning
+              </span>
+              <span className="truncate text-muted-foreground flex-1 min-w-0">
+                {plannerGoal.name}
+              </span>
+              {onPlannerExit ? (
+                <button
+                  type="button"
+                  onClick={onPlannerExit}
+                  className="shrink-0 text-muted-foreground hover:text-foreground p-0.5 rounded hover:bg-accent"
+                  aria-label="Stop planning this goal"
+                  title="Stop planning"
+                >
+                  <X className="w-3.5 h-3.5" />
+                </button>
+              ) : null}
+            </div>
+          ) : (
+            (() => {
+              const sessionTitle = activeSessionTitle;
+              const hasRealTitle =
+                !!sessionTitle && sessionTitle !== "New conversation";
+              return (
+                <div className="text-sm text-muted-foreground flex items-center gap-1.5">
+                  <Globe className="w-3 h-3 shrink-0" />
+                  <span className="truncate">
+                    {hasRealTitle
+                      ? sessionTitle
+                      : "Global chat — not tied to any task"}
+                  </span>
+                </div>
+              );
+            })()
+          )}
+        </div>
+      ) : null}
     </div>
   );
 }

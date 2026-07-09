@@ -4,12 +4,19 @@ const h = vi.hoisted(() => ({
   findBrandFileFromList: vi.fn(),
   isBrandDeleted: vi.fn(),
   readBrandFile: vi.fn(),
+  setGitHubContext: vi.fn(),
+  clearGitHubContext: vi.fn(),
 }));
 
 vi.mock("@dashboard/lib/brands", () => ({
   findBrandFileFromList: h.findBrandFileFromList,
   isBrandDeleted: h.isBrandDeleted,
   readBrandFile: h.readBrandFile,
+}));
+
+vi.mock("@dashboard/lib/github-client", () => ({
+  setGitHubContext: h.setGitHubContext,
+  clearGitHubContext: h.clearGitHubContext,
 }));
 
 import {
@@ -26,6 +33,8 @@ describe("client brand config", () => {
     h.isBrandDeleted.mockReset();
     h.isBrandDeleted.mockResolvedValue(false);
     h.readBrandFile.mockReset();
+    h.setGitHubContext.mockReset();
+    h.clearGitHubContext.mockReset();
   });
 
   it("normalizes route slugs safely", () => {
@@ -85,6 +94,8 @@ describe("client brand config", () => {
       accent: "#2563eb",
       locale: "he-il",
       welcomeText: "Welcome to Acme",
+      modelId: "sonnet-4",
+      agentSlug: "qa-agent",
       source: "repo",
       sha: "sha",
       updatedAt: "",
@@ -97,8 +108,45 @@ describe("client brand config", () => {
       accent: "#2563eb",
       locale: "he-il",
       welcomeText: "Welcome to Acme",
+      modelId: "sonnet-4",
+      agentSlug: "qa-agent",
     });
     expect(h.readBrandFile).not.toHaveBeenCalled();
+  });
+
+  it("uses the provided repo context when resolving public route brands", async () => {
+    h.findBrandFileFromList.mockResolvedValue({
+      slug: "aguy",
+      name: "A Guy",
+      accent: "#2563eb",
+      locale: "en",
+      source: "repo",
+      sha: "sha",
+      updatedAt: "",
+      htmlUrl: "",
+    });
+
+    await expect(
+      resolveClientBrand("aguy", {
+        owner: "A-Guy-educ",
+        repo: "A-Guy-Web",
+        storeRepoUrl: "https://github.com/A-Guy-educ/kody-state",
+        storeRef: "kody-state",
+      }),
+    ).resolves.toMatchObject({
+      slug: "aguy",
+      name: "A Guy",
+      accent: "#2563eb",
+    });
+
+    expect(h.setGitHubContext).toHaveBeenCalledWith(
+      "A-Guy-educ",
+      "A-Guy-Web",
+      undefined,
+      "https://github.com/A-Guy-educ/kody-state",
+      "kody-state",
+    );
+    expect(h.clearGitHubContext).toHaveBeenCalled();
   });
 
   it("keeps built-in fallback when no repo brand exists", async () => {

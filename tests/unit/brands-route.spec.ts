@@ -102,6 +102,8 @@ describe("brands API routes", () => {
           slug: "Acme",
           name: "Acme",
           accent: "#2563eb",
+          modelId: "sonnet-4",
+          agentSlug: "qa-agent",
           actorLogin: "alice",
         }),
       }),
@@ -116,7 +118,11 @@ describe("brands API routes", () => {
       "alice",
     );
     expect(h.writeBrandFile).toHaveBeenCalledWith(
-      expect.objectContaining({ slug: "acme" }),
+      expect.objectContaining({
+        slug: "acme",
+        modelId: "sonnet-4",
+        agentSlug: "qa-agent",
+      }),
     );
   });
 
@@ -143,6 +149,8 @@ describe("brands API routes", () => {
       accent: "#2563eb",
       locale: "en",
       welcomeText: "",
+      modelId: "old-model",
+      agentSlug: "old-agent",
       sha: "sha",
     });
     h.writeBrandFile.mockResolvedValue({
@@ -154,7 +162,12 @@ describe("brands API routes", () => {
     const res = await PATCH(
       req("/api/kody/brands/acme", {
         method: "PATCH",
-        body: JSON.stringify({ name: "Acme Support", actorLogin: "alice" }),
+        body: JSON.stringify({
+          name: "Acme Support",
+          modelId: "sonnet-4",
+          agentSlug: "qa-agent",
+          actorLogin: "alice",
+        }),
       }),
       params(),
     );
@@ -164,6 +177,8 @@ describe("brands API routes", () => {
       expect.objectContaining({
         slug: "acme",
         name: "Acme Support",
+        modelId: "sonnet-4",
+        agentSlug: "qa-agent",
         sha: "sha",
       }),
     );

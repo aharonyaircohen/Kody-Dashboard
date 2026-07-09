@@ -22,6 +22,11 @@ import {
 } from "@dashboard/lib/github-client";
 import { getEngineConfig, type KodyConfig } from "@dashboard/lib/engine/config";
 import {
+  collapseManagedGoalRecordsForList,
+  type ManagedGoalRecord,
+} from "@dashboard/lib/managed-goals";
+import { listManagedGoalFiles } from "@dashboard/lib/managed-goals-files";
+import {
   buildWorkflowDefinition,
   slugifyWorkflowDefinitionId,
   workflowDefinitionPath,
@@ -75,6 +80,15 @@ function activeCapabilitySlugs(config: KodyConfig): string[] {
   );
 }
 
+function referencedWorkflowSlugs(goals: ManagedGoalRecord[]): string[] {
+  const ids = new Set<string>();
+  for (const goal of goals) {
+    const id = goal.state.workflowRef?.id?.trim();
+    if (id) ids.add(id);
+  }
+  return Array.from(ids);
+}
+
 export async function GET(req: NextRequest) {
   const authResult = await requireKodyAuth(req);
   if (authResult instanceof NextResponse) return authResult;
@@ -109,12 +123,20 @@ export async function GET(req: NextRequest) {
     );
     const activeWorkflowIds = new Set(activeWorkflowSlugs(config));
     const activeCapabilityIds = new Set(activeCapabilitySlugs(config));
+    const managedGoals = collapseManagedGoalRecordsForList(
+      await listManagedGoalFiles(octokit, headerAuth.owner, headerAuth.repo),
+    );
+    const referencedWorkflowIds = new Set(referencedWorkflowSlugs(managedGoals));
+    const storeWorkflowIds = new Set([
+      ...activeWorkflowIds,
+      ...referencedWorkflowIds,
+    ]);
     const localIds = new Set(localWorkflows.map((workflow) => workflow.id));
     const storeWorkflows =
-      activeWorkflowIds.size > 0
+      storeWorkflowIds.size > 0
         ? (await listCompanyStoreWorkflowDefinitionFiles(octokit)).filter(
             (workflow) =>
-              activeWorkflowIds.has(workflow.id) && !localIds.has(workflow.id),
+              storeWorkflowIds.has(workflow.id) && !localIds.has(workflow.id),
           )
         : [];
     const visibleIds = new Set([

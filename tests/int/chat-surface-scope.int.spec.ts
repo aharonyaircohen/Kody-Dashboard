@@ -12,14 +12,68 @@
  * assert the full admin path byte-for-byte).
  */
 
-import { beforeAll, describe, expect, it, vi } from "vitest";
+import { beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import { NextRequest } from "next/server";
 import { simulateReadableStream } from "ai";
 import { MockLanguageModelV3 } from "ai/test";
 
-const resolveChatModelMock = vi.hoisted(() => vi.fn());
+const h = vi.hoisted(() => ({
+  resolveChatModel: vi.fn(),
+  resolveVaultGithubToken: vi.fn(),
+  resolveClientBrand: vi.fn(),
+  loadMemoryIndexForPrompt: vi.fn(),
+  loadInstructionsForPrompt: vi.fn(),
+  loadContextForPrompt: vi.fn(),
+  loadViewRendererContextForPrompt: vi.fn(),
+  readResolvedAgentFile: vi.fn(),
+  getEngineConfig: vi.fn(),
+}));
 vi.mock("../../app/api/kody/chat/resolve-model", () => ({
-  resolveChatModel: resolveChatModelMock,
+  resolveChatModel: h.resolveChatModel,
+}));
+vi.mock("@dashboard/lib/vault/bootstrap", () => ({
+  resolveVaultGithubToken: h.resolveVaultGithubToken,
+}));
+vi.mock("@dashboard/lib/client-brand", () => ({
+  resolveClientBrand: h.resolveClientBrand,
+}));
+vi.mock("@dashboard/lib/chat-defaults", async (importOriginal) => {
+  const actual =
+    await importOriginal<typeof import("@dashboard/lib/chat-defaults")>();
+  return {
+    ...actual,
+    loadChatDefaults: vi.fn(async () => ({
+      agentIdentity: "You are a test assistant.",
+      capability: { slug: "kody-chat", title: "Chat", body: "", tools: [] },
+      workflows: [],
+      skills: {},
+    })),
+  };
+});
+vi.mock("@dashboard/lib/memory-files", () => ({
+  invalidateMemoryIndexPromptCache: vi.fn(),
+  loadMemoryIndexForPrompt: h.loadMemoryIndexForPrompt,
+  readMemoryFile: vi.fn(),
+  writeMemoryFile: vi.fn(),
+}));
+vi.mock("@dashboard/lib/instructions/files", () => ({
+  loadInstructionsForPrompt: h.loadInstructionsForPrompt,
+}));
+vi.mock("@dashboard/lib/context/files", () => ({
+  loadContextForPrompt: h.loadContextForPrompt,
+}));
+vi.mock("@dashboard/lib/view-renderers/renderers", () => ({
+  loadViewRendererContextForPrompt: h.loadViewRendererContextForPrompt,
+}));
+vi.mock("@dashboard/lib/agent-files", () => ({
+  isValidSlug: (slug: string) => /^[a-z0-9][a-z0-9_-]{0,63}$/.test(slug),
+  readResolvedAgentFile: h.readResolvedAgentFile,
+}));
+vi.mock("@dashboard/lib/engine/config", () => ({
+  getEngineConfig: h.getEngineConfig,
+  readOperators: vi.fn(async () => ({ operators: [] })),
+  writeOperators: vi.fn(),
+  writeConfigPatch: vi.fn(),
 }));
 
 import { POST as kodyChatPOST } from "../../app/api/kody/chat/kody/route";
@@ -37,6 +91,25 @@ import {
 
 beforeAll(() => {
   process.env.KODY_MASTER_KEY = "surface-scope-int-test-secret";
+});
+
+beforeEach(() => {
+  vi.clearAllMocks();
+  h.loadMemoryIndexForPrompt.mockResolvedValue(null);
+  h.loadInstructionsForPrompt.mockResolvedValue(null);
+  h.loadContextForPrompt.mockResolvedValue(null);
+  h.loadViewRendererContextForPrompt.mockResolvedValue({
+    rules: null,
+    definitions: [],
+  });
+  h.readResolvedAgentFile.mockResolvedValue({
+    slug: "support-agent",
+    title: "Support Agent",
+    body: "You answer as support.",
+    updatedAt: "",
+    htmlUrl: "",
+  });
+  h.getEngineConfig.mockResolvedValue({ config: {} });
 });
 
 function ticketHeaders(): Record<string, string> {
@@ -91,7 +164,15 @@ function mockModel(): MockLanguageModelV3 {
 describe("surface scoping — kody in-process route", () => {
   it("accepts a ticket-only request and restricts the tool set", async () => {
     const model = mockModel();
-    resolveChatModelMock.mockResolvedValue({
+    h.resolveVaultGithubToken.mockResolvedValue("ghp_surface");
+    h.resolveClientBrand.mockResolvedValue({
+      slug: "acme",
+      name: "Acme",
+      accent: "#7c3aed",
+      modelId: "brand-model",
+      agentSlug: "support-agent",
+    });
+    h.resolveChatModel.mockResolvedValue({
       model,
       resolvedModel: { id: "mock/model", modelName: "mock-model" },
     });
@@ -102,6 +183,12 @@ describe("surface scoping — kody in-process route", () => {
     expect(res.status).toBe(200);
     // Drain the stream so onFinish/cleanup runs.
     await res.text();
+
+    expect(h.resolveChatModel).toHaveBeenCalledWith(
+      expect.any(NextRequest),
+      "brand-model",
+      expect.any(Object),
+    );
 
     const sentTools = (model.doStreamCalls[0]?.tools ?? []).map((t) => t.name);
     expect(sentTools.length).toBeGreaterThan(0);

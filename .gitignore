@@ -38,6 +38,9 @@ pnpm-debug.log*
 # Kody sandboxes — local agent working copies (do not commit)
 .kody/sandboxes/
 
+# Claude worktrees — local agent working copies (do not commit)
+.claude/worktrees/
+
 # Test results
 test-results/
 

@@ -30,6 +30,10 @@ import {
   DEFAULT_KODY_STORE_REPO_URL,
   buildKodyAuthHeaders,
 } from "./auth-headers";
+import {
+  CLIENT_BRAND_REPO_COOKIE,
+  serializeClientBrandRepoCookie,
+} from "./client-brand-repo-cookie";
 
 export { DEFAULT_KODY_STORE_REF, DEFAULT_KODY_STORE_REPO_URL };
 
@@ -227,6 +231,20 @@ function migrateAuth(raw: unknown): KodyAuth | null {
 
 function persist(next: KodyAuth): void {
   localStorage.setItem("kody_auth", JSON.stringify(next));
+  syncClientBrandRepoCookie(next);
+}
+
+function syncClientBrandRepoCookie(auth: KodyAuth): void {
+  document.cookie = `${CLIENT_BRAND_REPO_COOKIE}=${serializeClientBrandRepoCookie({
+    owner: auth.owner,
+    repo: auth.repo,
+    ...(auth.storeRepoUrl ? { storeRepoUrl: auth.storeRepoUrl } : {}),
+    ...(auth.storeRef ? { storeRef: auth.storeRef } : {}),
+  })}; Path=/; Max-Age=2592000; SameSite=Lax`;
+}
+
+function clearClientBrandRepoCookie(): void {
+  document.cookie = `${CLIENT_BRAND_REPO_COOKIE}=; Path=/; Max-Age=0; SameSite=Lax`;
 }
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
@@ -258,6 +276,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const logout = useCallback(() => {
     localStorage.removeItem("kody_auth");
+    clearClientBrandRepoCookie();
     setAuth(null);
     window.location.href = "/";
   }, []);
@@ -352,6 +371,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       if (removing.isLogin) {
         // Removing the login repo == logout.
         localStorage.removeItem("kody_auth");
+        clearClientBrandRepoCookie();
         window.location.href = "/";
         return null;
       }
@@ -360,6 +380,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       if (nextRepos.length === 0) {
         // Shouldn't happen (login is non-removable), but bail to logout.
         localStorage.removeItem("kody_auth");
+        clearClientBrandRepoCookie();
         window.location.href = "/";
         return null;
       }

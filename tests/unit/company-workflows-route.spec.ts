@@ -35,6 +35,10 @@ const workflowFiles = vi.hoisted(() => ({
   deleteWorkflowDefinitionFile: vi.fn(),
 }));
 
+const managedGoalFiles = vi.hoisted(() => ({
+  listManagedGoalFiles: vi.fn(),
+}));
+
 vi.mock("@dashboard/lib/auth", () => ({
   requireKodyAuth: auth.requireKodyAuth,
   getRequestAuth: auth.getRequestAuth,
@@ -65,6 +69,10 @@ vi.mock("@dashboard/lib/workflow-definition-files", () => ({
     workflowFiles.readCompanyStoreCapabilityWorkflowDefinitionFile,
   writeWorkflowDefinitionFile: workflowFiles.writeWorkflowDefinitionFile,
   deleteWorkflowDefinitionFile: workflowFiles.deleteWorkflowDefinitionFile,
+}));
+
+vi.mock("@dashboard/lib/managed-goals-files", () => ({
+  listManagedGoalFiles: managedGoalFiles.listManagedGoalFiles,
 }));
 
 import { GET as LIST } from "../../app/api/kody/company/workflows/route";
@@ -105,6 +113,22 @@ const bugWorkflow = {
     "https://github.com/acme/kody-store/tree/main/.kody/capabilities/bug",
 };
 
+const webReleaseWorkflow = {
+  id: "web-release",
+  path: ".kody/workflows/web-release/workflow.json",
+  workflow: {
+    version: 1,
+    name: "Web release",
+    capabilities: ["release-prepare", "release-merge"],
+    createdAt: "1970-01-01T00:00:00.000Z",
+    updatedAt: "1970-01-01T00:00:00.000Z",
+  },
+  updatedAt: "1970-01-01T00:00:00.000Z",
+  source: "store",
+  readOnly: true,
+  htmlUrl: "https://github.com/acme/kody-store/tree/main/.kody/workflows/web-release",
+};
+
 function baseConfig() {
   return {
     config: {
@@ -124,6 +148,7 @@ describe("company workflows route", () => {
     auth.getUserOctokit.mockResolvedValue({ __octokit: true });
     engineConfig.getEngineConfig.mockResolvedValue(baseConfig());
     workflowFiles.listWorkflowDefinitionFiles.mockResolvedValue([]);
+    managedGoalFiles.listManagedGoalFiles.mockResolvedValue([]);
     workflowFiles.listCompanyStoreWorkflowDefinitionFiles.mockResolvedValue([]);
     workflowFiles.listCompanyStoreCapabilityWorkflowDefinitionFiles.mockResolvedValue(
       [bugWorkflow],
@@ -184,6 +209,54 @@ describe("company workflows route", () => {
     expect(json.workflows[0]).toMatchObject({
       id: "bug",
       source: "local",
+    });
+  });
+
+  it("lists Store workflows referenced by visible managed goals", async () => {
+    managedGoalFiles.listManagedGoalFiles.mockResolvedValue([
+      {
+        id: "web-release",
+        path: "todos/web-release.json",
+        source: "local",
+        recordType: "instance",
+        state: {
+          version: 1,
+          state: "active",
+          type: "web-release",
+          sourceTemplate: "web-release",
+          destination: {
+            outcome: "Release is prepared and verified on production.",
+            evidence: ["releasePrExists"],
+          },
+          workflowRef: { id: "web-release", source: "store" },
+          capabilities: [],
+          route: [],
+          facts: {},
+          blockers: [],
+        },
+      },
+    ]);
+    workflowFiles.listCompanyStoreWorkflowDefinitionFiles.mockResolvedValue([
+      webReleaseWorkflow,
+    ]);
+
+    const res = await LIST(req("/api/kody/company/workflows"));
+
+    expect(res.status).toBe(200);
+    await expect(res.json()).resolves.toMatchObject({
+      workflows: [
+        {
+          id: "bug",
+          source: "store",
+        },
+        {
+          id: "web-release",
+          source: "store",
+          workflow: {
+            capabilities: ["release-prepare", "release-merge"],
+          },
+        },
+      ],
     });
   });
 

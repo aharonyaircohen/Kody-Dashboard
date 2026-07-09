@@ -33,7 +33,15 @@ const CLIENT_CHAT_GRANT: ChatCapabilityGrant = [
   "host-effects",
 ];
 
-export function ClientChatSurface({ brand }: { brand: ClientBrand }) {
+const SURFACE_TICKET_HEADER = "x-kody-surface-ticket";
+
+export function ClientChatSurface({
+  brand,
+  surfaceTicket,
+}: {
+  brand: ClientBrand;
+  surfaceTicket?: string;
+}) {
   // The branding plugin is the single source for what this shell displays:
   // the header reads the SAME theme contribution the registry merges via
   // `registry.theme()` inside the KodyChat mount.
@@ -41,6 +49,11 @@ export function ClientChatSurface({ brand }: { brand: ClientBrand }) {
   const plugins = useMemo(
     () => [{ plugin: brandingPlugin }, { plugin: commandsChatPlugin }],
     [brandingPlugin],
+  );
+  const kodyDirectHeaders = useMemo(
+    () =>
+      surfaceTicket ? { [SURFACE_TICKET_HEADER]: surfaceTicket } : undefined,
+    [surfaceTicket],
   );
   const theme = brandingPlugin.theme ?? {};
   const locale = theme.locale ?? "en";
@@ -82,6 +95,14 @@ export function ClientChatSurface({ brand }: { brand: ClientBrand }) {
         <KodyChat
           presentation="standalone"
           hideTerminalMode
+          hideAgentPicker
+          compactHeader
+          allowSessionSidebarPin={false}
+          autoOpenSessionSidebar={false}
+          lockedModelId={brand.modelId}
+          lockedAgentSlug={brand.agentSlug}
+          kodyDirectHeaders={kodyDirectHeaders}
+          messageRoleLayout="client"
           railFullscreen
           plugins={plugins}
           capabilityGrant={CLIENT_CHAT_GRANT}

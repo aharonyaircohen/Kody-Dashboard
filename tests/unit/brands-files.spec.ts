@@ -134,6 +134,8 @@ describe("brand files", () => {
       accent: "#2563EB",
       locale: "HE_IL",
       welcomeText: "",
+      modelId: "sonnet-4",
+      agentSlug: "qa_agent",
     });
 
     expect(h.writeStateText).toHaveBeenCalledWith(
@@ -147,6 +149,8 @@ describe("brand files", () => {
             name: "Write Brand",
             accent: "#2563eb",
             locale: "he-il",
+            modelId: "sonnet-4",
+            agentSlug: "qa_agent",
           },
           null,
           2,

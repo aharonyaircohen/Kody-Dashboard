@@ -124,6 +124,8 @@ export function familySnapEntry(
 export interface UseAgentSelectionOptions {
   /** Host pins an agent (e.g. the Vibe page) — the picker is locked. */
   lockedAgentId?: AgentId;
+  /** Host pins a gateway model while still using the in-process Kody backend. */
+  lockedModelId?: string | null;
   /** Brain visibility — per-user Settings entry (URL + API key). */
   brainConfigured: boolean;
   /** Per-repo vault FLY_API_TOKEN probe result (kody-chat-data). */
@@ -176,6 +178,7 @@ export function useAgentSelection(
 ): UseAgentSelectionResult {
   const {
     lockedAgentId,
+    lockedModelId,
     brainConfigured,
     flyConfigured,
     brainFlyChatEnabled,
@@ -190,7 +193,9 @@ export function useAgentSelection(
   // When the user picks a gateway-routed model (any LLM_MODELS entry), the
   // dropdown sets `selectedAgentId='kody'` and stashes the gateway id here.
   // The chat request forwards it as `body.model`. Null = no override.
-  const [selectedModelId, setSelectedModelId] = useState<string | null>(null);
+  const [selectedModelId, setSelectedModelId] = useState<string | null>(
+    lockedModelId ?? null,
+  );
   const [agentMenuOpen, setAgentMenuOpen] = useState(false);
   // Thinking-level state. The chat header shows a small `🧠` dropdown
   // next to the agent picker when the current model declares a
@@ -274,12 +279,15 @@ export function useAgentSelection(
     [agentList],
   );
 
-  // When a parent toggles `lockedAgentId` on/off (route change), keep state in sync.
+  // When a parent toggles locked selection on/off (route change), keep state in sync.
   useEffect(() => {
     if (lockedAgentId && selectedAgentId !== lockedAgentId) {
       setSelectedAgentId(lockedAgentId);
     }
-  }, [lockedAgentId, selectedAgentId]);
+    if (lockedModelId !== undefined && selectedModelId !== lockedModelId) {
+      setSelectedModelId(lockedModelId ?? null);
+    }
+  }, [lockedAgentId, lockedModelId, selectedAgentId, selectedModelId]);
 
   // Per-session agent sync. The active session's `agentKey` is the
   // source of truth for the visible agent — switching sessions

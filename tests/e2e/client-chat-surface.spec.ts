@@ -108,28 +108,29 @@ test.describe("Client chat surface", () => {
     await expect(chats).toHaveCount(1);
     const chat = chats.first();
 
-    await chat.locator('button[aria-haspopup="listbox"]').first().click();
-    const listbox = page.getByRole("listbox").filter({
-      has: page.getByRole("option", { name: /GPT X|Claude Y|Kody Live/i }),
-    });
+    await expect(chat.getByText("Kody", { exact: true })).toHaveCount(0);
+    await expect(chat.getByText("GPT X")).toHaveCount(0);
+    await expect(chat.getByText("Claude Y")).toHaveCount(0);
     await expect(
-      listbox.getByRole("option", { name: /Kody Live/i }),
-    ).toBeVisible();
-    await expect(listbox.getByRole("option", { name: /GPT X/i })).toBeVisible();
-    await expect(
-      listbox.getByRole("option", { name: /Claude Y/i }),
-    ).toBeVisible();
-    await listbox.getByRole("option", { name: /GPT X/i }).click();
-
-    await expect(
-      chat.locator('button[title^="Thinking level"]').first(),
-    ).toHaveAttribute("title", /Medium/);
+      chat.locator('button[title^="Switch assistant"]').first(),
+    ).toHaveCount(0);
+    await expect(chat.locator('button[title^="Thinking level"]')).toHaveCount(
+      0,
+    );
     await expect(chat.locator("textarea").first()).toBeEditable();
     await expect(chat.locator('button[title="Bold"]')).toBeVisible();
     await expect(chat.locator('button[title="Preview"]')).toBeVisible();
     await expect(chat.getByRole("button", { name: /Terminal/i })).toHaveCount(
       0,
     );
+    await expect(chat.getByText(/Global chat/i)).toHaveCount(0);
+    await expect(async () => {
+      const box = await chat
+        .locator('[data-testid="chat-header-controls"]')
+        .boundingBox();
+      expect(box).not.toBeNull();
+      expect(box!.height).toBeLessThanOrEqual(44);
+    }).toPass();
 
     const chatRoot = page.locator('[data-testid="kody-chat-root"]').first();
     await expect(chatRoot).toBeVisible();
@@ -145,20 +146,41 @@ test.describe("Client chat surface", () => {
     }).toPass();
 
     const sessionSidebar = page.locator('[data-testid="session-sidebar"]');
+    await expect(sessionSidebar).toHaveCount(0);
+    await chat.getByRole("button", { name: "Toggle conversations" }).click();
     await expect(sessionSidebar).toBeVisible();
-    const panelPin = page.getByRole("button", {
-      name: "Pin conversations panel",
-    });
-    await expect(panelPin).toBeVisible();
-    await panelPin.click();
     await expect(
-      page.getByRole("button", { name: "Unpin conversations panel" }),
-    ).toBeVisible();
+      sessionSidebar.getByRole("button", { name: /Pin conversations panel/i }),
+    ).toHaveCount(0);
+    await sessionSidebar
+      .getByRole("button", { name: "Close conversations" })
+      .click();
+    await expect(sessionSidebar).toHaveCount(0);
+
+    let sawOperatorAuth = false;
+    await page.unroute("**/api/kody/chat/kody");
+    await page.route("**/api/kody/chat/kody", async (route) => {
+      const headers = route.request().headers();
+      sawOperatorAuth =
+        headers["x-kody-token"] === "ghp_placeholder" &&
+        headers["x-kody-surface-ticket"] === undefined;
+      await route.fulfill({
+        status: 200,
+        headers: {
+          "content-type": "text/event-stream; charset=utf-8",
+          "cache-control": "no-cache",
+        },
+        body: sseBody([
+          { type: "text-delta", delta: "Hi! How can I help you today?" },
+        ]),
+      });
+    });
 
     const composer = chat.locator("textarea").first();
     await composer.fill("hi");
     await chat.getByRole("button", { name: "Send message" }).click();
     await expect(chat.getByText("Hi! How can I help you today?")).toBeVisible();
+    expect(sawOperatorAuth).toBe(true);
     await expect(chat.getByText(/renderer-capable model/i)).toHaveCount(0);
   });
 
@@ -186,6 +208,50 @@ test.describe("Client chat surface", () => {
     await expect(chat.getByRole("button", { name: /Terminal/i })).toHaveCount(
       0,
     );
+  });
+
+  test("/client/kody mobile keeps chat reachable when conversations open", async ({
+    page,
+  }) => {
+    await page.setViewportSize({ width: 390, height: 844 });
+    await page.evaluate(() => {
+      localStorage.setItem("kody-chat:sessions-panel-pinned", "1");
+    });
+    await page.goto(`${BASE_URL}/client/kody`);
+    await page.waitForLoadState("domcontentloaded");
+
+    const surface = page.locator('[data-testid="client-chat-surface"]');
+    const chat = page.locator('[aria-label="Kody chat"]').first();
+    const sessionSidebar = page.locator('[data-testid="session-sidebar"]');
+    await expect(surface).toBeVisible({ timeout: 15_000 });
+    await expect(sessionSidebar).toHaveCount(0);
+    const composer = chat.locator("textarea").first();
+    await expect(composer).toBeEditable();
+    await expect(chat.locator('button[title="Bold"]')).toHaveCount(0);
+    await expect(chat.locator('button[title="Preview"]')).toHaveCount(0);
+    await expect(chat.locator('button[title="Split"]')).toHaveCount(0);
+    await expect(async () => {
+      const box = await composer.boundingBox();
+      expect(box).not.toBeNull();
+      expect(box!.height).toBeLessThanOrEqual(48);
+    }).toPass();
+
+    await chat.getByRole("button", { name: "Toggle conversations" }).click();
+    await expect(sessionSidebar).toBeVisible();
+
+    await expect(async () => {
+      const surfaceBox = await surface.boundingBox();
+      const sidebarBox = await sessionSidebar.boundingBox();
+      expect(surfaceBox).not.toBeNull();
+      expect(sidebarBox).not.toBeNull();
+      expect(sidebarBox!.width).toBeLessThan(surfaceBox!.width);
+    }).toPass();
+
+    await sessionSidebar
+      .getByRole("button", { name: "Close conversations" })
+      .click();
+    await expect(sessionSidebar).toHaveCount(0);
+    await expect(composer).toBeEditable();
   });
 
   test("/client/unknown-brand returns 404", async ({ page }) => {
@@ -241,6 +307,7 @@ test.describe("Client chat surface", () => {
     page,
   }) => {
     const hebrewReply = "שלום! איך אפשר לעזור?";
+    const hiddenThinking = "<ant_thinking>בודק את ההקשר</ant_thinking>";
     await page.route("**/api/kody/chat/kody", async (route) => {
       await route.fulfill({
         status: 200,
@@ -248,7 +315,9 @@ test.describe("Client chat surface", () => {
           "content-type": "text/event-stream; charset=utf-8",
           "cache-control": "no-cache",
         },
-        body: sseBody([{ type: "text-delta", delta: hebrewReply }]),
+        body: sseBody([
+          { type: "text-delta", delta: `${hiddenThinking}\n${hebrewReply}` },
+        ]),
       });
     });
     await page.goto(`${BASE_URL}/client/kody-he`);
@@ -266,6 +335,7 @@ test.describe("Client chat surface", () => {
     await composer.fill("Hello from an LTR message");
     await chat.getByRole("button", { name: "Send message" }).click();
     await expect(chat.getByText(hebrewReply)).toBeVisible();
+    await expect(chat.getByText(/ant_thinking|בודק את ההקשר/)).toHaveCount(0);
 
     // Per-message direction is explicit per bubble (getMessageDirection in
     // chat/surface/MessageList.tsx) and must NOT be overridden by the RTL
@@ -277,5 +347,9 @@ test.describe("Client chat surface", () => {
     await expect(
       chat.locator('[data-role="assistant"] > div[dir="rtl"]'),
     ).toBeVisible();
+    const assistantBidi = await chat
+      .locator('[data-role="assistant"] > div[dir="rtl"]')
+      .evaluate((node) => getComputedStyle(node).unicodeBidi);
+    expect(assistantBidi).toBe("plaintext");
   });
 });

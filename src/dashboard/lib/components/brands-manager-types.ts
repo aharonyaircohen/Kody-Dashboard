@@ -11,6 +11,8 @@ export interface BrandRow {
   accent: string;
   locale?: string;
   welcomeText?: string;
+  modelId?: string;
+  agentSlug?: string;
   source: "repo" | "builtin";
   sha: string;
   updatedAt: string;
@@ -28,5 +30,17 @@ export interface SavePayload {
   accent: string;
   locale?: string;
   welcomeText?: string;
+  modelId?: string;
+  agentSlug?: string;
   isUpdate: boolean;
+}
+
+export interface BrandModelOption {
+  id: string;
+  label: string;
+}
+
+export interface BrandAgentOption {
+  slug: string;
+  title: string;
 }

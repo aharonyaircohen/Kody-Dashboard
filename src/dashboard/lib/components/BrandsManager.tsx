@@ -32,10 +32,12 @@ import { EmptyState } from "./EmptyState";
 import { MasterDetailShell } from "./MasterDetailShell";
 import type {
   BrandRow,
+  BrandModelOption,
   BrandsQueryScope,
   SavePayload,
 } from "./brands-manager-types";
 import { useMediaQuery } from "../hooks/useMediaQuery";
+import { useAgents } from "../hooks/useAgents";
 import { selectionPath } from "../selection-routing";
 import { cn } from "../utils";
 
@@ -67,6 +69,22 @@ async function listBrandsApi(
     throw new Error(json.message || json.error || `HTTP ${res.status}`);
   }
   return json.brands ?? [];
+}
+
+async function listBrandModelsApi(
+  headers: Record<string, string>,
+): Promise<BrandModelOption[]> {
+  const res = await fetch("/api/kody/models", { headers, cache: "no-store" });
+  const json = (await res.json().catch(() => ({}))) as {
+    models?: Array<{ id?: string; label?: string; enabled?: boolean }>;
+  };
+  if (!res.ok || !Array.isArray(json.models)) return [];
+  return json.models
+    .filter((model) => model.enabled !== false && model.id)
+    .map((model) => ({
+      id: model.id!,
+      label: model.label || model.id!,
+    }));
 }
 
 async function saveBrandApi(
@@ -128,6 +146,8 @@ function brandSearchText(brand: BrandRow): string {
     brand.accent,
     brand.locale,
     brand.welcomeText,
+    brand.modelId,
+    brand.agentSlug,
     brand.source,
   ]
     .filter(Boolean)
@@ -157,6 +177,21 @@ export function BrandsManager({
     enabled: !!auth,
     staleTime: 30_000,
   });
+  const { data: modelOptions = [] } = useQuery<BrandModelOption[]>({
+    queryKey: ["kody-brands-model-options", queryScope.owner, queryScope.repo],
+    queryFn: () => listBrandModelsApi(headers),
+    enabled: !!auth,
+    staleTime: 30_000,
+  });
+  const { data: agents = [] } = useAgents();
+  const agentOptions = useMemo(
+    () =>
+      agents.map((agent) => ({
+        slug: agent.slug,
+        title: agent.title || agent.slug,
+      })),
+    [agents],
+  );
   const brands = useMemo(() => data ?? [], [data]);
   const repoBrandCount = brands.filter(
     (brand) => brand.source === "repo",
@@ -335,6 +370,8 @@ export function BrandsManager({
           initial={editing.brand}
           isNew={editing.isNew}
           existingSlugs={new Set(brands.map((brand) => brand.slug))}
+          modelOptions={modelOptions}
+          agentOptions={agentOptions}
           saving={save.isPending}
           onClose={() => setEditing(null)}
           onSave={async (payload) => {
@@ -400,7 +437,8 @@ function BrandListRow({
           {brandSurfacePath(brand.slug)}
         </p>
         <p className="mt-1 truncate text-xs text-white/50">
-          {brand.accent} · {brand.locale ?? "en"}
+          {brand.accent} · {brand.locale ?? "en"} ·{" "}
+          {brand.modelId ?? "default model"}
         </p>
       </button>
       <Button
@@ -504,6 +542,19 @@ function BrandDetail({
               value={brandSurfacePath(brand.slug)}
             />
             <DetailField label="Slug" value={brand.slug} />
+          </div>
+        </BrandDetailSection>
+
+        <BrandDetailSection title="Chat defaults" icon={<Sparkles />}>
+          <div className="grid gap-3 md:grid-cols-2">
+            <DetailField
+              label="Model"
+              value={brand.modelId ?? "Repo default model"}
+            />
+            <DetailField
+              label="Agency agent"
+              value={brand.agentSlug ?? "Kody default agent"}
+            />
           </div>
         </BrandDetailSection>
 

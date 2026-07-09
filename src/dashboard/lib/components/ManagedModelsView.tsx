@@ -1952,9 +1952,83 @@ function GoalInstancesSection({
   );
 }
 
+function GoalWorkflowSection({
+  workflowRef,
+  workflows,
+  capabilities,
+  label,
+}: {
+  workflowRef: ManagedGoalWorkflowRef;
+  workflows: WorkflowDefinitionRecord[];
+  capabilities: CapabilitySummary[];
+  label: string;
+}) {
+  const workflow = workflows.find((item) => item.id === workflowRef.id);
+  const capabilityBySlug = useMemo(
+    () =>
+      new Map(capabilities.map((capability) => [capability.slug, capability])),
+    [capabilities],
+  );
+  const workflowCapabilities = workflow?.workflow.capabilities ?? [];
+
+  return (
+    <ContentSection
+      icon={Route}
+      title="Workflow"
+      subtitle={`What this ${label} runs to collect evidence`}
+      count={workflowCapabilities.length || 1}
+    >
+      <div className="space-y-3">
+        <div className="rounded-md border border-white/[0.08] bg-black/20 px-3 py-3 text-sm">
+          <div className="flex min-w-0 flex-wrap items-center gap-2">
+            <span className="font-medium text-white/85">
+              {workflow?.workflow.name ?? workflowRef.id}
+            </span>
+            <span className="rounded border border-white/10 bg-white/[0.04] px-1.5 py-0.5 font-mono text-[10px] uppercase tracking-wide text-white/50">
+              {workflowRef.source ?? workflow?.source ?? "workflow"}
+            </span>
+          </div>
+          <div className="mt-1 font-mono text-xs text-white/45">
+            {workflow?.path ?? `workflows/${workflowRef.id}/workflow.json`}
+          </div>
+        </div>
+
+        {workflowCapabilities.length ? (
+          <div className="space-y-2">
+            {workflowCapabilities.map((slug, index) => {
+              const capability = capabilityBySlug.get(slug);
+              return (
+                <div
+                  key={`${slug}:${index}`}
+                  className="flex min-w-0 items-center gap-3 rounded-md border border-white/[0.08] bg-black/20 px-3 py-2 text-sm"
+                >
+                  <span className="w-6 shrink-0 font-mono text-xs text-white/35">
+                    {index + 1}
+                  </span>
+                  <div className="min-w-0">
+                    <div className="truncate text-white/80">
+                      {capability?.describe ?? slug}
+                    </div>
+                    <div className="font-mono text-xs text-white/45">
+                      {slug}
+                    </div>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        ) : (
+          <EmptyHint text="Workflow definition is not loaded yet." />
+        )}
+      </div>
+    </ContentSection>
+  );
+}
+
 function GoalDetail({
   goal,
   capabilities,
+  workflows,
   copy,
   trustLevel,
   trustPending,
@@ -1970,6 +2044,7 @@ function GoalDetail({
 }: {
   goal: ManagedGoalRecord;
   capabilities: CapabilitySummary[];
+  workflows: WorkflowDefinitionRecord[];
   copy: ManagedModelViewCopy;
   trustLevel: TrustLevel;
   trustPending: boolean;
@@ -1992,6 +2067,12 @@ function GoalDetail({
   const kind = modelTypeLabel(goal);
   const factEntries = goalFactEntries(goal);
   const isRoutine = managedGoalModel(goal) === "agentLoop";
+  const workflowRef =
+    !isRoutine && goal.state.workflowRef?.id ? goal.state.workflowRef : null;
+  const directCapabilityCount =
+    goal.state.capabilities.length +
+    goal.state.route.length +
+    Object.keys(goal.state.scheduleState?.capabilities ?? {}).length;
   const loopTarget = managedLoopTarget(goal);
   const canActivate =
     goal.state.state === "inactive" || goal.state.state === "paused";
@@ -2191,9 +2272,34 @@ function GoalDetail({
           </ContentSection>
         ) : null}
 
-        {!isRoutine ||
-        goal.state.capabilities.length > 0 ||
-        Object.keys(goal.state.scheduleState?.capabilities ?? {}).length > 0 ? (
+        {workflowRef ? (
+          <GoalWorkflowSection
+            workflowRef={workflowRef}
+            workflows={workflows}
+            capabilities={capabilities}
+            label={copy.singular}
+          />
+        ) : null}
+
+        {!workflowRef &&
+        (!isRoutine ||
+          goal.state.capabilities.length > 0 ||
+          Object.keys(goal.state.scheduleState?.capabilities ?? {}).length >
+            0) ? (
+          <GoalCapabilitiesSection
+            goal={goal}
+            label={copy.singular}
+            capabilities={capabilities}
+            runningSlug={
+              runCapability.isPending
+                ? ((runCapability.variables as { slug?: string } | undefined)
+                    ?.slug ?? null)
+                : null
+            }
+            onRun={(slug) => runCapability.mutate({ slug, force: true })}
+          />
+        ) : null}
+        {workflowRef && directCapabilityCount > 0 ? (
           <GoalCapabilitiesSection
             goal={goal}
             label={copy.singular}
@@ -2762,6 +2868,7 @@ export function ManagedModelsView({
   const goals = useMemo(() => fetchedGoals ?? [], [fetchedGoals]);
   const goalsLoaded = fetchedGoals !== undefined;
   const { data: capabilities = [] } = useCapabilities();
+  const { data: workflows = [] } = useWorkflowDefinitions();
   const trust = useTrust();
   const setGoalState = useSetManagedGoalState();
   const runManagedGoal = useRunManagedGoal();
@@ -2876,6 +2983,7 @@ export function ManagedModelsView({
             <GoalDetail
               goal={selectedGoal}
               capabilities={capabilities}
+              workflows={workflows}
               copy={copy}
               trustLevel={selectedTrustLevel}
               trustPending={trust.isMutating}

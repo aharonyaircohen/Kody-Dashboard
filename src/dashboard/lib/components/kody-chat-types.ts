@@ -151,6 +151,25 @@ export interface KodyChatProps {
    * suppressed and the brain auto-default logic is skipped.
    */
   lockedAgentId?: AgentId;
+  /** Force the in-process chat model id. Used by client brand surfaces. */
+  lockedModelId?: string;
+  /** Prompt identity slug for the in-process route. Used by client brands. */
+  lockedAgentSlug?: string;
+  /** Hide the agent/model picker for surfaces where selection is configured elsewhere. */
+  hideAgentPicker?: boolean;
+  /** Use a shorter header row while keeping the shared chat header controls. */
+  compactHeader?: boolean;
+  /** Allow the conversations panel to persist as a pinned desktop rail. */
+  allowSessionSidebarPin?: boolean;
+  /** Auto-open conversations when global chat enters fullscreen. */
+  autoOpenSessionSidebar?: boolean;
+  /** Extra headers for kody-direct turns, e.g. a scoped client-surface ticket. */
+  kodyDirectHeaders?: Record<string, string>;
+  /**
+   * Bubble side policy. Dashboard chat keeps user-right / assistant-left;
+   * client support chat uses visitor-left / brand-agent-right.
+   */
+  messageRoleLayout?: "dashboard" | "client";
   /**
    * Vibe mode — keeps chat focused on research, planning, and issue creation
    * for the Vibe page. Execution is owned by the Vibe page workflow, which

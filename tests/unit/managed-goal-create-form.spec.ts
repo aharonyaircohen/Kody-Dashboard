@@ -161,6 +161,25 @@ describe("ManagedModelsView model form", () => {
     expect(source).toContain('"Disable loop auto-run"');
   });
 
+  it("shows workflow-backed goal details as workflow-backed, not empty capabilities", () => {
+    const detail = source.slice(
+      source.indexOf("function GoalDetail"),
+      source.indexOf("const scheduleEveryValues"),
+    );
+
+    expect(source).toContain("function GoalWorkflowSection");
+    expect(detail).toContain("const workflowRef =");
+    expect(detail).toContain("<GoalWorkflowSection");
+    expect(detail).toContain("workflows={workflows}");
+    expect(detail).toContain("!workflowRef &&");
+    expect(source).toContain(
+      'EmptyHint text="No capabilities are attached to this goal."',
+    );
+    expect(detail.indexOf("<GoalWorkflowSection")).toBeLessThan(
+      detail.indexOf("!workflowRef &&"),
+    );
+  });
+
   it("shows compact runtime status on agentLoop detail pages", () => {
     expect(source).toContain("useManagedGoalRunHistory");
     expect(source).toContain("function GoalLoopStatusSection");

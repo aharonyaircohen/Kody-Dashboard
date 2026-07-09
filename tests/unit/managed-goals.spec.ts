@@ -221,6 +221,53 @@ describe("mergeManagedGoalStateWithTemplate", () => {
     expect(merged.capabilities).toEqual(["ai-agency-health-matrix"]);
     expect(merged.facts["ai-agency-health-matrix"]).toBe(true);
   });
+
+  it("preserves Store workflow targets for workflow-backed templates", () => {
+    const runtime = normalizeManagedGoalState({
+      version: 1,
+      state: "active",
+      type: "web-release",
+      sourceTemplate: "web-release",
+      destination: { outcome: "Old release state", evidence: [] },
+      capabilities: ["release-prepare"],
+      route: [
+        {
+          stage: "release",
+          evidence: "releasePrExists",
+          capability: "release-prepare",
+        },
+      ],
+      facts: {},
+      blockers: [],
+    });
+    const template = normalizeManagedGoalState({
+      version: 1,
+      kind: "template",
+      template: true,
+      templateId: "web-release",
+      state: "inactive",
+      type: "web-release",
+      destination: {
+        outcome: "Release is prepared and verified on production.",
+        evidence: ["releasePrExists", "productionDeployed"],
+      },
+      workflowRef: { id: "web-release", source: "store" },
+      capabilities: [],
+      route: [],
+      stage: "workflow",
+      facts: {},
+      blockers: [],
+    });
+
+    expect(runtime).not.toBeNull();
+    expect(template).not.toBeNull();
+
+    const merged = mergeManagedGoalStateWithTemplate(runtime!, template!);
+
+    expect(merged.workflowRef).toEqual({ id: "web-release", source: "store" });
+    expect(merged.capabilities).toEqual([]);
+    expect(merged.route).toEqual([]);
+  });
 });
 
 describe("simple managed goal creation", () => {

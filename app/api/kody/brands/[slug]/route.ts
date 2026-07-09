@@ -43,6 +43,8 @@ const updateBrandSchema = z.object({
     .optional(),
   locale: z.string().trim().max(35).nullable().optional(),
   welcomeText: z.string().trim().max(1000).nullable().optional(),
+  modelId: z.string().trim().min(1).max(160).nullable().optional(),
+  agentSlug: z.string().trim().min(1).max(80).nullable().optional(),
   actorLogin: z.string().optional(),
 });
 
@@ -163,6 +165,14 @@ export async function PATCH(
         parsed.welcomeText === undefined
           ? base.welcomeText
           : (parsed.welcomeText ?? undefined),
+      modelId:
+        parsed.modelId === undefined
+          ? base.modelId
+          : (parsed.modelId ?? undefined),
+      agentSlug:
+        parsed.agentSlug === undefined
+          ? base.agentSlug
+          : (parsed.agentSlug ?? undefined),
       sha: existing?.sha,
       message: existing
         ? `chore(brands): update ${slug}`

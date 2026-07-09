@@ -51,13 +51,20 @@ import {
   requireKodyAuth,
   getRequestAuth,
   verifyActorLogin,
+  type RequestAuth,
 } from "@dashboard/lib/auth";
+import { buildKodyAuthHeaders } from "@dashboard/lib/auth-headers";
 import {
   createUserOctokit,
   setGitHubContext,
   clearGitHubContext,
 } from "@dashboard/lib/github-client";
 import { getSecret } from "@dashboard/lib/vault/get-secret";
+import { resolveVaultGithubToken } from "@dashboard/lib/vault/bootstrap";
+import {
+  resolveClientBrand,
+  type ClientBrand,
+} from "@dashboard/lib/client-brand";
 import { resolveChatModel } from "../resolve-model";
 import { supportsVision } from "@dashboard/lib/chat/core/vision-support";
 import { formatAttachmentForTextBackend } from "@dashboard/lib/chat/core/attachment-text";
@@ -98,6 +105,7 @@ import {
   SHOW_VIEW_TOOL,
   isFinalAnswerRequiresViewOutput,
   isToolErrorOutput,
+  selectChatOutputActiveTools,
 } from "@dashboard/lib/chat-output-tools";
 import {
   shouldAllowPreRenderToolCallsForTurn,
@@ -476,6 +484,17 @@ function getLatestUserText(messages: ModelMessage[]): string | null {
   return null;
 }
 
+function requestWithAuth(req: NextRequest, auth: RequestAuth): NextRequest {
+  const headers = new Headers(req.headers);
+  for (const [key, value] of Object.entries(buildKodyAuthHeaders(auth))) {
+    headers.set(key, value);
+  }
+  return new NextRequest(req.url, {
+    method: req.method,
+    headers,
+  });
+}
+
 export async function POST(req: NextRequest) {
   // Short trace ID lets us follow a single chat request through every log
   // line (start, per-tool start/finish, per-step finish, errors, finish).
@@ -577,6 +596,35 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "Invalid JSON" }, { status: 400 });
   }
 
+  let repoScopedReq = req;
+  let surfaceBrand: ClientBrand | null = null;
+  if (surfaceScope.kind === "client") {
+    const token = await resolveVaultGithubToken(
+      surfaceScope.owner,
+      surfaceScope.repo,
+    );
+    if (!token) {
+      return NextResponse.json(
+        {
+          error: "client_surface_not_configured",
+          message:
+            "This client chat surface is not configured with a repo token.",
+        },
+        { status: 401 },
+      );
+    }
+    const auth: RequestAuth = {
+      token,
+      owner: surfaceScope.owner,
+      repo: surfaceScope.repo,
+    };
+    repoScopedReq = requestWithAuth(req, auth);
+    surfaceBrand = await resolveClientBrand(surfaceScope.brandSlug, auth);
+    if (!surfaceBrand) {
+      return NextResponse.json({ error: "brand_not_found" }, { status: 404 });
+    }
+  }
+
   const allMessages = normalizeMessages(body.messages ?? []);
   if (allMessages.length === 0) {
     return NextResponse.json(
@@ -599,7 +647,8 @@ export async function POST(req: NextRequest) {
   // Model resolution (list → pick → key → SDK) is shared with the title
   // route via resolveChatModel so the two can't drift. Voice mode does
   // not affect model selection; it's a per-turn prompt overlay only.
-  const resolution = await resolveChatModel(req, body.model, {
+  const modelOverride = clientSurface ? surfaceBrand?.modelId : body.model;
+  const resolution = await resolveChatModel(repoScopedReq, modelOverride, {
     preferVision: hasImageParts,
   });
   if ("error" in resolution) return resolution.error;
@@ -609,7 +658,7 @@ export async function POST(req: NextRequest) {
   // verify — actor-gated tools (remote_*) simply stay off (null login).
   let verifiedActorLogin: string | null = null;
   if (!clientSurface) {
-    const actorResult = await verifyActorLogin(req, body.actorLogin);
+    const actorResult = await verifyActorLogin(repoScopedReq, body.actorLogin);
     if (actorResult instanceof NextResponse) return actorResult;
     verifiedActorLogin = actorResult.identity.login;
   }
@@ -621,7 +670,7 @@ export async function POST(req: NextRequest) {
   let modelMessages = modelIsVision
     ? messages
     : inlineImagePartsForTextModel(messages);
-  const repo = getRequestAuth(req);
+  const repo = getRequestAuth(repoScopedReq);
   const goalPlannerActive = body.goalPlanner === true && !!body.goal;
 
   // Memory index injection requires the github-client module-level context
@@ -634,7 +683,7 @@ export async function POST(req: NextRequest) {
   let context: string | null = null;
   let viewRendererRules: string | null = null;
   let viewRendererDefinitions: ViewRendererDefinition[] = [];
-  if (repo) {
+  if (repo && !clientSurface) {
     setGitHubContext(
       repo.owner,
       repo.repo,
@@ -782,10 +831,12 @@ export async function POST(req: NextRequest) {
   // The bundle is the source of truth for the chat's prompt base + tool
   // allowlist. Repo-stored with a TS fallback; step 1 returns TS defaults.
   const chatBundle = await loadChatDefaults(repo?.owner, repo?.repo);
-  // Agent identity swaps (@slug) are admin-only — client-surface turns
-  // always speak as the brand's default agent.
-  const agentSlug =
-    !clientSurface && typeof body.agentSlug === "string"
+  // Agent identity swaps (@slug) are admin-only from the request body.
+  // Client-surface turns can only use the agent configured on the resolved
+  // brand, which is loaded server-side from the ticket's repo scope.
+  const agentSlug = clientSurface
+    ? (surfaceBrand?.agentSlug ?? "")
+    : typeof body.agentSlug === "string"
       ? body.agentSlug.trim()
       : "";
   let activeAgentIdentity = chatBundle.agentIdentity;
@@ -827,7 +878,7 @@ export async function POST(req: NextRequest) {
   // resolution done above.
   let uiToolSet = createUiTools();
   let extraTools: Record<string, unknown> = {};
-  if (repo) {
+  if (repo && !clientSurface) {
     // Per-request Octokit (no shared singleton) so the GitHub tools
     // don't race other concurrent /api/kody/chat/kody requests.
     const octokit = createUserOctokit(repo.token);
@@ -989,7 +1040,7 @@ export async function POST(req: NextRequest) {
     ...extraTools,
     ...createRemoteTools(verifiedActorLogin),
   };
-  if (repo) {
+  if (repo && !clientSurface) {
     const octokit = createUserOctokit(repo.token);
     extraTools = {
       ...extraTools,
@@ -1101,18 +1152,15 @@ export async function POST(req: NextRequest) {
       definitions: viewRendererDefinitions,
     }) &&
     Object.prototype.hasOwnProperty.call(allowlistedTools, SHOW_VIEW_TOOL);
-  const activeToolsWithoutFinalAnswer = Object.keys(allowlistedTools).filter(
-    (name) => name !== FINAL_ANSWER_TOOL,
-  ) as Array<keyof NonNullable<typeof tools>>;
+  const allActiveTools = Object.keys(allowlistedTools) as Array<
+    keyof NonNullable<typeof tools>
+  >;
   const shouldAllowPreRenderTools =
     requireViewOutput &&
     shouldAllowPreRenderToolCallsForTurn({
       userText: latestUserText,
       toolNames: Object.keys(allowlistedTools),
     });
-  const showViewOnlyTools = [SHOW_VIEW_TOOL] as Array<
-    keyof NonNullable<typeof tools>
-  >;
   const forceShowViewTool =
     Boolean(explicitViewRequest) &&
     Object.prototype.hasOwnProperty.call(allowlistedTools, SHOW_VIEW_TOOL);
@@ -1289,9 +1337,6 @@ This turn includes an image from the user. For questions about what is visible i
                     isFinalAnswerRequiresViewOutput(result.output),
                 ),
               );
-              if (!requireViewOutput && !finalAnswerNeedsView) {
-                return { toolChoice: "required" as const };
-              }
               const hasPreRenderToolResult = steps.some((step) =>
                 step.toolResults.some(
                   (result) =>
@@ -1300,12 +1345,13 @@ This turn includes an image from the user. For questions about what is visible i
                 ),
               );
               return {
-                activeTools:
-                  requireViewOutput &&
-                  shouldAllowPreRenderTools &&
-                  !hasPreRenderToolResult
-                    ? activeToolsWithoutFinalAnswer
-                    : showViewOnlyTools,
+                activeTools: selectChatOutputActiveTools({
+                  toolNames: allActiveTools,
+                  requireViewOutput,
+                  allowPreRenderTools:
+                    shouldAllowPreRenderTools && !hasPreRenderToolResult,
+                  finalAnswerNeedsView,
+                }),
                 toolChoice: "required" as const,
               };
             },

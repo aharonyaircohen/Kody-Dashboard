@@ -31,7 +31,7 @@ interface SessionsPanelProps {
   onDeleteSession: (sessionId: string) => void;
   onRenameSession: (sessionId: string, title: string) => void;
   onPinSession: (sessionId: string) => void;
-  onTogglePinned: () => void;
+  onTogglePinned?: () => void;
   onClose: () => void;
 }
 
@@ -62,12 +62,14 @@ export function SessionsPanel({
 
   return (
     <>
-      {!pinned && !railFullscreen && (
+      {!pinned && (
         <button
           type="button"
           aria-label="Close conversations"
           onClick={onClose}
-          className="absolute inset-0 z-40 cursor-default bg-black/20"
+          className={`absolute inset-0 z-40 cursor-default bg-black/20 ${
+            railFullscreen ? "md:hidden" : ""
+          }`}
         />
       )}
       <SessionSidebar
@@ -85,7 +87,7 @@ export function SessionsPanel({
         fullscreen={railFullscreen}
         className={
           railFullscreen
-            ? "relative z-10 w-80 min-w-0 max-w-full basis-80 shrink shadow-none"
+            ? "absolute start-0 top-0 bottom-0 z-50 w-[min(20rem,calc(100vw-3rem))] max-w-full shadow-lg md:relative md:z-10 md:w-80 md:min-w-0 md:basis-80 md:shrink md:shadow-none"
             : `absolute start-0 top-0 bottom-0 w-full sm:w-72 z-50 ${
                 standalonePresentation ? "border-r-0 shadow-none" : "shadow-lg"
               }`

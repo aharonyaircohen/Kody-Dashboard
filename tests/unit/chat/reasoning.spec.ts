@@ -7,7 +7,10 @@
  * @domain unit
  */
 import { describe, expect, it } from "vitest";
-import { parseReasoning, stripReasoning } from "@dashboard/lib/chat/core/reasoning";
+import {
+  parseReasoning,
+  stripReasoning,
+} from "@dashboard/lib/chat/core/reasoning";
 
 describe("parseReasoning", () => {
   it("splits a standard think block from the visible answer", () => {
@@ -35,6 +38,15 @@ describe("parseReasoning", () => {
     });
   });
 
+  it("hides Anthropic-style ant_thinking blocks", () => {
+    expect(
+      parseReasoning("<ant_thinking>private</ant_thinking>\nFinal answer"),
+    ).toEqual({
+      reasoning: "private",
+      answer: "\nFinal answer",
+    });
+  });
+
   it("does not leak nested or already-tagged thinking chunks into the answer", () => {
     const parsed = parseReasoning(
       "<think><think>inner private</think></think>Final answer",
@@ -54,11 +66,29 @@ describe("parseReasoning", () => {
     });
   });
 
+  it("hides encoded Anthropic-style scratchpad tags", () => {
+    expect(
+      parseReasoning(
+        "&lt;ant_thinking&gt;private&lt;/ant_thinking&gt;Final answer",
+      ),
+    ).toEqual({
+      reasoning: "private",
+      answer: "Final answer",
+    });
+  });
+
   it("removes a partial scratchpad tag suffix during streaming", () => {
     const parsed = parseReasoning("Final answer <thi");
 
     expect(parsed.answer).toBe("Final answer ");
     expect(parsed.answer).not.toContain("<thi");
+  });
+
+  it("removes a partial Anthropic-style scratchpad tag suffix during streaming", () => {
+    const parsed = parseReasoning("Final answer <ant_th");
+
+    expect(parsed.answer).toBe("Final answer ");
+    expect(parsed.answer).not.toContain("<ant_th");
   });
 });
 

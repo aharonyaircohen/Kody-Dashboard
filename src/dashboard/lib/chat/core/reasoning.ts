@@ -15,9 +15,9 @@ type ScratchpadTag = {
   end: number;
 };
 
-const SCRATCHPAD_TAG_RE = /^<\s*(\/?)\s*(think|thinking)\b[^>]*>/i;
+const SCRATCHPAD_TAG_RE = /^<\s*(\/?)\s*(think|thinking|ant_thinking)\b[^>]*>/i;
 const ENCODED_SCRATCHPAD_TAG_RE =
-  /&lt;(\s*\/?\s*(?:think|thinking)\b[^&]{0,200})&gt;/gi;
+  /&lt;(\s*\/?\s*(?:think|thinking|ant_thinking)\b[^&]{0,200})&gt;/gi;
 
 function normalizeEncodedScratchpadTags(raw: string): string {
   return raw.replace(ENCODED_SCRATCHPAD_TAG_RE, "<$1>");
@@ -41,9 +41,11 @@ function isScratchpadTagPrefix(fragment: string): boolean {
   return (
     "<think".startsWith(compact) ||
     "<thinking".startsWith(compact) ||
+    "<ant_thinking".startsWith(compact) ||
     "</think".startsWith(compact) ||
     "</thinking".startsWith(compact) ||
-    /^<\/?\s*thinking?\b/i.test(fragment)
+    "</ant_thinking".startsWith(compact) ||
+    /^<\/?\s*(?:thinking?|ant_thinking)\b/i.test(fragment)
   );
 }
 
