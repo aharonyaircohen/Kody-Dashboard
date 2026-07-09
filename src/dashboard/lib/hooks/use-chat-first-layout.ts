@@ -4,7 +4,7 @@
  * @pattern per-user-toggle
  * @ai-summary Per-user "chat-first layout (beta)" toggle (phase 2 step 2).
  *   Stored in localStorage (Settings page is per-user by convention),
- *   default OFF — with the flag off the shell renders byte-identically to
+ *   default ON — with an explicit opt-out the shell renders byte-identically to
  *   the current rail layout. ChatRailShell reads it via the hook; the
  *   Settings card writes it via setChatFirstLayout, which broadcasts a
  *   window event so the shell flips live without a reload.
@@ -18,11 +18,9 @@ const CHANGE_EVENT = "kody:chat-first-layout-changed";
 
 /**
  * The default when the user has never touched the toggle (absent key /
- * unavailable storage). Phase 2 step 5 prepares the flip: change this ONE
- * constant to `true` to make chat-first the default shell — an explicit
- * "0" (user opted out) still wins.
+ * unavailable storage). An explicit "0" (user opted out) still wins.
  */
-export const CHAT_FIRST_DEFAULT = false;
+export const CHAT_FIRST_DEFAULT = true;
 
 /** Read the persisted toggle. Absent key → CHAT_FIRST_DEFAULT; an explicit
  *  stored value always wins; storage failures read as the default. */

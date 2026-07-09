@@ -1,9 +1,8 @@
 /**
  * @fileoverview Pins the chat-first default-flip contract (phase 2 step 5):
  * with NO stored key, readChatFirstLayout follows CHAT_FIRST_DEFAULT — the
- * one-line flip later is changing that constant, nothing else. Explicit
- * stored values ("1"/"0") always win over the default, and unavailable
- * storage also reads as the default.
+ * product default is ON now, but explicit stored values ("1"/"0") always win
+ * over the default, and unavailable storage also reads as the default.
  *
  * @testFramework vitest
  * @domain layout
@@ -26,9 +25,9 @@ afterEach(() => {
   vi.unstubAllGlobals();
 });
 
-describe("chat-first layout default flip (step 5 preparation)", () => {
-  it("the prepared default is still OFF (flip is a later product decision)", () => {
-    expect(CHAT_FIRST_DEFAULT).toBe(false);
+describe("chat-first layout default flip", () => {
+  it("the default is ON while explicit opt-out still wins", () => {
+    expect(CHAT_FIRST_DEFAULT).toBe(true);
   });
 
   it("absent key follows CHAT_FIRST_DEFAULT", () => {

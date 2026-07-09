@@ -32,7 +32,6 @@ import {
   type ReactNode,
 } from "react";
 import { usePathname, useRouter } from "next/navigation";
-import { PanelRightClose, PanelRightOpen } from "lucide-react";
 import { KodyChat } from "./KodyChat";
 import { AppHeader } from "./AppHeader";
 import { Sidebar } from "./Sidebar";
@@ -67,34 +66,79 @@ import { tasksChatPlugin, TASKS_PANEL_ID } from "../chat/plugins/tasks";
 // Phase 2 step 4 — remaining admin pages migrated to page-plugins via the
 // tasks-pilot recipe (panels-only manifests; routes unchanged, so the
 // chat-first toggle OFF stays byte-identical).
-import { activityChatPlugin, ACTIVITY_PANEL_ID } from "../chat/plugins/activity";
-import { agencyRunsChatPlugin, AGENCY_RUNS_PANEL_ID } from "../chat/plugins/agency-runs";
-import { agentGoalsChatPlugin, AGENT_GOALS_PANEL_ID } from "../chat/plugins/agent-goals";
-import { agentLoopsChatPlugin, AGENT_LOOPS_PANEL_ID } from "../chat/plugins/agent-loops";
+import {
+  activityChatPlugin,
+  ACTIVITY_PANEL_ID,
+} from "../chat/plugins/activity";
+import {
+  agencyRunsChatPlugin,
+  AGENCY_RUNS_PANEL_ID,
+} from "../chat/plugins/agency-runs";
+import {
+  agentGoalsChatPlugin,
+  AGENT_GOALS_PANEL_ID,
+} from "../chat/plugins/agent-goals";
+import {
+  agentLoopsChatPlugin,
+  AGENT_LOOPS_PANEL_ID,
+} from "../chat/plugins/agent-loops";
 import { agentsChatPlugin, AGENTS_PANEL_ID } from "../chat/plugins/agents";
-import { capabilitiesChatPlugin, CAPABILITIES_PANEL_ID } from "../chat/plugins/capabilities";
-import { changelogChatPlugin, CHANGELOG_PANEL_ID } from "../chat/plugins/changelog";
-import { commandsPageChatPlugin, COMMANDS_PAGE_PANEL_ID } from "../chat/plugins/commands-page";
+import {
+  capabilitiesChatPlugin,
+  CAPABILITIES_PANEL_ID,
+} from "../chat/plugins/capabilities";
+import {
+  changelogChatPlugin,
+  CHANGELOG_PANEL_ID,
+} from "../chat/plugins/changelog";
+import {
+  commandsPageChatPlugin,
+  COMMANDS_PAGE_PANEL_ID,
+} from "../chat/plugins/commands-page";
 import { companyChatPlugin, COMPANY_PANEL_ID } from "../chat/plugins/company";
-import { companyIntentsChatPlugin, COMPANY_INTENTS_PANEL_ID } from "../chat/plugins/company-intents";
+import {
+  companyIntentsChatPlugin,
+  COMPANY_INTENTS_PANEL_ID,
+} from "../chat/plugins/company-intents";
 import { configChatPlugin, CONFIG_PANEL_ID } from "../chat/plugins/config";
 import { contextChatPlugin, CONTEXT_PANEL_ID } from "../chat/plugins/context";
 import { docsChatPlugin, DOCS_PANEL_ID } from "../chat/plugins/docs";
 import { filesChatPlugin, FILES_PANEL_ID } from "../chat/plugins/files";
 import { inboxChatPlugin, INBOX_PANEL_ID } from "../chat/plugins/inbox";
-import { instructionsChatPlugin, INSTRUCTIONS_PANEL_ID } from "../chat/plugins/instructions";
+import {
+  instructionsChatPlugin,
+  INSTRUCTIONS_PANEL_ID,
+} from "../chat/plugins/instructions";
 import { memoryChatPlugin, MEMORY_PANEL_ID } from "../chat/plugins/memory";
-import { messagesChatPlugin, MESSAGES_PANEL_ID } from "../chat/plugins/messages";
+import {
+  messagesChatPlugin,
+  MESSAGES_PANEL_ID,
+} from "../chat/plugins/messages";
 import { modelsChatPlugin, MODELS_PANEL_ID } from "../chat/plugins/models";
-import { notificationsChatPlugin, NOTIFICATIONS_PANEL_ID } from "../chat/plugins/notifications";
+import {
+  notificationsChatPlugin,
+  NOTIFICATIONS_PANEL_ID,
+} from "../chat/plugins/notifications";
 import { previewChatPlugin, PREVIEW_PANEL_ID } from "../chat/plugins/preview";
 import { reportsChatPlugin, REPORTS_PANEL_ID } from "../chat/plugins/reports";
 import { secretsChatPlugin, SECRETS_PANEL_ID } from "../chat/plugins/secrets";
-import { settingsChatPlugin, SETTINGS_PANEL_ID } from "../chat/plugins/settings";
-import { storeCatalogChatPlugin, STORE_CATALOG_PANEL_ID } from "../chat/plugins/store-catalog";
+import {
+  settingsChatPlugin,
+  SETTINGS_PANEL_ID,
+} from "../chat/plugins/settings";
+import {
+  storeCatalogChatPlugin,
+  STORE_CATALOG_PANEL_ID,
+} from "../chat/plugins/store-catalog";
 import { todosChatPlugin, TODOS_PANEL_ID } from "../chat/plugins/todos";
-import { variablesChatPlugin, VARIABLES_PANEL_ID } from "../chat/plugins/variables";
-import { workflowsChatPlugin, WORKFLOWS_PANEL_ID } from "../chat/plugins/workflows";
+import {
+  variablesChatPlugin,
+  VARIABLES_PANEL_ID,
+} from "../chat/plugins/variables";
+import {
+  workflowsChatPlugin,
+  WORKFLOWS_PANEL_ID,
+} from "../chat/plugins/workflows";
 
 // Admin plugin composition (Step 6 / M6: the HOST owns the plugin list, so
 // each surface bundles only what it imports). Both KodyChat mounts (desktop
@@ -364,22 +408,15 @@ export function ChatRailShell({ children }: { children: ReactNode }) {
   const preExpandRouteRef = useRef("/tasks");
   const currentRepoPath = repoPathForNavMatching(pathname ?? "/");
 
-  // ─── Chat-first layout flip (phase 2 step 2, per-user, default OFF) ───
-  // Desktop only: chat renders as the MAIN column and the routed page
-  // becomes a collapsible side panel. The route stays the source of truth
-  // (deep links + back button work unchanged); navigation re-opens the
-  // panel. Mobile keeps the existing behavior (page + chat sheet). With
-  // the toggle off nothing below changes — the classic rail layout pins.
+  // ─── Chat-first layout flip (phase 2 step 2, per-user, default ON) ───
+  // Desktop only: the routed page can render through the plugin panel host
+  // while the visible rail/page geometry stays identical to the classic
+  // layout. The route stays the source of truth (deep links + back button
+  // work unchanged). Mobile keeps the existing behavior (page + chat sheet).
   const chatFirst = useChatFirstLayout();
   const flipActive = chatFirst && !publicRoute && !!auth;
-  const [panelOpen, setPanelOpen] = useState(true);
-  const setPanelOpenTraced = useCallback((next: boolean) => {
-    setPanelOpen(next);
-    trace({ kind: next ? "panel:open" : "panel:close", detail: "toggle" });
-  }, []);
   useEffect(() => {
     if (!flipActive || currentRepoPath === "/chat") return;
-    setPanelOpen(true);
     trace({ kind: "panel:open", detail: currentRepoPath });
   }, [flipActive, currentRepoPath]);
   const scopedHref = useCallback(
@@ -598,10 +635,7 @@ export function ChatRailShell({ children }: { children: ReactNode }) {
       // Expand = navigate to the /chat page; restore = back to the previous
       // page. On /chat the button reads as "restore" (railFullscreen).
       onToggleFullscreen={toggleExpandedChat}
-      // Chat-first flip: chat is the main column on every route, so it
-      // renders in its full-page (railFullscreen) form. The desktop mount
-      // is hidden on mobile non-chat routes, so mobile is unaffected.
-      railFullscreen={isChatRoute || flipActive}
+      railFullscreen={isChatRoute}
     />
   ) : (
     <div className="flex-1 flex items-center justify-center p-6">
@@ -632,26 +666,18 @@ export function ChatRailShell({ children }: { children: ReactNode }) {
                   "flex-col min-h-0 min-w-0 bg-black/20",
                   isChatRoute
                     ? "flex flex-1"
-                    : flipActive
-                      ? // Chat-first flip: chat is the MAIN column (full
-                        // width beside the panel). Desktop only — mobile
-                        // keeps the page + chat sheet behavior.
-                        "hidden md:flex flex-1"
-                      : "hidden md:flex shrink-0 border-r border-border",
+                    : "hidden md:flex shrink-0 border-r border-border",
                   !dragging && "transition-[width] duration-200",
                 )}
-                style={
-                  !isChatRoute && !flipActive ? { width: railWidth } : undefined
-                }
+                style={!isChatRoute ? { width: railWidth } : undefined}
                 aria-label="Kody chat"
               >
                 {chatPane}
               </div>
 
               {/* Drag handle between the chat rail and the page — desktop,
-                side-rail routes only (not when chat is the full /chat view
-                and not in the chat-first flip, where the panel is fixed). */}
-              {auth && !isChatRoute && !flipActive && (
+                side-rail routes only (not when chat is the full /chat view). */}
+              {auth && !isChatRoute && (
                 <div
                   role="separator"
                   aria-orientation="vertical"
@@ -677,43 +703,13 @@ export function ChatRailShell({ children }: { children: ReactNode }) {
                 in-pane on others. Pages own their internal scroll (children
                 wrapper is flex-1 below the header). Hidden on /chat, the full
                 chat view. */}
-              {/* Chat-first flip: collapse/expand strip for the side panel
-                (desktop only; hidden on /chat where the panel is closed). */}
-              {flipActive && !isChatRoute && (
-                <div className="hidden md:flex flex-col items-center border-l border-border bg-black/10 shrink-0">
-                  <button
-                    type="button"
-                    aria-label={panelOpen ? "Collapse panel" : "Expand panel"}
-                    title={panelOpen ? "Collapse panel" : "Expand panel"}
-                    onClick={() => setPanelOpenTraced(!panelOpen)}
-                    className="p-1.5 text-muted-foreground hover:text-foreground"
-                  >
-                    {panelOpen ? (
-                      <PanelRightClose className="w-4 h-4" />
-                    ) : (
-                      <PanelRightOpen className="w-4 h-4" />
-                    )}
-                  </button>
-                </div>
-              )}
-
               <div
                 className={cn(
                   "min-w-0 h-full overflow-hidden flex flex-col",
                   isChatRoute && "hidden",
-                  flipActive
-                    ? // The routed page is the host's built-in PANEL view:
-                      // fixed width on the right, collapsible. On mobile the
-                      // page keeps its full-width behavior (flip is
-                      // desktop-only) — when collapsed it only hides at md+.
-                      panelOpen
-                      ? "flex-1 md:flex-none md:w-[560px] md:max-w-[50vw] md:border-l md:border-border"
-                      : "flex-1 md:hidden"
-                    : "flex-1",
+                  "flex-1",
                 )}
-                {...(flipActive
-                  ? { "data-testid": "chat-first-panel" }
-                  : {})}
+                {...(flipActive ? { "data-testid": "chat-first-panel" } : {})}
               >
                 {!pageOwnsHeader && <AppHeader />}
                 <div className="flex-1 min-h-0 flex flex-col">

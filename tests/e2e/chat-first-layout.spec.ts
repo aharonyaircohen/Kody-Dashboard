@@ -1,10 +1,10 @@
 /**
  * @fileoverview Chat-first layout flip (phase 2 step 2). Mocked, token-free.
  * With the per-user toggle ON (localStorage `kody:chat-first-layout`), the
- * desktop shell flips: chat is the MAIN column and the routed page renders
- * in a collapsible side panel — the route stays the source of truth, so
- * deep links and the back button drive the panel. With the toggle OFF the
- * classic rail layout pins byte-identical (resize handle + fixed-width
+ * desktop shell keeps visual parity with the classic rail layout while the
+ * routed page can render through a plugin panel — the route stays the source
+ * of truth, so deep links and the back button drive the panel. With the toggle
+ * OFF the classic rail layout pins byte-identical (resize handle + fixed-width
  * chat aside, no panel wrapper).
  *
  * @testFramework playwright
@@ -19,9 +19,7 @@ async function seedAuth(
   page: Page,
   { chatFirst }: { chatFirst: boolean },
 ): Promise<void> {
-  await page.goto(`${BASE_URL}/login`);
-  await page.waitForLoadState("domcontentloaded");
-  await page.evaluate((enabled) => {
+  await page.addInitScript((enabled) => {
     const auth = {
       repoUrl: "https://github.com/test-owner/test-repo",
       owner: "test-owner",
@@ -38,7 +36,7 @@ async function seedAuth(
     if (enabled) {
       localStorage.setItem("kody:chat-first-layout", "1");
     } else {
-      localStorage.removeItem("kody:chat-first-layout");
+      localStorage.setItem("kody:chat-first-layout", "0");
     }
   }, chatFirst);
 }
@@ -93,21 +91,22 @@ test.describe("Chat-first layout (beta toggle)", () => {
     );
   });
 
-  test("toggle ON: /tasks renders chat as main column with the tasks panel", async ({
+  test("toggle ON: /tasks keeps classic rail geometry with the tasks panel", async ({
     page,
   }) => {
     await seedAuth(page, { chatFirst: true });
     await page.goto(`${BASE_URL}/tasks`);
 
-    // Chat is mounted and is the main column (no fixed-width rail: the
-    // resize handle only exists in the classic layout).
+    // Visual parity: chat stays the fixed-width rail and keeps the same
+    // resize handle as the classic layout.
     const chat = page.locator('[aria-label="Kody chat"]').first();
     await expect(chat).toBeVisible({ timeout: 15_000 });
+    await expect(chat).toHaveCSS("width", "440px");
     await expect(
       page.locator('[role="separator"][aria-label="Resize chat"]'),
-    ).toHaveCount(0);
+    ).toBeVisible();
 
-    // The routed page renders inside the side panel — and on /tasks it is
+    // The routed page renders through the panel host — and on /tasks it is
     // the TASKS PLUGIN's panel view (phase 2 step 3 pilot), not the raw
     // route children: the plugin wrapper testid proves the route→panel
     // substitution ran, and the board it wraps is the same KodyDashboard.
@@ -118,12 +117,9 @@ test.describe("Chat-first layout (beta toggle)", () => {
     await expect(panel.getByText(/New Task/i).first()).toBeVisible({
       timeout: 15_000,
     });
-
-    // Collapse hides the panel; expand brings it back.
-    await page.getByRole("button", { name: "Collapse panel" }).click();
-    await expect(panel).toBeHidden();
-    await page.getByRole("button", { name: "Expand panel" }).click();
-    await expect(panel).toBeVisible();
+    await expect(
+      page.getByRole("button", { name: /Collapse panel|Expand panel/ }),
+    ).toHaveCount(0);
   });
 
   test("toggle ON: back button returns the panel to the previous route", async ({
@@ -140,16 +136,16 @@ test.describe("Chat-first layout (beta toggle)", () => {
     });
     // Non-mapped routes keep raw route-content rendering — the tasks
     // plugin panel only substitutes on /tasks (step 3 pilot scope).
-    await expect(
-      page.locator('[data-testid="chat-panel-tasks"]'),
-    ).toHaveCount(0);
+    await expect(page.locator('[data-testid="chat-panel-tasks"]')).toHaveCount(
+      0,
+    );
 
     // Back → the route (source of truth) restores the tasks PLUGIN panel.
     await page.goBack();
     await expect(page).toHaveURL(/\/tasks/);
-    await expect(
-      page.locator('[data-testid="chat-panel-tasks"]'),
-    ).toBeAttached({ timeout: 15_000 });
+    await expect(page.locator('[data-testid="chat-panel-tasks"]')).toBeAttached(
+      { timeout: 15_000 },
+    );
     await expect(
       page
         .locator('[data-testid="chat-first-panel"]')
@@ -168,9 +164,7 @@ test.describe("Chat-first layout (beta toggle)", () => {
     // Same single desktop mount as the classic layout — the flip changes
     // layout, never the mount count (no doubled streams/session writes).
     await expect(roots).toHaveCount(1);
-    await expect(
-      page.locator('[data-testid="chat-first-panel"]'),
-    ).toBeHidden();
+    await expect(page.locator('[data-testid="chat-first-panel"]')).toBeHidden();
     await expect(
       page.getByRole("button", { name: /Collapse panel|Expand panel/ }),
     ).toHaveCount(0);
@@ -188,14 +182,14 @@ test.describe("Chat-first layout (beta toggle)", () => {
     await expect(
       page.locator('[role="separator"][aria-label="Resize chat"]'),
     ).toBeVisible();
-    await expect(
-      page.locator('[data-testid="chat-first-panel"]'),
-    ).toHaveCount(0);
+    await expect(page.locator('[data-testid="chat-first-panel"]')).toHaveCount(
+      0,
+    );
     // The tasks plugin panel never renders in the classic layout — /tasks
     // shows the raw route children (byte-identical pre-plugin behavior).
-    await expect(
-      page.locator('[data-testid="chat-panel-tasks"]'),
-    ).toHaveCount(0);
+    await expect(page.locator('[data-testid="chat-panel-tasks"]')).toHaveCount(
+      0,
+    );
     await expect(page.getByText(/New Task/i).first()).toBeVisible({
       timeout: 15_000,
     });
