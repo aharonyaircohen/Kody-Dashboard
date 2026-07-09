@@ -20,6 +20,7 @@ import {
   CLIENT_SIGNIN_WIZARD_SLUG,
   clientSigninWizard,
 } from "@dashboard/lib/wizards/client-signin";
+import { getWizardEntry } from "@dashboard/lib/wizards/registry";
 import { buildKodyMetadata } from "../../../metadata";
 
 export const dynamic = "force-dynamic";
@@ -47,7 +48,9 @@ export default async function WizardPage({
   searchParams,
 }: WizardPageProps) {
   const { wizard } = await params;
-  if (wizard !== CLIENT_SIGNIN_WIZARD_SLUG) notFound();
+  if (!getWizardEntry(wizard) || wizard !== CLIENT_SIGNIN_WIZARD_SLUG) {
+    notFound();
+  }
 
   const { provider } = await searchParams;
   if (!provider) {
