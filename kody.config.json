@@ -31,7 +31,9 @@
     ],
     "activeCapabilities": [
       "capability-call",
-      "cms-content-editor"
+      "cms-content-editor",
+      "auto-fix-ci",
+      "dev-ci-health"
     ],
     "activeExecutables": [
       "agent-ask"
