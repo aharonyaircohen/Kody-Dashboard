@@ -7,20 +7,23 @@ const source = readFileSync(
   "utf8",
 );
 describe("TrustLevelControl source", () => {
-  it("renders the three visible runnable trust options", () => {
+  it("uses one icon button for the three runnable trust states", () => {
     expect(source).toContain("Require approval");
     expect(source).toContain("Kody can run");
     expect(source).toContain("Auto approval");
-    expect(source).toContain('aria-label="Trust level"');
+    expect(source).toContain("data-trust-level={current.value}");
+    expect(source).toContain("onChange(next.value)");
     expect(source).not.toContain("Kody can trigger");
     expect(source).not.toContain("Run without approval");
   });
 
-  it("keeps each option selectable and visibly selected", () => {
-    expect(source).toContain("aria-pressed={selected}");
-    expect(source).toContain("onChange(option)");
-    expect(source).toContain("pending && selected");
-    expect(source).not.toContain('className="hidden');
-    expect(source).not.toContain("sm:inline");
+  it("colors require/can-run/auto states red, amber, and green", () => {
+    expect(source).toContain("bg-red-500/15");
+    expect(source).toContain("text-red-300");
+    expect(source).toContain("bg-amber-500/15");
+    expect(source).toContain("text-amber-300");
+    expect(source).toContain("bg-emerald-500/15");
+    expect(source).toContain("text-emerald-300");
+    expect(source).toContain('className="sr-only"');
   });
 });

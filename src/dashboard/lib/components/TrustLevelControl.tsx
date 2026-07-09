@@ -10,10 +10,29 @@ const trustLevelOptions: Array<{
   value: TrustLevel;
   label: string;
   Icon: typeof ShieldAlert;
+  className: string;
 }> = [
-  { value: "approval-required", label: "Require approval", Icon: ShieldAlert },
-  { value: "can-run", label: "Kody can run", Icon: Zap },
-  { value: "auto-approval", label: "Auto approval", Icon: ShieldCheck },
+  {
+    value: "approval-required",
+    label: "Require approval",
+    Icon: ShieldAlert,
+    className:
+      "border-red-500/40 bg-red-500/15 text-red-300 hover:bg-red-500/25 hover:text-red-200",
+  },
+  {
+    value: "can-run",
+    label: "Kody can run",
+    Icon: Zap,
+    className:
+      "border-amber-500/40 bg-amber-500/15 text-amber-300 hover:bg-amber-500/25 hover:text-amber-200",
+  },
+  {
+    value: "auto-approval",
+    label: "Auto approval",
+    Icon: ShieldCheck,
+    className:
+      "border-emerald-500/40 bg-emerald-500/15 text-emerald-300 hover:bg-emerald-500/25 hover:text-emerald-200",
+  },
 ];
 
 export function TrustLevelControl({
@@ -25,44 +44,41 @@ export function TrustLevelControl({
   pending?: boolean;
   onChange: (value: TrustLevel) => void;
 }) {
+  const currentIndex = trustLevelOptions.findIndex(
+    (option) => option.value === value,
+  );
+  const current = trustLevelOptions[currentIndex] ?? trustLevelOptions[0]!;
+  const next =
+    trustLevelOptions[
+      (Math.max(currentIndex, 0) + 1) % trustLevelOptions.length
+    ] ?? trustLevelOptions[0]!;
+  const { Icon } = current;
+
   return (
-    <div
-      className="inline-flex min-w-0 flex-wrap items-center rounded-md border border-border bg-background p-0.5"
-      role="group"
-      aria-label="Trust level"
+    <Button
+      type="button"
+      variant="outline"
+      size="sm"
+      className={cn(
+        "h-9 w-9 rounded-md px-0",
+        current.className,
+        pending && "cursor-not-allowed opacity-60",
+      )}
+      data-trust-level={current.value}
+      aria-disabled={pending}
+      aria-label={`Trust level: ${current.label}`}
+      title={`${current.label} - click for ${next.label}`}
+      onClick={() => {
+        if (pending) return;
+        onChange(next.value);
+      }}
     >
-      {trustLevelOptions.map(({ value: option, label, Icon }) => {
-        const selected = value === option;
-        return (
-          <Button
-            key={option}
-            type="button"
-            variant={selected ? "secondary" : "ghost"}
-            size="sm"
-            className={cn(
-              "h-8 gap-1.5 rounded px-2 text-xs",
-              selected &&
-                "border-emerald-500/30 bg-emerald-500/10 text-emerald-300",
-              pending && "cursor-not-allowed opacity-60",
-            )}
-            aria-pressed={selected}
-            aria-disabled={pending}
-            aria-label={`Trust level: ${label}`}
-            title={label}
-            onClick={() => {
-              if (pending || selected) return;
-              onChange(option);
-            }}
-          >
-            {pending && selected ? (
-              <Loader2 className="h-3.5 w-3.5 animate-spin" />
-            ) : (
-              <Icon className="h-3.5 w-3.5" />
-            )}
-            <span>{label}</span>
-          </Button>
-        );
-      })}
-    </div>
+      {pending ? (
+        <Loader2 className="h-4 w-4 animate-spin" />
+      ) : (
+        <Icon className="h-4 w-4" />
+      )}
+      <span className="sr-only">{current.label}</span>
+    </Button>
   );
 }

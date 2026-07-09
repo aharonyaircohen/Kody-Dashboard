@@ -16,7 +16,11 @@ type TrustPayload = {
 
 const BASE_URL = process.env.BASE_URL ?? "http://127.0.0.1:3333";
 const NOW = "2026-07-09T09:00:00.000Z";
-const levels: TrustLevel[] = ["can-run", "approval-required", "auto-approval"];
+const cycleLevels: TrustLevel[] = [
+  "can-run",
+  "auto-approval",
+  "approval-required",
+];
 const labels: Record<TrustLevel, string> = {
   "approval-required": "Require approval",
   "can-run": "Kody can run",
@@ -267,13 +271,15 @@ test.describe("runnable trust levels", () => {
         waitUntil: "domcontentloaded",
       });
 
-      for (const level of levels) {
-        const button = page.getByRole("button", {
-          name: `Trust level: ${labels[level]}`,
-        });
+      for (const level of cycleLevels) {
+        const button = page.getByRole("button", { name: /Trust level:/ });
         await expect(button).toBeVisible({ timeout: 15_000 });
         await button.click();
-        await expect(button).toHaveAttribute("aria-pressed", "true");
+        await expect(
+          page.getByRole("button", {
+            name: `Trust level: ${labels[level]}`,
+          }),
+        ).toHaveAttribute("data-trust-level", level);
         expect(trustPosts.at(-1)).toMatchObject({
           ...item.expected,
           level,
@@ -283,9 +289,9 @@ test.describe("runnable trust levels", () => {
       await page.reload({ waitUntil: "domcontentloaded" });
       await expect(
         page.getByRole("button", {
-          name: `Trust level: ${labels["auto-approval"]}`,
+          name: `Trust level: ${labels["approval-required"]}`,
         }),
-      ).toHaveAttribute("aria-pressed", "true");
+      ).toHaveAttribute("data-trust-level", "approval-required");
     });
   }
 });
