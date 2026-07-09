@@ -242,7 +242,9 @@ async function recordCompletedBrainImageSave(input: {
   };
 }
 
-export async function readBrainImageManagement(input: { context: ServerProviderContext }) {
+export async function readBrainImageManagement(input: {
+  context: ServerProviderContext;
+}) {
   const { context } = input;
   const image = await readBrainImage(context.account, context.githubToken);
   const discoveredImages = await discoverImages(context);

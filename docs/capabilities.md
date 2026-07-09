@@ -109,23 +109,23 @@ Do not put metadata frontmatter in `capability.md`. Metadata belongs in
 
 ## Profile fields
 
-| Field         | Meaning                                                                                                       |
-| ------------- | ------------------------------------------------------------------------------------------------------------- |
-| `name`        | Capability slug. Must match the folder name.                                                                  |
-| `describe`    | Human-readable title shown in the dashboard.                                                                  |
-| `action`      | Public action token. `@kody <action>` runs this capability. Usually the capability slug.                      |
-| `implementation`  | Legacy field name for the implementation slug. Use this when one implementation performs the work.            |
-| `workflow`    | Ordered capability steps for one run, when the public action composes capabilities.                           |
-| `every`       | Optional cadence: `manual`, `1h`, `1d`, `7d`, etc.                                                            |
-| `agent`       | Agent identity slug that performs the capability. A capability without an agent should not auto-run.          |
-| `reviewer`    | Optional agent identity slug responsible for reviewing or handling the capability output.                     |
-| `mentions`    | Optional GitHub logins to notify, without `@`.                                                                |
+| Field             | Meaning                                                                                                           |
+| ----------------- | ----------------------------------------------------------------------------------------------------------------- |
+| `name`            | Capability slug. Must match the folder name.                                                                      |
+| `describe`        | Human-readable title shown in the dashboard.                                                                      |
+| `action`          | Public action token. `@kody <action>` runs this capability. Usually the capability slug.                          |
+| `implementation`  | Legacy field name for the implementation slug. Use this when one implementation performs the work.                |
+| `workflow`        | Ordered capability steps for one run, when the public action composes capabilities.                               |
+| `every`           | Optional cadence: `manual`, `1h`, `1d`, `7d`, etc.                                                                |
+| `agent`           | Agent identity slug that performs the capability. A capability without an agent should not auto-run.              |
+| `reviewer`        | Optional agent identity slug responsible for reviewing or handling the capability output.                         |
+| `mentions`        | Optional GitHub logins to notify, without `@`.                                                                    |
 | `implementations` | Legacy field name for a multi-step implementation list. Prefer singular `implementation` for normal capabilities. |
-| `tools`       | Optional capability tool names exposed to the tick agent.                                                     |
-| `tickScript`  | Optional deterministic script path for a scripted capability agent.                                           |
-| `readsFrom`   | Context, report, or capability slugs this capability reads.                                                   |
-| `writesTo`    | Report or context slugs this capability writes.                                                               |
-| `disabled`    | `true` pauses autonomous scheduling.                                                                          |
+| `tools`           | Optional capability tool names exposed to the tick agent.                                                         |
+| `tickScript`      | Optional deterministic script path for a scripted capability agent.                                               |
+| `readsFrom`       | Context, report, or capability slugs this capability reads.                                                       |
+| `writesTo`        | Report or context slugs this capability writes.                                                                   |
+| `disabled`        | `true` pauses autonomous scheduling.                                                                              |
 
 ## Run Mode
 

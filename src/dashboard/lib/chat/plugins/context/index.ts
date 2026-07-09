@@ -21,11 +21,9 @@ export const contextChatPlugin: ChatPlugin = {
     {
       id: CONTEXT_PANEL_ID,
       title: "Context",
-      render: createLazyPanel(
-        "context",
-        () => import("./panel").then((m) => ({ default: m.ContextPanelView })),
+      render: createLazyPanel("context", () =>
+        import("./panel").then((m) => ({ default: m.ContextPanelView })),
       ),
     },
   ],
 };
-

@@ -4,10 +4,7 @@ import { describe, expect, it } from "vitest";
 
 const dashboardHomeSource = () =>
   readFileSync(
-    join(
-      process.cwd(),
-      "src/dashboard/lib/components/DashboardHome.tsx",
-    ),
+    join(process.cwd(), "src/dashboard/lib/components/DashboardHome.tsx"),
     "utf8",
   );
 

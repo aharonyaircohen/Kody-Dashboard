@@ -68,6 +68,7 @@ Resolve <repo-name> from the current git repo name. Do not hardcode an owner,
 org, or repo name in this reusable rule.
 
 Relevant context files:
+
 - <kody-state>/<repo-name>/instructions.md
 - <kody-state>/<repo-name>/context/
 - <kody-state>/<repo-name>/memory/INDEX.md

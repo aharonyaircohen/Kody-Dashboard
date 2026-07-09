@@ -76,9 +76,7 @@ function makeRequest(taskId: string): NextRequest {
   });
 }
 
-function expectDispatch(
-  check: (dashboardUrl: string) => void,
-): nock.Scope {
+function expectDispatch(check: (dashboardUrl: string) => void): nock.Scope {
   return nock(GITHUB_API)
     .post(
       "/repos/test-owner/test-repo/actions/workflows/kody.yml/dispatches",

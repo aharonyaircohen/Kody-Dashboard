@@ -11,7 +11,10 @@
 import type { FitAddon as XTermFitAddon } from "@xterm/addon-fit";
 import type { Terminal as XTerm } from "@xterm/xterm";
 
-import { openTerminalWebLink, wheelDeltaToTerminalLines } from "./terminal-text";
+import {
+  openTerminalWebLink,
+  wheelDeltaToTerminalLines,
+} from "./terminal-text";
 
 export interface TerminalMountHandlers {
   onData: (data: string) => void;

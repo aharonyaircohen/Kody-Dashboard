@@ -3,10 +3,13 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 const listAppsByPrefix = vi.fn();
 const listMachines = vi.fn();
 
-vi.mock("@dashboard/lib/infrastructure/plugins/fly/previews/machines-client", () => ({
-  listAppsByPrefix: (...args: unknown[]) => listAppsByPrefix(...args),
-  listMachines: (...args: unknown[]) => listMachines(...args),
-}));
+vi.mock(
+  "@dashboard/lib/infrastructure/plugins/fly/previews/machines-client",
+  () => ({
+    listAppsByPrefix: (...args: unknown[]) => listAppsByPrefix(...args),
+    listMachines: (...args: unknown[]) => listMachines(...args),
+  }),
+);
 
 import {
   classifyApp,

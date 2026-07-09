@@ -109,8 +109,11 @@ export function FlyMachinesTable({
   const [loading, setLoading] = useState(false);
   const [busyId, setBusyId] = useState<string | null>(null);
   const [confirm, setConfirm] = useState<ServerProviderMachineRow | null>(null);
-  const [busyFeature, setBusyFeature] = useState<ServerProviderFeature | null>(null);
-  const [confirmFeature, setConfirmFeature] = useState<ServerProviderFeature | null>(null);
+  const [busyFeature, setBusyFeature] = useState<ServerProviderFeature | null>(
+    null,
+  );
+  const [confirmFeature, setConfirmFeature] =
+    useState<ServerProviderFeature | null>(null);
 
   const refresh = useCallback(async () => {
     if (!hasAuth || !flyTokenConfigured) {

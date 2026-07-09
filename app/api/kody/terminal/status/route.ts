@@ -31,29 +31,31 @@ import { mintTerminalBridgeToken } from "@dashboard/lib/terminal/terminal-token"
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
-const Body = z.object({
-  target: z.literal("brain").optional(),
-  app: z.string().min(1).max(120).optional(),
-  machineId: z.string().min(1).max(120).optional(),
-  feature: z.enum(["runner", "brain"]).optional(),
-  chatSessionId: z.string().min(1).max(160),
-}).superRefine((value, ctx) => {
-  if (value.target === "brain") return;
-  if (!value.app) {
-    ctx.addIssue({
-      code: z.ZodIssueCode.custom,
-      path: ["app"],
-      message: "app is required",
-    });
-  }
-  if (!value.machineId) {
-    ctx.addIssue({
-      code: z.ZodIssueCode.custom,
-      path: ["machineId"],
-      message: "machineId is required",
-    });
-  }
-});
+const Body = z
+  .object({
+    target: z.literal("brain").optional(),
+    app: z.string().min(1).max(120).optional(),
+    machineId: z.string().min(1).max(120).optional(),
+    feature: z.enum(["runner", "brain"]).optional(),
+    chatSessionId: z.string().min(1).max(160),
+  })
+  .superRefine((value, ctx) => {
+    if (value.target === "brain") return;
+    if (!value.app) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ["app"],
+        message: "app is required",
+      });
+    }
+    if (!value.machineId) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ["machineId"],
+        message: "machineId is required",
+      });
+    }
+  });
 
 function isFlyBridgeAuthError(err: unknown): boolean {
   const text = err instanceof Error ? err.message : String(err);
@@ -111,9 +113,11 @@ export async function POST(req: NextRequest) {
       },
       ctx.context,
     );
-    let targetInput:
-      | { app: string; machineId: string; feature?: "runner" | "brain" }
-      | null =
+    let targetInput: {
+      app: string;
+      machineId: string;
+      feature?: "runner" | "brain";
+    } | null =
       parsed.data.app && parsed.data.machineId
         ? {
             app: parsed.data.app,

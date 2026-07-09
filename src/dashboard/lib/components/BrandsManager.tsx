@@ -248,7 +248,10 @@ export function BrandsManager({
       if (selectedSlug) router.replace("/brands");
       return;
     }
-    if (selectedSlug && !filtered.some((brand) => brand.slug === selectedSlug)) {
+    if (
+      selectedSlug &&
+      !filtered.some((brand) => brand.slug === selectedSlug)
+    ) {
       router.replace("/brands");
       return;
     }

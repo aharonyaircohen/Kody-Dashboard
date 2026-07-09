@@ -44,7 +44,9 @@ describe("GitHub storage adapter", () => {
       message: "delete next",
     });
 
-    await expect(adapter.readText(target, "memory/next.md")).resolves.toBeNull();
+    await expect(
+      adapter.readText(target, "memory/next.md"),
+    ).resolves.toBeNull();
   });
 
   it("commits multiple text files and directory deletions through git tree operations", async () => {

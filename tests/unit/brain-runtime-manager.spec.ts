@@ -37,9 +37,8 @@ describe("Brain runtime manager", () => {
       },
       updatedAt: "2026-07-02T09:00:00.000Z",
     });
-    const { selectBrainRuntimeImage } = await import(
-      "@dashboard/lib/brain/runtime-manager"
-    );
+    const { selectBrainRuntimeImage } =
+      await import("@dashboard/lib/brain/runtime-manager");
 
     await selectBrainRuntimeImage(
       "octocat",
@@ -71,9 +70,8 @@ describe("Brain runtime manager", () => {
       },
       updatedAt: "2026-07-02T09:00:00.000Z",
     });
-    const { completeBrainRuntimeApply } = await import(
-      "@dashboard/lib/brain/runtime-manager"
-    );
+    const { completeBrainRuntimeApply } =
+      await import("@dashboard/lib/brain/runtime-manager");
 
     await completeBrainRuntimeApply("octocat", "token", {
       imageRef: "ghcr.io/acme/kody-brain-octocat:new",
@@ -110,17 +108,16 @@ describe("Brain runtime manager", () => {
       updatedAt: "2026-07-02T10:00:00.000Z",
       images: [],
     });
-    const { readBrainRuntimeView } = await import(
-      "@dashboard/lib/brain/runtime-manager"
-    );
+    const { readBrainRuntimeView } =
+      await import("@dashboard/lib/brain/runtime-manager");
 
-    await expect(readBrainRuntimeView("octocat", "token")).resolves.toMatchObject(
-      {
-        desiredImageRef: "ghcr.io/acme/kody-brain-octocat:selected",
-        runningApp: "brain-1",
-        runningMachineId: "machine-1",
-        source: "legacy",
-      },
-    );
+    await expect(
+      readBrainRuntimeView("octocat", "token"),
+    ).resolves.toMatchObject({
+      desiredImageRef: "ghcr.io/acme/kody-brain-octocat:selected",
+      runningApp: "brain-1",
+      runningMachineId: "machine-1",
+      source: "legacy",
+    });
   });
 });

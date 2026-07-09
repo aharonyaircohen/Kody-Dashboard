@@ -65,8 +65,8 @@ wake-up behavior.
 
 Keep these names when editing config or engine-compatible JSON:
 
-| Field                 | Meaning                                                  |
-| --------------------- | -------------------------------------------------------- |
+| Field                     | Meaning                                                  |
+| ------------------------- | -------------------------------------------------------- |
 | `implementation`          | Implementation slug for a capability.                    |
 | `implementations`         | Ordered implementation list for a multi-step capability. |
 | `agent.perImplementation` | Legacy config map for per-capability model overrides.    |
@@ -116,10 +116,10 @@ contract.
 
 ## File Reference
 
-| File                                                                                                               | Purpose                               |
-| ------------------------------------------------------------------------------------------------------------------ | ------------------------------------- |
+| File                                                                                                                       | Purpose                               |
+| -------------------------------------------------------------------------------------------------------------------------- | ------------------------------------- |
 | [`../src/dashboard/lib/implementations/files.ts`](../src/dashboard/lib/implementations/files.ts)                           | Legacy implementation folder CRUD.    |
 | [`../src/dashboard/lib/implementations/profile.ts`](../src/dashboard/lib/implementations/profile.ts)                       | Profile validation and form mapping.  |
 | [`../src/dashboard/lib/components/ImplementationsManager.tsx`](../src/dashboard/lib/components/ImplementationsManager.tsx) | Compatibility UI implementation.      |
-| [`../app/api/kody/capabilities/`](../app/api/kody/capabilities/)                                                   | Current capability API.               |
-| [`./capabilities.md`](./capabilities.md)                                                                           | Canonical capability authoring guide. |
+| [`../app/api/kody/capabilities/`](../app/api/kody/capabilities/)                                                           | Current capability API.               |
+| [`./capabilities.md`](./capabilities.md)                                                                                   | Canonical capability authoring guide. |

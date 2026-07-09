@@ -88,7 +88,9 @@ export function getCmsAdapter(name: string): CmsAdapter | null {
   if (!adapter) {
     adapter =
       adapterName === "storage"
-        ? createStorageCmsAdapter({ resolveTransport: createSharedStorageTransport })
+        ? createStorageCmsAdapter({
+            resolveTransport: createSharedStorageTransport,
+          })
         : createStoreAdapterBridge(adapterName);
     ADAPTERS.set(adapterName, adapter);
   }

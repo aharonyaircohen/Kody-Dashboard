@@ -23,7 +23,10 @@ import {
   type ServerProviderContext,
 } from "@dashboard/lib/infrastructure/server-context";
 
-import { ensureServerProviderTerminalBridge, type ServerProviderTerminalBridgeInfo } from "@dashboard/lib/infrastructure/server-terminal";
+import {
+  ensureServerProviderTerminalBridge,
+  type ServerProviderTerminalBridgeInfo,
+} from "@dashboard/lib/infrastructure/server-terminal";
 import {
   loadTerminalInventoryAuthority,
   terminalBridgeConfigCandidates,
@@ -106,7 +109,10 @@ function isFlyMachineAlreadyStartingError(err: unknown): boolean {
 
 async function ensureServerProviderTerminalBridgeForTarget(
   cfg: ReturnType<typeof terminalFlyConfigForMachine>,
-): Promise<{ bridge: ServerProviderTerminalBridgeInfo; terminalCfg: typeof cfg }> {
+): Promise<{
+  bridge: ServerProviderTerminalBridgeInfo;
+  terminalCfg: typeof cfg;
+}> {
   let lastErr: unknown;
   const candidates = terminalBridgeConfigCandidates(cfg);
   for (const candidate of candidates) {

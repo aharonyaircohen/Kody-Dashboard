@@ -21,11 +21,9 @@ export const previewChatPlugin: ChatPlugin = {
     {
       id: PREVIEW_PANEL_ID,
       title: "Views",
-      render: createLazyPanel(
-        "preview",
-        () => import("./panel").then((m) => ({ default: m.PreviewPanelView })),
+      render: createLazyPanel("preview", () =>
+        import("./panel").then((m) => ({ default: m.PreviewPanelView })),
       ),
     },
   ],
 };
-

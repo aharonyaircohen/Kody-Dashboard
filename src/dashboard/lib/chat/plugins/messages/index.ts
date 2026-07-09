@@ -21,11 +21,9 @@ export const messagesChatPlugin: ChatPlugin = {
     {
       id: MESSAGES_PANEL_ID,
       title: "Messages",
-      render: createLazyPanel(
-        "messages",
-        () => import("./panel").then((m) => ({ default: m.MessagesPanelView })),
+      render: createLazyPanel("messages", () =>
+        import("./panel").then((m) => ({ default: m.MessagesPanelView })),
       ),
     },
   ],
 };
-

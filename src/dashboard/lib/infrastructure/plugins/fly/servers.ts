@@ -72,7 +72,9 @@ export const flyServerProvider: FlyServerProvider &
       ...(opts.idleExitMs ? { idleExitMs: opts.idleExitMs } : {}),
       ...(opts.hardCapMs ? { hardCapMs: opts.hardCapMs } : {}),
       dashboardUrl: opts.dashboardUrl,
-      ...(opts.reasoningEffort ? { reasoningEffort: opts.reasoningEffort } : {}),
+      ...(opts.reasoningEffort
+        ? { reasoningEffort: opts.reasoningEffort }
+        : {}),
       ref: opts.ref,
     });
     if (claim.ok) {
@@ -95,7 +97,9 @@ export const flyServerProvider: FlyServerProvider &
       dashboardUrl: opts.dashboardUrl,
       ...(opts.idleExitMs ? { idleExitMs: opts.idleExitMs } : {}),
       ...(opts.hardCapMs ? { hardCapMs: opts.hardCapMs } : {}),
-      ...(opts.reasoningEffort ? { reasoningEffort: opts.reasoningEffort } : {}),
+      ...(opts.reasoningEffort
+        ? { reasoningEffort: opts.reasoningEffort }
+        : {}),
       ref: opts.ref,
       allSecrets,
       flyToken,
@@ -150,13 +154,9 @@ export const flyServerProvider: FlyServerProvider &
     return true;
   },
   async resolveSavedBrainServiceForRequest(req, context) {
-    const { resolveSavedBrainServiceForRequest } = await import(
-      "./runners/inventory-server"
-    );
-    return resolveSavedBrainServiceForRequest(
-      req,
-      context as never,
-    ) as never;
+    const { resolveSavedBrainServiceForRequest } =
+      await import("./runners/inventory-server");
+    return resolveSavedBrainServiceForRequest(req, context as never) as never;
   },
   brainAppName(account) {
     return brainOps.brainAppName(account);

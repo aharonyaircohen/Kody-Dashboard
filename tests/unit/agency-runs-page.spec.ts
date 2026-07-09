@@ -99,13 +99,18 @@ describe("Agency Runs page", () => {
     expect(lines).toContain("Status: Running.");
     expect(lines).toContain("Trigger: scheduled.");
     expect(lines).toContain("Runtime: goal-manager.");
-    expect(lines).toContain("Model: Claude Sonnet 4.5 (claude/claude-sonnet-4-5).");
-    expect(lines.join("\n")).not.toContain("dispatch goal web-release-2026-07-06");
+    expect(lines).toContain(
+      "Model: Claude Sonnet 4.5 (claude/claude-sonnet-4-5).",
+    );
+    expect(lines.join("\n")).not.toContain(
+      "dispatch goal web-release-2026-07-06",
+    );
     expect(operatorRunFactLines(run)).toEqual(lines);
   });
 
   it("formats run evidence without changing the evidence string", () => {
-    const field = "GitHub run URL: https://github.com/test/repo/actions/runs/123456";
+    const field =
+      "GitHub run URL: https://github.com/test/repo/actions/runs/123456";
     const raw =
       'Raw boundary eval: KODY_AGENCY_BOUNDARY_EVAL={"version":1,"status":"pass"}';
 
@@ -136,7 +141,9 @@ describe("Agency Runs page", () => {
       stateRef: "main",
     };
 
-    expect(runEvidenceViewTarget("Changed file: src/app/page.tsx", context)).toEqual({
+    expect(
+      runEvidenceViewTarget("Changed file: src/app/page.tsx", context),
+    ).toEqual({
       href: "/files/src/app/page.tsx",
       external: false,
       label: "View file",
@@ -152,7 +159,10 @@ describe("Agency Runs page", () => {
       label: "View state file",
     });
     expect(
-      runEvidenceViewTarget("Source log: logs/goals/ci-health/runs/run.jsonl", context),
+      runEvidenceViewTarget(
+        "Source log: logs/goals/ci-health/runs/run.jsonl",
+        context,
+      ),
     ).toEqual({
       href: "/state-files/logs/goals/ci-health/runs/run.jsonl",
       external: false,
@@ -218,7 +228,9 @@ describe("Agency Runs page", () => {
     expect(diagnosis.why).toBe(
       "dev-ci-health was expected to report back after the hand-off, but no completion event is recorded.",
     );
-    expect(diagnosis.lastObserved).toBe("kody: in-process hand-off: dev-ci-health (hop 1/60)");
+    expect(diagnosis.lastObserved).toBe(
+      "kody: in-process hand-off: dev-ci-health (hop 1/60)",
+    );
     expect(diagnosis.expectedNextEvent).toBe(
       "dev-ci-health should report progress or finish.",
     );
@@ -263,15 +275,19 @@ describe("Agency Runs page", () => {
       actor: "operator",
     };
 
-    const diagnosis = agencyRunDiagnosis(run, [], [
-      "Hand-off: kody -> dev-ci-health (hop 1/60).",
-    ]);
+    const diagnosis = agencyRunDiagnosis(
+      run,
+      [],
+      ["Hand-off: kody -> dev-ci-health (hop 1/60)."],
+    );
 
     expect(diagnosis.stoppedAt).toBe("ci-health -> dev-ci-health");
     expect(diagnosis.why).toBe(
       "dev-ci-health did not finish or report new progress after ci-health handed work to it.",
     );
-    expect(diagnosis.lastObserved).toBe("dev-ci-health: active / pending evidence");
+    expect(diagnosis.lastObserved).toBe(
+      "dev-ci-health: active / pending evidence",
+    );
     expect(diagnosis.expectedNextEvent).toBe(
       "dev-ci-health should report progress or completion.",
     );

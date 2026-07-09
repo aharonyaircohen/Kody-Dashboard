@@ -266,10 +266,7 @@ describe("storage keys", () => {
     // pulling the React tree into a node-env test) — pin the literal at the
     // source level so a rename breaks this test.
     const src = readFileSync(
-      resolve(
-        __dirname,
-        "../../src/dashboard/lib/components/KodyChat.tsx",
-      ),
+      resolve(__dirname, "../../src/dashboard/lib/components/KodyChat.tsx"),
       "utf8",
     );
     expect(src).toContain('"kody-chat:sessions-panel-pinned"');
@@ -358,9 +355,7 @@ describe("loadStore", () => {
     store.setItem(LEGACY_KEY, JSON.stringify(V3_FIXTURE));
     const { loadStore } = await loadModule();
     expect(loadStore(SCOPED_KEY, "global")).toEqual(V3_FIXTURE);
-    expect(JSON.parse(store.getItem(SCOPED_KEY) as string)).toEqual(
-      V3_FIXTURE,
-    );
+    expect(JSON.parse(store.getItem(SCOPED_KEY) as string)).toEqual(V3_FIXTURE);
     expect(store.getItem(LEGACY_KEY)).toBeNull(); // one-time move
   });
 

@@ -17,7 +17,10 @@ import {
   parseTerminalBridgeServerMessage,
   type TerminalBridgeClientMessage,
 } from "../../../terminal/bridge-protocol";
-import { brainImageMismatchNotices, type FlySessionWarning } from "./terminal-text";
+import {
+  brainImageMismatchNotices,
+  type FlySessionWarning,
+} from "./terminal-text";
 import type {
   ChatTerminalConnectionState,
   ChatTerminalTransport,

@@ -19,7 +19,7 @@ just hits a login wall. Flip the capabilities on once you've done the one-time
 | `qa` **agent**                   | Identity only — a senior quality advocate who trusts what it has _seen_ over what a diff claims, flags but never fixes, never rubber-stamps. No tasks, verbs, or cadence live here. | [`../.kody/agents/qa.md`](../.kody/agents/qa.md)                                               |
 | `qa` **capability**              | Changelog verification (`every: 30m`, `disabled: true` in the profile).                                                                                                             | [`../.kody/capabilities/qa/capability.md`](../.kody/capabilities/qa/capability.md)             |
 | `qa-sweep` **capability**        | Broad exploratory smoke (`every: 1h`, ~once/day, `disabled: true` in the profile).                                                                                                  | [`../.kody/capabilities/qa-sweep/capability.md`](../.kody/capabilities/qa-sweep/capability.md) |
-| `qa-engineer` **implementation** | The browser. Playwright MCP (headless Chromium), read-only on the repo, emits one structured report.                                                                                | legacy engine storage: `src/implementations/qa-engineer/`                                          |
+| `qa-engineer` **implementation** | The browser. Playwright MCP (headless Chromium), read-only on the repo, emits one structured report.                                                                                | legacy engine storage: `src/implementations/qa-engineer/`                                      |
 
 Neither capability browses anything itself. Each one opens a tracking issue and
 posts `@kody qa-engineer …` onto it; the engine picks that up, runs the
@@ -177,8 +177,8 @@ per-PR verification; add the sweep for periodic broad coverage.
 | [`../.kody/agents/qa.md`](../.kody/agents/qa.md)                                               | QA agent (identity only)                                 |
 | [`../.kody/capabilities/qa/capability.md`](../.kody/capabilities/qa/capability.md)             | Changelog-verification capability                        |
 | [`../.kody/capabilities/qa-sweep/capability.md`](../.kody/capabilities/qa-sweep/capability.md) | Broad exploratory sweep capability                       |
-| `src/implementations/qa-engineer/profile.json` (engine)                                            | Implementation manifest — inputs, tools, preflight chain |
-| `src/implementations/qa-engineer/prompt.md` (engine)                                               | The QA engineer's browsing prompt + report format        |
+| `src/implementations/qa-engineer/profile.json` (engine)                                        | Implementation manifest — inputs, tools, preflight chain |
+| `src/implementations/qa-engineer/prompt.md` (engine)                                           | The QA engineer's browsing prompt + report format        |
 | `src/scripts/resolveQaUrl.ts` (engine)                                                         | Base-URL resolution preflight                            |
 | `src/scripts/loadQaContext.ts` (engine)                                                        | Profile + Variables + Vault context preflight            |
 

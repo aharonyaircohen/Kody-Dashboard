@@ -30,10 +30,7 @@ import {
 } from "@dashboard/lib/managed-goals-files";
 import { buildKodyWorkflowDispatchInputs } from "@dashboard/lib/kody-workflow-dispatch";
 
-function activeGoalResponse(
-  goal: ManagedGoalRecord,
-  ref: string,
-) {
+function activeGoalResponse(goal: ManagedGoalRecord, ref: string) {
   return NextResponse.json({
     ok: true,
     workflowId: "kody.yml",

@@ -23,7 +23,10 @@ const builder = vi.hoisted(() => ({
 
 vi.mock("@dashboard/lib/infrastructure/plugins/fly/runners/fly", () => runner);
 vi.mock("@dashboard/lib/runners/pool-client", () => pool);
-vi.mock("@dashboard/lib/infrastructure/plugins/fly/previews/machines-client", () => flyPreview);
+vi.mock(
+  "@dashboard/lib/infrastructure/plugins/fly/previews/machines-client",
+  () => flyPreview,
+);
 vi.mock("@dashboard/lib/previews/builder-client", () => builder);
 vi.mock("@dashboard/lib/previews/vault-build-context", () => ({
   loadVaultContextForBuild: vi.fn(),
@@ -38,9 +41,7 @@ import {
 } from "@dashboard/lib/infrastructure/plugins/fly";
 import { flyDeploymentProvider } from "@dashboard/lib/infrastructure/plugins/fly/deployments";
 import { flyServerProvider } from "@dashboard/lib/infrastructure/plugins/fly/servers";
-import {
-  createInfrastructureRegistry,
-} from "@dashboard/lib/infrastructure/registry";
+import { createInfrastructureRegistry } from "@dashboard/lib/infrastructure/registry";
 import type { FlyContext } from "@dashboard/lib/infrastructure/plugins/fly/runners/context";
 import { chatRunRequest } from "@dashboard/lib/runners/run-request";
 
@@ -103,9 +104,7 @@ describe("fly infrastructure providers", () => {
       createInfrastructureRegistry([flyInfrastructurePlugin], {
         browsers: flyInfrastructurePlugin.id,
       }).getBrowserProvider(),
-    ).toThrow(
-      "Infrastructure provider fly does not support browsers",
-    );
+    ).toThrow("Infrastructure provider fly does not support browsers");
 
     expect(installed.getInfrastructureProviders()).toMatchObject({
       servers: flyServerProvider,

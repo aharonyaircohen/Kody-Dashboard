@@ -151,7 +151,9 @@ export function StateFilePage({ initialPath }: StateFilePageProps) {
             {file?.path ?? requestedPath}
           </span>
           <div className="ml-auto flex shrink-0 items-center gap-3 text-xs text-white/45">
-            {file?.sha ? <span className="font-mono">{file.sha.slice(0, 7)}</span> : null}
+            {file?.sha ? (
+              <span className="font-mono">{file.sha.slice(0, 7)}</span>
+            ) : null}
             {file ? <span>{formatBytes(file.size)}</span> : null}
           </div>
         </div>

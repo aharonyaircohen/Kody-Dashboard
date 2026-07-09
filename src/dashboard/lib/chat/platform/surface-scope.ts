@@ -192,8 +192,8 @@ export type SurfaceScope =
 function hasAdminAuth(headers: Headers): boolean {
   return Boolean(
     headers.get(KODY_AUTH_HEADERS.token) &&
-      headers.get(KODY_AUTH_HEADERS.owner) &&
-      headers.get(KODY_AUTH_HEADERS.repo),
+    headers.get(KODY_AUTH_HEADERS.owner) &&
+    headers.get(KODY_AUTH_HEADERS.repo),
   );
 }
 

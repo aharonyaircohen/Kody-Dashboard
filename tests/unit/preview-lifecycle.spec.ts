@@ -12,7 +12,10 @@ const builder = vi.hoisted(() => ({
   getPreviewBuilderStatus: vi.fn(),
 }));
 
-vi.mock("@dashboard/lib/infrastructure/plugins/fly/previews/machines-client", () => fly);
+vi.mock(
+  "@dashboard/lib/infrastructure/plugins/fly/previews/machines-client",
+  () => fly,
+);
 vi.mock("@dashboard/lib/previews/builder-client", () => builder);
 vi.mock("@dashboard/lib/previews/vault-build-context", () => ({
   loadVaultContextForBuild: vi.fn(),

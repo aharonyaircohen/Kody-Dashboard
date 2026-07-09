@@ -505,7 +505,9 @@ describe("store catalog import route", () => {
     const octokit = makeOctokit();
     auth.getUserOctokit.mockResolvedValue(octokit);
 
-    const res = await POST(req({ kind: "implementation", slug: "ship-feature" }));
+    const res = await POST(
+      req({ kind: "implementation", slug: "ship-feature" }),
+    );
 
     expect(res.status).toBe(400);
     await expect(res.json()).resolves.toMatchObject({

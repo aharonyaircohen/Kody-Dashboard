@@ -78,9 +78,7 @@ describe("branding chat plugin factory", () => {
 
   it("registers under the minimal theme grant and flows through registry.theme()", () => {
     const registry = createChatPluginRegistry();
-    registry.register(createBrandingPlugin(getClientBrand("acme")), [
-      "theme",
-    ]);
+    registry.register(createBrandingPlugin(getClientBrand("acme")), ["theme"]);
     expect(registry.pluginIds()).toEqual([BRANDING_PLUGIN_ID]);
     expect(registry.theme()).toEqual({
       name: "Acme",

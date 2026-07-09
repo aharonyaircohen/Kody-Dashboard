@@ -90,7 +90,9 @@ export function FlyPreviewsList({
   flyTokenConfigured,
 }: FlyPreviewsListProps) {
   const hasAuth = Object.keys(headers).length > 0;
-  const [inventory, setInventory] = useState<ServerProviderInventory | null>(null);
+  const [inventory, setInventory] = useState<ServerProviderInventory | null>(
+    null,
+  );
   const [branchNamesByApp, setBranchNamesByApp] = useState<
     Record<string, string>
   >({});
@@ -186,7 +188,11 @@ export function FlyPreviewsList({
     return signed.toString();
   }
 
-  async function copyUrl(row: ServerProviderMachineRow, url: string, branchName?: string) {
+  async function copyUrl(
+    row: ServerProviderMachineRow,
+    url: string,
+    branchName?: string,
+  ) {
     try {
       await navigator.clipboard.writeText(
         await signedPreviewUrl(row, url, branchName),

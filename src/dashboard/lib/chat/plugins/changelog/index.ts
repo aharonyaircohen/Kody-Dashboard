@@ -21,11 +21,9 @@ export const changelogChatPlugin: ChatPlugin = {
     {
       id: CHANGELOG_PANEL_ID,
       title: "Changelog",
-      render: createLazyPanel(
-        "changelog",
-        () => import("./panel").then((m) => ({ default: m.ChangelogPanelView })),
+      render: createLazyPanel("changelog", () =>
+        import("./panel").then((m) => ({ default: m.ChangelogPanelView })),
       ),
     },
   ],
 };
-

@@ -68,7 +68,9 @@ describe("surface ticket mint/verify", () => {
     expect(verifySurfaceTicket(encode({ ...payload, o: "evil" }))).toBeNull();
     expect(verifySurfaceTicket(encode({ ...payload, r: "other" }))).toBeNull();
     expect(
-      verifySurfaceTicket(encode({ ...payload, e: (payload.e as number) + 60 })),
+      verifySurfaceTicket(
+        encode({ ...payload, e: (payload.e as number) + 60 }),
+      ),
     ).toBeNull();
     expect(
       verifySurfaceTicket(encode({ ...payload, s: "0".repeat(32) })),

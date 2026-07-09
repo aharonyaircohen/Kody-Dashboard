@@ -245,7 +245,10 @@ export function buildRunTimeline(
         ts: event.ts ?? null,
         runId: event.runId ?? null,
         capability:
-          event.capability ?? event.implementation ?? event.implementation ?? null,
+          event.capability ??
+          event.implementation ??
+          event.implementation ??
+          null,
         kind: event.kind ?? "event",
         name: event.name ?? null,
         durationMs: numberOrNull(event.durationMs),

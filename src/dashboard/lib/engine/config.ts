@@ -510,7 +510,8 @@ export async function writeDefaultImplementation(
   implementation: string | null,
   commitMessage?: string,
 ): Promise<{ sha: string | null }> {
-  const key = target === "issue" ? "defaultImplementation" : "defaultPrImplementation";
+  const key =
+    target === "issue" ? "defaultImplementation" : "defaultPrImplementation";
   return mutateConfig(
     octokit,
     owner,
@@ -896,7 +897,10 @@ export async function writeConfigPatch(
         }
       }
 
-      for (const key of ["defaultImplementation", "defaultPrImplementation"] as const) {
+      for (const key of [
+        "defaultImplementation",
+        "defaultPrImplementation",
+      ] as const) {
         if (patch[key] === undefined) continue;
         const val = patch[key]?.trim();
         if (val) next[key] = val;

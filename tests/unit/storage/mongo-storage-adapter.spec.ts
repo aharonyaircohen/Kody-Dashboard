@@ -23,9 +23,7 @@ describe("Mongo storage adapter", () => {
       url: null,
     });
 
-    await expect(
-      adapter.readText(target, "memory/intro.md"),
-    ).resolves.toEqual(
+    await expect(adapter.readText(target, "memory/intro.md")).resolves.toEqual(
       expect.objectContaining({
         path: "memory/intro.md",
         content: "# Intro\n",
@@ -52,7 +50,9 @@ describe("Mongo storage adapter", () => {
       message: "delete intro",
     });
 
-    await expect(adapter.readText(target, "memory/intro.md")).resolves.toBeNull();
+    await expect(
+      adapter.readText(target, "memory/intro.md"),
+    ).resolves.toBeNull();
   });
 
   it("keeps namespaces isolated", async () => {
@@ -352,19 +352,14 @@ class FakeMongoCollection {
     return { deletedCount: 1 };
   }
 
-  async deleteMany(
-    filter: StoredDocFilter,
-  ): Promise<{ deletedCount: number }> {
+  async deleteMany(filter: StoredDocFilter): Promise<{ deletedCount: number }> {
     const docs = await this.find(filter).toArray();
     for (const doc of docs) this.docs.delete(doc._id);
     return { deletedCount: docs.length };
   }
 }
 
-function matches(
-  doc: StoredDoc,
-  filter: StoredDocFilter,
-): boolean {
+function matches(doc: StoredDoc, filter: StoredDocFilter): boolean {
   for (const [key, value] of Object.entries(filter)) {
     const actual = doc[key as keyof StoredDoc];
     if (value instanceof RegExp) {

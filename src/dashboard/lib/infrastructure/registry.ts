@@ -64,10 +64,21 @@ export interface InfrastructureRegistry {
     unknown,
     unknown
   >;
-  getDeploymentProvider(): DeploymentProvider<unknown, unknown, unknown, unknown>;
+  getDeploymentProvider(): DeploymentProvider<
+    unknown,
+    unknown,
+    unknown,
+    unknown
+  >;
   getBrowserProvider(): BrowserProvider<unknown, unknown, unknown, unknown>;
   getInfrastructureProviders(): {
-    servers: ServerProvider<ServerContextBase, unknown, unknown, unknown, unknown>;
+    servers: ServerProvider<
+      ServerContextBase,
+      unknown,
+      unknown,
+      unknown,
+      unknown
+    >;
     deployments: DeploymentProvider<unknown, unknown, unknown, unknown>;
     browsers?: BrowserProvider<unknown, unknown, unknown, unknown>;
   };
@@ -82,7 +93,8 @@ export function createInfrastructureRegistry(
       ServerProvider<ServerContextBase, unknown, unknown, unknown, unknown>
     >
   >(
-    (providers, plugin) => registerProvider(providers, plugin.providers.servers),
+    (providers, plugin) =>
+      registerProvider(providers, plugin.providers.servers),
     {},
   );
 
@@ -97,7 +109,8 @@ export function createInfrastructureRegistry(
   const browserProviders = plugins.reduce<
     ProvidersById<BrowserProvider<unknown, unknown, unknown, unknown>>
   >(
-    (providers, plugin) => registerProvider(providers, plugin.providers.browsers),
+    (providers, plugin) =>
+      registerProvider(providers, plugin.providers.browsers),
     {},
   );
 
@@ -119,9 +132,7 @@ export function createInfrastructureRegistry(
       return {
         servers: this.getServerProvider(),
         deployments: this.getDeploymentProvider(),
-        ...(selection.browsers
-          ? { browsers: this.getBrowserProvider() }
-          : {}),
+        ...(selection.browsers ? { browsers: this.getBrowserProvider() } : {}),
       };
     },
   };

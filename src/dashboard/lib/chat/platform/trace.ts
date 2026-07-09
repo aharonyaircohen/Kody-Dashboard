@@ -47,7 +47,8 @@ export function createChatTraceBuffer(
         at: Date.now(),
       };
       entries.push(entry);
-      if (entries.length > capacity) entries.splice(0, entries.length - capacity);
+      if (entries.length > capacity)
+        entries.splice(0, entries.length - capacity);
     },
     read() {
       return entries.map((e) => ({ ...e }));

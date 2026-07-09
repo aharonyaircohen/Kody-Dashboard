@@ -21,11 +21,9 @@ export const commandsPageChatPlugin: ChatPlugin = {
     {
       id: COMMANDS_PAGE_PANEL_ID,
       title: "Commands",
-      render: createLazyPanel(
-        "commands-page",
-        () => import("./panel").then((m) => ({ default: m.CommandsPagePanelView })),
+      render: createLazyPanel("commands-page", () =>
+        import("./panel").then((m) => ({ default: m.CommandsPagePanelView })),
       ),
     },
   ],
 };
-

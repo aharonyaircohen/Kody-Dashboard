@@ -94,13 +94,13 @@ export function useChatTerminalRegistry({
   >(initialRegistryState.transportBySessionId);
   const [connectionStateByInstanceId, setConnectionStateByInstanceId] =
     useState<Record<string, ChatTerminalConnectionState>>({});
-  const [flyInventory, setServerProviderInventory] = useState<TerminalServerProviderInventory | null>(
-    null,
-  );
-  const [flyInventoryLoading, setServerProviderInventoryLoading] = useState(false);
-  const [flyInventoryError, setServerProviderInventoryError] = useState<string | null>(
-    null,
-  );
+  const [flyInventory, setServerProviderInventory] =
+    useState<TerminalServerProviderInventory | null>(null);
+  const [flyInventoryLoading, setServerProviderInventoryLoading] =
+    useState(false);
+  const [flyInventoryError, setServerProviderInventoryError] = useState<
+    string | null
+  >(null);
 
   useEffect(() => {
     const persisted = loadPersistedTerminalRegistry(storageKey);
@@ -258,7 +258,9 @@ export function useChatTerminalRegistry({
         };
         throw new Error(body.message ?? body.error ?? `HTTP ${res.status}`);
       }
-      setServerProviderInventory((await res.json()) as TerminalServerProviderInventory);
+      setServerProviderInventory(
+        (await res.json()) as TerminalServerProviderInventory,
+      );
     } catch (err) {
       const message =
         err instanceof Error ? err.message : "Failed to load Fly machines";
@@ -326,20 +328,12 @@ export function useChatTerminalRegistry({
           : { ...prev, [activeSessionId]: nextTransport },
       );
     },
-    [
-      activeSessionId,
-      flyInventory,
-      mountTerminal,
-      terminalMachines,
-    ],
+    [activeSessionId, flyInventory, mountTerminal, terminalMachines],
   );
 
   const selectTarget = useCallback(
     (value: string) => {
-      const transport = resolveTerminalTargetSelection(
-        value,
-        terminalMachines,
-      );
+      const transport = resolveTerminalTargetSelection(value, terminalMachines);
       if (!transport) return;
       setActiveTransport(transport);
     },

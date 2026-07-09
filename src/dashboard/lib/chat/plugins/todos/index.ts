@@ -21,11 +21,9 @@ export const todosChatPlugin: ChatPlugin = {
     {
       id: TODOS_PANEL_ID,
       title: "Todos",
-      render: createLazyPanel(
-        "todos",
-        () => import("./panel").then((m) => ({ default: m.TodosPanelView })),
+      render: createLazyPanel("todos", () =>
+        import("./panel").then((m) => ({ default: m.TodosPanelView })),
       ),
     },
   ],
 };
-

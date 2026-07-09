@@ -21,11 +21,9 @@ export const agentGoalsChatPlugin: ChatPlugin = {
     {
       id: AGENT_GOALS_PANEL_ID,
       title: "Goals",
-      render: createLazyPanel(
-        "agent-goals",
-        () => import("./panel").then((m) => ({ default: m.AgentGoalsPanelView })),
+      render: createLazyPanel("agent-goals", () =>
+        import("./panel").then((m) => ({ default: m.AgentGoalsPanelView })),
       ),
     },
   ],
 };
-

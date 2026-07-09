@@ -152,14 +152,14 @@ patterns) — **phase 2+, out of scope here**.
 
 ## Test layers
 
-| Layer | Runner | Scope | Script |
-| ----- | ------ | ----- | ------ |
-| unit  | vitest (node env, no DOM) | reducers, registry, capability logic, transport adapters vs recorded streams, pure helpers | `pnpm test:unit` |
-| int   | vitest (node env) | plugin registration, core state flows, **real route handlers** with fixture server-half plugins | `pnpm test:int` |
-| smoke | Playwright, fast, mocked | routes load, key chrome present | `pnpm test:smoke` |
-| e2e   | Playwright, mocked flows | full admin regression + client surface + send/stream cycles | `pnpm test:e2e:local` |
+| Layer | Runner                    | Scope                                                                                           | Script                |
+| ----- | ------------------------- | ----------------------------------------------------------------------------------------------- | --------------------- |
+| unit  | vitest (node env, no DOM) | reducers, registry, capability logic, transport adapters vs recorded streams, pure helpers      | `pnpm test:unit`      |
+| int   | vitest (node env)         | plugin registration, core state flows, **real route handlers** with fixture server-half plugins | `pnpm test:int`       |
+| smoke | Playwright, fast, mocked  | routes load, key chrome present                                                                 | `pnpm test:smoke`     |
+| e2e   | Playwright, mocked flows  | full admin regression + client surface + send/stream cycles                                     | `pnpm test:e2e:local` |
 
-**DOM decision:** vitest stays node-only — anything that must *render React*
+**DOM decision:** vitest stays node-only — anything that must _render React_
 (slots, chips, composer) is asserted in the Playwright layers, not in vitest.
 No jsdom is added in phase 1.
 
@@ -200,6 +200,7 @@ The remaining test-rig files (package.json scripts, `smoke.spec.ts`) become
 the pure Step 0 commit. Commit #1 must not mix behavior and refactor.
 
 **Step 0 — Safety net + test rig (M1, M3, H5, H9).**
+
 - Execution contract + layer hygiene as above.
 - Extend the regression net (all mocked, token-free): markdown editor
   renders on /chat (toggle + preview); a `page.route`-intercepted chat POST
@@ -221,7 +222,7 @@ the pure Step 0 commit. Commit #1 must not mix behavior and refactor.
   test against the new core module. Re-pointing string assertions at new
   file paths is forbidden. Steps 2–3 delete/replace them in the same commit.
   Exception: `kody-chat-live-session.spec.ts` moves with its module
-  unchanged — it *is* the localStorage key/migration contract.
+  unchanged — it _is_ the localStorage key/migration contract.
 
 **Step 1 — Contracts + enforcement + i18n scaffold (H1, H2, H3, H6, H7).**
 `chat/platform/`: `ChatPlugin` (slots, capabilities, theme, **middleware,
@@ -233,6 +234,7 @@ for registry ordering, capability gating, catalog fallback; int test with a
 fixture plugin.
 
 **Step 2 — Extract the state core, three sub-commits (H8).**
+
 - **2a**: relocate the already-pure modules (`kody-chat-reducer`,
   `kody-chat-live-session`) + assign the flat `chat/*.ts` modules to layers.
   Imports only; `kody-chat-live-session.spec.ts` moves unchanged.
@@ -271,6 +273,7 @@ tool callable, zod schema enforced). Slot rendering asserted in the
 Playwright layers.
 
 **Step 5 — Move features into plugins, named boundaries (M2).**
+
 - **5a terminal**: `ChatTerminalSurface`, the composer toggle, **the
   850-line `useChatTerminalRegistry` hook, and the checkpoint-transport
   shims (KodyChat.tsx:430–465)** — all in scope, listed file by file in the

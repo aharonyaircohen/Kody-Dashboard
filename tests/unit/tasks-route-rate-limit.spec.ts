@@ -11,10 +11,7 @@ import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
-const TASKS_ROUTE = resolve(
-  __dirname,
-  "../../app/api/kody/tasks/route.ts",
-);
+const TASKS_ROUTE = resolve(__dirname, "../../app/api/kody/tasks/route.ts");
 const SOURCE = readFileSync(TASKS_ROUTE, "utf8");
 
 describe("tasks route GitHub budget", () => {

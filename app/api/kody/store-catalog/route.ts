@@ -125,18 +125,17 @@ function catalogRemovalBlockers(
 
   if (item.kind !== "capability") return [];
 
-  const workflowBlockers: CatalogReferenceBlocker[] =
-    context.storeWorkflows
-      .filter(
-        (workflow) =>
-          context.active.workflows.has(workflow.id) &&
-          workflow.workflow.capabilities.includes(item.slug),
-      )
-      .map((workflow) => ({
-        kind: "workflow",
-        slug: workflow.id,
-        title: workflow.workflow.name || workflow.id,
-      }));
+  const workflowBlockers: CatalogReferenceBlocker[] = context.storeWorkflows
+    .filter(
+      (workflow) =>
+        context.active.workflows.has(workflow.id) &&
+        workflow.workflow.capabilities.includes(item.slug),
+    )
+    .map((workflow) => ({
+      kind: "workflow",
+      slug: workflow.id,
+      title: workflow.workflow.name || workflow.id,
+    }));
 
   const goalBlockers: CatalogReferenceBlocker[] = context.goalTemplates
     .filter(

@@ -96,9 +96,7 @@ function normalizeHistoryEntry(raw: unknown): KodyHistoryEntry | null {
   return {
     timestamp,
     capability:
-      rawString(entry.capability) ??
-      rawString(entry.implementation) ??
-      null,
+      rawString(entry.capability) ?? rawString(entry.implementation) ?? null,
     implementation: rawString(entry.implementation) ?? null,
     action: rawString(entry.action) ?? "",
     note: rawString(entry.note),

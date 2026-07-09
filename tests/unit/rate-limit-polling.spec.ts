@@ -38,25 +38,27 @@ describe("rate limit polling guardrails", () => {
       "discoveredImagesCache.get",
     );
     expect(
-      source("src/dashboard/lib/infrastructure/plugins/fly/runners/inventory-server.ts"),
+      source(
+        "src/dashboard/lib/infrastructure/plugins/fly/runners/inventory-server.ts",
+      ),
     ).toContain("listFlyInventoryCached");
     const brainImageManagement = source(
       "src/dashboard/lib/brain/image-management.ts",
     );
-    expect(brainImageManagement.indexOf("getTerminalBridgeExecJob")).toBeLessThan(
-      brainImageManagement.indexOf("refresh: true"),
-    );
+    expect(
+      brainImageManagement.indexOf("getTerminalBridgeExecJob"),
+    ).toBeLessThan(brainImageManagement.indexOf("refresh: true"));
     expect(source("src/dashboard/lib/agency-runs.ts")).toContain(
       "WORKFLOW_OVERLAY_TTL_MS = 60_000",
     );
     expect(source("src/dashboard/lib/managed-goals-files.ts")).toContain(
       "managedGoalFilesCache.get",
     );
-    expect(
-      source("src/dashboard/lib/managed-goal-run-logs.ts"),
-    ).toContain("runLogsCache.get");
-    expect(
-      source("src/dashboard/lib/company-intents-read-cache.ts"),
-    ).toContain("companyIntentRecordsCache");
+    expect(source("src/dashboard/lib/managed-goal-run-logs.ts")).toContain(
+      "runLogsCache.get",
+    );
+    expect(source("src/dashboard/lib/company-intents-read-cache.ts")).toContain(
+      "companyIntentRecordsCache",
+    );
   });
 });

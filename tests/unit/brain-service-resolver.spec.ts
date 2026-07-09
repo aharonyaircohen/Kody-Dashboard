@@ -30,8 +30,14 @@ const brainFly = vi.hoisted(() => ({
 vi.mock("@dashboard/lib/brain/store", () => store);
 vi.mock("@dashboard/lib/brain/runtime-manager", () => runtimeManager);
 vi.mock("@dashboard/lib/brain/target", () => target);
-vi.mock("@dashboard/lib/infrastructure/plugins/fly/previews/machines-client", () => flyPreviews);
-vi.mock("@dashboard/lib/infrastructure/plugins/fly/runners/brain", () => brainFly);
+vi.mock(
+  "@dashboard/lib/infrastructure/plugins/fly/previews/machines-client",
+  () => flyPreviews,
+);
+vi.mock(
+  "@dashboard/lib/infrastructure/plugins/fly/runners/brain",
+  () => brainFly,
+);
 
 describe("resolveBrainService", () => {
   beforeEach(() => {
@@ -77,9 +83,8 @@ describe("resolveBrainService", () => {
       runningOrgSlug: "personal",
       runningUrl: "https://brain-1.fly.dev",
     });
-    const { resolveBrainService } = await import(
-      "@dashboard/lib/brain/service-resolver"
-    );
+    const { resolveBrainService } =
+      await import("@dashboard/lib/brain/service-resolver");
 
     const resolved = await resolveBrainService({
       flyToken: "fly-token",
@@ -104,9 +109,8 @@ describe("resolveBrainService", () => {
       runningOrgSlug: "old-org",
       runningUrl: "https://old-brain.fly.dev",
     });
-    const { resolveBrainService } = await import(
-      "@dashboard/lib/brain/service-resolver"
-    );
+    const { resolveBrainService } =
+      await import("@dashboard/lib/brain/service-resolver");
 
     const resolved = await resolveBrainService({
       flyToken: "fly-token",
@@ -138,9 +142,8 @@ describe("resolveBrainService", () => {
       runningOrgSlug: "personal",
       runningUrl: "https://brain-1.fly.dev",
     });
-    const { resolveBrainService } = await import(
-      "@dashboard/lib/brain/service-resolver"
-    );
+    const { resolveBrainService } =
+      await import("@dashboard/lib/brain/service-resolver");
 
     const resolved = await resolveBrainService({
       flyToken: "fly-token",
@@ -180,9 +183,8 @@ describe("resolveBrainService", () => {
           createdAt: "2026-07-02T10:00:00.000Z",
         },
       ]);
-    const { resolveBrainService } = await import(
-      "@dashboard/lib/brain/service-resolver"
-    );
+    const { resolveBrainService } =
+      await import("@dashboard/lib/brain/service-resolver");
 
     const resolved = await resolveBrainService({
       flyToken: "vault-token",
@@ -231,9 +233,8 @@ describe("resolveBrainService", () => {
           createdAt: "2026-07-02T10:00:00.000Z",
         },
       ]);
-    const { resolveBrainService } = await import(
-      "@dashboard/lib/brain/service-resolver"
-    );
+    const { resolveBrainService } =
+      await import("@dashboard/lib/brain/service-resolver");
 
     const resolved = await resolveBrainService({
       flyToken: "vault-token",
@@ -280,9 +281,8 @@ describe("resolveBrainService", () => {
           createdAt: "2026-07-02T10:00:00.000Z",
         },
       ]);
-    const { resolveBrainService } = await import(
-      "@dashboard/lib/brain/service-resolver"
-    );
+    const { resolveBrainService } =
+      await import("@dashboard/lib/brain/service-resolver");
 
     const resolved = await resolveBrainService({
       flyToken: "vault-token",
@@ -307,9 +307,8 @@ describe("resolveBrainService", () => {
     flyPreviews.listMachines.mockRejectedValueOnce(
       Object.assign(new Error("unauthorized"), { status: 403 }),
     );
-    const { resolveBrainService } = await import(
-      "@dashboard/lib/brain/service-resolver"
-    );
+    const { resolveBrainService } =
+      await import("@dashboard/lib/brain/service-resolver");
 
     const resolved = await resolveBrainService({
       flyToken: "vault-token",

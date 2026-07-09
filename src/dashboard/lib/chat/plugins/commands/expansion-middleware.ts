@@ -15,10 +15,7 @@
  *   from the host-context snapshot (`slashCommands`) because commands
  *   load asynchronously per repo while the manifest is static pure data.
  */
-import type {
-  ChatHostEffect,
-  ChatSendMiddleware,
-} from "../../platform";
+import type { ChatHostEffect, ChatSendMiddleware } from "../../platform";
 import { expandSlashCommand, type SlashCommand } from "./useSlashCommands";
 
 export const SLASH_EXPANSION_MIDDLEWARE_ID = "slash-expansion";

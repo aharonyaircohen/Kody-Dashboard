@@ -105,7 +105,8 @@ async function buildConfigBundle(): Promise<CompanyConfigBundle | null> {
     out.defaultPrImplementation = config.defaultPrImplementation;
   }
   const perExec = config.agent?.perImplementation;
-  if (perExec && Object.keys(perExec).length > 0) out.perImplementation = perExec;
+  if (perExec && Object.keys(perExec).length > 0)
+    out.perImplementation = perExec;
 
   return Object.keys(out).length > 0 ? out : null;
 }

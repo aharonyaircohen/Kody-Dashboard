@@ -51,12 +51,7 @@ describe("state repo storage boundary", () => {
     });
 
     await expect(
-      listStateDirectory(
-        octokit as never,
-        "A-Guy-educ",
-        "A-Guy-Web",
-        "memory",
-      ),
+      listStateDirectory(octokit as never, "A-Guy-educ", "A-Guy-Web", "memory"),
     ).resolves.toMatchObject({
       targetPath: "A-Guy-Web/memory",
       entries: [

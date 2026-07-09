@@ -14,7 +14,10 @@ const ROUTE_SOURCE = readFileSync(
   "utf8",
 );
 const HELPER_SOURCE = readFileSync(
-  resolve(__dirname, "../../src/dashboard/lib/infrastructure/plugins/fly/runners/inventory-server.ts"),
+  resolve(
+    __dirname,
+    "../../src/dashboard/lib/infrastructure/plugins/fly/runners/inventory-server.ts",
+  ),
   "utf8",
 );
 
@@ -26,9 +29,7 @@ describe("Fly machines Brain fallback", () => {
     expect(HELPER_SOURCE).toContain("ctx.context.storeRepoUrl");
     expect(HELPER_SOURCE).toContain("ctx.context.storeRef");
     expect(HELPER_SOURCE).toContain("resolveBrainService({");
-    expect(HELPER_SOURCE).toContain(
-      'm.feature !== "brain" && m.app !== app',
-    );
+    expect(HELPER_SOURCE).toContain('m.feature !== "brain" && m.app !== app');
     expect(HELPER_SOURCE).toContain(
       "inventory.machines.push({ ...brain.machine, orgSlug: brain.orgSlug })",
     );

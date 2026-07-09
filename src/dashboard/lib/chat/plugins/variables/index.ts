@@ -21,11 +21,9 @@ export const variablesChatPlugin: ChatPlugin = {
     {
       id: VARIABLES_PANEL_ID,
       title: "Variables",
-      render: createLazyPanel(
-        "variables",
-        () => import("./panel").then((m) => ({ default: m.VariablesPanelView })),
+      render: createLazyPanel("variables", () =>
+        import("./panel").then((m) => ({ default: m.VariablesPanelView })),
       ),
     },
   ],
 };
-

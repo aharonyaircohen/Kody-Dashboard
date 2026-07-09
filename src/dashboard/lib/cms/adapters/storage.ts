@@ -1,10 +1,7 @@
 import path from "node:path";
 
 import type { CmsStorageTransport } from "@dashboard/lib/storage";
-import {
-  CmsConfigError,
-  getCollectionIdField,
-} from "../config";
+import { CmsConfigError, getCollectionIdField } from "../config";
 import type {
   CmsCollectionConfig,
   CmsDocument,
@@ -12,21 +9,33 @@ import type {
   CmsListQuery,
   CmsSortEntry,
 } from "../types";
-import { CmsAdapterError, type CmsAdapter, type CmsAdapterContext } from "./types";
+import {
+  CmsAdapterError,
+  type CmsAdapter,
+  type CmsAdapterContext,
+} from "./types";
 
 export function createStorageCmsAdapter({
   resolveTransport,
 }: {
-  resolveTransport: (context: CmsAdapterContext) => CmsStorageTransport | undefined;
+  resolveTransport: (
+    context: CmsAdapterContext,
+  ) => CmsStorageTransport | undefined;
 }): CmsAdapter {
   return {
     name: "storage",
 
     async list(context, query) {
-      const docs = await readCollectionDocs(getTransport(context), context.collection);
+      const docs = await readCollectionDocs(
+        getTransport(context),
+        context.collection,
+      );
       const filtered = applyFilters(docs, query.filters ?? {});
       const searched = applySearch(filtered, context.collection, query.search);
-      const sorted = applySort(searched, query.sort ?? context.collection.defaultSort);
+      const sorted = applySort(
+        searched,
+        query.sort ?? context.collection.defaultSort,
+      );
       const offset = Math.max(0, Number(query.offset ?? 0));
       const limit = clampLimit(query.limit);
       return {
@@ -65,10 +74,12 @@ export function createStorageCmsAdapter({
       const collection = context.collection;
       const id = getDocumentId(collection, data);
       const transport = getTransport(context);
-      const existing = await readDoc(transport, collection, id).catch((error) => {
-        if (isMissing(error)) return null;
-        throw error;
-      });
+      const existing = await readDoc(transport, collection, id).catch(
+        (error) => {
+          if (isMissing(error)) return null;
+          throw error;
+        },
+      );
       if (existing) {
         throw new CmsConfigError([`${collection.name}/${id} already exists`]);
       }
@@ -81,10 +92,12 @@ export function createStorageCmsAdapter({
     async update(context, id, data) {
       const collection = context.collection;
       const transport = getTransport(context);
-      const current = await readDoc(transport, collection, id).catch((error) => {
-        if (isMissing(error)) return null;
-        throw error;
-      });
+      const current = await readDoc(transport, collection, id).catch(
+        (error) => {
+          if (isMissing(error)) return null;
+          throw error;
+        },
+      );
       if (!current) return null;
 
       const idField = getCollectionIdField(collection);
@@ -103,9 +116,12 @@ export function createStorageCmsAdapter({
 
     async delete(context, id) {
       try {
-        await getTransport(context).deleteFile(docPath(context.collection, id), {
-          message: `cms: delete ${context.collection.name}/${id}`,
-        });
+        await getTransport(context).deleteFile(
+          docPath(context.collection, id),
+          {
+            message: `cms: delete ${context.collection.name}/${id}`,
+          },
+        );
         return true;
       } catch (error) {
         if (isMissing(error)) return false;
@@ -138,7 +154,9 @@ async function readCollectionDocs(
   });
   const extension = getExtension(collection);
   const docs: CmsDocument[] = [];
-  for (const filePath of files.filter((file) => file.endsWith(`.${extension}`))) {
+  for (const filePath of files.filter((file) =>
+    file.endsWith(`.${extension}`),
+  )) {
     docs.push(JSON.parse(await transport.readFile(filePath)) as CmsDocument);
   }
   return docs;
@@ -149,7 +167,9 @@ async function readDoc(
   collection: CmsCollectionConfig,
   id: string,
 ): Promise<CmsDocument> {
-  return JSON.parse(await transport.readFile(docPath(collection, id))) as CmsDocument;
+  return JSON.parse(
+    await transport.readFile(docPath(collection, id)),
+  ) as CmsDocument;
 }
 
 function applyFilters(
@@ -201,7 +221,9 @@ function applySearch(
     ? search.fields
     : collection.searchFields.length
       ? collection.searchFields
-      : [collection.titleField].filter((field): field is string => Boolean(field));
+      : [collection.titleField].filter((field): field is string =>
+          Boolean(field),
+        );
   if (fields.length === 0) return docs;
   const needle = query.toLowerCase();
   return docs.filter((doc) =>
@@ -269,7 +291,9 @@ function getExtension(collection: CmsCollectionConfig): string {
     throw new CmsConfigError([`unsafe file extension: ${extension}`]);
   }
   if (extension !== "json") {
-    throw new CmsConfigError(["Storage CMS adapter only supports json documents"]);
+    throw new CmsConfigError([
+      "Storage CMS adapter only supports json documents",
+    ]);
   }
   return extension;
 }

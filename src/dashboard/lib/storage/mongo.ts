@@ -65,7 +65,9 @@ export function createMongoStorageAdapter(
   db: MongoStorageDatabase,
   options: MongoStorageAdapterOptions = {},
 ): StorageAdapter<MongoStorageTarget> {
-  const collection = db.collection(options.collectionName ?? DEFAULT_COLLECTION);
+  const collection = db.collection(
+    options.collectionName ?? DEFAULT_COLLECTION,
+  );
   const nextVersion = options.versionFactory ?? (() => randomUUID());
 
   return {

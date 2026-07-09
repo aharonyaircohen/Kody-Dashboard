@@ -61,14 +61,15 @@ export interface DeploymentProvider<
   create(input: TCreateInput, config: TConfig): Promise<TDeploymentInfo>;
   get(key: TDeploymentKey, config: TConfig): Promise<TDeploymentInfo | null>;
   destroy(key: TDeploymentKey, config: TConfig): Promise<void>;
-  wake?(
-    key: TDeploymentKey,
-    config: TConfig,
-  ): Promise<TDeploymentInfo | null>;
+  wake?(key: TDeploymentKey, config: TConfig): Promise<TDeploymentInfo | null>;
 }
 
-export interface BrowserProvider<TSessionInput, TSession, TAction, TResult>
-  extends InfrastructureProviderBase {
+export interface BrowserProvider<
+  TSessionInput,
+  TSession,
+  TAction,
+  TResult,
+> extends InfrastructureProviderBase {
   area: "browsers";
   createSession(input: TSessionInput): Promise<TSession>;
   act(session: TSession, action: TAction): Promise<TResult>;

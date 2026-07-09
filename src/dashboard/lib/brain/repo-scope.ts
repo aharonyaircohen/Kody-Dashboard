@@ -40,7 +40,9 @@ export function repoBrainScopeKey(input?: RepoBrainScopeInput | null): string {
   return owner && repo ? `${owner}/${repo}` : "norepo";
 }
 
-export function createRepoBrainScope(input: RepoBrainScopeInput): RepoBrainScope {
+export function createRepoBrainScope(
+  input: RepoBrainScopeInput,
+): RepoBrainScope {
   const owner = clean(input.owner);
   const repo = clean(input.repo);
   if (!owner || !repo) {

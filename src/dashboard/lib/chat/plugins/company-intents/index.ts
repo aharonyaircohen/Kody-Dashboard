@@ -21,11 +21,9 @@ export const companyIntentsChatPlugin: ChatPlugin = {
     {
       id: COMPANY_INTENTS_PANEL_ID,
       title: "Intents",
-      render: createLazyPanel(
-        "company-intents",
-        () => import("./panel").then((m) => ({ default: m.CompanyIntentsPanelView })),
+      render: createLazyPanel("company-intents", () =>
+        import("./panel").then((m) => ({ default: m.CompanyIntentsPanelView })),
       ),
     },
   ],
 };
-

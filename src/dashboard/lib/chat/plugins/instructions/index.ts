@@ -21,11 +21,9 @@ export const instructionsChatPlugin: ChatPlugin = {
     {
       id: INSTRUCTIONS_PANEL_ID,
       title: "Instructions",
-      render: createLazyPanel(
-        "instructions",
-        () => import("./panel").then((m) => ({ default: m.InstructionsPanelView })),
+      render: createLazyPanel("instructions", () =>
+        import("./panel").then((m) => ({ default: m.InstructionsPanelView })),
       ),
     },
   ],
 };
-

@@ -37,7 +37,9 @@ const TERMINAL_FEATURES = new Set<ServerProviderFeature>(["brain"]);
 const LIVE_STATES = new Set(["started", "running"]);
 const STARTABLE_STATES = new Set(["suspended", "stopped"]);
 
-export function isTerminalFeatureAllowed(feature: ServerProviderFeature): boolean {
+export function isTerminalFeatureAllowed(
+  feature: ServerProviderFeature,
+): boolean {
   return TERMINAL_FEATURES.has(feature);
 }
 
@@ -55,8 +57,7 @@ export function upsertTerminalTargetMachine(
   orgSlug: string,
 ): void {
   inventory.machines = inventory.machines.filter(
-    (item) =>
-      item.app !== machine.app || item.machineId !== machine.machineId,
+    (item) => item.app !== machine.app || item.machineId !== machine.machineId,
   );
   inventory.machines.push({ ...machine, orgSlug: machine.orgSlug ?? orgSlug });
   inventory.total = inventory.machines.length;
@@ -98,7 +99,11 @@ export function resolveTerminalTargetMachine(
 
 export function resolveBrainTerminalTargetInput(
   inventory: ServerProviderInventory,
-  input?: { app?: string; machineId?: string; feature?: ServerProviderFeature } | null,
+  input?: {
+    app?: string;
+    machineId?: string;
+    feature?: ServerProviderFeature;
+  } | null,
 ): { app: string; machineId: string; feature: "brain" } | null {
   if (input?.app && input.machineId) {
     const target = resolveTerminalTargetMachine(inventory, {

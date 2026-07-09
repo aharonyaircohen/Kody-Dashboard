@@ -19,7 +19,7 @@ const BRIDGE_HEALTH_TIMEOUT_MS = 90_000;
 const BRIDGE_HEALTH_INTERVAL_MS = 2_000;
 const BRIDGE_CREATE_ATTEMPTS = 3;
 
-export const TERMINAL_BRIDGE_VERSION = "2026-07-08.2";
+export const TERMINAL_BRIDGE_VERSION = "2026-07-09.1";
 export const TERMINAL_BRIDGE_BASE_IMAGE =
   process.env.KODY_TERMINAL_BRIDGE_BASE_IMAGE ?? "node:22-bookworm";
 
@@ -107,10 +107,13 @@ slave_control_fd = slave
 stdin_fd = sys.stdin.fileno()
 stdout_fd = sys.stdout.fileno()
 control_fd = 3
-try:
-    os.fstat(control_fd)
-except OSError:
+if control_fd == master:
     control_fd = None
+else:
+    try:
+        os.fstat(control_fd)
+    except OSError:
+        control_fd = None
 stdin_open = True
 control_open = control_fd is not None
 control_buffer = b""

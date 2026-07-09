@@ -49,7 +49,9 @@ describe("plugin-tools token", () => {
     expect(verifyPluginToolsBearer(`acme/other:${sig}`)).toBeNull();
     expect(verifyPluginToolsBearer(`evil/widgets:${sig}`)).toBeNull();
     expect(
-      verifyPluginToolsBearer(bearer.slice(0, -1) + (bearer.endsWith("0") ? "1" : "0")),
+      verifyPluginToolsBearer(
+        bearer.slice(0, -1) + (bearer.endsWith("0") ? "1" : "0"),
+      ),
     ).toBeNull();
     expect(verifyPluginToolsBearer("")).toBeNull();
     expect(verifyPluginToolsBearer("no-separator")).toBeNull();

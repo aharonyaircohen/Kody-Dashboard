@@ -21,11 +21,9 @@ export const settingsChatPlugin: ChatPlugin = {
     {
       id: SETTINGS_PANEL_ID,
       title: "Settings",
-      render: createLazyPanel(
-        "settings",
-        () => import("./panel").then((m) => ({ default: m.SettingsPanelView })),
+      render: createLazyPanel("settings", () =>
+        import("./panel").then((m) => ({ default: m.SettingsPanelView })),
       ),
     },
   ],
 };
-

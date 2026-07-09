@@ -32,7 +32,9 @@ describe("scroll restoration", () => {
 
   it("restores again when the caller key changes without remounting", () => {
     expect(SOURCE).toContain("useLayoutEffect");
-    expect(SOURCE).toContain("const nodeRef = useRef<HTMLElement | null>(null)");
+    expect(SOURCE).toContain(
+      "const nodeRef = useRef<HTMLElement | null>(null)",
+    );
     expect(SOURCE).toContain("restoreScroll(nodeRef.current, key)");
     expect(SOURCE).toContain("}, [key, restoreScroll]);");
   });

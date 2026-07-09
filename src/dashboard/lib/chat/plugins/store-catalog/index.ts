@@ -21,11 +21,9 @@ export const storeCatalogChatPlugin: ChatPlugin = {
     {
       id: STORE_CATALOG_PANEL_ID,
       title: "Store Catalog",
-      render: createLazyPanel(
-        "store-catalog",
-        () => import("./panel").then((m) => ({ default: m.StoreCatalogPanelView })),
+      render: createLazyPanel("store-catalog", () =>
+        import("./panel").then((m) => ({ default: m.StoreCatalogPanelView })),
       ),
     },
   ],
 };
-

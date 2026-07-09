@@ -38,12 +38,8 @@ describe("Brain on Fly settings card", () => {
     );
     const saveBrainSuspension = BRAIN_CARD_SOURCE.slice(start, end);
 
-    expect(saveBrainSuspension).toContain(
-      '"/api/kody/brain/suspension"',
-    );
-    expect(saveBrainSuspension).not.toContain(
-      '"/api/kody/brain/provision"',
-    );
+    expect(saveBrainSuspension).toContain('"/api/kody/brain/suspension"');
+    expect(saveBrainSuspension).not.toContain('"/api/kody/brain/provision"');
   });
 
   it("shows Fly authorization failures as token access problems", () => {

@@ -131,8 +131,7 @@ const KIND_COLORS: Record<
     text: "text-slate-700 dark:text-slate-100",
   },
   agent: {
-    tabActive:
-      "border-sky-500/40 bg-sky-500/10 text-sky-700 dark:text-sky-100",
+    tabActive: "border-sky-500/40 bg-sky-500/10 text-sky-700 dark:text-sky-100",
     tabIdle:
       "border-border bg-background/60 text-muted-foreground hover:text-sky-700 dark:hover:text-sky-100",
     icon: "text-sky-600 dark:text-sky-300",
@@ -147,8 +146,7 @@ const KIND_COLORS: Record<
     tabIdle:
       "border-border bg-background/60 text-muted-foreground hover:text-violet-700 dark:hover:text-violet-100",
     icon: "text-violet-600 dark:text-violet-300",
-    iconHover:
-      "group-hover:text-violet-600 dark:group-hover:text-violet-300",
+    iconHover: "group-hover:text-violet-600 dark:group-hover:text-violet-300",
     borderHover: "hover:border-violet-500/30",
     tint: "bg-violet-500/10",
     text: "text-violet-700 dark:text-violet-100",
@@ -170,8 +168,7 @@ const KIND_COLORS: Record<
     tabIdle:
       "border-border bg-background/60 text-muted-foreground hover:text-indigo-700 dark:hover:text-indigo-100",
     icon: "text-indigo-600 dark:text-indigo-300",
-    iconHover:
-      "group-hover:text-indigo-600 dark:group-hover:text-indigo-300",
+    iconHover: "group-hover:text-indigo-600 dark:group-hover:text-indigo-300",
     borderHover: "hover:border-indigo-500/30",
     tint: "bg-indigo-500/10",
     text: "text-indigo-700 dark:text-indigo-100",
@@ -182,8 +179,7 @@ const KIND_COLORS: Record<
     tabIdle:
       "border-border bg-background/60 text-muted-foreground hover:text-emerald-700 dark:hover:text-emerald-100",
     icon: "text-emerald-600 dark:text-emerald-300",
-    iconHover:
-      "group-hover:text-emerald-600 dark:group-hover:text-emerald-300",
+    iconHover: "group-hover:text-emerald-600 dark:group-hover:text-emerald-300",
     borderHover: "hover:border-emerald-500/30",
     tint: "bg-emerald-500/10",
     text: "text-emerald-700 dark:text-emerald-100",
@@ -614,7 +610,9 @@ export function StoreCatalogManager({
               >
                 <div className="flex items-center justify-between gap-2">
                   <div className="flex min-w-0 items-center gap-2">
-                    <GroupIcon className={cn("h-4 w-4", KIND_COLORS[group.id].icon)} />
+                    <GroupIcon
+                      className={cn("h-4 w-4", KIND_COLORS[group.id].icon)}
+                    />
                     <h2
                       id={`store-group-${group.id}`}
                       className="text-sm font-semibold text-foreground"
@@ -799,9 +797,7 @@ function CatalogDetail({
           <div className="space-y-5">
             {item.description ? (
               <section className="rounded-md border border-border bg-muted/20 p-4">
-                <h3 className="text-sm font-medium text-foreground">
-                  Summary
-                </h3>
+                <h3 className="text-sm font-medium text-foreground">Summary</h3>
                 <p className="mt-2 text-sm leading-6 text-muted-foreground">
                   {item.description}
                 </p>
@@ -867,7 +863,10 @@ function CatalogDetail({
               <InfoRow label="Schedule" value={item.schedule} />
             ) : null}
             {workflowSteps.length > 0 ? (
-              <InfoRow label="Step count" value={String(workflowSteps.length)} />
+              <InfoRow
+                label="Step count"
+                value={String(workflowSteps.length)}
+              />
             ) : null}
             <InfoRow label="Source">
               {item.htmlUrl ? (

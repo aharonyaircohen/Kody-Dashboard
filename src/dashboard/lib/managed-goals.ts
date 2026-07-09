@@ -722,7 +722,9 @@ export function buildManagedGoalState(
         evidence: [SIMPLE_MANAGED_GOAL_EVIDENCE],
       },
       schedule: input.schedule ?? "manual",
-      ...(input.runWithoutApproval === true ? { runWithoutApproval: true } : {}),
+      ...(input.runWithoutApproval === true
+        ? { runWithoutApproval: true }
+        : {}),
       capabilities: [],
       route: [],
       stage: "waiting",

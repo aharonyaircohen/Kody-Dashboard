@@ -21,11 +21,9 @@ export const notificationsChatPlugin: ChatPlugin = {
     {
       id: NOTIFICATIONS_PANEL_ID,
       title: "Notifications",
-      render: createLazyPanel(
-        "notifications",
-        () => import("./panel").then((m) => ({ default: m.NotificationsPanelView })),
+      render: createLazyPanel("notifications", () =>
+        import("./panel").then((m) => ({ default: m.NotificationsPanelView })),
       ),
     },
   ],
 };
-

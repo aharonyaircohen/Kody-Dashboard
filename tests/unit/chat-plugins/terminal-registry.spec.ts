@@ -230,15 +230,15 @@ describe("chat terminal registry Brain sessions", () => {
       sizeLabel: "perf 1x · 2 GB",
       feature: "runner",
     } satisfies FlyMachineRow;
-    expect(
-      resolveTerminalTargetSelection("runner-app:m-9", [machine]),
-    ).toEqual({
-      type: "fly",
-      app: "runner-app",
-      machineId: "m-9",
-      label: "runner",
-      feature: "runner",
-    });
+    expect(resolveTerminalTargetSelection("runner-app:m-9", [machine])).toEqual(
+      {
+        type: "fly",
+        app: "runner-app",
+        machineId: "m-9",
+        label: "runner",
+        feature: "runner",
+      },
+    );
   });
 
   it("finds the most recent mounted Brain terminal", () => {
@@ -294,9 +294,9 @@ describe("chat terminal registry refresh persistence", () => {
     expect(pruneSessionKeyedRecord(modes, known)).toBe(modes);
     const connections = { "chat-2::local": "connected" as const };
     expect(pruneInstanceKeyedRecord(connections, known)).toBe(connections);
-    expect(
-      pruneInstanceKeyedRecord(connections, new Set(["chat-1"])),
-    ).toEqual({});
+    expect(pruneInstanceKeyedRecord(connections, new Set(["chat-1"]))).toEqual(
+      {},
+    );
   });
 
   it("refreshes status for local terminals by chat session only", () => {
@@ -308,9 +308,10 @@ describe("chat terminal registry refresh persistence", () => {
   });
 
   it("probes remote terminals by semantic Brain target or Fly machine", () => {
-    expect(
-      remoteTerminalStatusRequest({ type: "brain" }, "chat-1"),
-    ).toEqual({ target: "brain", chatSessionId: "chat-1" });
+    expect(remoteTerminalStatusRequest({ type: "brain" }, "chat-1")).toEqual({
+      target: "brain",
+      chatSessionId: "chat-1",
+    });
     expect(
       remoteTerminalStatusRequest(
         { type: "fly", app: "runner-app", machineId: "m-1", feature: "runner" },

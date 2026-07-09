@@ -255,7 +255,12 @@ describe("GET /api/kody/brain/image", () => {
 
     const res = await GET(request("GET"));
     const body = (await res.json()) as {
-      save?: { status?: string; phase?: string; message?: string; error?: string };
+      save?: {
+        status?: string;
+        phase?: string;
+        message?: string;
+        error?: string;
+      };
     };
 
     expect(res.status).toBe(200);
@@ -606,9 +611,7 @@ describe("DELETE /api/kody/brain/image", () => {
       createdAt: "2026-06-30T00:00:00.000Z",
       updatedAt: "2026-07-02T10:10:10.000Z",
       images: [],
-      forgottenImageRefs: [
-        "ghcr.io/a-guy-educ/kody-brain-aguyaharonyair:old",
-      ],
+      forgottenImageRefs: ["ghcr.io/a-guy-educ/kody-brain-aguyaharonyair:old"],
     });
   });
 
@@ -633,8 +636,7 @@ describe("PATCH /api/kody/brain/image", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     mocks.readRuntimeView.mockResolvedValue({
-      desiredImageRef:
-        "ghcr.io/a-guy-educ/kody-brain-aguyaharonyair:selected",
+      desiredImageRef: "ghcr.io/a-guy-educ/kody-brain-aguyaharonyair:selected",
       source: "runtime",
     });
     mocks.selectRuntimeImage.mockResolvedValue(undefined);

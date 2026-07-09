@@ -155,8 +155,7 @@ export function TerminalTopControls({
             )) && <option value="brain">Brain terminal</option>}
           {activeTransport.type === "fly" &&
             !terminalMachines.some(
-              (machine) =>
-                terminalFlyMachineKey(machine) === activeTargetValue,
+              (machine) => terminalFlyMachineKey(machine) === activeTargetValue,
             ) && (
               <option value={activeTargetValue}>
                 {flyTerminalTargetLabel(activeTransport)} · selected

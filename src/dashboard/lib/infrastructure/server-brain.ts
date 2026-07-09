@@ -74,7 +74,9 @@ export const resolveSavedBrainServiceForRequest =
 
 export function applySavedServerBrainMachineToInventory(
   inventory: Parameters<
-    ReturnType<typeof serverOperations.provider>["applySavedBrainMachineToInventory"]
+    ReturnType<
+      typeof serverOperations.provider
+    >["applySavedBrainMachineToInventory"]
   >[0],
   brain: ServerBrainServiceResolution,
 ) {
@@ -86,12 +88,17 @@ export function applySavedServerBrainMachineToInventory(
 export const applySavedBrainMachineToInventory =
   applySavedServerBrainMachineToInventory;
 
-export { emptyServerProviderInventory, refreshServerProviderInventoryCounts } from "./server-machines";
+export {
+  emptyServerProviderInventory,
+  refreshServerProviderInventoryCounts,
+} from "./server-machines";
 
 export async function appendSavedBrainMachineToInventory(
   req: NextRequest,
   inventory: Parameters<
-    ReturnType<typeof serverOperations.provider>["applySavedBrainMachineToInventory"]
+    ReturnType<
+      typeof serverOperations.provider
+    >["applySavedBrainMachineToInventory"]
   >[0],
   context?: ProviderContext,
 ): Promise<boolean> {

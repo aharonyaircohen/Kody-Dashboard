@@ -55,7 +55,10 @@ const githubContext = vi.hoisted(() => ({
   clearGitHubContext: vi.fn(),
 }));
 
-vi.mock("@dashboard/lib/infrastructure/plugins/fly/runners/context", () => flyContext);
+vi.mock(
+  "@dashboard/lib/infrastructure/plugins/fly/runners/context",
+  () => flyContext,
+);
 vi.mock("@dashboard/lib/brain/service-resolver", () => brainResolver);
 vi.mock("@dashboard/lib/github-client", () => githubContext);
 vi.mock("@dashboard/lib/logger", () => ({
@@ -72,6 +75,32 @@ describe("appendSavedBrainMachineToInventory", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     vi.unstubAllEnvs();
+    delete process.env.FLY_API_TOKEN;
+    delete process.env.FLY_IO_TOKEN;
+    vi.mocked(brainResolver.resolveBrainService).mockReset();
+    vi.mocked(brainResolver.resolveBrainService).mockResolvedValue({
+      app: "custom-brain",
+      orgSlug: "personal",
+      defaultRegion: "fra",
+      stored: {
+        version: 1,
+        appName: "custom-brain",
+        orgSlug: "personal",
+        createdAt: "2026-06-29T00:00:00.000Z",
+      },
+      state: "running",
+      url: "https://custom-brain.fly.dev",
+      machineId: "brain-1",
+      machine: {
+        feature: "brain",
+        app: "custom-brain",
+        machineId: "brain-1",
+        state: "started",
+        region: "fra",
+        label: "custom-brain",
+        sizeLabel: "shared 2x",
+      },
+    });
   });
 
   it("reclassifies a generic listed app as the resolved Brain service", async () => {
@@ -263,13 +292,14 @@ describe("appendSavedBrainMachineToInventory", () => {
         },
       } as never);
 
-    await expect(resolveSavedBrainServiceForRequest({} as never)).resolves
-      .toMatchObject({
-        flyToken: "env-fly-token",
-        brain: {
-          app: "custom-brain",
-          machineId: "brain-1",
-        },
-      });
+    await expect(
+      resolveSavedBrainServiceForRequest({} as never),
+    ).resolves.toMatchObject({
+      flyToken: "env-fly-token",
+      brain: {
+        app: "custom-brain",
+        machineId: "brain-1",
+      },
+    });
   });
 });

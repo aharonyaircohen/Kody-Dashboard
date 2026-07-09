@@ -21,11 +21,9 @@ export const capabilitiesChatPlugin: ChatPlugin = {
     {
       id: CAPABILITIES_PANEL_ID,
       title: "Capabilities",
-      render: createLazyPanel(
-        "capabilities",
-        () => import("./panel").then((m) => ({ default: m.CapabilitiesPanelView })),
+      render: createLazyPanel("capabilities", () =>
+        import("./panel").then((m) => ({ default: m.CapabilitiesPanelView })),
       ),
     },
   ],
 };
-
