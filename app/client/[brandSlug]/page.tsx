@@ -21,7 +21,7 @@ import {
 } from "@dashboard/lib/client-brand-repo-cookie";
 import { mintClientSurfaceTicket } from "@dashboard/lib/chat/platform/surface-scope";
 import { resolveVaultGithubToken } from "@dashboard/lib/vault/bootstrap";
-import { auth } from "@dashboard/lib/client-auth/auth";
+import { auth, signIn } from "@dashboard/lib/client-auth/auth";
 import { isEmailAllowed } from "@dashboard/lib/client-auth/allowlist";
 import { resolveGoogleCredentials } from "@dashboard/lib/client-auth/credentials";
 import { ClientAuthGate } from "@dashboard/lib/client-auth/ClientAuthGate";
@@ -78,7 +78,9 @@ export default async function ClientChatPage({ params }: ClientChatPageProps) {
     const session = await auth();
     const email = session?.user?.email;
     if (!email) {
-      return <ClientAuthGate brand={brand} callbackUrl={callbackUrl} />;
+      // No session → straight to Google, no interstitial click.
+      await signIn("google", { redirectTo: callbackUrl });
+      return null;
     }
     if (!isEmailAllowed(brand.auth, email)) {
       return (
