@@ -67,4 +67,27 @@ describe("resolveVaultGithubToken", () => {
       "https://api.github.com/repos/acme/kody-state/contents/widgets/secrets.enc",
     ]);
   });
+
+  it("authenticates default-fetch reads with the server GITHUB_TOKEN", async () => {
+    // Regression: these reads ran unauthenticated and shared Vercel's
+    // 60-req/hr per-IP budget — when drained, every provider/vault read
+    // 403'd and client sign-in rendered an empty page.
+    const savedToken = process.env.GITHUB_TOKEN;
+    process.env.GITHUB_TOKEN = "ghp_server_token";
+    const fetchSpy = vi
+      .spyOn(globalThis, "fetch")
+      .mockResolvedValue({ ok: false, json: async () => ({}) } as Response);
+    try {
+      await resolveVaultGithubToken("acme", "fresh-repo");
+      expect(fetchSpy).toHaveBeenCalled();
+      for (const [, init] of fetchSpy.mock.calls) {
+        expect(
+          (init?.headers as Record<string, string>)?.Authorization,
+        ).toBe("Bearer ghp_server_token");
+      }
+    } finally {
+      if (savedToken === undefined) delete process.env.GITHUB_TOKEN;
+      else process.env.GITHUB_TOKEN = savedToken;
+    }
+  });
 });
