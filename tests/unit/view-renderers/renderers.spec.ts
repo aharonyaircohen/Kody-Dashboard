@@ -504,6 +504,159 @@ describe("view renderer definitions", () => {
     expect(phraseMatched?.slug).toBe("multi-select-list");
   });
 
+  it("rejects decision renderers for unrelated informational questions", () => {
+    const matched = matchViewRendererDefinition(
+      [decisionRenderer],
+      "decision",
+      {
+        title: "קורסים זמינים",
+        body: "מצאתי כמה קורסים זמינים.",
+        actions: [
+          { id: "approve", label: "Approve", response: "approve" },
+          { id: "cancel", label: "Cancel", response: "cancel" },
+        ],
+      },
+      "איזה קורסים יש?",
+    );
+
+    expect(matched).toBeNull();
+  });
+
+  it("allows useful list renderers for informational questions", () => {
+    const courseListRenderer: ViewRendererDefinition = {
+      slug: "course-list",
+      name: "Course list",
+      purpose: "courses",
+      rule: "Use this purpose when Kody answers with available courses or learning programs.",
+      type: "layout",
+      data: {
+        title: { type: "text" },
+        items: { type: "selection" },
+      },
+      ui: {
+        type: "stack",
+        children: [
+          { type: "text", value: "$title", variant: "title" },
+          {
+            type: "list",
+            for: "$items",
+            as: "item",
+            item: { type: "button", label: "$item.label", action: "$item" },
+          },
+        ],
+      },
+    };
+
+    const matched = matchViewRendererDefinition(
+      [courseListRenderer],
+      "courses",
+      {
+        title: "קורסים זמינים",
+        items: [
+          { id: "algebra", label: "אלגברה" },
+          { id: "geometry", label: "גיאומטריה" },
+        ],
+      },
+      "איזה קורסים יש?",
+    );
+
+    expect(matched?.slug).toBe("course-list");
+  });
+
+  it("prefers topic-specific renderers over generic shape renderers", () => {
+    const genericListRenderer: ViewRendererDefinition = {
+      slug: "generic-list",
+      name: "Generic list",
+      purpose: "list",
+      rule: "Use this purpose when Kody answers with a list of available items.",
+      type: "layout",
+      data: {
+        title: { type: "text" },
+        items: { type: "selection" },
+      },
+      ui: {
+        type: "list",
+        for: "$items",
+        as: "item",
+        item: { type: "button", label: "$item.label", action: "$item" },
+      },
+    };
+    const courseCardsRenderer: ViewRendererDefinition = {
+      slug: "course-cards",
+      name: "Course cards",
+      purpose: "courses",
+      aliases: ["course-list"],
+      rule: "Use this purpose when Kody answers with available courses or learning programs as cards.",
+      type: "layout",
+      data: {
+        title: { type: "text" },
+        items: { type: "selection" },
+      },
+      ui: {
+        type: "stack",
+        children: [
+          { type: "text", value: "$title", variant: "title" },
+          {
+            type: "list",
+            for: "$items",
+            as: "item",
+            item: { type: "button", label: "$item.label", action: "$item" },
+          },
+        ],
+      },
+    };
+
+    const matched = matchViewRendererDefinition(
+      [genericListRenderer, courseCardsRenderer],
+      "courses",
+      {
+        title: "קורסים זמינים",
+        items: [
+          { id: "algebra", label: "אלגברה" },
+          { id: "geometry", label: "גיאומטריה" },
+        ],
+      },
+      "איזה קורסים יש?",
+    );
+
+    expect(matched?.slug).toBe("course-cards");
+  });
+
+  it("falls back to generic shape renderers when no topic renderer exists", () => {
+    const genericListRenderer: ViewRendererDefinition = {
+      slug: "generic-list",
+      name: "Generic list",
+      purpose: "list",
+      rule: "Use this purpose when Kody answers with a list of available items.",
+      type: "layout",
+      data: {
+        title: { type: "text" },
+        items: { type: "selection" },
+      },
+      ui: {
+        type: "list",
+        for: "$items",
+        as: "item",
+        item: { type: "button", label: "$item.label", action: "$item" },
+      },
+    };
+
+    const matched = matchViewRendererDefinition(
+      [genericListRenderer],
+      "courses",
+      {
+        title: "קורסים זמינים",
+        items: [
+          { id: "algebra", label: "אלגברה" },
+          { id: "geometry", label: "גיאומטריה" },
+        ],
+      },
+      "איזה קורסים יש?",
+    );
+
+    expect(matched?.slug).toBe("generic-list");
+  });
+
   it("renders multi-select definitions as checkbox atoms, not choice buttons", () => {
     const multiSelectRenderer: ViewRendererDefinition = {
       slug: "multi-select-list",

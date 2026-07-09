@@ -16,6 +16,7 @@ import { generateText } from "ai";
 import { z } from "zod";
 import { requireKodyAuth, getUserOctokit } from "@dashboard/lib/auth";
 import { stripReasoning } from "@dashboard/lib/chat/core/reasoning";
+import { slugifyTitle } from "@dashboard/lib/slug";
 import { resolveChatModel } from "../../chat/resolve-model";
 
 export const runtime = "nodejs";
@@ -199,9 +200,7 @@ export async function POST(req: NextRequest) {
     // Default the name to the repo if the model left it blank/odd.
     const proposal: Proposal = {
       ...result.data,
-      name:
-        result.data.name ||
-        parsed.repo.toLowerCase().replace(/[^a-z0-9_-]/g, "-"),
+      name: result.data.name || slugifyTitle(parsed.repo),
     };
     return NextResponse.json({ proposal });
   } catch (error: unknown) {

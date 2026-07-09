@@ -8,6 +8,8 @@
  *   `goal:<slug>`.
  */
 
+import { slugifyTitle } from "./slug";
+
 export const GOALS_MANIFEST_LABEL = "kody:goals-manifest";
 export const GOAL_LABEL_PREFIX = "goal:";
 
@@ -129,13 +131,11 @@ export function serializeManifestBody(manifest: GoalsManifest): string {
 }
 
 export function slugifyGoalName(name: string): string {
-  const slug = name
-    .toLowerCase()
-    .trim()
-    .replace(/[^a-z0-9]+/g, "-")
-    .replace(/^-+|-+$/g, "")
-    .slice(0, 60);
-  return slug || "goal";
+  return slugifyTitle(name, {
+    maxLength: 60,
+    fallback: "goal",
+    allowUnderscore: false,
+  });
 }
 
 /**

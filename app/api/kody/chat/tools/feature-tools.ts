@@ -11,6 +11,7 @@
 import { tool } from "ai";
 import { z } from "zod";
 import { AGENTS, type AgentConfig } from "@dashboard/lib/agents";
+import { slugifyTitle } from "@dashboard/lib/slug";
 import {
   HOME_NAV_ITEM,
   PRIMARY_NAV_ITEMS,
@@ -265,10 +266,7 @@ const NAV_HREF_TO_HANDWRITTEN: Readonly<Record<string, string>> = {
 };
 
 function kebab(label: string): string {
-  return label
-    .toLowerCase()
-    .replace(/[^a-z0-9]+/g, "-")
-    .replace(/^-+|-+$/g, "");
+  return slugifyTitle(label, { allowUnderscore: false });
 }
 
 function featureFromNav(item: SettingsNavItem, section: string): FeatureEntry {

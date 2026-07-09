@@ -9,6 +9,8 @@
  *   have its own list without sharing across repos.
  */
 
+import { slugifyTitle } from "./slug";
+
 export interface PreviewView {
   /** Stable id for React keys + selection state. */
   id: string;
@@ -168,7 +170,7 @@ export function addPreviewView(
 ): PreviewView[] {
   const trimmedName = name.trim().slice(0, 32);
   if (!trimmedName) return views;
-  const id = `${trimmedName.toLowerCase().replace(/[^a-z0-9]+/g, "-")}-${Math.random()
+  const id = `${slugifyTitle(trimmedName, { fallback: "view", allowUnderscore: false })}-${Math.random()
     .toString(36)
     .slice(2, 6)}`;
   return [...views, { id, name: trimmedName, path: normalizePath(path) }];

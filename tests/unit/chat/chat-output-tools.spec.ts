@@ -17,7 +17,7 @@ describe("chat output tools", () => {
     expect(isToolErrorOutput({ content: "ok" })).toBe(false);
   });
 
-  it("keeps renderer tools out of ordinary answer turns", () => {
+  it("keeps renderer tools available for ordinary answer turns", () => {
     expect(
       selectChatOutputActiveTools({
         toolNames: [
@@ -30,7 +30,7 @@ describe("chat output tools", () => {
         allowPreRenderTools: false,
         finalAnswerNeedsView: false,
       }),
-    ).toEqual([FINAL_ANSWER_TOOL, "fetch_url", "list_reports"]);
+    ).toEqual([FINAL_ANSWER_TOOL, SHOW_VIEW_TOOL, "fetch_url", "list_reports"]);
   });
 
   it("allows renderer output after an interactive final answer is rejected", () => {

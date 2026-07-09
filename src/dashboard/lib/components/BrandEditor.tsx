@@ -19,6 +19,7 @@ import {
 import { Input } from "@dashboard/ui/input";
 import { Label } from "@dashboard/ui/label";
 import { Textarea } from "@dashboard/ui/textarea";
+import { slugifyTitle } from "@dashboard/lib/slug";
 import type {
   BrandAgentOption,
   BrandModelOption,
@@ -28,15 +29,6 @@ import type {
 
 const SLUG_RE = /^[a-z0-9][a-z0-9-]{0,63}$/;
 const HEX_RE = /^#[0-9a-fA-F]{6}$/;
-
-function normalizeSlug(input: string): string {
-  return input
-    .trim()
-    .toLowerCase()
-    .replace(/[^a-z0-9]+/g, "-")
-    .replace(/^-+|-+$/g, "")
-    .replace(/-{2,}/g, "-");
-}
 
 interface BrandEditorProps {
   initial: BrandRow | null;
@@ -114,7 +106,13 @@ export function BrandEditor({
             <Input
               id="brand-slug"
               value={slug}
-              onChange={(event) => setSlug(normalizeSlug(event.target.value))}
+              onChange={(event) =>
+                setSlug(
+                  slugifyTitle(event.target.value, {
+                    allowUnderscore: false,
+                  }),
+                )
+              }
               onBlur={() => setTouchedSlug(true)}
               disabled={!isNew}
               placeholder="acme"

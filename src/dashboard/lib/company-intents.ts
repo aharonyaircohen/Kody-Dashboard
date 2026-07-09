@@ -5,6 +5,8 @@
  * @ai-summary Types and normalizers for CTO agency-architect intents stored in state repo.
  */
 
+import { slugifyTitle } from "./slug";
+
 export type CompanyIntentStatus = "active" | "paused" | "archived";
 export type CompanyIntentPosture =
   | "confidence"
@@ -116,13 +118,7 @@ export function isCompanyIntentId(value: string): boolean {
 }
 
 export function slugifyCompanyIntentId(value: string): string {
-  const slug = value
-    .toLowerCase()
-    .trim()
-    .replace(/[^a-z0-9]+/g, "-")
-    .replace(/^-+|-+$/g, "")
-    .slice(0, 64)
-    .replace(/-+$/g, "");
+  const slug = slugifyTitle(value, { allowUnderscore: false });
   if (!slug) return "";
   return /^[a-z]/.test(slug) ? slug : `i-${slug}`.slice(0, 64);
 }

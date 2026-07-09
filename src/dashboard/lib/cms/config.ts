@@ -2,6 +2,7 @@ import "server-only";
 
 import type { Octokit } from "@octokit/rest";
 
+import { slugifyTitle } from "@dashboard/lib/slug";
 import { readStateText } from "@dashboard/lib/state-repo";
 import type {
   CmsCollectionConfig,
@@ -1452,14 +1453,10 @@ function pruneUndefined<T extends object>(value: T): T {
 }
 
 function toCmsCollectionSlugOrNull(value: string): string | null {
-  const slug = value
-    .trim()
-    .replace(/([a-z0-9])([A-Z])/g, "$1-$2")
-    .replace(/[^A-Za-z0-9_-]+/g, "-")
-    .replace(/-+/g, "-")
-    .replace(/^-+|-+$/g, "")
-    .toLowerCase()
-    .replace(/^_+/, "");
+  const slug = slugifyTitle(value, {
+    splitCamelCase: true,
+    trimLeadingUnderscores: true,
+  });
   if (!slug) return null;
   if (CMS_COLLECTION_SLUG_RE.test(slug)) return slug;
 

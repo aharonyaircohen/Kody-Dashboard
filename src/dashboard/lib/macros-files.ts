@@ -18,6 +18,7 @@ import type { Octokit } from "@octokit/rest";
 import { getOctokit, getOwner, getRepo } from "./github-client";
 import { readStateText, writeStateText } from "./state-repo";
 import type { Macro } from "./macros";
+import { slugifyTitle } from "./slug";
 
 export const MACROS_PATH = "macros.json";
 
@@ -107,11 +108,11 @@ export async function writeMacrosFile(
 }
 
 function newId(name: string): string {
-  const base = name
-    .trim()
-    .toLowerCase()
-    .replace(/[^a-z0-9]+/g, "-");
-  return `${base || "macro"}-${Math.random().toString(36).slice(2, 6)}`;
+  const base = slugifyTitle(name, {
+    fallback: "macro",
+    allowUnderscore: false,
+  });
+  return `${base}-${Math.random().toString(36).slice(2, 6)}`;
 }
 
 /**

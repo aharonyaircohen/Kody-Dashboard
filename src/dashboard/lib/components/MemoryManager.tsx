@@ -23,6 +23,7 @@ import {
 import { Button } from "@dashboard/ui/button";
 import { Input } from "@dashboard/ui/input";
 import { Label } from "@dashboard/ui/label";
+import { slugifyTitle } from "@dashboard/lib/slug";
 import {
   Dialog,
   DialogContent,
@@ -68,13 +69,7 @@ const TYPE_TINT: Record<MemoryType, string> = {
 const ID_RE = /^[a-z0-9][a-z0-9_-]{0,63}$/;
 
 function slugifyMemoryId(value: string): string {
-  return value
-    .trim()
-    .toLowerCase()
-    .replace(/[^a-z0-9_-]+/g, "-")
-    .replace(/^-+|-+$/g, "")
-    .replace(/-{2,}/g, "-")
-    .slice(0, 64);
+  return slugifyTitle(value);
 }
 
 function formatDate(iso: string): string {

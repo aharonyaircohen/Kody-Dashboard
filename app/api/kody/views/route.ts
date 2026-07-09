@@ -18,6 +18,7 @@ import {
   stateRepoPath,
   writeStateBase64Files,
 } from "@dashboard/lib/state-repo";
+import { slugifyTitle } from "@dashboard/lib/slug";
 
 export const runtime = "nodejs";
 
@@ -36,13 +37,12 @@ interface RepoViewUpload {
 }
 
 function slugify(value: string): string {
-  const slug = value
-    .trim()
-    .toLowerCase()
-    .replace(/[^a-z0-9]+/g, "-")
-    .replace(/^-+|-+$/g, "")
-    .slice(0, 40);
-  return `${slug || "view"}-${randomUUID().slice(0, 8)}`;
+  const slug = slugifyTitle(value, {
+    maxLength: 40,
+    fallback: "view",
+    allowUnderscore: false,
+  });
+  return `${slug}-${randomUUID().slice(0, 8)}`;
 }
 
 function sanitizeSegment(value: string): string {

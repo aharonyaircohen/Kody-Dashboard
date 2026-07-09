@@ -26,6 +26,7 @@ import {
   isValidSlug,
   readAgentFile,
 } from "@dashboard/lib/agent-files";
+import { normalizeAgentSlug } from "@dashboard/lib/agent-slug";
 import { getEngineConfig } from "@dashboard/lib/engine/config";
 import { recordAudit } from "@dashboard/lib/activity/audit";
 
@@ -91,21 +92,17 @@ export async function GET(req: NextRequest) {
 }
 
 const createAgentSchema = z.object({
-  slug: z.string().min(1).max(64).optional(),
+  slug: z.preprocess(
+    (value) =>
+      typeof value === "string" && value.trim().length === 0
+        ? undefined
+        : value,
+    z.string().max(64).optional(),
+  ),
   title: z.string().min(1),
   body: z.string().default(""),
   actorLogin: z.string().optional(),
 });
-
-function slugifyTitle(title: string): string {
-  return title
-    .trim()
-    .toLowerCase()
-    .replace(/[^a-z0-9_-]+/g, "-")
-    .replace(/^-+|-+$/g, "")
-    .replace(/-{2,}/g, "-")
-    .slice(0, 64);
-}
 
 export async function POST(req: NextRequest) {
   const authResult = await requireKodyAuth(req);
@@ -130,7 +127,7 @@ export async function POST(req: NextRequest) {
       actorLogin,
     } = createAgentSchema.parse(payload);
 
-    const slug = requestedSlug ?? slugifyTitle(title);
+    const slug = normalizeAgentSlug(requestedSlug ?? title);
     if (!slug || !isValidSlug(slug)) {
       return NextResponse.json(
         {

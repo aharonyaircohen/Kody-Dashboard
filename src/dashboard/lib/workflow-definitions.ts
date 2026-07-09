@@ -6,6 +6,8 @@
  *   under `<statePath>/workflows/<id>/workflow.json`.
  */
 
+import { slugifyTitle } from "./slug";
+
 export interface WorkflowDefinition {
   version: 1;
   name: string;
@@ -48,13 +50,7 @@ export function isWorkflowDefinitionId(value: string): boolean {
 }
 
 export function slugifyWorkflowDefinitionId(value: string): string {
-  return value
-    .trim()
-    .toLowerCase()
-    .replace(/[^a-z0-9_-]+/g, "-")
-    .replace(/^-+|-+$/g, "")
-    .slice(0, 80)
-    .replace(/[-_]+$/g, "");
+  return slugifyTitle(value, { maxLength: 80 }).replace(/[-_]+$/g, "");
 }
 
 export function workflowDefinitionPath(id: string): string {

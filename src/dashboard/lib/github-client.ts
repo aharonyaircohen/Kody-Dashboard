@@ -8,6 +8,7 @@
 import { throttling } from "@octokit/plugin-throttling";
 import { Octokit } from "@octokit/rest";
 import { writeGitHubFileWithRetry } from "@dashboard/lib/github-contents-write";
+import { slugifyTitle } from "@dashboard/lib/slug";
 import {
   GITHUB_OWNER,
   GITHUB_REPO,
@@ -4157,14 +4158,12 @@ const inflightMessageChannels = new Map<string, Promise<MessageChannel[]>>();
 
 /** Normalize a user-supplied channel name into a `#slug` discussion title. */
 export function channelTitleFromName(rawName: string): string {
-  const slug = rawName
-    .trim()
-    .replace(/^#+/, "")
-    .toLowerCase()
-    .replace(/[^a-z0-9]+/g, "-")
-    .replace(/^-+|-+$/g, "")
-    .slice(0, 48);
-  return `${MESSAGE_CHANNEL_PREFIX}${slug || "channel"}`;
+  const slug = slugifyTitle(rawName.replace(/^#+/, ""), {
+    maxLength: 48,
+    fallback: "channel",
+    allowUnderscore: false,
+  });
+  return `${MESSAGE_CHANNEL_PREFIX}${slug}`;
 }
 
 /**

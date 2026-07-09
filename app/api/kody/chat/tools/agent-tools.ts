@@ -22,6 +22,7 @@ import {
   writeAgentFile,
   isValidSlug,
 } from "@dashboard/lib/agent-files";
+import { normalizeAgentSlug } from "@dashboard/lib/agent-slug";
 import { dashboardAgentUrl } from "@dashboard/lib/thread-link";
 
 interface Ctx {
@@ -38,16 +39,6 @@ interface AgentInput {
   purpose: string;
   extraAllowedCommands?: string[];
   extraRestrictions?: string[];
-}
-
-function slugifyTitle(title: string): string {
-  return title
-    .trim()
-    .toLowerCase()
-    .replace(/[^a-z0-9_-]+/g, "-")
-    .replace(/^-+|-+$/g, "")
-    .replace(/-{2,}/g, "-")
-    .slice(0, 64);
 }
 
 /**
@@ -136,7 +127,7 @@ export function createAgentTools(ctx: Ctx) {
         "Returns the new agent's slug, title, and Kody URL on success.",
       inputSchema: createKodyAgentInputSchema,
       execute: async (input) => {
-        const slug = (input.slug ?? slugifyTitle(input.title)).toLowerCase();
+        const slug = normalizeAgentSlug(input.slug ?? input.title);
         if (!slug || !isValidSlug(slug)) {
           return {
             error: "invalid_slug",

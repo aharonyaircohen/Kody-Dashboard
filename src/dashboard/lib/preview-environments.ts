@@ -12,6 +12,8 @@
  *   VIEW (see preview-views.ts) is a path under it — different axes.
  */
 
+import { slugifyTitle } from "./slug";
+
 export interface PreviewEnvironment {
   /** Stable id for React keys + selection state. */
   id: string;
@@ -140,11 +142,10 @@ export function setEnvExpiry(
 
 /** Slug + short random suffix so labels can repeat without id collisions. */
 export function makeEnvId(label: string): string {
-  const slug = label
-    .trim()
-    .toLowerCase()
-    .replace(/[^a-z0-9]+/g, "-")
-    .replace(/^-+|-+$/g, "");
+  const slug = slugifyTitle(label, {
+    fallback: "env",
+    allowUnderscore: false,
+  });
   const rand = Math.random()
     .toString(36)
     .slice(2, 2 + ID_RAND_LEN);
@@ -152,11 +153,10 @@ export function makeEnvId(label: string): string {
 }
 
 export function makeFolderId(label: string): string {
-  const slug = label
-    .trim()
-    .toLowerCase()
-    .replace(/[^a-z0-9]+/g, "-")
-    .replace(/^-+|-+$/g, "");
+  const slug = slugifyTitle(label, {
+    fallback: "folder",
+    allowUnderscore: false,
+  });
   const rand = Math.random()
     .toString(36)
     .slice(2, 2 + ID_RAND_LEN);

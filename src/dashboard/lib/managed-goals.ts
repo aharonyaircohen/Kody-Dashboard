@@ -6,6 +6,8 @@
  * per goal at `<statePath>/todos/<id>.json`.
  */
 
+import { slugifyTitle } from "./slug";
+
 export type ManagedGoalStateValue = "inactive" | "active" | "paused" | "done";
 export type ManagedGoalSchedule = "manual" | "15m" | "1h" | "1d" | "7d" | "30d";
 export interface ManagedGoalPreferredRunTime {
@@ -463,12 +465,7 @@ export function managedGoalPath(goalId: string): string {
 }
 
 export function slugifyManagedGoalId(value: string): string {
-  return value
-    .toLowerCase()
-    .trim()
-    .replace(/[^a-z0-9]+/g, "-")
-    .replace(/^-+|-+$/g, "")
-    .slice(0, 64);
+  return slugifyTitle(value, { allowUnderscore: false });
 }
 
 export function normalizeEvidenceKey(value: string): string {

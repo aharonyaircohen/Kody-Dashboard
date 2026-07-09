@@ -7,6 +7,8 @@
  * is hidden UI state for one terminal identity, not a user-managed snapshot.
  */
 
+import { slugifyTitle } from "../slug";
+
 export const TERMINAL_CHECKPOINT_OUTPUT_LIMIT = 16_000;
 export const TERMINAL_CHECKPOINT_LIMIT = 40;
 
@@ -74,13 +76,7 @@ function hashId(value: string): string {
 }
 
 function cleanIdPart(value: string): string {
-  return (
-    value
-      .toLowerCase()
-      .replace(/[^a-z0-9_-]+/g, "-")
-      .replace(/^-+|-+$/g, "")
-      .slice(0, 90) || "terminal"
-  );
+  return slugifyTitle(value, { maxLength: 90, fallback: "terminal" });
 }
 
 export function terminalCheckpointKey({

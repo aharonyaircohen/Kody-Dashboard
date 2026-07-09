@@ -32,6 +32,7 @@ import {
   stateRepoPath,
   writeStateText,
 } from "./state-repo";
+import { slugifyTitle } from "./slug";
 
 export type MemoryType = "user" | "feedback" | "project" | "reference";
 
@@ -82,13 +83,7 @@ export function isValidMemoryId(id: string): boolean {
  * check `isValidMemoryId` (e.g. an empty input returns "").
  */
 export function slugifyMemoryName(name: string): string {
-  return name
-    .trim()
-    .toLowerCase()
-    .replace(/[^a-z0-9_-]+/g, "-")
-    .replace(/^-+|-+$/g, "")
-    .replace(/-{2,}/g, "-")
-    .slice(0, 64);
+  return slugifyTitle(name);
 }
 
 function isMemoryType(value: unknown): value is MemoryType {

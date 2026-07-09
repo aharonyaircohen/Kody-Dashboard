@@ -9,6 +9,7 @@
 import crypto from "node:crypto";
 
 import { logger } from "@dashboard/lib/logger";
+import { slugifyTitle } from "@dashboard/lib/slug";
 import type { FlyPreviewConfig } from "@dashboard/lib/infrastructure/plugins/fly/previews/machines-client";
 import { allocateIpsIfMissing } from "@dashboard/lib/infrastructure/plugins/fly/runners/brain";
 import { TERMINAL_BRIDGE_RUNTIME_HELPERS_SCRIPT } from "@dashboard/lib/terminal/bridge-runtime";
@@ -1469,14 +1470,11 @@ async function flyFetch<T>(
 }
 
 function slugify(input: string): string {
-  return (
-    input
-      .toLowerCase()
-      .replace(/[^a-z0-9]+/g, "-")
-      .replace(/^-+|-+$/g, "")
-      .slice(0, 24)
-      .replace(/-+$/g, "") || "fly"
-  );
+  return slugifyTitle(input, {
+    maxLength: 24,
+    fallback: "fly",
+    allowUnderscore: false,
+  });
 }
 
 export function terminalBridgeAppName(cfg: FlyPreviewConfig): string {

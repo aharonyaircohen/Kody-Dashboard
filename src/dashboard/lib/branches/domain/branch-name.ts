@@ -9,17 +9,16 @@
  *   issue↔PR linkage works even if the PR body loses its `Closes #N` line.
  */
 
+import { slugifyTitle as slugifySharedTitle } from "@dashboard/lib/slug";
+
 const MAX_SLUG_LENGTH = 40;
 
 export function slugifyTitle(title: string): string {
-  const cleaned = title
-    .toLowerCase()
-    .replace(/[^a-z0-9\s-]/g, "")
-    .replace(/\s+/g, "-")
-    .replace(/-+/g, "-")
-    .replace(/^-|-$/g, "")
-    .slice(0, MAX_SLUG_LENGTH);
-  return cleaned || "untitled";
+  return slugifySharedTitle(title, {
+    maxLength: MAX_SLUG_LENGTH,
+    fallback: "untitled",
+    allowUnderscore: false,
+  });
 }
 
 export function buildBranchName(issueNumber: number, slug: string): string {

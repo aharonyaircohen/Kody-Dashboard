@@ -1,6 +1,7 @@
 import { createHash } from "node:crypto";
 
 import type { MemoryType } from "@dashboard/lib/memory-files";
+import { slugifyTitle } from "@dashboard/lib/slug";
 
 export interface ExplicitMemoryDraft {
   id: string;
@@ -12,16 +13,6 @@ export interface ExplicitMemoryDraft {
 
 const EXPLICIT_MEMORY_RE =
   /^\s*(?:please\s+)?(?:remember|store\s+this|save\s+this(?:\s+for\s+later)?|save\s+that(?:\s+for\s+later)?)\s*[:,-]?\s*(.+)$/is;
-
-function slugify(input: string): string {
-  return input
-    .trim()
-    .toLowerCase()
-    .replace(/[^a-z0-9_-]+/g, "-")
-    .replace(/^-+|-+$/g, "")
-    .replace(/-{2,}/g, "-")
-    .slice(0, 64);
-}
 
 function compact(input: string): string {
   return input.replace(/\s+/g, " ").trim();
@@ -70,7 +61,10 @@ export function buildExplicitMemoryDraft(
 
   const name = titleFromMemory(content);
   const type = classifyMemory(content);
-  const baseId = slugify(name).slice(0, 55) || "explicit-chat-memory";
+  const baseId = slugifyTitle(name, {
+    maxLength: 55,
+    fallback: "explicit-chat-memory",
+  });
   const id = `${baseId}-${hashSuffix(content)}`.slice(0, 64);
   const description = compact(content).slice(0, 200);
   const body =

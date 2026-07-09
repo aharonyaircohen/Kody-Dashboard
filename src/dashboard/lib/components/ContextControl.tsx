@@ -78,8 +78,7 @@ import { ListSearch } from "./ListSearch";
 import { MarkdownEditor } from "./MarkdownEditor";
 import { MarkdownPreview } from "./MarkdownPreview";
 import { PageHeader } from "./PageShell";
-
-const SLUG_RE = /^[a-z0-9][a-z0-9_-]{0,63}$/;
+import { slugifyTitle } from "../slug";
 
 type StaffOption = { slug: string; label: string; hint: string };
 
@@ -781,37 +780,35 @@ function CreateEntryDialog({
   const createMutation = useCreateContextEntry(githubUser?.login);
   const staffOptions = useAgentsOptions();
 
-  const [slug, setSlug] = useState("");
+  const [name, setName] = useState("");
   const [body, setBody] = useState("");
   const [agent, setStaff] = useState<string[]>([KODY_CHAT_AGENT]);
-  const [touchedSlug, setTouchedSlug] = useState(false);
 
   useEffect(() => {
     if (open) {
-      setSlug("");
+      setName("");
       setBody("");
       setStaff([KODY_CHAT_AGENT]);
-      setTouchedSlug(false);
     }
   }, [open]);
 
-  const slugError = (() => {
-    if (!touchedSlug) return null;
-    if (!slug) return "Required";
-    if (!SLUG_RE.test(slug))
-      return "Use lowercase letters, digits, dashes, underscores. Start with a letter or digit.";
-    if (existingSlugs.has(slug)) return `"${slug}" already exists`;
+  const slugPreview = slugifyTitle(name);
+  const nameError = (() => {
+    if (!name.trim()) return "Required";
+    if (slugPreview && existingSlugs.has(slugPreview)) {
+      return `"${slugPreview}" already exists`;
+    }
     return null;
   })();
 
   const bodyError = body.trim().length === 0 ? "Required" : null;
   const canSave =
-    !!slug && !slugError && !bodyError && !createMutation.isPending;
+    !!name.trim() && !nameError && !bodyError && !createMutation.isPending;
 
   const handleSubmit = () => {
     if (!canSave) return;
     createMutation.mutate(
-      { slug, body, agent },
+      { name: name.trim(), body, agent },
       { onSuccess: (entry) => onCreated(entry) },
     );
   };
@@ -826,27 +823,32 @@ function CreateEntryDialog({
         <DialogHeader>
           <DialogTitle>New context entry</DialogTitle>
           <DialogDescription>
-            Stored at context/&lt;slug&gt;.md in the state repo. The slug is the
-            entry name Kody sees (e.g. company-profile, mission, products); the
-            body is plain markdown. Agent decides which consumers load it —
-            leave all unchecked to keep the entry unassigned.
+            Give the entry a name and write the markdown Kody should know.
+            Agent decides which consumers load it — leave all unchecked to keep
+            the entry unassigned.
           </DialogDescription>
         </DialogHeader>
 
         <div className="mt-2 flex min-h-0 min-w-0 flex-col gap-4 overflow-visible">
           <div className="space-y-1.5">
-            <Label htmlFor="entry-slug">Slug (entry name)</Label>
+            <Label htmlFor="entry-name">Name</Label>
             <Input
-              id="entry-slug"
-              value={slug}
-              onChange={(e) => setSlug(e.target.value.toLowerCase())}
-              onBlur={() => setTouchedSlug(true)}
-              placeholder="company-profile"
-              className="font-mono"
+              id="entry-name"
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+              placeholder="Company profile"
               autoFocus
             />
-            {slugError ? (
-              <p className="text-xs text-rose-300">{slugError}</p>
+            {slugPreview ? (
+              <p className="text-[11px] text-muted-foreground">
+                Saves as{" "}
+                <code className="font-mono text-teal-200">
+                  context/{slugPreview}.md
+                </code>
+              </p>
+            ) : null}
+            {nameError ? (
+              <p className="text-xs text-rose-300">{nameError}</p>
             ) : null}
           </div>
           <div className="space-y-1.5">

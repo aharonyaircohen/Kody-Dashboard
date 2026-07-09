@@ -15,6 +15,7 @@ import {
   stateRepoPath,
   writeStateText,
 } from "../state-repo";
+import { slugifyTitle } from "../slug";
 
 const TODOS_DIR = "todos";
 const TODO_JSON_VERSION = 1;
@@ -61,19 +62,6 @@ function slugFromName(name: string): string | null {
 
 function todoJsonPath(slug: string): string {
   return `${TODOS_DIR}/${slug}.json`;
-}
-
-function slugifyTitle(title: string): string {
-  const slug = title
-    .trim()
-    .toLowerCase()
-    .normalize("NFKD")
-    .replace(/[\u0300-\u036f]/g, "")
-    .replace(/[^a-z0-9_-]+/g, "-")
-    .replace(/^-+|-+$/g, "")
-    .slice(0, 48);
-
-  return slug || "todo-list";
 }
 
 async function fetchLastCommitDate(
@@ -301,7 +289,11 @@ export async function readTodoFile(
 }
 
 export async function createTodoSlug(title: string): Promise<string> {
-  const base = slugifyTitle(title);
+  const base = slugifyTitle(title, {
+    maxLength: 48,
+    fallback: "todo-list",
+    stripDiacritics: true,
+  });
   const suffix = Date.now().toString(36);
 
   for (let index = 0; index < 20; index += 1) {

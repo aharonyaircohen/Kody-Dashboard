@@ -22,6 +22,7 @@ import {
 } from "lucide-react";
 import { AuthGuard } from "../auth-guard";
 import { buildAuthHeaders, useAuth } from "../auth-context";
+import { slugifyTitle } from "../slug";
 import { cn } from "../utils";
 import { Button } from "@dashboard/ui/button";
 import { Label } from "@dashboard/ui/label";
@@ -285,12 +286,10 @@ function resolvePreviewTemplateString(
 }
 
 function actionIdFromLabel(label: string): string {
-  const id = label
-    .trim()
-    .toLowerCase()
-    .replace(/[^a-z0-9]+/g, "-")
-    .replace(/^-+|-+$/g, "");
-  return id || "action";
+  return slugifyTitle(label, {
+    fallback: "action",
+    allowUnderscore: false,
+  });
 }
 
 function resolvePreviewAction(

@@ -1,3 +1,5 @@
+import { slugifyTitle } from "./slug";
+
 export type MarkdownCalloutKind =
   | "note"
   | "tip"
@@ -22,14 +24,8 @@ export function stripCalloutMarker(text: string): string {
 }
 
 export function slugifyHeading(text: string): string {
-  const slug = text
-    .trim()
-    .toLowerCase()
-    .replace(/[`*_~]/g, "")
-    .replace(/[^a-z0-9\s-]/g, "")
-    .replace(/\s+/g, "-")
-    .replace(/-+/g, "-")
-    .replace(/^-|-$/g, "");
-
-  return slug || "section";
+  return slugifyTitle(text.replace(/[`*_~'’]/g, ""), {
+    fallback: "section",
+    allowUnderscore: false,
+  });
 }

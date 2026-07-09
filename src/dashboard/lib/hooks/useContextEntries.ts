@@ -91,7 +91,8 @@ export function useCreateContextEntry(actorLogin?: string) {
     ContextEntry,
     Error,
     {
-      slug: string;
+      slug?: string;
+      name?: string;
       body: string;
       agent: string[];
     }

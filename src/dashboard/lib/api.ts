@@ -1267,7 +1267,8 @@ export const contextApi = {
   },
 
   create: async (data: {
-    slug: string;
+    slug?: string;
+    name?: string;
     body: string;
     agent: string[];
     actorLogin?: string;

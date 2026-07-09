@@ -6,18 +6,15 @@
  *   force the show_view tool instead of letting the model answer in prose.
  */
 
+import { slugifyTitle } from "@dashboard/lib/slug";
+
 export interface ExplicitViewRequest {
   purpose: string;
   title?: string;
 }
 
 function normalizePurpose(raw: string): string {
-  return raw
-    .trim()
-    .toLowerCase()
-    .replace(/\s+/g, "-")
-    .replace(/[^a-z0-9_-]/g, "")
-    .replace(/^-+|-+$/g, "");
+  return slugifyTitle(raw);
 }
 
 function cleanTitle(raw: string | undefined): string | undefined {

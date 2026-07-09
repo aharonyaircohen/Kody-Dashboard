@@ -6,6 +6,7 @@
  *   Brand-owned display data plus optional chat defaults enforced by the
  *   client surface host.
  */
+import { slugifyTitle } from "./slug";
 
 export interface ClientBrand {
   slug: string;
@@ -71,14 +72,7 @@ export function normalizeClientBrandLocale(input?: string): string {
 }
 
 export function normalizeClientBrandSlug(input: string): string {
-  const normalized = input
-    .trim()
-    .toLowerCase()
-    .replace(/[^a-z0-9]+/g, "-")
-    .replace(/^-+|-+$/g, "")
-    .replace(/-{2,}/g, "-");
-
-  return normalized || "kody";
+  return slugifyTitle(input, { allowUnderscore: false, fallback: "kody" });
 }
 
 function titleFromSlug(slug: string): string {

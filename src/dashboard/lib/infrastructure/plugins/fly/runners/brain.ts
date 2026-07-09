@@ -31,6 +31,7 @@
 import { createHash, randomBytes } from "node:crypto";
 
 import { logger } from "@dashboard/lib/logger";
+import { slugifyTitle } from "@dashboard/lib/slug";
 import type { EngineRuntimeModelConfig } from "@dashboard/lib/variables/models";
 
 const FLY_API_BASE = "https://api.machines.dev/v1";
@@ -289,10 +290,7 @@ export async function waitForBrainHealth(
  * hyphens; multiple hyphens collapse; leading/trailing hyphens stripped.
  */
 export function brainAppName(account: string): string {
-  const slug = account
-    .toLowerCase()
-    .replace(/[^a-z0-9]+/g, "-")
-    .replace(/^-+|-+$/g, "");
+  const slug = slugifyTitle(account, { allowUnderscore: false });
   if (!slug) {
     throw new Error("brainAppName: account is empty after slugify");
   }

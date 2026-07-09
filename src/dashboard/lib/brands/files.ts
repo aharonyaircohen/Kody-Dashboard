@@ -27,6 +27,7 @@ import {
   normalizeClientBrandSlug,
   type ClientBrand,
 } from "../client-brand";
+import { slugifyTitle } from "../slug";
 
 export interface BrandFile extends ClientBrand {
   source: "repo";
@@ -117,7 +118,7 @@ function normalizeAccent(input: string): string {
 }
 
 function normalizeAgentSlug(input: string): string {
-  return input.trim().toLowerCase().replace(/[^a-z0-9_-]+/g, "-");
+  return slugifyTitle(input);
 }
 
 function parseBrandJson(raw: string, fallbackSlug: string): ClientBrand {

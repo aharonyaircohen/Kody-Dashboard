@@ -223,6 +223,7 @@ function hasRepoContext(
 
 export function createUiTools(ctx: UiToolsCtx = {}) {
   const viewRendererRules = ctx.viewRendererRules?.trim();
+  let interactiveFinalAnswerText: string | null = null;
   const showViewInputSchema = jsonSchema<ShowViewInput>(
     buildShowViewInputJsonSchema(ctx.viewRendererDefinitions ?? []),
     {
@@ -249,10 +250,12 @@ export function createUiTools(ctx: UiToolsCtx = {}) {
             definitions: ctx.viewRendererDefinitions ?? [],
           })
         ) {
+          interactiveFinalAnswerText = content;
           return {
             error: FINAL_ANSWER_REQUIRES_VIEW_ERROR,
           };
         }
+        interactiveFinalAnswerText = null;
         return { content };
       },
     }),
@@ -294,7 +297,7 @@ export function createUiTools(ctx: UiToolsCtx = {}) {
               : {}),
             purpose: resolvedInput.purpose,
             data,
-            userText: ctx.userText,
+            userText: interactiveFinalAnswerText ?? ctx.userText,
           });
           return buildRenderedViewDirective({
             id: `view-${randomUUID()}`,

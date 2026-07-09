@@ -8,6 +8,7 @@
  */
 
 import { type BrainAppFile } from "@dashboard/lib/brain/store";
+import { slugifyTitle } from "@dashboard/lib/slug";
 
 export type BrainTargetSource = "override" | "stored" | "default";
 
@@ -18,7 +19,10 @@ export interface BrainTarget {
 }
 
 function defaultBrainAppName(account: string): string {
-  return `kody-brain-${account.toLowerCase().replace(/[^a-z0-9-]/g, "-")}`;
+  return `kody-brain-${slugifyTitle(account, {
+    fallback: "account",
+    allowUnderscore: false,
+  })}`;
 }
 
 export function resolveBrainTarget(input: {

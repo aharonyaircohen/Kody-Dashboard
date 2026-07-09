@@ -61,5 +61,5 @@ export function selectChatOutputActiveTools<T extends string>({
       ? toolNames.filter((name) => name !== FINAL_ANSWER_TOOL)
       : showViewOnly;
   }
-  return toolNames.filter((name) => name !== SHOW_VIEW_TOOL);
+  return [...toolNames];
 }

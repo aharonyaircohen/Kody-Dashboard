@@ -15,6 +15,8 @@
  *   so the dashboard can reject a broken profile before committing.
  */
 
+import { slugifyTitle } from "@dashboard/lib/slug";
+
 /** Where the capability's result lands. `pr` opens a pull request (the
  * `pr-branch` lifecycle); `comment` posts the agent's answer as a comment
  * (the engine's `postAgentComment` postflight) with no branch or PR. */
@@ -95,13 +97,9 @@ export function isValidSlug(slug: string): boolean {
 }
 
 export function slugFromName(name: string): string {
-  return name
-    .trim()
-    .toLowerCase()
-    .replace(/['"]/g, "")
-    .replace(/[^a-z0-9]+/g, "-")
-    .replace(/^-+|-+$/g, "")
-    .slice(0, 64);
+  return slugifyTitle(name.replace(/['"]/g, ""), {
+    allowUnderscore: false,
+  });
 }
 
 export function descriptionFromInstructions(

@@ -162,10 +162,15 @@ describe("CMS UI routes", () => {
 
   it("keeps CMS form actions visible while form fields scroll", () => {
     const source = readRepoFile("src/dashboard/lib/components/CmsManager.tsx");
+    const detailStart = source.indexOf("function ContentDetailPage");
+    const detailEnd = source.indexOf("function ContentFormPage");
+    const detail = source.slice(detailStart, detailEnd);
     const start = source.indexOf("function ContentFormPage");
     const end = source.indexOf("function FormFieldControl");
     const form = source.slice(start, end);
 
+    expect(detail).toContain("flex min-h-0 flex-1 flex-col overflow-hidden");
+    expect(detail).toContain("data-[state=active]:flex");
     expect(form).toContain("overflow-hidden");
     expect(form).toContain("overflow-y-auto");
     expect(form).toContain("border-t border-border");

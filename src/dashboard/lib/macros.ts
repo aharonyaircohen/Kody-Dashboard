@@ -13,6 +13,7 @@
 
 import type { RecordedStep } from "./picker/protocol";
 import type { PreviewAction } from "./picker/protocol";
+import { slugifyTitle } from "./slug";
 
 export interface Macro {
   /** Stable id for React keys + selection state. */
@@ -98,7 +99,7 @@ export function addMacro(
 ): Macro[] {
   const trimmedName = name.trim().slice(0, 64);
   if (!trimmedName || steps.length === 0) return macros;
-  const id = `${trimmedName.toLowerCase().replace(/[^a-z0-9]+/g, "-")}-${Math.random()
+  const id = `${slugifyTitle(trimmedName, { fallback: "macro", allowUnderscore: false })}-${Math.random()
     .toString(36)
     .slice(2, 6)}`;
   return [{ id, name: trimmedName, createdAt: now, steps }, ...macros];

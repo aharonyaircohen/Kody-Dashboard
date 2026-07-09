@@ -17,6 +17,8 @@
  *   wired) — out of scope for v1.
  */
 
+import { slugifyTitle } from "./slug";
+
 export const NOTIFICATIONS_MANIFEST_LABEL = "kody:notifications-manifest";
 export const MANIFEST_START = "<!-- kody-notifications-start -->";
 export const MANIFEST_END = "<!-- kody-notifications-end -->";
@@ -268,13 +270,11 @@ export function serializeManifestBody(manifest: NotificationsManifest): string {
 }
 
 export function slugifyRuleName(name: string): string {
-  const slug = name
-    .toLowerCase()
-    .trim()
-    .replace(/[^a-z0-9]+/g, "-")
-    .replace(/^-+|-+$/g, "")
-    .slice(0, 60);
-  return slug || "rule";
+  return slugifyTitle(name, {
+    maxLength: 60,
+    fallback: "rule",
+    allowUnderscore: false,
+  });
 }
 
 export function uniqueRuleId(

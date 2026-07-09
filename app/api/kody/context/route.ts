@@ -27,6 +27,7 @@ import {
   isValidSlug,
 } from "@dashboard/lib/context/files";
 import { KODY_CHAT_AGENT } from "@dashboard/lib/context/frontmatter";
+import { normalizeSlug } from "@dashboard/lib/slug";
 
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
@@ -71,7 +72,14 @@ export async function GET(req: NextRequest) {
 }
 
 const createContextSchema = z.object({
-  slug: z.string().min(1).max(64),
+  slug: z.preprocess(
+    (value) =>
+      typeof value === "string" && value.trim().length === 0
+        ? undefined
+        : value,
+    z.string().max(64).optional(),
+  ),
+  name: z.string().min(1).max(120).optional(),
   body: z.string().min(1),
   // May be empty — an unassigned entry owned by no agent.
   agent: z.array(z.string().regex(AGENT_TOKEN_RE)).default([KODY_CHAT_AGENT]),
@@ -88,8 +96,21 @@ export async function POST(req: NextRequest) {
 
   try {
     const payload = await req.json();
-    const { slug, body, agent, actorLogin } =
+    const { slug: requestedSlug, name, body, agent, actorLogin } =
       createContextSchema.parse(payload);
+    const slugSource = requestedSlug ?? name;
+
+    if (!slugSource) {
+      return NextResponse.json(
+        {
+          error: "validation_error",
+          message: "Context entry name is required.",
+        },
+        { status: 400 },
+      );
+    }
+
+    const slug = normalizeSlug(slugSource, "context");
 
     if (!isValidSlug(slug)) {
       return NextResponse.json(

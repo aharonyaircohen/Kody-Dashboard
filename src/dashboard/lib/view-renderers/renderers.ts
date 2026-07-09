@@ -20,6 +20,7 @@ import {
   readStateText,
   writeStateText,
 } from "@dashboard/lib/state-repo";
+import { slugifyTitle } from "@dashboard/lib/slug";
 import {
   RendererActionDefaultSchema,
   VIEW_RENDERER_SLUG_RE,
@@ -267,12 +268,10 @@ function isRendererAction(
 }
 
 function actionIdFromLabel(label: string): string {
-  const id = label
-    .trim()
-    .toLowerCase()
-    .replace(/[^a-z0-9]+/g, "-")
-    .replace(/^-+|-+$/g, "");
-  return id || "action";
+  return slugifyTitle(label, {
+    fallback: "action",
+    allowUnderscore: false,
+  });
 }
 
 function normalizeRendererAction(
@@ -586,6 +585,44 @@ function rendererDefinitionMatchText(
     .join(" ");
 }
 
+function rendererDataText(data: Record<string, unknown>): string {
+  const parts: string[] = [];
+  const visit = (value: unknown) => {
+    if (value === null || value === undefined) return;
+    if (
+      typeof value === "string" ||
+      typeof value === "number" ||
+      typeof value === "boolean"
+    ) {
+      parts.push(String(value));
+      return;
+    }
+    if (Array.isArray(value)) {
+      for (const item of value) visit(item);
+      return;
+    }
+    if (typeof value !== "object") return;
+    for (const entry of Object.values(value)) visit(entry);
+  };
+  visit(data);
+  return parts.join(" ");
+}
+
+const DECISION_RENDERER_RE =
+  /\b(?:approv|confirm|decision|continue|cancel|edit|ok|proceed)\b/i;
+const DECISION_TEXT_RE =
+  /\b(?:approve|confirm|continue|cancel|edit|ok|proceed|want\s+me|would\s+you\s+like|should\s+i|shall\s+i|do\s+you\s+want)\b/i;
+
+function isDecisionLikeRenderer(definition: ViewRendererDefinition): boolean {
+  return DECISION_RENDERER_RE.test(rendererDefinitionMatchText(definition));
+}
+
+function textSupportsDecisionRenderer(
+  text: string | null | undefined,
+): boolean {
+  return DECISION_TEXT_RE.test(text ?? "");
+}
+
 function rendererUserTextScore(
   definition: ViewRendererDefinition,
   userText: string | null | undefined,
@@ -606,6 +643,87 @@ function rendererUserTextScore(
   return score;
 }
 
+type RendererShape = "cards" | "list" | "selection";
+
+function rendererHasUiAtom(
+  node: ViewRendererDefinition["ui"],
+  types: ReadonlySet<string>,
+): boolean {
+  if (types.has(node.type)) return true;
+  if (node.type !== "stack" && node.type !== "row" && node.type !== "list") {
+    return false;
+  }
+  return (
+    (node.children ?? []).some((child) => rendererHasUiAtom(child, types)) ||
+    Boolean(node.item && rendererHasUiAtom(node.item, types))
+  );
+}
+
+function rendererShapes(
+  definition: ViewRendererDefinition,
+): Set<RendererShape> {
+  const text = rendererDefinitionMatchText(definition);
+  const shapes = new Set<RendererShape>();
+  if (/\b(?:card|cards|grid)\b/i.test(text)) shapes.add("cards");
+  if (/\b(?:select|selection|choose|choice|pick)\b/i.test(text)) {
+    shapes.add("selection");
+  }
+  if (rendererHasUiAtom(definition.ui, new Set(["checkbox", "submit"]))) {
+    shapes.add("selection");
+  }
+  if (rendererHasUiAtom(definition.ui, new Set(["list"]))) {
+    shapes.add("list");
+  }
+  if (
+    shapes.size === 0 &&
+    rendererHasUiAtom(definition.ui, new Set(["button"]))
+  ) {
+    shapes.add("selection");
+  }
+  return shapes;
+}
+
+function requestedShapes({
+  purpose,
+  data,
+  userText,
+}: {
+  purpose: string;
+  data: Record<string, unknown>;
+  userText?: string | null;
+}): Set<RendererShape> {
+  const text = [purpose, userText, rendererDataText(data)].join(" ");
+  const shapes = new Set<RendererShape>();
+  if (/\b(?:card|cards|grid)\b/i.test(text)) shapes.add("cards");
+  if (
+    /\b(?:select|selection|choose|choice|pick)\b/i.test(text) ||
+    /(?:לבחור|בחר|בחירה)/.test(text)
+  ) {
+    shapes.add("selection");
+  }
+  const hasArrayData = Object.values(data).some((value) =>
+    Array.isArray(value),
+  );
+  if (hasArrayData && shapes.size === 0) shapes.add("list");
+  if (/\b(?:list|items|records)\b/i.test(text) || /(?:רשימה)/.test(text)) {
+    shapes.add("list");
+  }
+  return shapes;
+}
+
+function rendererShapeScore(
+  definition: ViewRendererDefinition,
+  requested: ReadonlySet<RendererShape>,
+): number {
+  if (requested.size === 0) return 0;
+  const available = rendererShapes(definition);
+  let score = 0;
+  for (const shape of requested) {
+    if (available.has(shape)) score += 1;
+  }
+  return score;
+}
+
 export function matchViewRendererDefinition(
   definitions: ViewRendererDefinition[],
   purpose: string,
@@ -615,6 +733,10 @@ export function matchViewRendererDefinition(
   const dataKeys = Object.keys(data).filter((key) => data[key] !== undefined);
   if (dataKeys.length === 0) return null;
   const hasUserText = Boolean(userText?.trim());
+  const requestText = [purpose, userText, rendererDataText(data)]
+    .filter((value): value is string => Boolean(value))
+    .join(" ");
+  const requestedShapeSet = requestedShapes({ purpose, data, userText });
   const matches = definitions
     .map((definition, index) => {
       const purposeMatched =
@@ -622,6 +744,9 @@ export function matchViewRendererDefinition(
         definition.slug === purpose ||
         definition.aliases?.includes(purpose) === true;
       const userTextScore = rendererUserTextScore(definition, userText);
+      const requestScore = rendererUserTextScore(definition, requestText);
+      const shapeScore = rendererShapeScore(definition, requestedShapeSet);
+      const decisionLike = isDecisionLikeRenderer(definition);
       const binds = rendererDataKeySet(definition);
       const matched = dataKeys.filter((key) => binds.has(key)).length;
       const missing = [...binds].filter(
@@ -635,16 +760,29 @@ export function matchViewRendererDefinition(
         bindCount: binds.size,
         purposeMatched,
         userTextScore,
+        requestScore,
+        shapeScore,
+        decisionLike,
       };
     })
     .filter(
       (candidate) =>
         candidate.matched > 0 &&
+        (!hasUserText ||
+          !candidate.decisionLike ||
+          candidate.userTextScore > 0 ||
+          textSupportsDecisionRenderer(userText)) &&
         (candidate.purposeMatched ||
-          (hasUserText && candidate.userTextScore > 0)),
+          (hasUserText && candidate.userTextScore > 0) ||
+          candidate.requestScore > 0 ||
+          candidate.shapeScore > 0),
     )
     .sort((a, b) => {
       if (a.missing !== b.missing) return a.missing - b.missing;
+      if (a.requestScore !== b.requestScore) {
+        return b.requestScore - a.requestScore;
+      }
+      if (a.shapeScore !== b.shapeScore) return b.shapeScore - a.shapeScore;
       if (hasUserText && a.userTextScore !== b.userTextScore) {
         return b.userTextScore - a.userTextScore;
       }

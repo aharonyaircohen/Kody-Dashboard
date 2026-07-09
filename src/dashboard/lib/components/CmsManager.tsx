@@ -3402,8 +3402,8 @@ function ContentDetailPage({
   const fields = detailViewFields(collection);
 
   return (
-    <div className="min-h-0 flex-1 overflow-y-auto">
-      <div className="border-b border-border px-4 py-4 lg:px-6">
+    <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
+      <div className="shrink-0 border-b border-border px-4 py-4 lg:px-6">
         <div className="flex flex-col gap-4 xl:flex-row xl:items-start xl:justify-between">
           <div className="min-w-0">
             <h1 className="truncate text-xl font-semibold text-foreground">
@@ -3419,14 +3419,17 @@ function ContentDetailPage({
       </div>
 
       <Tabs defaultValue="fields" className="flex min-h-0 flex-1 flex-col">
-        <div className="border-b border-border px-4 py-2 lg:px-6">
+        <div className="shrink-0 border-b border-border px-4 py-2 lg:px-6">
           <TabsList className="h-9">
             <TabsTrigger value="fields">Fields</TabsTrigger>
             <TabsTrigger value="json">JSON</TabsTrigger>
           </TabsList>
         </div>
 
-        <TabsContent value="fields" className="mt-0 min-h-0 flex-1">
+        <TabsContent
+          value="fields"
+          className="mt-0 min-h-0 flex-1 data-[state=active]:flex data-[state=active]:flex-col"
+        >
           {editBlockedReason ? (
             <EmptyState title="Edit unavailable" detail={editBlockedReason} />
           ) : editing ? (
@@ -3438,7 +3441,7 @@ function ContentDetailPage({
               onCancel={onCancelEdit}
             />
           ) : (
-            <div className="grid grid-cols-1 gap-4 p-4 lg:grid-cols-2 lg:p-6 2xl:grid-cols-3">
+            <div className="grid min-h-0 flex-1 grid-cols-1 gap-4 overflow-y-auto p-4 lg:grid-cols-2 lg:p-6 2xl:grid-cols-3">
               {fields.map(({ field, view }) => (
                 <FieldPanel
                   key={field.name}
@@ -3451,8 +3454,11 @@ function ContentDetailPage({
           )}
         </TabsContent>
 
-        <TabsContent value="json" className="mt-0 min-h-0 flex-1">
-          <pre className="m-4 overflow-auto rounded border border-border bg-muted p-4 text-xs leading-relaxed text-foreground lg:m-6">
+        <TabsContent
+          value="json"
+          className="mt-0 min-h-0 flex-1 data-[state=active]:flex data-[state=active]:flex-col"
+        >
+          <pre className="m-4 min-h-0 flex-1 overflow-auto rounded border border-border bg-muted p-4 text-xs leading-relaxed text-foreground lg:m-6">
             {JSON.stringify(document, null, 2)}
           </pre>
         </TabsContent>
