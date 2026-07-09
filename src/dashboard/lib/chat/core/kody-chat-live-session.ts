@@ -16,9 +16,9 @@ import {
 } from "../../api";
 import type { ChatContext } from "../../chat-types";
 import type { LiveScopeKey } from "./kody-chat-reducer";
+import { readActiveRepoScope } from "../../active-repo";
 import {
   brainChatIdMapSchema,
-  kodyAuthRepoSchema,
   liveSessionMapSchema,
   persistedLiveSessionSchema,
 } from "./live-session-schemas";
@@ -149,18 +149,9 @@ const LIVE_SESSION_MAX_AGE_MS = 35 * 60_000;
  * also doubles as the read target for the one-time legacy migration below.
  */
 function liveSessionStorageKey(): string {
-  if (typeof window === "undefined") return LIVE_SESSION_UNSCOPED_KEY;
-  try {
-    const raw = window.localStorage.getItem("kody_auth");
-    if (!raw) return LIVE_SESSION_UNSCOPED_KEY;
-    // Corrupt/incomplete auth (bad JSON, missing/empty/non-string
-    // owner/repo) → the unscoped key, same as before.
-    const auth = kodyAuthRepoSchema.safeParse(JSON.parse(raw));
-    if (!auth.success) return LIVE_SESSION_UNSCOPED_KEY;
-    return `${LIVE_SESSION_STORAGE_KEY_BASE}:${auth.data.owner.toLowerCase()}/${auth.data.repo.toLowerCase()}`;
-  } catch {
-    return LIVE_SESSION_UNSCOPED_KEY;
-  }
+  const scope = readActiveRepoScope();
+  if (!scope) return LIVE_SESSION_UNSCOPED_KEY;
+  return `${LIVE_SESSION_STORAGE_KEY_BASE}:${scope}`;
 }
 
 export function getLiveScopeKey(

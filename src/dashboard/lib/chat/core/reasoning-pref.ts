@@ -13,20 +13,13 @@
  */
 
 import type { ModelReasoning } from "./reasoning-adapter";
+import { readActiveRepoScope } from "../../active-repo";
 
 const REASONING_EFFORT_KEY_BASE = "kody-reasoning-effort";
 
 function repoSuffix(): string {
-  if (typeof window === "undefined") return "";
-  try {
-    const raw = window.localStorage.getItem("kody_auth");
-    if (!raw) return "";
-    const auth = JSON.parse(raw) as { owner?: string; repo?: string };
-    if (!auth.owner || !auth.repo) return "";
-    return `:${auth.owner.toLowerCase()}/${auth.repo.toLowerCase()}`;
-  } catch {
-    return "";
-  }
+  const scope = readActiveRepoScope();
+  return scope ? `:${scope}` : "";
 }
 
 function storageKey(modelId: string): string {

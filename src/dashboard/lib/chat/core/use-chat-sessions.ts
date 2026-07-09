@@ -6,6 +6,7 @@
  */
 import { useState, useEffect, useCallback, useMemo } from "react";
 import { createEmptyGlobalStore } from "../../chat-types";
+import { readActiveRepoScope } from "../../active-repo";
 import type {
   ChatMessage,
   GlobalChatStore,
@@ -52,17 +53,11 @@ export function getStorageKey(scope: ChatSessionScope): string {
   const unscopedFallback = scope === "global" ? LEGACY_UNSCOPED_KEY : base;
   if (typeof window === "undefined") return unscopedFallback;
   const fallback = () => lastKnownRepoKey.get(scope) ?? unscopedFallback;
-  try {
-    const raw = window.localStorage.getItem("kody_auth");
-    if (!raw) return fallback();
-    const auth = JSON.parse(raw) as { owner?: string; repo?: string };
-    if (!auth.owner || !auth.repo) return fallback();
-    const key = `${base}:${auth.owner.toLowerCase()}/${auth.repo.toLowerCase()}`;
-    lastKnownRepoKey.set(scope, key);
-    return key;
-  } catch {
-    return fallback();
-  }
+  const repoScope = readActiveRepoScope();
+  if (!repoScope) return fallback();
+  const key = `${base}:${repoScope}`;
+  lastKnownRepoKey.set(scope, key);
+  return key;
 }
 
 /**

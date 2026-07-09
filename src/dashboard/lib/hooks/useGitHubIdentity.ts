@@ -12,6 +12,7 @@
 
 import { useCallback, useEffect } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { readActiveRepo } from "../active-repo";
 
 export interface GitHubIdentity {
   login: string;
@@ -30,24 +31,15 @@ interface MeResponse {
 const QUERY_KEY = ["kody-github-identity"];
 
 function buildHeaders(): Record<string, string> {
-  if (typeof window === "undefined") return {};
-  try {
-    const raw = localStorage.getItem("kody_auth");
-    if (!raw) return {};
-    const auth = JSON.parse(raw) as {
-      token?: string;
-      owner?: string;
-      repo?: string;
-    };
-    if (!auth.token || !auth.owner || !auth.repo) return {};
-    return {
-      "x-kody-token": auth.token,
-      "x-kody-owner": auth.owner,
-      "x-kody-repo": auth.repo,
-    };
-  } catch {
-    return {};
-  }
+  // URL-first active repo (see active-repo.ts) — the token is the matched
+  // repo entry's PAT, not the stored flat mirror.
+  const active = readActiveRepo();
+  if (!active || !active.token) return {};
+  return {
+    "x-kody-token": active.token,
+    "x-kody-owner": active.owner,
+    "x-kody-repo": active.repo,
+  };
 }
 
 async function fetchIdentity(): Promise<{

@@ -13,20 +13,15 @@
  * default for everyone.
  */
 
+import { readActiveRepoScope } from "../../active-repo";
+
 const DEFAULT_CHAT_ENTRY_KEY_BASE = "kody-default-chat-entry";
 
-/** Repo-scoped storage key, derived from the connected repo in `kody_auth`. */
+/** Repo-scoped storage key (URL-first — see active-repo.ts). */
 export function defaultChatEntryStorageKey(): string {
-  if (typeof window === "undefined") return DEFAULT_CHAT_ENTRY_KEY_BASE;
-  try {
-    const raw = window.localStorage.getItem("kody_auth");
-    if (!raw) return DEFAULT_CHAT_ENTRY_KEY_BASE;
-    const auth = JSON.parse(raw) as { owner?: string; repo?: string };
-    if (!auth.owner || !auth.repo) return DEFAULT_CHAT_ENTRY_KEY_BASE;
-    return `${DEFAULT_CHAT_ENTRY_KEY_BASE}:${auth.owner.toLowerCase()}/${auth.repo.toLowerCase()}`;
-  } catch {
-    return DEFAULT_CHAT_ENTRY_KEY_BASE;
-  }
+  const scope = readActiveRepoScope();
+  if (!scope) return DEFAULT_CHAT_ENTRY_KEY_BASE;
+  return `${DEFAULT_CHAT_ENTRY_KEY_BASE}:${scope}`;
 }
 
 /** The saved default entry key, or null when none is set (automatic). */

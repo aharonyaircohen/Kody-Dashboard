@@ -30,6 +30,7 @@ import type {
 } from "./workflow-definitions";
 import type { ScheduleEvery } from "./ticked/frontmatter";
 import { buildKodyAuthHeaders } from "./auth-headers";
+import { readActiveRepo, readStoredKodyAuth } from "./active-repo";
 
 const API_BASE = "/api/kody";
 
@@ -43,33 +44,28 @@ export function getStoredAuth(): {
   storeRepoUrl?: string;
   storeRef?: string;
 } | null {
-  if (typeof window === "undefined") return null;
-  try {
-    const raw = localStorage.getItem("kody_auth");
-    if (!raw) return null;
-    const auth = JSON.parse(raw) as {
-      token?: string;
-      owner?: string;
-      repo?: string;
-      user?: { login?: string };
-      storeRepoUrl?: string;
-      storeRepo?: string;
-      storeRef?: string;
-    };
-    if (!auth.token || !auth.owner || !auth.repo) return null;
-    return {
-      token: auth.token,
-      owner: auth.owner,
-      repo: auth.repo,
-      userLogin: auth.user?.login,
-      storeRepoUrl:
-        auth.storeRepoUrl ??
-        (auth.storeRepo ? `https://github.com/${auth.storeRepo}` : undefined),
-      storeRef: auth.storeRef,
-    };
-  } catch {
-    return null;
-  }
+  const blob = readStoredKodyAuth();
+  if (!blob) return null;
+  // URL-first: the active repo (and its per-repo PAT) comes from the route,
+  // not from the stored flat fields — see active-repo.ts.
+  const active = readActiveRepo();
+  if (!active || !active.token) return null;
+  const auth = blob as {
+    user?: { login?: string };
+    storeRepoUrl?: string;
+    storeRepo?: string;
+    storeRef?: string;
+  };
+  return {
+    token: active.token,
+    owner: active.owner,
+    repo: active.repo,
+    userLogin: auth.user?.login,
+    storeRepoUrl:
+      auth.storeRepoUrl ??
+      (auth.storeRepo ? `https://github.com/${auth.storeRepo}` : undefined),
+    storeRef: auth.storeRef,
+  };
 }
 
 /**

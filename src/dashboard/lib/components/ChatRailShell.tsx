@@ -326,7 +326,7 @@ function isPublicRoute(pathname: string | null): boolean {
 export function ChatRailShell({ children }: { children: ReactNode }) {
   const pathname = usePathname();
   const publicRoute = isPublicRoute(pathname);
-  const { auth, loading, setCurrentRepo } = useAuth();
+  const { auth, loading } = useAuth();
   const { githubUser } = useGitHubIdentity();
   const [scope, setScope] = useState<ChatContext | null>(null);
   // Mobile "chat open" — persisted per-device (same as the desktop expand
@@ -397,16 +397,12 @@ export function ChatRailShell({ children }: { children: ReactNode }) {
     router.replace(`${target}${window.location.search}${window.location.hash}`);
   }, [auth, loading, pathname, publicRoute, router]);
 
+  // The auth context derives the active repo from the URL, so the only
+  // sync state left to handle is "missing" — a /repo/<owner>/<repo> URL we
+  // have no credentials for ("switch" can no longer occur).
   const repoRouteAuthSync = publicRoute
     ? ({ status: "none" } as const)
     : resolveRepoRouteAuthSync(pathname ?? "/", auth);
-
-  useEffect(() => {
-    if (loading || repoRouteAuthSync.status !== "switch") return;
-    setCurrentRepo(repoRouteAuthSync.index, {
-      redirectTo: `${window.location.pathname}${window.location.search}${window.location.hash}`,
-    });
-  }, [loading, repoRouteAuthSync, setCurrentRepo]);
 
   const preExpandRouteRef = useRef("/tasks");
   const currentRepoPath = repoPathForNavMatching(pathname ?? "/");
@@ -586,9 +582,7 @@ export function ChatRailShell({ children }: { children: ReactNode }) {
     currentRepoPath === "/vibe" || currentRepoPath.startsWith("/vibe/");
   const isOrgRoute =
     pathname === "/org" || (pathname?.startsWith("/org/") ?? false);
-  const repoRouteBlocksPage =
-    repoRouteAuthSync.status === "switch" ||
-    repoRouteAuthSync.status === "missing";
+  const repoRouteBlocksPage = repoRouteAuthSync.status === "missing";
   // Routes whose page renders its OWN in-pane header (KodyDashboard on the
   // tasks list, new-task / report-bug modals, and issue detail at /<number>;
   // plus Vibe). The shared AppHeader must NOT render on these or two headers
@@ -610,11 +604,7 @@ export function ChatRailShell({ children }: { children: ReactNode }) {
     : null;
   const RoutePanelRender = routePanel?.render;
   const pageContent =
-    repoRouteAuthSync.status === "switch" ? (
-      <div className="flex-1 flex items-center justify-center p-6 text-body-sm text-muted-foreground">
-        Switching repository…
-      </div>
-    ) : repoRouteAuthSync.status === "missing" ? (
+    repoRouteAuthSync.status === "missing" ? (
       <RepoManager />
     ) : RoutePanelRender ? (
       <RoutePanelRender host={EMPTY_PANEL_HOST} />

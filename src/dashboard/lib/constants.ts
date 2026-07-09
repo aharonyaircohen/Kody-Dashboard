@@ -5,6 +5,8 @@
  * @ai-summary Constants for Kody dashboard pipeline and configuration
  */
 
+import { readActiveRepo } from "./active-repo";
+
 // ============ Pipeline Stages ============
 
 export const SPEC_STAGES = ["taskify", "gap", "clarify"] as const;
@@ -114,21 +116,12 @@ export const KODY_BUG_SEVERITIES = ["blocker", "major", "minor"] as const;
 export type KodyBugSeverity = (typeof KODY_BUG_SEVERITIES)[number];
 
 /**
- * Read the connected repo from localStorage kody_auth.
- * Falls back to GITHUB_OWNER/GITHUB_REPO env vars if not set.
+ * Read the active repo (URL-first — see active-repo.ts).
+ * Falls back to GITHUB_OWNER/GITHUB_REPO env vars if not resolvable.
  */
 function getConnectedRepo(): { owner: string; repo: string } {
-  if (typeof window === "undefined") {
-    return { owner: GITHUB_OWNER, repo: GITHUB_REPO };
-  }
-  try {
-    const raw = localStorage.getItem("kody_auth");
-    if (!raw) return { owner: GITHUB_OWNER, repo: GITHUB_REPO };
-    const auth = JSON.parse(raw) as { owner?: string; repo?: string };
-    if (auth.owner && auth.repo) return { owner: auth.owner, repo: auth.repo };
-  } catch {
-    // ignore
-  }
+  const active = readActiveRepo();
+  if (active) return { owner: active.owner, repo: active.repo };
   return { owner: GITHUB_OWNER, repo: GITHUB_REPO };
 }
 

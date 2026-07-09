@@ -14,26 +14,19 @@
  */
 
 import type { ChatMessage } from "./chat-types";
+import { readActiveRepoScope } from "./active-repo";
 
 const KEY_PREFIX = "kody-agent-chat-";
 
 /**
- * Read the connected repo from localStorage.kody_auth so cache keys are
- * scoped per repo — agent slug "foo" in repo A must not share a localStorage
- * slot with the same slug in repo B. Falls back to an unscoped key when no
- * repo is known (e.g. logged out / SSR).
+ * Cache keys are scoped per repo (URL-first — see active-repo.ts) so agent
+ * slug "foo" in repo A must not share a localStorage slot with the same slug
+ * in repo B. Falls back to an unscoped key when no repo is known (e.g.
+ * logged out / SSR).
  */
 function repoScope(): string {
-  if (typeof window === "undefined") return "";
-  try {
-    const raw = window.localStorage.getItem("kody_auth");
-    if (!raw) return "";
-    const auth = JSON.parse(raw) as { owner?: string; repo?: string };
-    if (!auth.owner || !auth.repo) return "";
-    return `${auth.owner.toLowerCase()}/${auth.repo.toLowerCase()}:`;
-  } catch {
-    return "";
-  }
+  const scope = readActiveRepoScope();
+  return scope ? `${scope}:` : "";
 }
 
 function key(slug: string): string {

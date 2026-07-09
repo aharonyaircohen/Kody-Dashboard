@@ -4,11 +4,14 @@
  *
  * Auth context for reading stored GitHub credentials from localStorage.
  *
- * Multi-repo: stores a list of repos under `repos[]` and a `currentRepoIndex`.
- * The flat fields (owner/repo/token/repoUrl) always reflect the *current* repo
- * for backward compatibility — every consumer (api.ts, utils.ts, etc.) keeps
- * reading them as before. Switching repos rewrites the flat fields and
- * triggers a full page reload to clear React Query cache and in-flight polls.
+ * Multi-repo: stores a list of repos under `repos[]`. The *active* repo is
+ * derived from the URL (`/repo/<owner>/<repo>/…` — see active-repo.ts), NOT
+ * from stored state; the flat fields (owner/repo/token/repoUrl) and
+ * `currentRepoIndex` exposed on `auth` are computed from the pathname each
+ * render. The flat fields are still persisted as a mirror, but only as the
+ * fallback for repo-less pages (/, /org, /settings) and for the brand
+ * cookie — the URL always wins. Switching repos is a full-page navigation
+ * to the target repo's URL (clears React Query cache and in-flight polls).
  *
  * On login: credentials stored in localStorage as JSON.
  * On logout: credentials cleared from localStorage.
@@ -24,7 +27,11 @@ import {
   useState,
   useEffect,
   useCallback,
+  useMemo,
 } from "react";
+import { usePathname } from "next/navigation";
+import { resolveActiveRepo } from "./active-repo";
+import { repoBasePath } from "./routes";
 import {
   DEFAULT_KODY_STORE_REF,
   DEFAULT_KODY_STORE_REPO_URL,
@@ -248,8 +255,43 @@ function clearClientBrandRepoCookie(): void {
 }
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
-  const [auth, setAuth] = useState<KodyAuth | null>(null);
+  const [storedAuth, setStoredAuth] = useState<KodyAuth | null>(null);
   const [loading, setLoading] = useState(true);
+  const pathname = usePathname();
+
+  // The URL is the source of truth for the active repo: derive the flat
+  // fields + currentRepoIndex from the pathname every render. The stored
+  // flat fields only act as the fallback on repo-less pages.
+  const auth = useMemo(() => {
+    if (!storedAuth) return null;
+    const active = resolveActiveRepo(storedAuth, pathname);
+    if (!active) return storedAuth;
+    if (
+      active.index === storedAuth.currentRepoIndex &&
+      active.owner === storedAuth.owner &&
+      active.repo === storedAuth.repo &&
+      active.token === storedAuth.token
+    ) {
+      return storedAuth;
+    }
+    return {
+      ...storedAuth,
+      currentRepoIndex: active.index,
+      repoUrl: active.repoUrl,
+      owner: active.owner,
+      repo: active.repo,
+      token: active.token,
+    };
+  }, [storedAuth, pathname]);
+
+  // Mirror the URL-derived selection back to localStorage so repo-less
+  // pages and the brand cookie follow the last visited repo. The URL still
+  // wins on every read — this is a fallback hint, never a competing truth.
+  useEffect(() => {
+    if (!auth || auth === storedAuth) return;
+    persist(auth);
+    setStoredAuth(auth);
+  }, [auth, storedAuth]);
 
   // Load auth from localStorage on mount, migrating legacy shape if needed.
   useEffect(() => {
@@ -259,7 +301,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         const parsed = JSON.parse(stored);
         const migrated = migrateAuth(parsed);
         if (migrated) {
-          setAuth(migrated);
+          setStoredAuth(migrated);
           // Persist migration result so subsequent loads skip the legacy branch.
           persist(migrated);
         } else {
@@ -277,7 +319,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const logout = useCallback(() => {
     localStorage.removeItem("kody_auth");
     clearClientBrandRepoCookie();
-    setAuth(null);
+    setStoredAuth(null);
     window.location.href = "/";
   }, []);
 
@@ -306,7 +348,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         });
         return;
       }
-      setAuth((prev) => {
+      setStoredAuth((prev) => {
         // Bootstrap: empty store, this is the first repo. Requires user info.
         if (!prev) {
           if (!user) {
@@ -363,7 +405,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   );
 
   const removeRepo = useCallback((index: number) => {
-    setAuth((prev) => {
+    setStoredAuth((prev) => {
       if (!prev) return prev;
       if (index < 0 || index >= prev.repos.length) return prev;
 
@@ -403,9 +445,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         token: cur.token,
       };
       persist(next);
-      // If we switched the current repo, force a reload to clear caches.
+      // Removing the active repo: its URL is now dead — do a full-page
+      // navigation to the fallback repo's home (also clears caches).
       if (index === prev.currentRepoIndex) {
-        window.location.reload();
+        window.location.assign(repoBasePath(cur));
       }
       return next;
     });
@@ -428,15 +471,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         repo: cur.repo,
         token: cur.token,
       };
+      // The URL carries the repo from here on — persist only refreshes the
+      // repo-less-page fallback and the brand cookie, then a full-page
+      // navigation to the target repo's URL wipes React Query cache,
+      // in-flight polls, and chat state.
       persist(next);
-      const redirectTo = options?.redirectTo ?? "/";
-      if (options?.navigateBeforeCommit) {
-        window.location.assign(redirectTo);
-        return;
-      }
-      setAuth(next);
-      // Full reload — wipes React Query cache, in-flight polls, chat state.
-      window.location.assign(redirectTo);
+      window.location.assign(options?.redirectTo ?? repoBasePath(cur));
     },
     [auth],
   );
@@ -452,7 +492,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       storeRepoUrl?: string | null;
       storeRef?: string | null;
     }) => {
-      setAuth((prev) => {
+      setStoredAuth((prev) => {
         if (!prev) return prev;
         const next: KodyAuth = { ...prev };
         if (patch.brain !== undefined) {

@@ -13,6 +13,7 @@ import {
   isFlyTerminalCapable,
   type ServerProviderMachineRow,
 } from "@dashboard/lib/infrastructure/server-machine-model";
+import { readActiveRepoScope } from "@dashboard/lib/active-repo";
 import type {
   ChatTerminalConnectionState,
   ChatTerminalMode,
@@ -165,17 +166,11 @@ export function terminalRegistryStorageKey(scope: string): string {
       : `${TERMINAL_REGISTRY_STORAGE_KEY_BASE}-${scope}`;
   if (typeof window === "undefined") return TERMINAL_REGISTRY_FALLBACK_KEY;
   const fallback = () => lastKnownTerminalStorageKey.get(scope) ?? base;
-  try {
-    const raw = window.localStorage.getItem("kody_auth");
-    if (!raw) return fallback();
-    const auth = JSON.parse(raw) as { owner?: string; repo?: string };
-    if (!auth.owner || !auth.repo) return fallback();
-    const key = `${base}:${auth.owner.toLowerCase()}/${auth.repo.toLowerCase()}`;
-    lastKnownTerminalStorageKey.set(scope, key);
-    return key;
-  } catch {
-    return fallback();
-  }
+  const repoScope = readActiveRepoScope();
+  if (!repoScope) return fallback();
+  const key = `${base}:${repoScope}`;
+  lastKnownTerminalStorageKey.set(scope, key);
+  return key;
 }
 
 function isTransport(value: unknown): value is ChatTerminalTransport {
