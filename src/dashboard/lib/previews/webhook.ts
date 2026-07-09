@@ -121,12 +121,15 @@ function queuePreviewMaintenance(
     const oct = new Octokit({ auth: bg.token });
     void (async () => {
       const now = Date.now();
-      const file = (await readServerProviderActivityFile(oct, owner, repo)) as {
-        snapshots?: Array<{ ts: number }>;
-      };
+      const file = await readServerProviderActivityFile(oct, owner, repo);
       if (!snapshotDue(file, now)) return;
       const inv = await listServerProviderInventory(cfg);
-      await recordServerProviderSnapshot(oct, owner, repo, snapshotFromServerProviderInventory(inv, now));
+      await recordServerProviderSnapshot(
+        oct,
+        owner,
+        repo,
+        snapshotFromServerProviderInventory(inv, now),
+      );
     })().catch((err) =>
       logger.warn(
         { err, repo: repoFullName },

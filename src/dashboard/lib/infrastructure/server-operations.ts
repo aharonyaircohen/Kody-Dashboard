@@ -140,16 +140,43 @@ export interface ProviderTerminalBridgeInfo {
 }
 
 export interface ProviderActivitySample {
-  timestamp: string;
   app: string;
   machineId: string;
-  feature: ProviderFeature;
   state: string;
-  region?: string;
-  sizeLabel?: string;
   cpuKind?: string;
   cpus?: number;
   memoryMb?: number;
+}
+
+export interface ProviderActivitySnapshot {
+  ts: number;
+  machines: ProviderActivitySample[];
+}
+
+export interface ProviderActivityFile {
+  version: 1;
+  snapshots: ProviderActivitySnapshot[];
+}
+
+export interface ProviderMachineActivity {
+  app: string;
+  machineId: string;
+  feature: ProviderFeature;
+  label: string;
+  firstSeen: number;
+  lastSeen: number;
+  spanMs: number;
+  runningMs: number;
+  uptime: number;
+  suspendCount: number;
+  lastState: string;
+  size: {
+    cpuKind?: string;
+    cpus?: number;
+    memoryMb?: number;
+  };
+  estCostUsd: number;
+  samples: number;
 }
 
 export interface ProviderActivitySummary {
@@ -244,38 +271,23 @@ export interface InfrastructureServerOperations {
     cfg: ProviderRuntimeConfig,
   ): Promise<ProviderTerminalBridgeInfo | null>;
   computeActivity(
-    inventory: ProviderInventory,
-    now?: Date,
-  ): ProviderActivitySample[];
+    file: ProviderActivityFile,
+  ): ProviderMachineActivity[];
   readActivityFile(
-    octokit: unknown,
+    octokit: Octokit,
     owner: string,
     repo: string,
-  ): Promise<unknown>;
+  ): Promise<ProviderActivityFile>;
   recordSnapshot(
-    octokit: unknown,
+    octokit: Octokit,
     owner: string,
     repo: string,
-    snapshot: unknown,
-  ): Promise<unknown>;
+    snapshot: ProviderActivitySnapshot,
+  ): Promise<{ recorded: boolean }>;
   snapshotFromInventory(
     inventory: ProviderInventory,
     now: number,
-  ): {
-    ts: number;
-    machines: Array<{
-      app: string;
-      machineId: string;
-      state: string;
-      cpuKind?: string;
-      cpus?: number;
-      memoryMb?: number;
-    }>;
-  };
-  suspendAllIdle(input: {
-    cfg: ProviderRuntimeConfig;
-    machines: ProviderMachineRow[];
-  }): Promise<unknown>;
+  ): ProviderActivitySnapshot;
   createMachine(
     input: ProviderCreateMachineInput,
     cfg: ProviderRuntimeConfig,

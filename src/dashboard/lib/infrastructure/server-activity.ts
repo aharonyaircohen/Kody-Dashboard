@@ -1,34 +1,37 @@
 import { serverOperations } from "./server-operations";
+import type { Octokit } from "@octokit/rest";
 import type {
+  ProviderActivityFile,
+  ProviderActivitySnapshot,
   ProviderActivitySample,
   ProviderInventory,
 } from "./server-operations";
 
 export type ServerProviderActivitySample = ProviderActivitySample;
+export type ServerProviderActivityFile = ProviderActivityFile;
+export type ServerProviderActivitySnapshot = ProviderActivitySnapshot;
 
-export function computeServerProviderActivity(file: unknown) {
-  return serverOperations.provider().computeActivity(file as never);
+export function computeServerProviderActivity(file: ProviderActivityFile) {
+  return serverOperations.provider().computeActivity(file);
 }
 
 export function readServerProviderActivityFile(
-  octokit: unknown,
+  octokit: Octokit,
   owner: string,
   repo: string,
 ) {
-  return serverOperations
-    .provider()
-    .readActivityFile(octokit as never, owner, repo);
+  return serverOperations.provider().readActivityFile(octokit, owner, repo);
 }
 
 export function recordServerProviderSnapshot(
-  octokit: unknown,
+  octokit: Octokit,
   owner: string,
   repo: string,
-  snapshot: unknown,
+  snapshot: ProviderActivitySnapshot,
 ) {
   return serverOperations
     .provider()
-    .recordSnapshot(octokit as never, owner, repo, snapshot as never);
+    .recordSnapshot(octokit, owner, repo, snapshot);
 }
 
 export function snapshotFromServerProviderInventory(

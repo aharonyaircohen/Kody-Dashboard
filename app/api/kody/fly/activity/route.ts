@@ -70,11 +70,11 @@ export async function GET(req: NextRequest) {
       );
     }
 
-    const file = (await readServerProviderActivityFile(
+    const file = await readServerProviderActivityFile(
       ctx.context.octokit,
       ctx.context.owner,
       ctx.context.repo,
-    )) as { snapshots: unknown[] };
+    );
     const activity = computeServerProviderActivity(file);
     return NextResponse.json({
       activity,

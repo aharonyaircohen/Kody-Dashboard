@@ -25,7 +25,6 @@ import * as inventoryOps from "./runners/inventory";
 import * as machineModelOps from "./runners/machine-model";
 import * as activityOps from "./runners/activity";
 import * as activityStoreOps from "./runners/activity-store";
-import * as suspendOps from "./runners/suspend-all";
 import * as machineClientOps from "./previews/machines-client";
 import * as terminalBridgeOps from "./terminal/bridge";
 
@@ -214,24 +213,16 @@ export const flyServerProvider: FlyServerProvider &
     return terminalBridgeOps.findTerminalBridge(cfg);
   },
   computeActivity(file) {
-    return activityOps.computeActivity(file as never) as never;
+    return activityOps.computeActivity(file);
   },
   readActivityFile(octokit, owner, repo) {
-    return activityStoreOps.readActivityFile(octokit as never, owner, repo);
+    return activityStoreOps.readActivityFile(octokit, owner, repo);
   },
   recordSnapshot(octokit, owner, repo, snapshot) {
-    return activityStoreOps.recordSnapshot(
-      octokit as never,
-      owner,
-      repo,
-      snapshot as never,
-    );
+    return activityStoreOps.recordSnapshot(octokit, owner, repo, snapshot);
   },
   snapshotFromInventory(inventory, now) {
-    return activityStoreOps.snapshotFromInventory(inventory as never, now);
-  },
-  suspendAllIdle({ machines }) {
-    return suspendOps.batchSuspendRunning(machines as never, async () => {});
+    return activityStoreOps.snapshotFromInventory(inventory, now);
   },
   createMachine(input, cfg) {
     return machineClientOps.createMachine(input, cfg);
