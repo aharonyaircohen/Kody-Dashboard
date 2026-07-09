@@ -25,7 +25,10 @@ import {
 } from "@dashboard/ui/select";
 import { getStoredAuth } from "../api";
 import { useAuth } from "../auth-context";
-import { buildAgentList, type ChatModelEntry } from "../chat/platform/agent-entries";
+import {
+  buildAgentList,
+  type ChatModelEntry,
+} from "../chat/platform/agent-entries";
 import {
   clearDefaultChatEntry,
   readDefaultChatEntry,

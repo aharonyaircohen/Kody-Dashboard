@@ -246,9 +246,7 @@ function HealthRow({
       >
         {ciStatus.text}
       </span>
-      <span className="truncate text-muted-foreground">
-        {ciDetail}
-      </span>
+      <span className="truncate text-muted-foreground">{ciDetail}</span>
       {ciRunUrl ? (
         <ExternalLink className="h-3 w-3 shrink-0 text-muted-foreground" />
       ) : null}
@@ -291,9 +289,7 @@ function HealthRow({
           >
             {engineStatus}
           </span>
-          <span className="truncate text-muted-foreground">
-            {engineDetail}
-          </span>
+          <span className="truncate text-muted-foreground">{engineDetail}</span>
           <ArrowRight className="h-3 w-3 shrink-0 text-muted-foreground" />
         </RepoScopedLink>
       </div>
@@ -843,7 +839,10 @@ export function DashboardHome() {
       <div className="mx-auto max-w-6xl space-y-8 px-4 py-6 md:px-6">
         <section>
           <SectionHeader title="At a glance" />
-          <HealthRow mainCi={mainCi} mainCiLoading={mainCiFetching && !mainCi} />
+          <HealthRow
+            mainCi={mainCi}
+            mainCiLoading={mainCiFetching && !mainCi}
+          />
           <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
             <StatTile
               icon={Activity}
@@ -909,11 +908,7 @@ export function DashboardHome() {
           </div>
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
             <NeedsYouCard />
-            <FailingCard
-              tasks={all}
-              tasksLoading={tasksLoading}
-              ci={mainCi}
-            />
+            <FailingCard tasks={all} tasksLoading={tasksLoading} ci={mainCi} />
           </div>
         </section>
 

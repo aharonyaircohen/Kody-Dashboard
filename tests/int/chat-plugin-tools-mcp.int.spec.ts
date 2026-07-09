@@ -27,11 +27,7 @@ import type { ChatToolServerContext } from "@dashboard/lib/chat/platform/tools";
 
 const URL_BASE = "https://dash.test/api/kody/chat/plugin-tools/mcp";
 
-function rpc(
-  body: unknown,
-  bearer?: string,
-  query = "",
-): NextRequest {
+function rpc(body: unknown, bearer?: string, query = ""): NextRequest {
   return new NextRequest(`${URL_BASE}${query}`, {
     method: "POST",
     headers: {
@@ -64,11 +60,7 @@ describe("plugin-tools MCP route", () => {
       (await mcpPOST(rpc({ id: 1, method: "ping" }, `${bearer}0`))).status,
     ).toBe(401);
     expect(
-      (
-        await mcpGET(
-          new NextRequest(URL_BASE, { method: "GET" }),
-        )
-      ).status,
+      (await mcpGET(new NextRequest(URL_BASE, { method: "GET" }))).status,
     ).toBe(401);
   });
 

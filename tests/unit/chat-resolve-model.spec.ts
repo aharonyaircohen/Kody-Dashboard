@@ -108,11 +108,9 @@ describe("resolveChatModel", () => {
       },
     ]);
 
-    const result = await resolveChatModel(
-      request(),
-      "minimax/MiniMax-M3",
-      { preferVision: false },
-    );
+    const result = await resolveChatModel(request(), "minimax/MiniMax-M3", {
+      preferVision: false,
+    });
 
     expect("error" in result).toBe(false);
     if ("error" in result) return;
@@ -135,11 +133,9 @@ describe("resolveChatModel", () => {
       },
     ]);
 
-    const result = await resolveChatModel(
-      request(),
-      "minimax/MiniMax-M2",
-      { preferVision: true },
-    );
+    const result = await resolveChatModel(request(), "minimax/MiniMax-M2", {
+      preferVision: true,
+    });
 
     expect("error" in result).toBe(false);
     if ("error" in result) return;
@@ -167,11 +163,9 @@ describe("resolveChatModel", () => {
       },
     ]);
 
-    const result = await resolveChatModel(
-      request(),
-      "minimax/MiniMax-M2",
-      { preferVision: true },
-    );
+    const result = await resolveChatModel(request(), "minimax/MiniMax-M2", {
+      preferVision: true,
+    });
 
     expect("error" in result).toBe(false);
     if ("error" in result) return;
@@ -217,11 +211,9 @@ describe("resolveChatModel", () => {
       },
     ]);
 
-    const result = await resolveChatModel(
-      request(),
-      "minimax/MiniMax-M2",
-      { preferVision: true },
-    );
+    const result = await resolveChatModel(request(), "minimax/MiniMax-M2", {
+      preferVision: true,
+    });
 
     expect("error" in result).toBe(false);
     if ("error" in result) return;
@@ -260,11 +252,9 @@ describe("resolveChatModel", () => {
       },
     ]);
 
-    const result = await resolveChatModel(
-      request(),
-      "minimax/MiniMax-M2",
-      { preferVision: true },
-    );
+    const result = await resolveChatModel(request(), "minimax/MiniMax-M2", {
+      preferVision: true,
+    });
 
     expect("error" in result).toBe(false);
     if ("error" in result) return;

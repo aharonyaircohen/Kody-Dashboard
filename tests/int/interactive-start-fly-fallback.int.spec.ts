@@ -136,7 +136,10 @@ describe("POST /interactive/start — GitHub-to-server fallback", () => {
       queueFull: false,
       reason: "actions status degraded_performance",
     });
-    resolveServerContext.mockResolvedValue({ ok: true, context: serverContext });
+    resolveServerContext.mockResolvedValue({
+      ok: true,
+      context: serverContext,
+    });
     isServerProviderAvailable.mockReturnValue(true);
     claimOrRunServer.mockResolvedValue({ runner: "pool", machineId: "m-warm" });
 
@@ -161,7 +164,10 @@ describe("POST /interactive/start — GitHub-to-server fallback", () => {
       queueFull: false,
       reason: "healthy",
     });
-    resolveServerContext.mockResolvedValue({ ok: true, context: serverContext });
+    resolveServerContext.mockResolvedValue({
+      ok: true,
+      context: serverContext,
+    });
     isServerProviderAvailable.mockReturnValue(true);
     claimOrRunServer.mockResolvedValue({ runner: "fly", machineId: "m-fresh" });
     // GitHub healthy → route attempts the dispatch; make it 500.
@@ -188,7 +194,10 @@ describe("POST /interactive/start — GitHub-to-server fallback", () => {
       queueFull: false,
       reason: "actions status major_outage",
     });
-    resolveServerContext.mockResolvedValue({ ok: true, context: serverContext });
+    resolveServerContext.mockResolvedValue({
+      ok: true,
+      context: serverContext,
+    });
     isServerProviderAvailable.mockReturnValue(false);
     const dispatch = nock(GITHUB_API)
       .post(/\/repos\/acme\/widgets\/actions\/workflows\/kody\.yml\/dispatches/)

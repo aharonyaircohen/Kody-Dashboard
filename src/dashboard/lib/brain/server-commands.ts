@@ -88,9 +88,10 @@ export async function manageBrainServer(input: ManageBrainServerInput) {
   const flyToken = requireFlyToken(context);
 
   if (input.command === "provision") {
-    const stored = await readBrainApp(context.account, context.githubToken).catch(
-      () => null,
-    );
+    const stored = await readBrainApp(
+      context.account,
+      context.githubToken,
+    ).catch(() => null);
     const target = resolveBrainTarget({
       account: context.account,
       contextOrgSlug: context.flyOrgSlug,

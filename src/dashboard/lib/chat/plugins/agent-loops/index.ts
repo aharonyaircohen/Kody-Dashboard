@@ -21,11 +21,9 @@ export const agentLoopsChatPlugin: ChatPlugin = {
     {
       id: AGENT_LOOPS_PANEL_ID,
       title: "Loops",
-      render: createLazyPanel(
-        "agent-loops",
-        () => import("./panel").then((m) => ({ default: m.AgentLoopsPanelView })),
+      render: createLazyPanel("agent-loops", () =>
+        import("./panel").then((m) => ({ default: m.AgentLoopsPanelView })),
       ),
     },
   ],
 };
-

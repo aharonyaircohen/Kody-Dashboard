@@ -109,7 +109,9 @@ async function resolvePublicStateRepo(
   const pathRaw =
     typeof config?.statePath === "string" ? config.statePath : nested.path;
   const branchRaw =
-    typeof config?.stateBranch === "string" ? config.stateBranch : nested.branch;
+    typeof config?.stateBranch === "string"
+      ? config.stateBranch
+      : nested.branch;
   const stateRepo =
     typeof repoRaw === "string" && repoRaw.trim().length > 0
       ? repoRaw.trim()

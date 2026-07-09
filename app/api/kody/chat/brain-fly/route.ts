@@ -42,9 +42,7 @@ import {
   type BrainCapabilityContext,
   type BrainTaskContext,
 } from "@dashboard/lib/brain-proxy";
-import {
-  waitForServerBrainHealth,
-} from "@dashboard/lib/infrastructure/server-brain";
+import { waitForServerBrainHealth } from "@dashboard/lib/infrastructure/server-brain";
 import { resolveServerProviderContext } from "@dashboard/lib/infrastructure/server-context";
 import { requestOrigin } from "@dashboard/lib/request-origin";
 import {

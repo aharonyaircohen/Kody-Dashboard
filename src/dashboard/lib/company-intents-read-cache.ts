@@ -23,7 +23,10 @@ export async function getCachedCompanyIntentRecords(
   repo: string,
   load: () => Promise<CompanyIntentRecord[]>,
 ): Promise<CompanyIntentRecord[]> {
-  return companyIntentRecordsCache.get(companyIntentRecordsKey(owner, repo), load);
+  return companyIntentRecordsCache.get(
+    companyIntentRecordsKey(owner, repo),
+    load,
+  );
 }
 
 export function clearCompanyIntentRecordsCache(owner: string, repo: string) {

@@ -190,7 +190,9 @@ const configBundleSchema = z.object({
   allowedAssociations: z.array(z.string().max(40)).max(16).optional(),
   defaultImplementation: z.string().max(64).optional(),
   defaultPrImplementation: z.string().max(64).optional(),
-  perImplementation: z.record(z.string().max(64), z.string().max(128)).optional(),
+  perImplementation: z
+    .record(z.string().max(64), z.string().max(128))
+    .optional(),
 });
 
 /**

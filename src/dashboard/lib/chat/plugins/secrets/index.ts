@@ -21,11 +21,9 @@ export const secretsChatPlugin: ChatPlugin = {
     {
       id: SECRETS_PANEL_ID,
       title: "Secrets",
-      render: createLazyPanel(
-        "secrets",
-        () => import("./panel").then((m) => ({ default: m.SecretsPanelView })),
+      render: createLazyPanel("secrets", () =>
+        import("./panel").then((m) => ({ default: m.SecretsPanelView })),
       ),
     },
   ],
 };
-

@@ -21,11 +21,9 @@ export const inboxChatPlugin: ChatPlugin = {
     {
       id: INBOX_PANEL_ID,
       title: "Inbox",
-      render: createLazyPanel(
-        "inbox",
-        () => import("./panel").then((m) => ({ default: m.InboxPanelView })),
+      render: createLazyPanel("inbox", () =>
+        import("./panel").then((m) => ({ default: m.InboxPanelView })),
       ),
     },
   ],
 };
-

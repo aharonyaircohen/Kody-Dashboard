@@ -119,8 +119,7 @@ export async function resolveFlyPreviewsForRepo(
   githubToken?: string,
 ): Promise<ResolvedFlyPreviews> {
   const [owner, name] = repo.split("/");
-  if (!owner || !name)
-    return resolveFlyPreviews({});
+  if (!owner || !name) return resolveFlyPreviews({});
   try {
     let token = githubToken;
     if (!token) {

@@ -41,9 +41,7 @@ export type {
   ChatTerminalTransport,
   MountedChatTerminal,
 } from "./types";
-export {
-  useChatTerminalRegistry,
-} from "./useChatTerminalRegistry";
+export { useChatTerminalRegistry } from "./useChatTerminalRegistry";
 export {
   BRAIN_TERMINAL_TRANSPORT,
   LOCAL_TERMINAL_TRANSPORT,

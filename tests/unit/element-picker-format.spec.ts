@@ -165,7 +165,7 @@ describe("formatPreviewActResult", () => {
 
     expect(out).toContain("Preview observation after that action");
     expect(out).toContain("it is not a new user request");
-    expect(out).toContain("Button \"Save\"");
+    expect(out).toContain('Button "Save"');
   });
 });
 

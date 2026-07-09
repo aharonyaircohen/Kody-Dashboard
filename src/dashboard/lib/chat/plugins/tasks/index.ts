@@ -33,11 +33,9 @@ export const tasksChatPlugin: ChatPlugin = {
     {
       id: TASKS_PANEL_ID,
       title: "Tasks",
-      render: createLazyPanel(
-        "tasks",
-        () => import("./panel").then((m) => ({ default: m.TasksPanelView })),
+      render: createLazyPanel("tasks", () =>
+        import("./panel").then((m) => ({ default: m.TasksPanelView })),
       ),
     },
   ],
 };
-

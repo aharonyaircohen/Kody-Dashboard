@@ -79,7 +79,8 @@ test.describe("Route smoke", () => {
               locale: "en",
               welcomeText: "Welcome to Acme",
               source: "repo",
-              htmlUrl: "https://github.com/test-owner/test-repo/blob/main/brands/acme.json",
+              htmlUrl:
+                "https://github.com/test-owner/test-repo/blob/main/brands/acme.json",
             },
           ],
         }),

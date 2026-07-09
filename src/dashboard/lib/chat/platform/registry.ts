@@ -31,9 +31,7 @@ export class ChatPluginRegistrationError extends Error {
     readonly pluginId: string,
     readonly violations: readonly string[],
   ) {
-    super(
-      `Chat plugin "${pluginId}" rejected: ${violations.join("; ")}`,
-    );
+    super(`Chat plugin "${pluginId}" rejected: ${violations.join("; ")}`);
     this.name = "ChatPluginRegistrationError";
   }
 }
@@ -53,7 +51,11 @@ function contributionViolations(
   grant: ChatCapabilityGrant,
 ): string[] {
   const violations: string[] = [];
-  const need = (field: string, capability: ChatCapability, present: boolean) => {
+  const need = (
+    field: string,
+    capability: ChatCapability,
+    present: boolean,
+  ) => {
     if (!present) return;
     if (!plugin.capabilities.includes(capability)) {
       violations.push(
@@ -147,12 +149,9 @@ export function createChatPluginRegistry(): ChatPluginRegistry {
 
     middleware() {
       return orderedPlugins()
-        .flatMap((p) =>
-          (p.middleware ?? []).map((m) => ({ plugin: p.id, m })),
-        )
+        .flatMap((p) => (p.middleware ?? []).map((m) => ({ plugin: p.id, m })))
         .sort(
-          (a, b) =>
-            a.m.order - b.m.order || a.plugin.localeCompare(b.plugin),
+          (a, b) => a.m.order - b.m.order || a.plugin.localeCompare(b.plugin),
         )
         .map((x) => x.m);
     },

@@ -15,7 +15,10 @@
 import { useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { buildAuthHeaders, type KodyAuth } from "../../../auth-context";
-import { substitute, type SubstituteResult } from "../../../commands/substitute";
+import {
+  substitute,
+  type SubstituteResult,
+} from "../../../commands/substitute";
 
 export interface SlashCommand {
   slug: string;

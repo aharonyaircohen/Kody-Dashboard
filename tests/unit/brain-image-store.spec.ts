@@ -325,9 +325,8 @@ describe("Brain image store", () => {
       })
       .mockResolvedValueOnce({ sha: "new-sha", content: "{}" });
     state.writeStateText.mockResolvedValue({ sha: "written-sha" });
-    const { readBrainImage, selectBrainImage } = await import(
-      "@dashboard/lib/brain/store"
-    );
+    const { readBrainImage, selectBrainImage } =
+      await import("@dashboard/lib/brain/store");
 
     await readBrainImage("Alice", "token");
     await expect(
@@ -418,7 +417,11 @@ describe("Brain image store", () => {
 
     const content = JSON.parse(
       (state.writeStateText.mock.calls[0]?.[0] as { content: string }).content,
-    ) as { imageRef?: string; images?: unknown[]; forgottenImageRefs?: string[] };
+    ) as {
+      imageRef?: string;
+      images?: unknown[];
+      forgottenImageRefs?: string[];
+    };
     expect(content.imageRef).toBeUndefined();
     expect(content.images).toEqual([]);
     expect(content.forgottenImageRefs).toEqual([

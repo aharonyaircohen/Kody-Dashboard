@@ -29,7 +29,10 @@ export function createCmsStorageTransport<TTarget>({
         resolveBasePath?.() ?? Promise.resolve(""),
       ]);
       const rootPath = safeRootPath(basePath);
-      const result = await adapter.list(target, withBasePath(rootPath, dirPath));
+      const result = await adapter.list(
+        target,
+        withBasePath(rootPath, dirPath),
+      );
       return result.entries
         .filter((entry) => entry.type === "file")
         .map((entry) => stripBasePath(rootPath, entry.path));

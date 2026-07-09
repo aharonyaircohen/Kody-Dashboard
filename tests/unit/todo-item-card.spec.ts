@@ -122,9 +122,7 @@ describe("todo item cards", () => {
     expect(TODO_CONTROL_SOURCE).toContain('stringMeta(meta, "nextRetryAt")');
     expect(TODO_CONTROL_SOURCE).toContain('numberMeta(meta, "issue")');
     expect(TODO_CONTROL_SOURCE).toContain("{managedStatus.label}");
-    expect(TODO_CONTROL_SOURCE).toContain(
-      "Next: {managedStatus.nextAction}",
-    );
+    expect(TODO_CONTROL_SOURCE).toContain("Next: {managedStatus.nextAction}");
     expect(TODO_CONTROL_SOURCE).toContain(
       "{formatRetryTime(managedStatus.nextRetryAt)}",
     );

@@ -88,30 +88,37 @@ async function typeCommand(page: Page, command: string) {
 }
 
 async function selectVisibleTerminalText(page: Page, text: string) {
-  const selected = await page.locator(".xterm").last().evaluate((terminal, value) => {
-    const rows = Array.from(terminal.querySelectorAll(".xterm-rows div"));
-    const targetRow = rows.find((row) => (row.textContent ?? "").includes(value));
-    if (!targetRow) return "";
-    const selection = window.getSelection();
-    if (!selection) return "";
-    const walker = document.createTreeWalker(targetRow, NodeFilter.SHOW_TEXT);
-    let node = walker.nextNode();
-    while (node) {
-      const index = (node.textContent ?? "").indexOf(value);
-      if (index >= 0) {
-        const range = document.createRange();
-        range.setStart(node, index);
-        range.setEnd(node, index + value.length);
-        selection.removeAllRanges();
-        selection.addRange(range);
-        targetRow.dispatchEvent(new Event("selectionchange", { bubbles: true }));
-        document.dispatchEvent(new Event("selectionchange"));
-        return selection.toString();
+  const selected = await page
+    .locator(".xterm")
+    .last()
+    .evaluate((terminal, value) => {
+      const rows = Array.from(terminal.querySelectorAll(".xterm-rows div"));
+      const targetRow = rows.find((row) =>
+        (row.textContent ?? "").includes(value),
+      );
+      if (!targetRow) return "";
+      const selection = window.getSelection();
+      if (!selection) return "";
+      const walker = document.createTreeWalker(targetRow, NodeFilter.SHOW_TEXT);
+      let node = walker.nextNode();
+      while (node) {
+        const index = (node.textContent ?? "").indexOf(value);
+        if (index >= 0) {
+          const range = document.createRange();
+          range.setStart(node, index);
+          range.setEnd(node, index + value.length);
+          selection.removeAllRanges();
+          selection.addRange(range);
+          targetRow.dispatchEvent(
+            new Event("selectionchange", { bubbles: true }),
+          );
+          document.dispatchEvent(new Event("selectionchange"));
+          return selection.toString();
+        }
+        node = walker.nextNode();
       }
-      node = walker.nextNode();
-    }
-    return "";
-  }, text);
+      return "";
+    }, text);
   expect(selected).toContain(text);
 }
 
@@ -140,7 +147,10 @@ test.describe("Brain terminal live UI", () => {
       waitUntil: "domcontentloaded",
     });
 
-    await page.getByRole("button", { name: /Terminal/ }).first().click();
+    await page
+      .getByRole("button", { name: /Terminal/ })
+      .first()
+      .click();
     const target = page.getByLabel("Terminal target");
     await expect(target).toBeVisible({ timeout: 20_000 });
     await expect
@@ -172,7 +182,10 @@ test.describe("Brain terminal live UI", () => {
     await waitForTerminalText(page, firstMarker);
 
     await page.reload({ waitUntil: "domcontentloaded" });
-    await page.getByRole("button", { name: /Terminal/ }).first().click();
+    await page
+      .getByRole("button", { name: /Terminal/ })
+      .first()
+      .click();
     const restoredTarget = page.getByLabel("Terminal target");
     await expect(restoredTarget).toBeVisible({ timeout: 20_000 });
     await restoredTarget.selectOption("brain");
@@ -188,7 +201,9 @@ test.describe("Brain terminal live UI", () => {
     await waitForTerminalText(page, restoredMarker);
 
     await selectVisibleTerminalText(page, restoredMarker);
-    await expect(page.getByRole("button", { name: "Copy selection" })).toBeVisible({
+    await expect(
+      page.getByRole("button", { name: "Copy selection" }),
+    ).toBeVisible({
       timeout: 10_000,
     });
     await page.getByRole("button", { name: "Copy selection" }).click();

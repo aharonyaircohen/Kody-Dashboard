@@ -59,13 +59,15 @@ export async function listStoreCmsAdapters(
       (entry) => entry.type === "dir" && isValidCmsAdapterName(entry.name),
     )
     .map((entry) => cmsAdapterCatalogItem(entry.name));
-  const items = uniqueByName([cmsAdapterCatalogItem(DEFAULT_CMS_ADAPTER), ...storeAdapters]);
-  return items
-    .sort((a, b) => {
-      if (a.name === DEFAULT_CMS_ADAPTER) return -1;
-      if (b.name === DEFAULT_CMS_ADAPTER) return 1;
-      return a.name.localeCompare(b.name);
-    });
+  const items = uniqueByName([
+    cmsAdapterCatalogItem(DEFAULT_CMS_ADAPTER),
+    ...storeAdapters,
+  ]);
+  return items.sort((a, b) => {
+    if (a.name === DEFAULT_CMS_ADAPTER) return -1;
+    if (b.name === DEFAULT_CMS_ADAPTER) return 1;
+    return a.name.localeCompare(b.name);
+  });
 }
 
 export function isValidCmsAdapterName(name: string): boolean {

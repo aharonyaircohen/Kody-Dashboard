@@ -21,11 +21,9 @@ export const companyChatPlugin: ChatPlugin = {
     {
       id: COMPANY_PANEL_ID,
       title: "AI Agency",
-      render: createLazyPanel(
-        "company",
-        () => import("./panel").then((m) => ({ default: m.CompanyPanelView })),
+      render: createLazyPanel("company", () =>
+        import("./panel").then((m) => ({ default: m.CompanyPanelView })),
       ),
     },
   ],
 };
-

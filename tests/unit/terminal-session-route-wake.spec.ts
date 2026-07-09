@@ -23,7 +23,9 @@ describe("terminal session wake wait", () => {
     expect(ROUTE_SOURCE).toContain("export const maxDuration = 90;");
     expect(USE_CASE_SOURCE).toContain("const WAKE_POLL_ATTEMPTS = 60;");
     expect(USE_CASE_SOURCE).toContain("const WAKE_POLL_INTERVAL_MS = 1000;");
-    expect(USE_CASE_SOURCE).toContain("Brain machine did not become ready in time");
+    expect(USE_CASE_SOURCE).toContain(
+      "Brain machine did not become ready in time",
+    );
   });
 
   it("does not report Brain Fly authorization failures as missing machines", () => {
@@ -31,6 +33,8 @@ describe("terminal session wake wait", () => {
     expect(USE_CASE_SOURCE).toContain(
       'savedBrain?.brain.reason === "fly_access_denied"',
     );
-    expect(USE_CASE_SOURCE).toContain("Fly token cannot access this Brain app.");
+    expect(USE_CASE_SOURCE).toContain(
+      "Fly token cannot access this Brain app.",
+    );
   });
 });

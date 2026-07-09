@@ -77,7 +77,10 @@ export function createRemoteTools(actorLogin: string | null | undefined) {
           .describe("Optional working directory for the command"),
       }),
       execute: async ({ command, cwd }) => {
-        logger.info({ actorLogin, action: "exec", command }, "remote_implementation");
+        logger.info(
+          { actorLogin, action: "exec", command },
+          "remote_implementation",
+        );
         return callAgent(cfg.funnelUrl, cfg.key, "exec", { command, cwd });
       },
     }),

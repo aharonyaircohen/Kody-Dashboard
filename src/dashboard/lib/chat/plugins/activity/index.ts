@@ -21,11 +21,9 @@ export const activityChatPlugin: ChatPlugin = {
     {
       id: ACTIVITY_PANEL_ID,
       title: "Activity",
-      render: createLazyPanel(
-        "activity",
-        () => import("./panel").then((m) => ({ default: m.ActivityPanelView })),
+      render: createLazyPanel("activity", () =>
+        import("./panel").then((m) => ({ default: m.ActivityPanelView })),
       ),
     },
   ],
 };
-

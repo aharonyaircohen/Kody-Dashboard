@@ -22,7 +22,10 @@ const IMAGE_MANAGEMENT_SOURCE = readFileSync(
   "utf8",
 );
 const BRIDGE_SOURCE = readFileSync(
-  resolve(__dirname, "../../src/dashboard/lib/infrastructure/plugins/fly/terminal/bridge.ts"),
+  resolve(
+    __dirname,
+    "../../src/dashboard/lib/infrastructure/plugins/fly/terminal/bridge.ts",
+  ),
   "utf8",
 );
 const BRIDGE_EXEC_CLIENT_SOURCE = readFileSync(

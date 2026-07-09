@@ -252,7 +252,9 @@ export function savePersistedTerminalRegistry(
   }
 }
 
-export function canUseChatTerminalFlyMachine(machine: ServerProviderMachineRow): boolean {
+export function canUseChatTerminalFlyMachine(
+  machine: ServerProviderMachineRow,
+): boolean {
   return isFlyTerminalCapable(machine.feature);
 }
 

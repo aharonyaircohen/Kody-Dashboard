@@ -41,15 +41,15 @@ capability supplies its own job and the agent only supplies judgment and voice.
 
 So in storage terms:
 
-|                         | Agents (who)             | Capability (how)                                | Legacy roots                                              |
-| ----------------------- | ------------------------ | ----------------------------------------------- | --------------------------------------------------------- |
+|                         | Agents (who)             | Capability (how)                                | Legacy roots                                                  |
+| ----------------------- | ------------------------ | ----------------------------------------------- | ------------------------------------------------------------- |
 | Path                    | `.kody/agents/<slug>.md` | `.kody/capabilities/<slug>/`                    | `.kody/capabilities/<slug>/`, `.kody/implementations/<slug>/` |
-| Answers                 | Who is acting?           | What capability is available?                   | How is older stored implementation found?                 |
-| Owns the schedule?      | No                       | Only the capability cadence, via `profile.json` | Compatibility only                                        |
-| Owns the action name?   | No                       | Yes, `profile.json.action`                      | No                                                        |
-| Owns reusable method?   | No                       | Yes, through skills/scripts/prompts when needed | Compatibility only                                        |
-| Names the agent member? | No                       | Yes, `profile.json.agent` or legacy `runner`    | No                                                        |
-| Independently ticked?   | No                       | Yes                                             | Only for legacy compatibility                             |
+| Answers                 | Who is acting?           | What capability is available?                   | How is older stored implementation found?                     |
+| Owns the schedule?      | No                       | Only the capability cadence, via `profile.json` | Compatibility only                                            |
+| Owns the action name?   | No                       | Yes, `profile.json.action`                      | No                                                            |
+| Owns reusable method?   | No                       | Yes, through skills/scripts/prompts when needed | Compatibility only                                            |
+| Names the agent member? | No                       | Yes, `profile.json.agent` or legacy `runner`    | No                                                            |
+| Independently ticked?   | No                       | Yes                                             | Only for legacy compatibility                                 |
 
 ## Capability profile
 

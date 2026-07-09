@@ -68,15 +68,18 @@ describe("company intents", () => {
   });
 
   it("preserves 15-minute release cadence", () => {
-    const intent = parseCompanyIntent("intents/prs-stay-mergeable/intent.json", {
-      id: "prs-stay-mergeable",
-      for: "Keep PRs mergeable.",
-      policy: {
-        release: { cadence: "15m" },
-        automation: { authority: "full-auto" },
+    const intent = parseCompanyIntent(
+      "intents/prs-stay-mergeable/intent.json",
+      {
+        id: "prs-stay-mergeable",
+        for: "Keep PRs mergeable.",
+        policy: {
+          release: { cadence: "15m" },
+          automation: { authority: "full-auto" },
+        },
+        manager: { agent: "cto" },
       },
-      manager: { agent: "cto" },
-    });
+    );
 
     expect(intent.policy.release?.cadence).toBe("15m");
   });

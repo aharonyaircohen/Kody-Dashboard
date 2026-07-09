@@ -46,8 +46,9 @@ describe("vibeLiveTaskContext", () => {
   });
 
   it("omits prNumber/branch when associatedPR is explicitly null", () => {
-    expect(vibeLiveTaskContext(true, { issueNumber: 7, associatedPR: null }))
-      .toEqual({ issueNumber: 7 });
+    expect(
+      vibeLiveTaskContext(true, { issueNumber: 7, associatedPR: null }),
+    ).toEqual({ issueNumber: 7 });
   });
 });
 
@@ -56,9 +57,7 @@ describe("vibeTurnFields", () => {
     expect(vibeTurnFields(false)).toEqual({});
     expect(Object.keys(vibeTurnFields(undefined))).toEqual([]);
     // A stray taskContext must not leak through either.
-    expect(
-      vibeTurnFields(false, { issueNumber: 42 }),
-    ).toEqual({});
+    expect(vibeTurnFields(false, { issueNumber: 42 })).toEqual({});
   });
 
   it("adds only vibeMode when no task context resolves", () => {

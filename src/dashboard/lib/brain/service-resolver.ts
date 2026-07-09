@@ -57,9 +57,9 @@ function sameResolvedBrainMachine(
 ): boolean {
   return Boolean(
     a.app === b.app &&
-      a.machineId &&
-      b.machineId &&
-      a.machineId === b.machineId,
+    a.machineId &&
+    b.machineId &&
+    a.machineId === b.machineId,
   );
 }
 
@@ -134,10 +134,9 @@ export async function resolveBrainService(input: {
       machineAccessDenied = machineAccessDenied || flyAccessDenied(err);
     }
 
-    const reason: BrainServiceReason | undefined =
-      machineAccessDenied
-        ? "fly_access_denied"
-        : targetMachineId && !machine && !machineLookupFailed
+    const reason: BrainServiceReason | undefined = machineAccessDenied
+      ? "fly_access_denied"
+      : targetMachineId && !machine && !machineLookupFailed
         ? "runtime_machine_not_found"
         : machineLookupFailed && status.state !== "off"
           ? "machine_lookup_failed"

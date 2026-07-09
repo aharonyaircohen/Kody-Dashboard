@@ -21,11 +21,9 @@ export const agencyRunsChatPlugin: ChatPlugin = {
     {
       id: AGENCY_RUNS_PANEL_ID,
       title: "Agency Runs",
-      render: createLazyPanel(
-        "agency-runs",
-        () => import("./panel").then((m) => ({ default: m.AgencyRunsPanelView })),
+      render: createLazyPanel("agency-runs", () =>
+        import("./panel").then((m) => ({ default: m.AgencyRunsPanelView })),
       ),
     },
   ],
 };
-

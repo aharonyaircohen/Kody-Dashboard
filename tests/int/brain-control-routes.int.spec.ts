@@ -60,7 +60,10 @@ vi.mock("@dashboard/lib/brain/store", () => ({
   clearBrainApp: vi.fn(async () => undefined),
 }));
 
-vi.mock("@dashboard/lib/infrastructure/plugins/fly/runners/brain", () => brainFly);
+vi.mock(
+  "@dashboard/lib/infrastructure/plugins/fly/runners/brain",
+  () => brainFly,
+);
 
 vi.mock("@dashboard/lib/github-client", () => ({
   setGitHubContext: vi.fn(),

@@ -82,8 +82,8 @@ async function visibleTerminalText(page: Page): Promise<string> {
         const element = terminal as HTMLElement;
         return Boolean(
           element.offsetWidth ||
-            element.offsetHeight ||
-            element.getClientRects().length,
+          element.offsetHeight ||
+          element.getClientRects().length,
         );
       })
       .map((terminal) =>

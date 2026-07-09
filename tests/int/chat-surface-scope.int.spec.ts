@@ -78,7 +78,12 @@ function mockModel(): MockLanguageModelV3 {
             type: "finish",
             finishReason: { unified: "tool-calls", raw: "tool-calls" },
             usage: {
-              inputTokens: { total: 1, noCache: 1, cacheRead: 0, cacheWrite: 0 },
+              inputTokens: {
+                total: 1,
+                noCache: 1,
+                cacheRead: 0,
+                cacheWrite: 0,
+              },
               outputTokens: { total: 1, text: 1, reasoning: 0 },
             },
           },

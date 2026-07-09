@@ -53,9 +53,10 @@ describe("GET /api/kody/state-files", () => {
   it("reads a runtime state evidence file from the configured state repo", async () => {
     stateRepo.readStateText.mockResolvedValue({
       path: "widgets/logs/goals/ci-health/runs/run.jsonl",
-      content: "{\"event\":\"done\"}\n",
+      content: '{"event":"done"}\n',
       sha: "abc1234",
-      htmlUrl: "https://github.com/acme/kody-state/blob/main/widgets/logs/goals/ci-health/runs/run.jsonl",
+      htmlUrl:
+        "https://github.com/acme/kody-state/blob/main/widgets/logs/goals/ci-health/runs/run.jsonl",
       size: 17,
     });
 
@@ -69,7 +70,7 @@ describe("GET /api/kody/state-files", () => {
     await expect(res.json()).resolves.toMatchObject({
       requestedPath: "logs/goals/ci-health/runs/run.jsonl",
       path: "widgets/logs/goals/ci-health/runs/run.jsonl",
-      content: "{\"event\":\"done\"}\n",
+      content: '{"event":"done"}\n',
       sha: "abc1234",
     });
     expect(stateRepo.readStateText).toHaveBeenCalledWith(

@@ -66,11 +66,11 @@ to use it.
 
 Supported action types:
 
-| Type          | Required fields                               | What the dashboard does                                                                                    |
-| ------------- | --------------------------------------------- | ---------------------------------------------------------------------------------------------------------- |
+| Type          | Required fields                                   | What the dashboard does                                                                                    |
+| ------------- | ------------------------------------------------- | ---------------------------------------------------------------------------------------------------------- |
 | `dispatch`    | `id`, `type`, `label`, `implementation`, `target` | Runs an instant job for the named capability/action against the issue/PR number. The field name is legacy. |
-| `create-task` | `id`, `type`, `label`, `title`                | Opens the existing task dialog prefilled from the action and source report.                                |
-| `dismiss`     | `id`, `type`, `label`                         | Hides that suggested action locally for the current browser.                                               |
+| `create-task` | `id`, `type`, `label`, `title`                    | Opens the existing task dialog prefilled from the action and source report.                                |
+| `dismiss`     | `id`, `type`, `label`                             | Hides that suggested action locally for the current browser.                                               |
 
 Dispatch actions must name a real capability/action and a concrete issue/PR
 number. The dashboard does not infer commands from prose.

@@ -21,11 +21,9 @@ export const memoryChatPlugin: ChatPlugin = {
     {
       id: MEMORY_PANEL_ID,
       title: "Memory",
-      render: createLazyPanel(
-        "memory",
-        () => import("./panel").then((m) => ({ default: m.MemoryPanelView })),
+      render: createLazyPanel("memory", () =>
+        import("./panel").then((m) => ({ default: m.MemoryPanelView })),
       ),
     },
   ],
 };
-

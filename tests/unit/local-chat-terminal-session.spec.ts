@@ -186,9 +186,8 @@ describe("local chat terminal session registry", () => {
     spawnMock.mockImplementationOnce(() => {
       throw new Error("Cannot find module './prebuilds/linux-x64//pty.node'");
     });
-    const { startLocalTerminalSession } = await import(
-      "@dashboard/lib/terminal/local-chat-session"
-    );
+    const { startLocalTerminalSession } =
+      await import("@dashboard/lib/terminal/local-chat-session");
 
     await expect(
       startLocalTerminalSession({

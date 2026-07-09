@@ -38,7 +38,9 @@ describe("Brain Fly route GitHub context", () => {
   });
 
   it("uses the resolved Brain service for every machine control route", () => {
-    const commandSource = readRoute("src/dashboard/lib/brain/server-commands.ts");
+    const commandSource = readRoute(
+      "src/dashboard/lib/brain/server-commands.ts",
+    );
     expect(commandSource).toContain("resolveBrainService(");
     expect(commandSource).toContain("appNameOverride: brain.app");
     for (const routePath of [

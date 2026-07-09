@@ -16,7 +16,11 @@ import { Input } from "@dashboard/ui/input";
 import { useEngineConfig } from "../engine/useEngineConfig";
 import { engineModelSpec, type ChatModel } from "../variables/models";
 
-export function PerImplementationModelCard({ models }: { models: ChatModel[] }) {
+export function PerImplementationModelCard({
+  models,
+}: {
+  models: ChatModel[];
+}) {
   const { config, loading, saving, save } = useEngineConfig();
   const [slug, setSlug] = useState("");
   const [spec, setSpec] = useState("");
@@ -121,7 +125,7 @@ export function PerImplementationModelCard({ models }: { models: ChatModel[] }) 
                 disabled={saving}
                 className="h-8 text-sm font-mono"
               />
-            <datalist id="per-implementation-model-specs">
+              <datalist id="per-implementation-model-specs">
                 {specOptions.map(([s, label]) => (
                   <option key={s} value={s}>
                     {label}

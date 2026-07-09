@@ -33,11 +33,15 @@ describe("terminal bridge protocol", () => {
     ).toEqual({ type: "restore-start", replayBytes: 120 });
 
     expect(
-      parseTerminalBridgeServerMessage(JSON.stringify({ type: "restore-complete" })),
+      parseTerminalBridgeServerMessage(
+        JSON.stringify({ type: "restore-complete" }),
+      ),
     ).toEqual({ type: "restore-complete" });
   });
 
   it("returns null for raw terminal bytes", () => {
-    expect(parseTerminalBridgeServerMessage("root@brain:/workspace# ")).toBeNull();
+    expect(
+      parseTerminalBridgeServerMessage("root@brain:/workspace# "),
+    ).toBeNull();
   });
 });

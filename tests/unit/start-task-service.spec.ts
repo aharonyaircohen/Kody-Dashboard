@@ -44,7 +44,8 @@ vi.mock("@dashboard/lib/github-client", () => ({
     mocks.getOctokit(...args),
   getOwner: (...args: Parameters<typeof mocks.getOwner>) =>
     mocks.getOwner(...args),
-  getRepo: (...args: Parameters<typeof mocks.getRepo>) => mocks.getRepo(...args),
+  getRepo: (...args: Parameters<typeof mocks.getRepo>) =>
+    mocks.getRepo(...args),
   getStoreRepoUrl: (...args: Parameters<typeof mocks.getStoreRepoUrl>) =>
     mocks.getStoreRepoUrl(...args),
   getStoreRef: (...args: Parameters<typeof mocks.getStoreRef>) =>
@@ -53,8 +54,9 @@ vi.mock("@dashboard/lib/github-client", () => ({
     mocks.ensureLabel(...args),
   addLabels: (...args: Parameters<typeof mocks.addLabels>) =>
     mocks.addLabels(...args),
-  invalidateTaskCache: (...args: Parameters<typeof mocks.invalidateTaskCache>) =>
-    mocks.invalidateTaskCache(...args),
+  invalidateTaskCache: (
+    ...args: Parameters<typeof mocks.invalidateTaskCache>
+  ) => mocks.invalidateTaskCache(...args),
 }));
 
 import { startKodyTask } from "@dashboard/lib/tasks/start-task";

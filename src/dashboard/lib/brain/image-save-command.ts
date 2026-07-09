@@ -7,12 +7,13 @@
  */
 import "server-only";
 
-import {
-  startTerminalBridgeLocalExecJob,
-} from "@dashboard/lib/terminal/bridge-exec-client";
+import { startTerminalBridgeLocalExecJob } from "@dashboard/lib/terminal/bridge-exec-client";
 import { ensureServerProviderTerminalBridge } from "@dashboard/lib/infrastructure/server-terminal";
 import { mintTerminalBridgeToken } from "@dashboard/lib/terminal/terminal-token";
-import { defaultServerBrainImage, waitForServerBrainHealth } from "@dashboard/lib/infrastructure/server-brain";
+import {
+  defaultServerBrainImage,
+  waitForServerBrainHealth,
+} from "@dashboard/lib/infrastructure/server-brain";
 import type { ServerProviderContext } from "@dashboard/lib/infrastructure/server-context";
 
 import {
@@ -23,10 +24,7 @@ import {
 import { brainImageJobTimeoutMs } from "./image-timeouts";
 import { brainGhcrAuth } from "./image-runtime";
 import { resolveBrainService } from "./service-resolver";
-import {
-  writeBrainImageSave,
-  type BrainImageSaveFile,
-} from "./store";
+import { writeBrainImageSave, type BrainImageSaveFile } from "./store";
 
 const BRAIN_IMAGE_JOB_OUTPUT_BYTES = 2_000_000;
 const FLY_BRIDGE_ACCESS_DENIED_MESSAGE =
@@ -88,7 +86,9 @@ export async function startBrainImageSave(input: StartBrainImageSaveInput) {
   const machineId = brain.machineId;
   const brainFlyToken = brain.flyToken;
   if (brain.reason === "fly_access_denied") {
-    const error = new Error("Fly token cannot access this Brain app.") as Error & {
+    const error = new Error(
+      "Fly token cannot access this Brain app.",
+    ) as Error & {
       status?: number;
       code?: string;
       app?: string;

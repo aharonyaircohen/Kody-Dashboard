@@ -21,11 +21,9 @@ export const docsChatPlugin: ChatPlugin = {
     {
       id: DOCS_PANEL_ID,
       title: "Docs",
-      render: createLazyPanel(
-        "docs",
-        () => import("./panel").then((m) => ({ default: m.DocsPanelView })),
+      render: createLazyPanel("docs", () =>
+        import("./panel").then((m) => ({ default: m.DocsPanelView })),
       ),
     },
   ],
 };
-

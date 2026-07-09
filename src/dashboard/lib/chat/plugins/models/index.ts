@@ -21,11 +21,9 @@ export const modelsChatPlugin: ChatPlugin = {
     {
       id: MODELS_PANEL_ID,
       title: "Chat Models",
-      render: createLazyPanel(
-        "models",
-        () => import("./panel").then((m) => ({ default: m.ModelsPanelView })),
+      render: createLazyPanel("models", () =>
+        import("./panel").then((m) => ({ default: m.ModelsPanelView })),
       ),
     },
   ],
 };
-

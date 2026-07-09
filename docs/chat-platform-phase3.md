@@ -16,7 +16,7 @@ pixel-invisible to the user; the flip is plumbing, not a redesign.
 Today `flipActive` makes chat the full-width main column and shrinks the
 routed page to a fixed 560px right panel
 ([ChatRailShell.tsx](../src/dashboard/lib/components/ChatRailShell.tsx)).
-Change the flip branch to render the *classic* proportions: chat at the
+Change the flip branch to render the _classic_ proportions: chat at the
 saved rail width (default 440, drag handle kept), page `flex-1`, same
 borders, same mobile behavior. After this step, toggle ON vs OFF is
 visually identical — the only difference is which code path hosts the page.

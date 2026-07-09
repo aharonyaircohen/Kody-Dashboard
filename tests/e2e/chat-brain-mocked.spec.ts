@@ -44,7 +44,10 @@ async function seedAuth(page: Page): Promise<void> {
     localStorage.setItem("kody_auth", JSON.stringify(auth));
     // Make Brain the default entry so the composer routes to it without
     // needing the picker on every test.
-    localStorage.setItem("kody-default-chat-entry:test-owner/test-repo", "brain");
+    localStorage.setItem(
+      "kody-default-chat-entry:test-owner/test-repo",
+      "brain",
+    );
     localStorage.removeItem("kody-sessions-v3:test-owner/test-repo");
     localStorage.removeItem("kody-sessions-v3");
     // Fresh chat-id pin map — a stale pin would flip includeContext off.
@@ -128,7 +131,12 @@ test.describe("Brain chat backend (mocked SSE)", () => {
         // Brain replays FULL snapshots (content replaces the bubble), then
         // a completed tool chip, then the terminal done.
         body: sseBody([
-          { type: "chat.message", role: "assistant", content: "Hello ", seq: 1 },
+          {
+            type: "chat.message",
+            role: "assistant",
+            content: "Hello ",
+            seq: 1,
+          },
           {
             type: "chat.message",
             role: "assistant",
@@ -188,7 +196,12 @@ test.describe("Brain chat backend (mocked SSE)", () => {
         status: 200,
         headers: { "content-type": "text/event-stream; charset=utf-8" },
         body: sseBody([
-          { type: "chat.message", role: "assistant", content: "partial", seq: 1 },
+          {
+            type: "chat.message",
+            role: "assistant",
+            content: "partial",
+            seq: 1,
+          },
           { type: "chat.error", error: "brain profile misconfigured", seq: 2 },
         ]),
       }),

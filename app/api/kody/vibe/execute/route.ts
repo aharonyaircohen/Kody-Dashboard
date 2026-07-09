@@ -105,14 +105,11 @@ export async function POST(req: NextRequest) {
   }
 
   try {
-    const { runner, machineId } = await claimOrRunServer(
-      ctxResult.context,
-      {
-        taskId: sessionId,
-        runRequest,
-        ref,
-      },
-    );
+    const { runner, machineId } = await claimOrRunServer(ctxResult.context, {
+      taskId: sessionId,
+      runRequest,
+      ref,
+    });
 
     logger.info(
       { issueNumber, machineId, owner, repo, runner },

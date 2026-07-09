@@ -237,7 +237,9 @@ describe("ensureTerminalBridge", () => {
     expect(TERMINAL_BRIDGE_SCRIPT).toContain(
       "const MAX_REPLAY_CHARS = 120000;",
     );
-    expect(attachSession).toContain("restoreStartMessage(session.outputBuffer || \"\")");
+    expect(attachSession).toContain(
+      'restoreStartMessage(session.outputBuffer || "")',
+    );
     expect(attachSession).toContain("restoreCompleteMessage()");
     expect(attachSession).not.toContain("session.pendingOutput");
     expect(attachSession).not.toContain("Reattached terminal session.");

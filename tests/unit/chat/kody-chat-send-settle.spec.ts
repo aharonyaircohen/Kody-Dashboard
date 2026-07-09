@@ -62,7 +62,9 @@ describe("settleDecision — the per-backend recover table", () => {
       "kody-live",
       "kody-engine",
     ] as const) {
-      expect(settleDecision(backend, { kind: "error", message: "boom" })).toEqual({
+      expect(
+        settleDecision(backend, { kind: "error", message: "boom" }),
+      ).toEqual({
         messageOp: "error-bubble",
         stopLoading: true,
         errorMessage: "boom",
@@ -84,9 +86,13 @@ describe("settleDecision — the per-backend recover table", () => {
   });
 
   it("kody-live abort surfaces like any failure (fire-and-ack has no abort path)", () => {
-    expect(settleDecision("kody-live", { kind: "abort", message: "x" })).toEqual(
-      { messageOp: "error-bubble", stopLoading: true, errorMessage: "x" },
-    );
+    expect(
+      settleDecision("kody-live", { kind: "abort", message: "x" }),
+    ).toEqual({
+      messageOp: "error-bubble",
+      stopLoading: true,
+      errorMessage: "x",
+    });
   });
 
   it("kody-engine abort mirrors brain (pop the optimistic slice)", () => {

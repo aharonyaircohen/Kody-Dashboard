@@ -68,7 +68,8 @@ export function brainRuntimeDrift(
   ) {
     return {
       code: "completed_apply_missing_running",
-      message: "Brain image apply completed, but no running machine is recorded.",
+      message:
+        "Brain image apply completed, but no running machine is recorded.",
       desiredImageRef,
       runningImageRef,
       machineImageRef: machine?.imageRef ?? null,
@@ -88,7 +89,8 @@ export function brainRuntimeDrift(
   if (runningImageRef && !machine?.imageRef) {
     return {
       code: "machine_image_unknown",
-      message: "Running Brain image is recorded, but the live machine image is unknown.",
+      message:
+        "Running Brain image is recorded, but the live machine image is unknown.",
       desiredImageRef,
       runningImageRef,
       machineImageRef: null,

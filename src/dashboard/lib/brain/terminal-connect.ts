@@ -13,10 +13,7 @@ import {
   type TerminalTargetInput,
 } from "@dashboard/lib/terminal/session";
 
-import {
-  brainRuntimeDrift,
-  type BrainRuntimeDrift,
-} from "./runtime-authority";
+import { brainRuntimeDrift, type BrainRuntimeDrift } from "./runtime-authority";
 import type { BrainRuntimeView } from "./runtime-manager";
 
 export interface BrainTerminalWarning {
@@ -58,10 +55,7 @@ export function resolveBrainTerminalConnect(input: {
           machineId: input.runtime.runningMachineId,
           feature: "brain" as const,
         }
-      : resolveBrainTerminalTargetInput(
-          input.inventory,
-          input.requestedTarget,
-        );
+      : resolveBrainTerminalTargetInput(input.inventory, input.requestedTarget);
 
   return {
     targetInput,

@@ -21,11 +21,9 @@ export const reportsChatPlugin: ChatPlugin = {
     {
       id: REPORTS_PANEL_ID,
       title: "Reports",
-      render: createLazyPanel(
-        "reports",
-        () => import("./panel").then((m) => ({ default: m.ReportsPanelView })),
+      render: createLazyPanel("reports", () =>
+        import("./panel").then((m) => ({ default: m.ReportsPanelView })),
       ),
     },
   ],
 };
-

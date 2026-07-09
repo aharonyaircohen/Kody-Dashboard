@@ -57,28 +57,31 @@ export function useScrollRestoration(key: string) {
     restoreScroll(nodeRef.current, key);
   }, [key, restoreScroll]);
 
-  return useCallback((node: HTMLElement | null) => {
-    // Detach: tear down the previous element's listener/frames.
-    if (cleanupRef.current) {
-      cleanupRef.current();
-      cleanupRef.current = null;
-    }
-    nodeRef.current = node;
-    if (!node) return;
-
-    const onScroll = () => {
-      scrollStore.set(keyRef.current, node.scrollTop);
-    };
-    node.addEventListener("scroll", onScroll, { passive: true });
-
-    restoreScroll(node, keyRef.current);
-
-    cleanupRef.current = () => {
-      if (frameCleanupRef.current) {
-        frameCleanupRef.current();
-        frameCleanupRef.current = null;
+  return useCallback(
+    (node: HTMLElement | null) => {
+      // Detach: tear down the previous element's listener/frames.
+      if (cleanupRef.current) {
+        cleanupRef.current();
+        cleanupRef.current = null;
       }
-      node.removeEventListener("scroll", onScroll);
-    };
-  }, [restoreScroll]);
+      nodeRef.current = node;
+      if (!node) return;
+
+      const onScroll = () => {
+        scrollStore.set(keyRef.current, node.scrollTop);
+      };
+      node.addEventListener("scroll", onScroll, { passive: true });
+
+      restoreScroll(node, keyRef.current);
+
+      cleanupRef.current = () => {
+        if (frameCleanupRef.current) {
+          frameCleanupRef.current();
+          frameCleanupRef.current = null;
+        }
+        node.removeEventListener("scroll", onScroll);
+      };
+    },
+    [restoreScroll],
+  );
 }

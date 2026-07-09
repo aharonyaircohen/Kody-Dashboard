@@ -89,7 +89,9 @@ export interface TaskInput {
   assignees?: string[];
 }
 
-function normalizeContextBlock(value: string | null | undefined): string | null {
+function normalizeContextBlock(
+  value: string | null | undefined,
+): string | null {
   const trimmed = value?.trim();
   return trimmed && trimmed.length > 0 ? trimmed : null;
 }

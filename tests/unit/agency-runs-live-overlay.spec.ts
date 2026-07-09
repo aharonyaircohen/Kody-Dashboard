@@ -215,7 +215,8 @@ describe("listAgencyRuns", () => {
             subjectId: "daily-web-release-loop",
             status: "waiting",
             title: "daily-web-release-loop",
-            summary: "already dispatched today at preferred time 02:00 Asia/Jerusalem",
+            summary:
+              "already dispatched today at preferred time 02:00 Asia/Jerusalem",
             currentStep: "loop.tick.idle",
             updatedAt: "2026-07-06T11:51:07.846Z",
             githubRunId: "28788241519",
@@ -253,7 +254,8 @@ describe("listAgencyRuns", () => {
       id: "loop:daily-web-release-loop:gh-28788241519-1-1",
       status: "waiting",
       currentStep: "loop.tick.idle",
-      summary: "already dispatched today at preferred time 02:00 Asia/Jerusalem",
+      summary:
+        "already dispatched today at preferred time 02:00 Asia/Jerusalem",
     });
   });
 
@@ -344,7 +346,9 @@ describe("listAgencyRuns", () => {
 
     const octokit = {
       actions: {
-        listWorkflowRunsForRepo: vi.fn().mockRejectedValue(new Error("rate limit")),
+        listWorkflowRunsForRepo: vi
+          .fn()
+          .mockRejectedValue(new Error("rate limit")),
       },
     };
 

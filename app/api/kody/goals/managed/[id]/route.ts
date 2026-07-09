@@ -377,7 +377,7 @@ export async function PATCH(
         : undefined);
     const nextRunWithoutApproval =
       parsed.data.runWithoutApproval ??
-      (existing.state.runWithoutApproval === true);
+      existing.state.runWithoutApproval === true;
     const routeChanged =
       parsed.data.route !== undefined || shouldUseTypeDefaults;
     const capabilitiesChanged =

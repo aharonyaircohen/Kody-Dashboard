@@ -48,7 +48,10 @@ describe("terminal middleware order (pinned precedence)", () => {
     registry.register(terminalChatPlugin, FULL_GRANT);
 
     const ids = registry.middleware().map((m) => m.id);
-    expect(ids).toEqual([TERMINAL_INTENT_MIDDLEWARE_ID, "fixture-200-middleware"]);
+    expect(ids).toEqual([
+      TERMINAL_INTENT_MIDDLEWARE_ID,
+      "fixture-200-middleware",
+    ]);
   });
 
   it("transforms /terminal input BEFORE an order-200 middleware sees it", () => {

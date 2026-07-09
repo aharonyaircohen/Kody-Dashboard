@@ -213,7 +213,11 @@ describe("terminal checkpoint store", () => {
 
   it("reads and deletes the checkpoint for the current terminal key", async () => {
     const keepTransport = { type: "local" as const };
-    const dropTransport = { type: "fly" as const, app: "runner", machineId: "m2" };
+    const dropTransport = {
+      type: "fly" as const,
+      app: "runner",
+      machineId: "m2",
+    };
     const keepKey = terminalCheckpointKey({
       transport: keepTransport,
       chatSessionId: "chat-1",

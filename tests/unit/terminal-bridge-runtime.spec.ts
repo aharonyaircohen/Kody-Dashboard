@@ -268,11 +268,14 @@ interface RuntimeSocket {
   send(data: string): void;
   messages: Record<string, unknown>[];
   events: string[];
-  waitFor(predicate: (message: Record<string, unknown>) => boolean): Promise<Record<string, unknown>>;
+  waitFor(
+    predicate: (message: Record<string, unknown>) => boolean,
+  ): Promise<Record<string, unknown>>;
 }
 
 function clientFrame(opcode: number, payload: Buffer): Buffer {
-  const headerLength = payload.length < 126 ? 2 : payload.length <= 0xffff ? 4 : 10;
+  const headerLength =
+    payload.length < 126 ? 2 : payload.length <= 0xffff ? 4 : 10;
   const header = Buffer.alloc(headerLength + 4);
   header[0] = 0x80 | opcode;
   if (payload.length < 126) {
@@ -294,7 +297,10 @@ function clientFrame(opcode: number, payload: Buffer): Buffer {
   return Buffer.concat([header, masked]);
 }
 
-function watchSocket(socket: net.Socket, initial = Buffer.alloc(0)): RuntimeSocket {
+function watchSocket(
+  socket: net.Socket,
+  initial = Buffer.alloc(0),
+): RuntimeSocket {
   const messages: Record<string, unknown>[] = [];
   const events: string[] = [];
   let frameBuffer = initial;
@@ -318,7 +324,9 @@ function watchSocket(socket: net.Socket, initial = Buffer.alloc(0)): RuntimeSock
       if (frameBuffer.length < offset + maskLength + length) return;
       const mask = masked ? frameBuffer.subarray(offset, offset + 4) : null;
       offset += maskLength;
-      const payload = Buffer.from(frameBuffer.subarray(offset, offset + length));
+      const payload = Buffer.from(
+        frameBuffer.subarray(offset, offset + length),
+      );
       frameBuffer = frameBuffer.subarray(offset + length);
       if (mask) {
         for (let index = 0; index < payload.length; index += 1) {
@@ -336,7 +344,9 @@ function watchSocket(socket: net.Socket, initial = Buffer.alloc(0)): RuntimeSock
       try {
         messages.push(JSON.parse(raw) as Record<string, unknown>);
       } catch (err) {
-        events.push(`parse-error:${err instanceof Error ? err.message : String(err)}`);
+        events.push(
+          `parse-error:${err instanceof Error ? err.message : String(err)}`,
+        );
       }
     }
   }
@@ -506,7 +516,11 @@ describe("terminal bridge runtime restore", () => {
       await firstProbe.waitFor((message) => message.type === "ready");
       const firstMarker = `KODY_RUNTIME_FIRST_${Date.now()}`;
       firstSocket.send(
-        JSON.stringify({ type: "input", id: 1, data: `printf "${firstMarker}\\n"\r` }),
+        JSON.stringify({
+          type: "input",
+          id: 1,
+          data: `printf "${firstMarker}\\n"\r`,
+        }),
       );
       await firstProbe.waitFor(
         (message) =>
@@ -533,7 +547,11 @@ describe("terminal bridge runtime restore", () => {
       expectTmuxMouseDisabled(secondProbe);
       const secondMarker = `KODY_RUNTIME_SECOND_${Date.now()}`;
       secondSocket.send(
-        JSON.stringify({ type: "input", id: 2, data: `printf "${secondMarker}\\n"\r` }),
+        JSON.stringify({
+          type: "input",
+          id: 2,
+          data: `printf "${secondMarker}\\n"\r`,
+        }),
       );
       await secondProbe.waitFor(
         (message) =>
@@ -557,7 +575,11 @@ describe("terminal bridge runtime restore", () => {
       await firstProbe.waitFor((message) => message.type === "ready");
       const firstMarker = `KODY_TUI_FIRST_${Date.now()}`;
       firstSocket.send(
-        JSON.stringify({ type: "input", id: 1, data: `printf "${firstMarker}\\n"\r` }),
+        JSON.stringify({
+          type: "input",
+          id: 1,
+          data: `printf "${firstMarker}\\n"\r`,
+        }),
       );
       await firstProbe.waitFor(
         (message) =>

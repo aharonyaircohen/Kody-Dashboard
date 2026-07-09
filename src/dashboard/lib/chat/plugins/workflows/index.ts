@@ -21,11 +21,9 @@ export const workflowsChatPlugin: ChatPlugin = {
     {
       id: WORKFLOWS_PANEL_ID,
       title: "Workflows",
-      render: createLazyPanel(
-        "workflows",
-        () => import("./panel").then((m) => ({ default: m.WorkflowsPanelView })),
+      render: createLazyPanel("workflows", () =>
+        import("./panel").then((m) => ({ default: m.WorkflowsPanelView })),
       ),
     },
   ],
 };
-

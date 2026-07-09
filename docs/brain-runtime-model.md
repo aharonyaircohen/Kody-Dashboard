@@ -50,12 +50,12 @@ what app, image, or runtime it should use.
 
 These records live in the Kody state repo and are not the Brain machine itself:
 
-| Record | Meaning |
-| --- | --- |
-| `users/<login>/data/brain.json` | Which Brain Fly app belongs to the user. |
-| `users/<login>/data/brain-image.json` | Saved Brain image catalog and selected image pointer. |
-| `users/<login>/data/brain-runtime.json` | Desired and currently running Brain image for the Fly machine. |
-| `users/<login>/data/brain-image-save.json` | Current or last image-save job state. |
+| Record                                     | Meaning                                                        |
+| ------------------------------------------ | -------------------------------------------------------------- |
+| `users/<login>/data/brain.json`            | Which Brain Fly app belongs to the user.                       |
+| `users/<login>/data/brain-image.json`      | Saved Brain image catalog and selected image pointer.          |
+| `users/<login>/data/brain-runtime.json`    | Desired and currently running Brain image for the Fly machine. |
+| `users/<login>/data/brain-image-save.json` | Current or last image-save job state.                          |
 
 ## Naming Rule
 
@@ -69,4 +69,3 @@ Use:
 Avoid:
 
 - `Terminal image`
-

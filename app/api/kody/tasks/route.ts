@@ -119,9 +119,7 @@ function isBacklogTask(task: KodyTask): boolean {
 
 function isRunningTask(task: KodyTask): boolean {
   return (
-    task.state === "open" &&
-    task.column !== "open" &&
-    task.column !== "done"
+    task.state === "open" && task.column !== "open" && task.column !== "done"
   );
 }
 

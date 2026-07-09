@@ -52,12 +52,15 @@ vi.mock("@dashboard/lib/dashboard-config/store", () => ({
 vi.mock("@dashboard/lib/infrastructure/plugins/fly/runners/inventory", () => ({
   listFlyInventory: vi.fn(),
 }));
-vi.mock("@dashboard/lib/infrastructure/plugins/fly/runners/activity-store", () => ({
-  readActivityFile: vi.fn(),
-  recordSnapshot: vi.fn(),
-  snapshotDue: vi.fn(() => false),
-  snapshotFromInventory: vi.fn(),
-}));
+vi.mock(
+  "@dashboard/lib/infrastructure/plugins/fly/runners/activity-store",
+  () => ({
+    readActivityFile: vi.fn(),
+    recordSnapshot: vi.fn(),
+    snapshotDue: vi.fn(() => false),
+    snapshotFromInventory: vi.fn(),
+  }),
+);
 
 import {
   handleDefaultBranchPush,

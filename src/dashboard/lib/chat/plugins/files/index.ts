@@ -21,11 +21,9 @@ export const filesChatPlugin: ChatPlugin = {
     {
       id: FILES_PANEL_ID,
       title: "Files",
-      render: createLazyPanel(
-        "files",
-        () => import("./panel").then((m) => ({ default: m.FilesPanelView })),
+      render: createLazyPanel("files", () =>
+        import("./panel").then((m) => ({ default: m.FilesPanelView })),
       ),
     },
   ],
 };
-

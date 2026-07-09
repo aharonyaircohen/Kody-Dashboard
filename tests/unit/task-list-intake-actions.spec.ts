@@ -29,7 +29,9 @@ describe("TaskList intake actions", () => {
     expect(SOURCE).toMatch(/task\.pipeline\?\.state === "running"/);
     expect(SOURCE).toMatch(/task\.workflowRun\?\.status === "in_progress"/);
     expect(SOURCE).toMatch(/task\.column === "building"/);
-    expect(SOURCE).toMatch(/const canStop = isTaskAbortable\(task\) && !!onStopTask;/);
+    expect(SOURCE).toMatch(
+      /const canStop = isTaskAbortable\(task\) && !!onStopTask;/,
+    );
     expect(SOURCE).toMatch(/canStop\s*\?\s*"Stop running task"/);
     expect(SOURCE).toMatch(/if \(canStop\) onStopTask\?\.\(task\);/);
     expect(SOURCE).not.toMatch(
@@ -39,7 +41,9 @@ describe("TaskList intake actions", () => {
 
   it("shows row Rerun only for non-open tasks with run history", () => {
     expect(SOURCE).toMatch(/function hasTaskRunHistory\(task: KodyTask\)/);
-    expect(SOURCE).toMatch(/task\.pipeline \|\| task\.workflowRun \|\| task\.kodyState/);
+    expect(SOURCE).toMatch(
+      /task\.pipeline \|\| task\.workflowRun \|\| task\.kodyState/,
+    );
     expect(SOURCE).toMatch(/task\.column === "failed"/);
     expect(SOURCE).toMatch(
       /const canRerun =\s*!isTaskAbortable\(task\) &&\s*task\.column !== "open" &&\s*hasTaskRunHistory\(task\) &&\s*!!onRerun;/,

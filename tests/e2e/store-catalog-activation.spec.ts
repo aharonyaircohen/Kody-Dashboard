@@ -146,9 +146,9 @@ async function mockStoreCatalog(page: Page): Promise<unknown[]> {
   return imports;
 }
 
-async function mockStoreCatalogWithInstallState(page: Page): Promise<
-  Array<{ method: string; kind: CatalogKind; slug: string }>
-> {
+async function mockStoreCatalogWithInstallState(
+  page: Page,
+): Promise<Array<{ method: string; kind: CatalogKind; slug: string }>> {
   const requests: Array<{ method: string; kind: CatalogKind; slug: string }> =
     [];
   const items = catalogSeeds.map((item) => ({

@@ -202,7 +202,9 @@ function readAllLiveSessions(): LiveSessionMap {
     // Outer shape first (corrupt map → treated as empty); entries stay
     // unknown so one bad record can't discard its healthy siblings — the
     // per-entry prune below validates each one.
-    const rawParsed = raw ? liveSessionMapSchema.safeParse(JSON.parse(raw)) : null;
+    const rawParsed = raw
+      ? liveSessionMapSchema.safeParse(JSON.parse(raw))
+      : null;
     let parsed: Record<string, unknown> = rawParsed?.success
       ? rawParsed.data
       : {};

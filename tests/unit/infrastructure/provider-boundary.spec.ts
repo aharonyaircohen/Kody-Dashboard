@@ -23,7 +23,9 @@ function listSourceFiles(dir: string): string[] {
 
 describe("infrastructure provider boundary", () => {
   it("keeps the generic registry free of vendor plugin imports", () => {
-    const registry = readRepoFile("src/dashboard/lib/infrastructure/registry.ts");
+    const registry = readRepoFile(
+      "src/dashboard/lib/infrastructure/registry.ts",
+    );
 
     expect(registry).not.toContain("/plugins/fly");
     expect(registry).not.toContain("flyInfrastructure");
@@ -52,12 +54,16 @@ describe("infrastructure provider boundary", () => {
       expect(source).not.toContain("runFly");
       expect(source).not.toContain("flyResult");
       expect(source).not.toContain("@dashboard/lib/infrastructure/plugins/fly");
-      expect(source).not.toContain("@dashboard/lib/infrastructure/providers/fly");
+      expect(source).not.toContain(
+        "@dashboard/lib/infrastructure/providers/fly",
+      );
     }
   });
 
   it("keeps Fly provider code inside the plugin directory", () => {
-    const installed = readRepoFile("src/dashboard/lib/infrastructure/installed.ts");
+    const installed = readRepoFile(
+      "src/dashboard/lib/infrastructure/installed.ts",
+    );
 
     expect(installed).toContain("@dashboard/lib/infrastructure/plugins/fly");
     expect(() =>

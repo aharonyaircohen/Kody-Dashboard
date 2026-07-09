@@ -676,7 +676,9 @@ export async function markBrainImageRunning(
     current.runningAt = fresh.runningAt;
     current.runningApp = fresh.runningApp;
     current.runningMachineId = fresh.runningMachineId;
-    selected = current.images.find((image) => image.imageRef === input.imageRef);
+    selected = current.images.find(
+      (image) => image.imageRef === input.imageRef,
+    );
   }
   if (!selected) {
     throw new Error("Brain image is not saved");

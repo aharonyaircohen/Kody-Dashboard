@@ -21,13 +21,16 @@ vi.mock("@dashboard/lib/previews/config", () => ({
   resolveFlyPreviewsForRepo: mocks.resolveFlyPreviewsForRepo,
   resolvePreviewConfigForRepo: mocks.resolvePreviewConfigForRepo,
 }));
-vi.mock("@dashboard/lib/infrastructure/plugins/fly/previews/machines-client", () => ({
-  listAppsByPrefix: mocks.listAppsByPrefix,
-  listMachines: mocks.listMachines,
-  destroyApp: mocks.destroyApp,
-  alignPreviewMachineSleep: mocks.alignPreviewMachineSleep,
-  sleepPreviewMachine: mocks.sleepPreviewMachine,
-}));
+vi.mock(
+  "@dashboard/lib/infrastructure/plugins/fly/previews/machines-client",
+  () => ({
+    listAppsByPrefix: mocks.listAppsByPrefix,
+    listMachines: mocks.listMachines,
+    destroyApp: mocks.destroyApp,
+    alignPreviewMachineSleep: mocks.alignPreviewMachineSleep,
+    sleepPreviewMachine: mocks.sleepPreviewMachine,
+  }),
+);
 
 import { sweepExpiredPreviews } from "@dashboard/lib/previews/sweep";
 import { repoPreviewPrefix } from "@dashboard/lib/previews/preview-key";

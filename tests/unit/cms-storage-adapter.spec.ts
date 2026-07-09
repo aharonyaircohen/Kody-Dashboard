@@ -1,6 +1,9 @@
 import { describe, expect, it } from "vitest";
 
-import { getCmsAdapter, type CmsAdapterContext } from "@dashboard/lib/cms/adapters";
+import {
+  getCmsAdapter,
+  type CmsAdapterContext,
+} from "@dashboard/lib/cms/adapters";
 import type {
   CmsCollectionConfig,
   CmsRuntimeConfig,
@@ -77,7 +80,9 @@ describe("storage CMS adapter", () => {
       offset: 0,
     });
 
-    await expect(adapter?.listByIds(context, ["b", "missing", "a"])).resolves.toEqual([
+    await expect(
+      adapter?.listByIds(context, ["b", "missing", "a"]),
+    ).resolves.toEqual([
       { id: "b", title: "Beta", status: "draft", order: 2 },
       { id: "a", title: "Alpha", status: "published", order: 1 },
     ]);
@@ -121,9 +126,7 @@ describe("storage CMS adapter", () => {
   });
 });
 
-function testContext(
-  transport: CmsStorageTransport | null,
-): CmsAdapterContext {
+function testContext(transport: CmsStorageTransport | null): CmsAdapterContext {
   const collection: CmsCollectionConfig = {
     name: "articles",
     label: "Articles",
