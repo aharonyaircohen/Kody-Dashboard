@@ -34,7 +34,7 @@ import {
 import { usePathname, useRouter } from "next/navigation";
 import { KodyChat } from "./KodyChat";
 import { AppHeader } from "./AppHeader";
-import { Sidebar } from "./Sidebar";
+import { Sidebar } from "@kody-ade/kody-chat/components/Sidebar";
 import { RepoManager } from "./RepoManager";
 import { CommandPalette } from "./CommandPalette";
 import { SettingsDrawerProvider } from "./SettingsDrawer";

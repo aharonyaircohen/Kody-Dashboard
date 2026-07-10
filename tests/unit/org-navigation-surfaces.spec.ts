@@ -12,7 +12,7 @@ import { fileURLToPath } from "node:url";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const SIDEBAR_SOURCE = readFileSync(
-  resolve(__dirname, "../../src/dashboard/lib/components/Sidebar.tsx"),
+  resolve(__dirname, "../../node_modules/@kody-ade/kody-chat/src/dashboard/lib/components/Sidebar.tsx"),
   "utf8",
 );
 const SETTINGS_NAV_SOURCE = readFileSync(

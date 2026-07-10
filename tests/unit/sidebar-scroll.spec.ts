@@ -7,7 +7,7 @@ const root = resolve(__dirname, "../..");
 
 function readSidebar(): string {
   return readFileSync(
-    resolve(root, "src/dashboard/lib/components/Sidebar.tsx"),
+    resolve(root, "node_modules/@kody-ade/kody-chat/src/dashboard/lib/components/Sidebar.tsx"),
     "utf8",
   );
 }
@@ -26,7 +26,8 @@ describe("sidebar scrolling", () => {
     const fixedControls = source.slice(fixedStart, fixedEnd);
     const scrollList = source.slice(fixedEnd, scrollEnd);
 
-    expect(fixedControls).toContain("renderLink(DASHBOARD_NAV_ITEM)");
+    // The pinned item defaults to DASHBOARD_NAV_ITEM (host-overridable).
+    expect(fixedControls).toContain("renderLink(pinnedItem)");
     expect(fixedControls).toContain('aria-label="Search navigation"');
     expect(fixedControls).not.toContain("overflow-y-auto");
     expect(scrollList).toContain("overflow-y-auto");

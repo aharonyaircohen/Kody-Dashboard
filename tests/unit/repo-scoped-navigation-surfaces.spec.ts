@@ -10,7 +10,14 @@ const source = (file: string) =>
 
 describe("repo-scoped navigation surfaces", () => {
   it("scopes desktop sidebar links and mode jumps through the route model", () => {
-    const sidebar = source("Sidebar.tsx");
+    // Sidebar ships from @kody-ade/kody-chat — dash consumes, never forks.
+    const sidebar = readFileSync(
+      join(
+        process.cwd(),
+        "node_modules/@kody-ade/kody-chat/src/dashboard/lib/components/Sidebar.tsx",
+      ),
+      "utf8",
+    );
     expect(sidebar).toContain("repoScopedHref");
     expect(sidebar).toContain("scopedHref(item.href)");
     expect(sidebar).toContain('scopedHref("/")');
