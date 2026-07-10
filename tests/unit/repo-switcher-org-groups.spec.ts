@@ -13,7 +13,7 @@ import { fileURLToPath } from "node:url";
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const REPO_SWITCHER_PATH = resolve(
   __dirname,
-  "../../src/dashboard/lib/components/RepoSwitcher.tsx",
+  "../../node_modules/@kody-ade/kody-chat/src/dashboard/lib/components/RepoSwitcher.tsx",
 );
 const SOURCE = readFileSync(REPO_SWITCHER_PATH, "utf8");
 

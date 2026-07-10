@@ -24,7 +24,7 @@ import { useNotifications } from "../notifications/NotificationsProvider";
 import { cn } from "../utils";
 import { useAuth } from "../auth-context";
 import { useChatScope } from "./ChatRailShell";
-import { RepoSwitcher } from "./RepoSwitcher";
+import { RepoSwitcher } from "@kody-ade/kody-chat/components/RepoSwitcher";
 import { SimpleTooltip } from "./SimpleTooltip";
 
 interface KodyHeaderProps {

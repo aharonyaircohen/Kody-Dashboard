@@ -20,7 +20,13 @@ function readComponent(name: string): string {
   );
 }
 
-const REPO_SWITCHER = readComponent("RepoSwitcher");
+const REPO_SWITCHER = readFileSync(
+  resolve(
+    __dirname,
+    "../../node_modules/@kody-ade/kody-chat/src/dashboard/lib/components/RepoSwitcher.tsx",
+  ),
+  "utf8",
+);
 const MOBILE_MENU = readFileSync(
   resolve(
     __dirname,
