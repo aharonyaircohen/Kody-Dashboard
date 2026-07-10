@@ -76,6 +76,10 @@ const ROUTE_RULES_BY_HREF: Readonly<Record<string, RouteRule>> = {
     aliases: ["brands", "client brands", "client chat"],
     when: "Use when the user asks to manage client chat brands.",
   },
+  "/languages": {
+    aliases: ["languages", "translations", "locales"],
+    when: "Use when the user asks to manage client chat languages or translations.",
+  },
   "/agent-goals": {
     aliases: ["goals", "missions", "outcomes"],
     when: "Use when the user asks to inspect or manage goals.",

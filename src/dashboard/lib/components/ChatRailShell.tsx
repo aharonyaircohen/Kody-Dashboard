@@ -86,6 +86,10 @@ import {
 import { agentsChatPlugin, AGENTS_PANEL_ID } from "../chat/plugins/agents";
 import { brandsChatPlugin, BRANDS_PANEL_ID } from "@kody-ade/kody-chat/plugins/brands";
 import {
+  languagesChatPlugin,
+  LANGUAGES_PANEL_ID,
+} from "@kody-ade/kody-chat/plugins/languages";
+import {
   capabilitiesChatPlugin,
   CAPABILITIES_PANEL_ID,
 } from "../chat/plugins/capabilities";
@@ -164,6 +168,7 @@ const ADMIN_CHAT_PLUGINS = [
   { plugin: agentLoopsChatPlugin },
   { plugin: agentsChatPlugin },
   { plugin: brandsChatPlugin },
+  { plugin: languagesChatPlugin },
   { plugin: capabilitiesChatPlugin },
   { plugin: changelogChatPlugin },
   { plugin: commandsPageChatPlugin },
@@ -205,6 +210,7 @@ const ROUTE_PANEL_IDS: Readonly<Record<string, string>> = {
   "/agent-loops": AGENT_LOOPS_PANEL_ID,
   "/agents": AGENTS_PANEL_ID,
   "/brands": BRANDS_PANEL_ID,
+  "/languages": LANGUAGES_PANEL_ID,
   "/capabilities": CAPABILITIES_PANEL_ID,
   "/changelog": CHANGELOG_PANEL_ID,
   "/commands": COMMANDS_PAGE_PANEL_ID,

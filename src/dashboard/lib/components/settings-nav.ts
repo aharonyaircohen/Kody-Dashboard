@@ -24,6 +24,7 @@ import {
   Home,
   KeyRound,
   Layers,
+  Languages,
   LayoutGrid,
   MessageSquare,
   MonitorPlay,
@@ -352,6 +353,13 @@ export const SETTINGS_NAV_SECTIONS: readonly SettingsNavSection[] = [
         icon: Palette,
         description: "Client chat branding for /client surfaces.",
         tint: "text-cyan-300 bg-cyan-500/10",
+      },
+      {
+        href: "/languages",
+        label: "Languages",
+        icon: Languages,
+        description: "Client chat translations for /client surfaces.",
+        tint: "text-amber-300 bg-amber-500/10",
       },
       {
         href: "/setup",
