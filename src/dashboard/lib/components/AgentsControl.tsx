@@ -61,9 +61,9 @@ import { PageHeader } from "./PageShell";
 import { useChatScope } from "./ChatRailShell";
 
 /**
- * Kody — the built-in chat agentIdentity. Always present in the agent list and
- * never editable or removable (it lives in code, not a state repo `agents/*.md`
- * file). Identified by the `kody` slug; `isBuiltinAgent` gates the UI.
+ * Kody — the built-in chat agentIdentity placeholder. Shown while no
+ * `agents/kody.md` file exists; the first edit creates that file, and from
+ * then on Kody is a regular editable agent like any other. Never removable.
  */
 const BUILTIN_KODY_AGENT: Agent = {
   slug: KODY_CHAT_AGENT,
@@ -115,15 +115,16 @@ export function AgentsControlInner({
   const rawStaff = useMemo(() => fetchedStaff ?? [], [fetchedStaff]);
   const staffLoaded = fetchedStaff !== undefined;
 
-  // Kody is always first and never removable; repo agent follow (any stray
-  // `kody.md` file is dropped so the const wins).
-  const agent = useMemo(
-    () => [
-      BUILTIN_KODY_AGENT,
+  // Kody is always first and never removable. A real `agents/kody.md` file
+  // wins over the built-in placeholder — editing Kody creates that file, so
+  // it behaves like a regular agent from the first save.
+  const agent = useMemo(() => {
+    const fileKody = rawStaff.find((m) => isBuiltinAgent(m.slug));
+    return [
+      fileKody ?? BUILTIN_KODY_AGENT,
       ...rawStaff.filter((m) => !isBuiltinAgent(m.slug)),
-    ],
-    [rawStaff],
-  );
+    ];
+  }, [rawStaff]);
 
   const [showCreate, setShowCreate] = useState(false);
   const [editingMember, setEditingMember] = useState<Agent | null>(null);
@@ -512,10 +513,22 @@ function StaffDetail({
                 )}
               </div>
             </div>
-            {isBuiltin ? (
-              <span className="shrink-0 inline-flex items-center rounded border border-teal-500/30 bg-teal-500/10 px-2 py-1 text-[11px] font-medium text-teal-300">
-                Built-in · permanent
-              </span>
+            {isBuiltin && !member.updatedAt ? (
+              <div className="flex items-center gap-2 shrink-0">
+                <span className="inline-flex items-center rounded border border-teal-500/30 bg-teal-500/10 px-2 py-1 text-[11px] font-medium text-teal-300">
+                  Built-in
+                </span>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={onEdit}
+                  className="w-9 px-0"
+                  title="Edit — saves agents/kody.md, making Kody a regular agent"
+                  aria-label="Edit agent"
+                >
+                  <Pencil className="w-3.5 h-3.5" />
+                </Button>
+              </div>
             ) : (
               <div className="flex items-center gap-2 shrink-0">
                 <Button
@@ -698,6 +711,10 @@ function EditStaffDialog({
 }) {
   const { githubUser } = useGitHubIdentity();
   const updateMutation = useUpdateAgent(member.slug, githubUser?.login);
+  const createMutation = useCreateAgent(githubUser?.login);
+  // The built-in Kody placeholder has no file yet (updatedAt "") — the
+  // first save CREATES agents/kody.md, making it a regular agent.
+  const isFileless = !member.updatedAt && !member.htmlUrl;
 
   const [title, setTitle] = useState(member.title);
   const [body, setBody] = useState(member.body || "");
@@ -708,7 +725,15 @@ function EditStaffDialog({
   }, [member]);
 
   const handleSubmit = () => {
-    if (!title.trim() || updateMutation.isPending) return;
+    if (!title.trim() || updateMutation.isPending || createMutation.isPending)
+      return;
+    if (isFileless) {
+      createMutation.mutate(
+        { slug: member.slug, title: title.trim(), body },
+        { onSuccess: () => onSaved() },
+      );
+      return;
+    }
     const patch: {
       title?: string;
       body?: string;
