@@ -12,7 +12,7 @@ import {
   loadChatDefaults,
   composeBasePrompt,
 } from "@dashboard/lib/chat-defaults";
-import { getCreatedIssueNumberFromToolOutput } from "@dashboard/lib/components/kody-chat-types";
+import { getCreatedIssueNumberFromToolOutput } from "@kody-chat/components/kody-chat-types";
 
 const prompt = buildSystemPrompt(
   composeBasePrompt(await loadChatDefaults("acme", "repo")),

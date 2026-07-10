@@ -30,8 +30,8 @@ import {
   savePersistedTerminalRegistry,
   terminalTargetValue,
   upsertMountedChatTerminal,
-} from "@dashboard/lib/chat/plugins/terminal/registry-state";
-import type { MountedChatTerminal } from "@dashboard/lib/chat/plugins/terminal/types";
+} from "@kody-chat/chat/plugins/terminal/registry-state";
+import type { MountedChatTerminal } from "@kody-chat/chat/plugins/terminal/types";
 import type { FlyMachineRow } from "@dashboard/lib/infrastructure/plugins/fly/runners/machine-model";
 
 function terminal(

@@ -8,7 +8,7 @@ import { readFileSync } from "node:fs";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
-import { shouldSendBrainActivityLimit } from "@dashboard/lib/chat/plugins/terminal/fly-connection";
+import { shouldSendBrainActivityLimit } from "@kody-chat/chat/plugins/terminal/fly-connection";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const BRAIN_CARD_SOURCE = readFileSync(

@@ -16,7 +16,7 @@ import {
   ISSUE_CREATION_TOOL_NAMES,
   getCreatedIssueNumberFromToolOutput,
   type Message,
-} from "@dashboard/lib/components/kody-chat-types";
+} from "@kody-chat/components/kody-chat-types";
 import type { ChatMessage } from "@dashboard/lib/chat-types";
 
 const toolCalls = [

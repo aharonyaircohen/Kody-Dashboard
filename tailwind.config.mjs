@@ -9,6 +9,9 @@ const config = {
     './components/**/*.{ts,tsx}',
     './app/**/*.{ts,tsx}',
     './src/**/*.{ts,tsx}',
+    // The shared chat UI (KodyChat, shell, panels) ships as TS source from
+    // @kody-ade/kody-chat — Tailwind must scan it or its classes vanish.
+    './node_modules/@kody-ade/kody-chat/src/**/*.{ts,tsx}',
   ],
   darkMode: ['selector', '[data-theme="dark"]'],
   plugins: [tailwindcssAnimate, typography],

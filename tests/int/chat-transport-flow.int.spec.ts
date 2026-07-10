@@ -16,8 +16,8 @@ import { sendBrainTurn } from "@kody-ade/kody-chat/core/transports/brain";
 import {
   createTransportTurnHandler,
   type TransportTurnHandler,
-} from "@dashboard/lib/components/kody-chat-transport-events";
-import type { Message } from "@dashboard/lib/components/kody-chat-types";
+} from "@kody-chat/components/kody-chat-transport-events";
+import type { Message } from "@kody-chat/components/kody-chat-types";
 
 /** In-memory stand-in for KodyChat's session-scoped message store. */
 function messageStore(seed: Message[]) {

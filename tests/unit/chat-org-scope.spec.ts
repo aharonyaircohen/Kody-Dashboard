@@ -18,12 +18,12 @@ const __dirname = dirname(fileURLToPath(import.meta.url));
 // concatenation of both files.
 const KODY_CHAT_SOURCE =
   readFileSync(
-    resolve(__dirname, "../../src/dashboard/lib/components/KodyChat.tsx"),
+    resolve(__dirname, "../../node_modules/@kody-ade/kody-chat/src/dashboard/lib/components/KodyChat.tsx"),
     "utf8",
   ) +
   "\n" +
   readFileSync(
-    resolve(__dirname, "../../src/dashboard/lib/components/kody-chat-send.ts"),
+    resolve(__dirname, "../../node_modules/@kody-ade/kody-chat/src/dashboard/lib/components/kody-chat-send.ts"),
     "utf8",
   );
 const USE_CHAT_SESSIONS_SOURCE = readFileSync(

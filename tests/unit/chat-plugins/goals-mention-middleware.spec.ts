@@ -39,7 +39,7 @@ import {
 import {
   TERMINAL_INTENT_MIDDLEWARE_ID,
   terminalChatPlugin,
-} from "@dashboard/lib/chat/plugins/terminal";
+} from "@kody-chat/chat/plugins/terminal";
 
 const GOALS: GoalRef[] = [
   { id: "q4-roadmap", discussionNumber: 12 },

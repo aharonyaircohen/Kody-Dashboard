@@ -30,7 +30,7 @@ import {
   TERMINAL_INTENT_MIDDLEWARE_ID,
   readTerminalIntentEffect,
   terminalChatPlugin,
-} from "@dashboard/lib/chat/plugins/terminal";
+} from "@kody-chat/chat/plugins/terminal";
 import { buildKodyTerminalPrompt } from "@dashboard/lib/terminal/kody-terminal-directive";
 
 const COMMANDS: SlashCommand[] = [

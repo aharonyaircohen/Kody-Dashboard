@@ -40,7 +40,7 @@ const HOOK_PATH = resolve(
 );
 const KODY_CHAT_PATH = resolve(
   __dirname,
-  "../../../src/dashboard/lib/components/KodyChat.tsx",
+  "../../../node_modules/@kody-ade/kody-chat/src/dashboard/lib/components/KodyChat.tsx",
 );
 
 // Phase 1.6b: the send pipeline (including the model-emitted
@@ -48,7 +48,7 @@ const KODY_CHAT_PATH = resolve(
 // read the file the code lives in; whole-surface scans use both.
 const SEND_PIPELINE_PATH = resolve(
   __dirname,
-  "../../../src/dashboard/lib/components/kody-chat-send.ts",
+  "../../../node_modules/@kody-ade/kody-chat/src/dashboard/lib/components/kody-chat-send.ts",
 );
 
 // Phase 1.6c: the agent/model selection region (per-session agent sync
@@ -57,7 +57,7 @@ const SEND_PIPELINE_PATH = resolve(
 // lives in; whole-surface scans include it.
 const SELECTION_PATH = resolve(
   __dirname,
-  "../../../src/dashboard/lib/components/kody-chat-selection.ts",
+  "../../../node_modules/@kody-ade/kody-chat/src/dashboard/lib/components/kody-chat-selection.ts",
 );
 
 const CHAT_TYPES_SOURCE = readFileSync(CHAT_TYPES_PATH, "utf8");

@@ -11,14 +11,14 @@ const __dirname = dirname(fileURLToPath(import.meta.url));
 // target UI actually lives. Assertions unchanged.
 const CHAT_SOURCE =
   readFileSync(
-    resolve(__dirname, "../../../src/dashboard/lib/components/KodyChat.tsx"),
+    resolve(__dirname, "../../../node_modules/@kody-ade/kody-chat/src/dashboard/lib/components/KodyChat.tsx"),
     "utf8",
   ) +
   "\n" +
   readFileSync(
     resolve(
       __dirname,
-      "../../../src/dashboard/lib/components/kody-chat-terminal-host.tsx",
+      "../../../node_modules/@kody-ade/kody-chat/src/dashboard/lib/components/kody-chat-terminal-host.tsx",
     ),
     "utf8",
   );

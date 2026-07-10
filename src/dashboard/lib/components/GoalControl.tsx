@@ -78,10 +78,10 @@ import { MarkdownPreview } from "./MarkdownPreview";
 import { TaskList } from "./TaskList";
 import { GoalDiscussion } from "./GoalDiscussion";
 import { GoalAssigneePicker } from "./GoalAssigneePicker";
-import { KodyChat } from "./KodyChat";
+import { KodyChat } from "@kody-ade/kody-chat/components/KodyChat";
 // Leaf manifest import on purpose (Step 7 bundle check) — see
 // chat/plugins/terminal/plugin.ts.
-import { terminalChatPlugin } from "../chat/plugins/terminal/plugin";
+import { terminalChatPlugin } from "@kody-chat/chat/plugins/terminal/plugin";
 import { commandsChatPlugin } from "@kody-ade/kody-chat/plugins/commands";
 import { vibeChatPlugin } from "../chat/plugins/vibe";
 

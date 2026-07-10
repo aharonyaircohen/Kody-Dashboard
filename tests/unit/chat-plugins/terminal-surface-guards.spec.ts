@@ -24,16 +24,16 @@ import {
   updateFlyConnectionState,
   waitForFlyInputAck,
   type FlyConnectionDeps,
-} from "@dashboard/lib/chat/plugins/terminal/fly-connection";
+} from "@kody-chat/chat/plugins/terminal/fly-connection";
 import {
   brainImageMismatchNotices,
   openTerminalWebLink,
   usefulCapturedOutput,
-} from "@dashboard/lib/chat/plugins/terminal/terminal-text";
+} from "@kody-chat/chat/plugins/terminal/terminal-text";
 import type {
   ChatTerminalConnectionState,
   TerminalInputSignal,
-} from "@dashboard/lib/chat/plugins/terminal/types";
+} from "@kody-chat/chat/plugins/terminal/types";
 
 interface DepsHarness {
   ref: { current: FlyConnectionDeps };

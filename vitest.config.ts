@@ -28,6 +28,10 @@ export default defineConfig({
     alias: {
       "@": resolve(__dirname, "./src"),
       "@dashboard": resolve(__dirname, "./src/dashboard"),
+      "@kody-chat": resolve(
+        __dirname,
+        "./node_modules/@kody-ade/kody-chat/src/dashboard/lib",
+      ),
       // `server-only` throws outside an RSC build — stub it so server-only
       // utilities remain unit-testable.
       "server-only": resolve(__dirname, "./tests/stubs/server-only.ts"),

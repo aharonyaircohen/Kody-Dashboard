@@ -14,7 +14,7 @@ import {
 import {
   familySnapEntry,
   resolveDefaultAgentEntry,
-} from "@dashboard/lib/components/kody-chat-selection";
+} from "@kody-chat/components/kody-chat-selection";
 
 const MODELS: ChatModelEntry[] = [
   { id: "claude-sonnet", label: "Claude Sonnet" },

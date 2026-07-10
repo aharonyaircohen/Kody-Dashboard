@@ -21,7 +21,7 @@ import type { ChatCapabilityGrant } from "@kody-ade/kody-chat/platform";
 import { createBrandingPlugin } from "@dashboard/lib/chat/plugins/branding";
 import { commandsChatPlugin } from "@kody-ade/kody-chat/plugins/commands";
 import { getClientSurfaceCatalog } from "@dashboard/lib/client-chat-strings";
-import { KodyChat } from "./KodyChat";
+import { KodyChat } from "@kody-ade/kody-chat/components/KodyChat";
 
 // Minimal grant for the client surface: "theme" for the branding plugin,
 // "middleware" + "host-effects" for the commands plugin (slash expansion ran

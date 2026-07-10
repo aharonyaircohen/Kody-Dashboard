@@ -27,7 +27,7 @@ import { resolve, dirname } from "node:path";
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const KODY_CHAT_PATH = resolve(
   __dirname,
-  "../../../src/dashboard/lib/components/KodyChat.tsx",
+  "../../../node_modules/@kody-ade/kody-chat/src/dashboard/lib/components/KodyChat.tsx",
 );
 
 // Phase 1.6a moved the live-runner lifecycle (startInteractiveSession,
@@ -37,7 +37,7 @@ const KODY_CHAT_PATH = resolve(
 // rehydrateForScope assertions read the hook source.
 const LIVE_RUNNER_PATH = resolve(
   __dirname,
-  "../../../src/dashboard/lib/components/kody-chat-live-runner.ts",
+  "../../../node_modules/@kody-ade/kody-chat/src/dashboard/lib/components/kody-chat-live-runner.ts",
 );
 
 // Phase 1.6b moved the send pipeline (sendText/sendMessage, including
@@ -45,7 +45,7 @@ const LIVE_RUNNER_PATH = resolve(
 // the effect scan covers all three files.
 const SEND_PIPELINE_PATH = resolve(
   __dirname,
-  "../../../src/dashboard/lib/components/kody-chat-send.ts",
+  "../../../node_modules/@kody-ade/kody-chat/src/dashboard/lib/components/kody-chat-send.ts",
 );
 
 // Phase 1.6c moved the selection / data-load / voice effects to their
@@ -53,15 +53,15 @@ const SEND_PIPELINE_PATH = resolve(
 // regression can't hide a mount dispatch in an extracted hook.
 const SELECTION_PATH = resolve(
   __dirname,
-  "../../../src/dashboard/lib/components/kody-chat-selection.ts",
+  "../../../node_modules/@kody-ade/kody-chat/src/dashboard/lib/components/kody-chat-selection.ts",
 );
 const DATA_PATH = resolve(
   __dirname,
-  "../../../src/dashboard/lib/components/kody-chat-data.ts",
+  "../../../node_modules/@kody-ade/kody-chat/src/dashboard/lib/components/kody-chat-data.ts",
 );
 const VOICE_PATH = resolve(
   __dirname,
-  "../../../src/dashboard/lib/components/kody-chat-voice.ts",
+  "../../../node_modules/@kody-ade/kody-chat/src/dashboard/lib/components/kody-chat-voice.ts",
 );
 
 // Phase 1.6d moved the terminal host wiring and the composer
@@ -70,11 +70,11 @@ const VOICE_PATH = resolve(
 // an extracted hook.
 const TERMINAL_HOST_PATH = resolve(
   __dirname,
-  "../../../src/dashboard/lib/components/kody-chat-terminal-host.tsx",
+  "../../../node_modules/@kody-ade/kody-chat/src/dashboard/lib/components/kody-chat-terminal-host.tsx",
 );
 const COMPOSER_HANDLERS_PATH = resolve(
   __dirname,
-  "../../../src/dashboard/lib/components/kody-chat-composer-handlers.ts",
+  "../../../node_modules/@kody-ade/kody-chat/src/dashboard/lib/components/kody-chat-composer-handlers.ts",
 );
 
 const LIVE_RUNNER_SOURCE = readFileSync(LIVE_RUNNER_PATH, "utf8");

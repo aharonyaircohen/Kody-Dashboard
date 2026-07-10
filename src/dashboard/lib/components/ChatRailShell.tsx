@@ -32,7 +32,7 @@ import {
   type ReactNode,
 } from "react";
 import { usePathname, useRouter } from "next/navigation";
-import { KodyChat } from "./KodyChat";
+import { KodyChat } from "@kody-ade/kody-chat/components/KodyChat";
 import { AppHeader } from "./AppHeader";
 import { ChatShell } from "@kody-ade/kody-chat/components/ChatShell";
 import { SidebarNotifications } from "./SidebarChrome";
@@ -59,7 +59,7 @@ import { routeOwnsAppHeader } from "./header-ownership";
 // barrel statically reaches ChatTerminalSurface/TerminalControls, which
 // must only ever load through KodyChat's React.lazy chunks — a static path
 // here would drag them into the shared sync chunks /client also loads.
-import { terminalChatPlugin } from "../chat/plugins/terminal/plugin";
+import { terminalChatPlugin } from "@kody-chat/chat/plugins/terminal/plugin";
 import { commandsChatPlugin } from "@kody-ade/kody-chat/plugins/commands";
 import { vibeChatPlugin } from "../chat/plugins/vibe";
 import { goalsChatPlugin } from "../chat/plugins/goals";

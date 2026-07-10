@@ -268,7 +268,7 @@ describe("storage keys", () => {
     const src = readFileSync(
       resolve(
         __dirname,
-        "../../src/dashboard/lib/components/KodyChat.tsx",
+        "../../node_modules/@kody-ade/kody-chat/src/dashboard/lib/components/KodyChat.tsx",
       ),
       "utf8",
     );

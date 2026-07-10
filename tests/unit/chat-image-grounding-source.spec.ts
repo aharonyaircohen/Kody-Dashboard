@@ -13,7 +13,7 @@ import { describe, expect, it } from "vitest";
 // kody-chat-send.ts in the phase-1.6b extraction — the guarded code
 // lives there now; assertions are unchanged.
 const KODY_CHAT_SOURCE = readFileSync(
-  resolve(__dirname, "../../src/dashboard/lib/components/kody-chat-send.ts"),
+  resolve(__dirname, "../../node_modules/@kody-ade/kody-chat/src/dashboard/lib/components/kody-chat-send.ts"),
   "utf8",
 );
 const KODY_ROUTE_SOURCE = readFileSync(

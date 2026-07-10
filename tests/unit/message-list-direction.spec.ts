@@ -3,7 +3,7 @@ import { describe, expect, it } from "vitest";
 import {
   getMessageDirection,
   messageTextDirectionStyle,
-} from "@dashboard/lib/chat/surface/MessageList";
+} from "@kody-chat/chat/surface/MessageList";
 
 describe("message text direction", () => {
   it("uses RTL when the first strong text is Hebrew", () => {

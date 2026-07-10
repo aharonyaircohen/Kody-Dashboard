@@ -26,7 +26,7 @@ const __dirname = dirname(fileURLToPath(import.meta.url));
 // the file the sync effect lives in now.
 const KODY_CHAT_PATH = resolve(
   __dirname,
-  "../../../src/dashboard/lib/components/kody-chat-selection.ts",
+  "../../../node_modules/@kody-ade/kody-chat/src/dashboard/lib/components/kody-chat-selection.ts",
 );
 const KODY_CHAT_SOURCE = readFileSync(KODY_CHAT_PATH, "utf8");
 

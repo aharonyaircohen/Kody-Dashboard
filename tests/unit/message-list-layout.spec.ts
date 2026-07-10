@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { messageJustifyClass } from "@dashboard/lib/chat/surface/MessageList";
+import { messageJustifyClass } from "@kody-chat/chat/surface/MessageList";
 
 describe("message list role layout", () => {
   it("keeps dashboard chat user-right and assistant-left", () => {

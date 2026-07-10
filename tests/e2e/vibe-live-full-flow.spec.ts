@@ -111,7 +111,7 @@ test.describe("Vibe — LIVE full flow against production", () => {
     expect(repo).toBeTruthy();
 
     // Capture browser console for the temporary [vibe-debug] traces in
-    // src/dashboard/lib/components/KodyChat.tsx. Dump everything on
+    // node_modules/@kody-ade/kody-chat/src/dashboard/lib/components/KodyChat.tsx. Dump everything on
     // failure so we can see exactly where the kickoff flow halts.
     const consoleLines: string[] = [];
     page.on("console", (msg) => {
