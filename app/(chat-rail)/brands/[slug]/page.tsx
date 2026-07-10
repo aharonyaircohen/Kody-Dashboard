@@ -1,26 +1,17 @@
 /**
  * @fileType page
- * @domain client-chat
- * @pattern brand-selected-page
- * @ai-summary Selected Brand route. Keeps brand selection addressable at
- *   `/brands/<slug>`.
+ * @pattern package-page-reexport
+ * @ai-summary This URL serves the canonical shared page from
+ *   @kody-ade/kody-chat — this file only registers the route (and keeps
+ *   the dashboard's own metadata / caching directives).
  */
-import { BrandsManager } from "@kody-ade/kody-chat/components/BrandsManager";
 import { buildKodyMetadata } from "../../../metadata";
-
-export const dynamic = "force-dynamic";
 
 export const metadata = buildKodyMetadata({
   title: "Brand - Kody Operations Dashboard",
   description: "View a selected client chat brand.",
   path: "/brands",
 });
+export const dynamic = "force-dynamic";
 
-export default async function SelectedBrandPage({
-  params,
-}: {
-  params: Promise<{ slug: string }>;
-}) {
-  const { slug } = await params;
-  return <BrandsManager selectedSlug={slug} />;
-}
+export { default } from "@kody-ade/kody-chat/pages/brand-detail";

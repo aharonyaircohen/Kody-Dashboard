@@ -1,30 +1,19 @@
 /**
  * @fileType page
- * @domain commands
- * @pattern commands-page
- * @ai-summary Commands CRUD entry point. Manages slash-command commands
- *   stored at `commands/<slug>.md` in the state repo and the dashboard built-ins
- *   that ship with the codebase. These appear as `/<slug>` in the
- *   chat composer.
+ * @pattern package-page-reexport
+ * @ai-summary This URL serves the canonical shared page from
+ *   @kody-ade/kody-chat — this file only registers the route (and keeps
+ *   the dashboard's own metadata / caching directives).
  */
-import { AuthGuard } from "@dashboard/lib/auth-guard";
-import { CommandsManager } from "@kody-ade/kody-chat/components/CommandsManager";
 import { buildKodyMetadata } from "../../metadata";
-
-export const dynamic = "force-static";
-export const revalidate = false;
-export const fetchCache = "force-cache";
 
 export const metadata = buildKodyMetadata({
   title: "Commands — Kody Operations Dashboard",
   description: "Manage slash commands for the dashboard chat.",
   path: "/commands",
 });
+export const dynamic = "force-static";
+export const revalidate = false;
+export const fetchCache = "force-cache";
 
-export default function CommandsPage() {
-  return (
-    <AuthGuard>
-      <CommandsManager />
-    </AuthGuard>
-  );
-}
+export { default } from "@kody-ade/kody-chat/pages/commands";

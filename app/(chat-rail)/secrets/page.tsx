@@ -1,16 +1,11 @@
 /**
  * @fileType page
- * @domain vault
- * @pattern secrets-page
- * @ai-summary Secrets management entry point. Renders inside the shared
- *   PageWithChat shell so the assistant is always available.
+ * @pattern package-page-reexport
+ * @ai-summary This URL serves the canonical shared page from
+ *   @kody-ade/kody-chat — this file only registers the route (and keeps
+ *   the dashboard's own metadata / caching directives).
  */
-import { SecretsManager } from "@kody-ade/kody-chat/components/SecretsManager";
 import { buildKodyMetadata } from "../../metadata";
-
-export const dynamic = "force-static";
-export const revalidate = false;
-export const fetchCache = "force-cache";
 
 export const metadata = buildKodyMetadata({
   title: "Secrets — Kody Operations Dashboard",
@@ -18,7 +13,8 @@ export const metadata = buildKodyMetadata({
     "Manage API keys and secrets stored in the encrypted state repo vault.",
   path: "/secrets",
 });
+export const dynamic = "force-static";
+export const revalidate = false;
+export const fetchCache = "force-cache";
 
-export default function SecretsPage() {
-  return <SecretsManager />;
-}
+export { default } from "@kody-ade/kody-chat/pages/secrets";

@@ -1,30 +1,19 @@
 /**
  * @fileType page
- * @domain context
- * @pattern context-page
- * @ai-summary Context CRUD entry point. Manages free-form markdown files
- *   stored at `context/<slug>.md` in the state repo. Entries owned by the built-in
- *   `kody` agent are injected into the kody-direct chat system prompt so the
- *   agent knows what the company is and does.
+ * @pattern package-page-reexport
+ * @ai-summary This URL serves the canonical shared page from
+ *   @kody-ade/kody-chat — this file only registers the route (and keeps
+ *   the dashboard's own metadata / caching directives).
  */
-import { AuthGuard } from "@dashboard/lib/auth-guard";
-import { ContextControl } from "@kody-ade/kody-chat/components/ContextControl";
 import { buildKodyMetadata } from "../../metadata";
-
-export const dynamic = "force-static";
-export const revalidate = false;
-export const fetchCache = "force-cache";
 
 export const metadata = buildKodyMetadata({
   title: "Context — Kody Operations Dashboard",
   description: "Curated markdown context you feed Kody, attached to agent.",
   path: "/context",
 });
+export const dynamic = "force-static";
+export const revalidate = false;
+export const fetchCache = "force-cache";
 
-export default function ContextPage() {
-  return (
-    <AuthGuard>
-      <ContextControl />
-    </AuthGuard>
-  );
-}
+export { default } from "@kody-ade/kody-chat/pages/context";

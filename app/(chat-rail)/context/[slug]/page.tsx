@@ -1,31 +1,17 @@
 /**
  * @fileType page
- * @domain context
- * @pattern context-selected-page
- * @ai-summary Selected Context route. Keeps context entry selection
- * addressable at `/context/<slug>`.
+ * @pattern package-page-reexport
+ * @ai-summary This URL serves the canonical shared page from
+ *   @kody-ade/kody-chat — this file only registers the route (and keeps
+ *   the dashboard's own metadata / caching directives).
  */
-import { AuthGuard } from "@dashboard/lib/auth-guard";
-import { ContextControl } from "@kody-ade/kody-chat/components/ContextControl";
 import { buildKodyMetadata } from "../../../metadata";
-
-export const dynamic = "force-dynamic";
 
 export const metadata = buildKodyMetadata({
   title: "Context Entry - Kody Operations Dashboard",
   description: "View a selected Kody context entry.",
   path: "/context",
 });
+export const dynamic = "force-dynamic";
 
-export default async function SelectedContextPage({
-  params,
-}: {
-  params: Promise<{ slug: string }>;
-}) {
-  const { slug } = await params;
-  return (
-    <AuthGuard>
-      <ContextControl selectedSlug={slug} />
-    </AuthGuard>
-  );
-}
+export { default } from "@kody-ade/kody-chat/pages/context-detail";

@@ -1,31 +1,17 @@
 /**
  * @fileType page
- * @domain kody
- * @pattern memory-selected-page
- * @ai-summary Selected Memory route. Keeps memory selection addressable at
- * `/memory/<id>`.
+ * @pattern package-page-reexport
+ * @ai-summary This URL serves the canonical shared page from
+ *   @kody-ade/kody-chat — this file only registers the route (and keeps
+ *   the dashboard's own metadata / caching directives).
  */
-import { AuthGuard } from "@dashboard/lib/auth-guard";
-import { MemoryManager } from "@kody-ade/kody-chat/components/MemoryManager";
 import { buildKodyMetadata } from "../../../metadata";
-
-export const dynamic = "force-dynamic";
 
 export const metadata = buildKodyMetadata({
   title: "Memory - Kody Operations Dashboard",
   description: "View a selected Kody memory file.",
   path: "/memory",
 });
+export const dynamic = "force-dynamic";
 
-export default async function SelectedMemoryPage({
-  params,
-}: {
-  params: Promise<{ id: string }>;
-}) {
-  const { id } = await params;
-  return (
-    <AuthGuard>
-      <MemoryManager selectedId={id} />
-    </AuthGuard>
-  );
-}
+export { default } from "@kody-ade/kody-chat/pages/memory-detail";

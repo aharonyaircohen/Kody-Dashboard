@@ -1,16 +1,11 @@
 /**
  * @fileType page
- * @domain settings
- * @pattern settings-page
- * @ai-summary User credentials management entry point. Renders inside
- *   PageWithChat so the assistant is always available.
+ * @pattern package-page-reexport
+ * @ai-summary This URL serves the canonical shared page from
+ *   @kody-ade/kody-chat — this file only registers the route (and keeps
+ *   the dashboard's own metadata / caching directives).
  */
-import { SettingsManager } from "@kody-ade/kody-chat/components/SettingsManager";
 import { buildKodyMetadata } from "../../metadata";
-
-export const dynamic = "force-static";
-export const revalidate = false;
-export const fetchCache = "force-cache";
 
 export const metadata = buildKodyMetadata({
   title: "Settings — Kody Operations Dashboard",
@@ -18,7 +13,8 @@ export const metadata = buildKodyMetadata({
     "Manage per-browser credentials, local integrations, and sign-out.",
   path: "/settings",
 });
+export const dynamic = "force-static";
+export const revalidate = false;
+export const fetchCache = "force-cache";
 
-export default function SettingsPage() {
-  return <SettingsManager />;
-}
+export { default } from "@kody-ade/kody-chat/pages/settings";

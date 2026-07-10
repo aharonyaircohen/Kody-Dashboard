@@ -1,18 +1,11 @@
 /**
  * @fileType page
- * @domain instructions
- * @pattern instructions-page
- * @ai-summary Per-repo chat instructions editor. Stores
- *   `instructions.md` in the state repo, appended to every kody-direct chat
- *   turn so users can override tone / length / formatting.
+ * @pattern package-page-reexport
+ * @ai-summary This URL serves the canonical shared page from
+ *   @kody-ade/kody-chat — this file only registers the route (and keeps
+ *   the dashboard's own metadata / caching directives).
  */
-import { AuthGuard } from "@dashboard/lib/auth-guard";
-import { InstructionsManager } from "@kody-ade/kody-chat/components/InstructionsManager";
 import { buildKodyMetadata } from "../../metadata";
-
-export const dynamic = "force-static";
-export const revalidate = false;
-export const fetchCache = "force-cache";
 
 export const metadata = buildKodyMetadata({
   title: "Instructions — Kody Operations Dashboard",
@@ -20,11 +13,8 @@ export const metadata = buildKodyMetadata({
     "Per-repo chat instructions that override the base agent prompt.",
   path: "/instructions",
 });
+export const dynamic = "force-static";
+export const revalidate = false;
+export const fetchCache = "force-cache";
 
-export default function InstructionsPage() {
-  return (
-    <AuthGuard>
-      <InstructionsManager />
-    </AuthGuard>
-  );
-}
+export { default } from "@kody-ade/kody-chat/pages/instructions";
