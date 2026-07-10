@@ -12,9 +12,6 @@
  */
 
 export const CHAT_PLUGIN_DIRS = Object.freeze([
-  "vibe",
-  "goals",
-  "branding",
   "tasks",
   // Phase 2 step 4 — page-plugins migrated via the tasks-pilot recipe.
   "activity",

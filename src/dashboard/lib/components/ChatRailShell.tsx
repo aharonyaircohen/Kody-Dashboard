@@ -61,8 +61,8 @@ import { routeOwnsAppHeader } from "./header-ownership";
 // here would drag them into the shared sync chunks /client also loads.
 import { terminalChatPlugin } from "@kody-chat/chat/plugins/terminal/plugin";
 import { commandsChatPlugin } from "@kody-ade/kody-chat/plugins/commands";
-import { vibeChatPlugin } from "../chat/plugins/vibe";
-import { goalsChatPlugin } from "../chat/plugins/goals";
+import { vibeChatPlugin } from "@kody-ade/kody-chat/plugins/vibe";
+import { goalsChatPlugin } from "@kody-ade/kody-chat/plugins/goals";
 import { tasksChatPlugin, TASKS_PANEL_ID } from "../chat/plugins/tasks";
 // Phase 2 step 4 — remaining admin pages migrated to page-plugins via the
 // tasks-pilot recipe (panels-only manifests; routes unchanged, so the

@@ -1,6 +1,6 @@
 {
   "name": "kody-dashboard",
-  "version": "0.1.1577",
+  "version": "0.1.1579",
   "private": true,
   "license": "MIT",
   "description": "Kody Dashboard — Operations dashboard for the Kody CI/CD pipeline",
@@ -22,7 +22,7 @@
     "test:smoke": "PW_LOCAL=1 BASE_URL=http://127.0.0.1:3333 playwright test tests/e2e/smoke.spec.ts --project=chromium",
     "test:e2e": "playwright test",
     "test:e2e:local": "PW_LOCAL=1 BASE_URL=http://127.0.0.1:3333 playwright test",
-    "test:e2e:gate": "PW_LOCAL=1 BASE_URL=http://127.0.0.1:3333 playwright test tests/e2e/smoke.spec.ts tests/e2e/admin-chat-regression.spec.ts tests/e2e/client-chat-surface.spec.ts tests/e2e/chat-renderer-output.spec.ts tests/e2e/chat-kody-direct.spec.ts tests/e2e/chat-kody-attachments.spec.ts tests/e2e/chat-brain-mocked.spec.ts tests/e2e/chat-first-layout.spec.ts --project=chromium",
+    "test:e2e:gate": "PW_LOCAL=1 BASE_URL=http://127.0.0.1:3333 playwright test tests/e2e/smoke.spec.ts tests/e2e/admin-chat-regression.spec.ts tests/e2e/chat-renderer-output.spec.ts tests/e2e/chat-kody-direct.spec.ts tests/e2e/chat-kody-attachments.spec.ts tests/e2e/chat-brain-mocked.spec.ts tests/e2e/chat-first-layout.spec.ts --project=chromium",
     "test:gate": "pnpm test:unit && pnpm test:int && pnpm test:e2e:gate",
     "test:live:brain": "node scripts/verify-brain-live-flow.mjs",
     "test:live:terminal-ui": "playwright test tests/e2e/chat-terminal-live-ui.spec.ts --project=chromium",

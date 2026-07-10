@@ -15,7 +15,7 @@ import { describe, expect, it } from "vitest";
 import {
   pickVibeRequestIssueNumber,
   RECENT_VIBE_ISSUE_TTL_MS,
-} from "@dashboard/lib/chat/plugins/vibe/recent-issue";
+} from "@kody-chat/chat/plugins/vibe/recent-issue";
 
 const NOW = 1_000_000;
 

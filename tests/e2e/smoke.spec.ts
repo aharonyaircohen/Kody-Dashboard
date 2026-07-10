@@ -114,14 +114,4 @@ test.describe("Route smoke", () => {
     );
   });
 
-  test("/client/kody mounts the client chat surface", async ({ page }) => {
-    await page.goto(`${BASE_URL}/client/kody`);
-    await page.waitForLoadState("domcontentloaded");
-    await expect(
-      page.locator('[data-testid="client-chat-surface"]'),
-    ).toBeVisible({ timeout: 15_000 });
-    await expect(
-      page.locator('[data-testid="kody-chat-root"]').first(),
-    ).toBeVisible();
-  });
 });

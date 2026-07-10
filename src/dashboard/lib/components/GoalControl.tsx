@@ -83,7 +83,7 @@ import { KodyChat } from "@kody-ade/kody-chat/components/KodyChat";
 // chat/plugins/terminal/plugin.ts.
 import { terminalChatPlugin } from "@kody-chat/chat/plugins/terminal/plugin";
 import { commandsChatPlugin } from "@kody-ade/kody-chat/plugins/commands";
-import { vibeChatPlugin } from "../chat/plugins/vibe";
+import { vibeChatPlugin } from "@kody-ade/kody-chat/plugins/vibe";
 
 // Planner-dialog plugin composition (Step 6 / M6: the host owns the plugin
 // list). Matches the pre-Step-6 built-ins for this mount: terminal +

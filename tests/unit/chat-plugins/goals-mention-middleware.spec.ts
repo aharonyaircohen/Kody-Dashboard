@@ -35,7 +35,7 @@ import {
   readGoalDirectEffect,
   readHostKnownGoals,
   type GoalRef,
-} from "@dashboard/lib/chat/plugins/goals";
+} from "@kody-ade/kody-chat/plugins/goals";
 import {
   TERMINAL_INTENT_MIDDLEWARE_ID,
   terminalChatPlugin,

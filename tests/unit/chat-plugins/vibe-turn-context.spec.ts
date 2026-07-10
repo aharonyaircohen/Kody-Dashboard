@@ -13,7 +13,7 @@ import { describe, expect, it } from "vitest";
 import {
   vibeLiveTaskContext,
   vibeTurnFields,
-} from "@dashboard/lib/chat/plugins/vibe/turn-context";
+} from "@kody-chat/chat/plugins/vibe/turn-context";
 
 describe("vibeLiveTaskContext", () => {
   const task = {

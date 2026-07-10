@@ -12,7 +12,7 @@ import { describe, expect, it } from "vitest";
 import {
   BRANDING_PLUGIN_ID,
   createBrandingPlugin,
-} from "@dashboard/lib/chat/plugins/branding";
+} from "@kody-ade/kody-chat/plugins/branding";
 import { getClientBrand } from "@dashboard/lib/client-brand";
 import {
   ChatPluginRegistrationError,
