@@ -1,5 +1,5 @@
 import { ALL_NAV_ITEMS, type SettingsNavItem } from "./components/settings-nav";
-import { PACKAGE_ADMIN_PAGES } from "@kody-ade/kody-chat/admin-pages";
+import { PACKAGE_ADMIN_PAGE_META } from "@kody-ade/kody-chat/admin-pages-meta";
 
 export const DASHBOARD_TASK_ROUTE_ID = "task" as const;
 
@@ -78,7 +78,7 @@ const ROUTE_RULES_BY_HREF: Readonly<Record<string, RouteRule>> = {
     when: "Use when the user asks to manage client chat brands.",
   },
   ...Object.fromEntries(
-    PACKAGE_ADMIN_PAGES.map((page) => [
+    PACKAGE_ADMIN_PAGE_META.map((page) => [
       page.href,
       { aliases: [...page.aliases], when: page.when },
     ]),

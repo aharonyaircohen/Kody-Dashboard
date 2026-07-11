@@ -993,7 +993,7 @@ packages:
     resolution: {integrity: sha512-zzNR+SdQSDJzc8joaeP8QQoCQr8NuYx2dIIytl1QeBEZHJ9uW6hebsrYgbz8hJwUQao3TWCMtmfV8Nu1twOLAw==}
 
   '@kody-ade/kody-chat@file:../kody-chat/kody-ade-kody-chat-0.1.0.tgz':
-    resolution: {integrity: sha512-IozJUsx6INawTZzFyhrakCWhR/hdyDhuUz/Dize4tioRFueBIXo2JbXDAQf/5t0L12KZtfk3f+D0TASO0Xiu1Q==, tarball: file:../kody-chat/kody-ade-kody-chat-0.1.0.tgz}
+    resolution: {integrity: sha512-oZXp4Hkkt6K+U9e96zdr6XX31F6Nmvn1/fsO2m065xf32CR0EZ5Xc2jTKgthBs3na5UMwRsDToR7hHtdW0ly3w==, tarball: file:../kody-chat/kody-ade-kody-chat-0.1.0.tgz}
     version: 0.1.0
 
   '@mermaid-js/parser@1.1.1':

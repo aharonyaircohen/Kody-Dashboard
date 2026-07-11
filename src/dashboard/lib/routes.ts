@@ -1,4 +1,4 @@
-import { PACKAGE_ADMIN_PAGES } from "@kody-ade/kody-chat/admin-pages";
+import { PACKAGE_ADMIN_PAGE_META } from "@kody-ade/kody-chat/admin-pages-meta";
 
 export interface RepoRef {
   owner: string;
@@ -29,7 +29,7 @@ const REPO_OWNED_LEGACY_PREFIXES = [
   "/agent-loops",
   "/agents",
   "/brands",
-  ...PACKAGE_ADMIN_PAGES.map((page) => page.href),
+  ...PACKAGE_ADMIN_PAGE_META.map((page) => page.href),
   "/capabilities",
   "/changelog",
   "/chat",

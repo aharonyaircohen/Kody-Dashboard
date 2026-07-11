@@ -40,7 +40,7 @@ import {
   Workflow,
   type LucideIcon,
 } from "lucide-react";
-import { PACKAGE_ADMIN_PAGES } from "@kody-ade/kody-chat/admin-pages";
+import { PACKAGE_ADMIN_PAGE_META } from "@kody-ade/kody-chat/admin-pages-meta";
 import { repoPathForNavMatching } from "@dashboard/lib/routes";
 
 export interface SettingsNavItem {
@@ -354,7 +354,7 @@ export const SETTINGS_NAV_SECTIONS: readonly SettingsNavSection[] = [
         description: "Client chat branding for /client surfaces.",
         tint: "text-cyan-300 bg-cyan-500/10",
       },
-      ...PACKAGE_ADMIN_PAGES.map((page) => ({
+      ...PACKAGE_ADMIN_PAGE_META.map((page) => ({
         href: page.href,
         label: page.label,
         icon: page.icon,

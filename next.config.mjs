@@ -66,6 +66,10 @@ const nextConfig = {
   turbopack: {
     resolveAlias: {
       fs: { browser: "./src/dashboard/lib/empty-module.js" },
+      // github-client's per-request context lazily requires async_hooks; the
+      // languages manager now reaches it from a client chain, so Turbopack
+      // needs the same browser stub webpack gets via resolve.fallback.
+      async_hooks: { browser: "./src/dashboard/lib/empty-module.js" },
       "@dashboard/*": "./src/dashboard/*",
       "@/*": "./src/*",
       "@kody-chat/*": "./node_modules/@kody-ade/kody-chat/src/dashboard/lib/*",
