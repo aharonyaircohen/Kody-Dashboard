@@ -70,10 +70,15 @@ export async function resolveProviderCredentials(
 ): Promise<ProviderCredentials | null> {
   if (!isSupportedProviderId(provider)) return null;
   const names = credentialNames(provider);
-  const [clientId, clientSecret] = await Promise.all([
+  // The client ID is public config (/variables), but accept it from the
+  // secrets vault too — users often paste both credentials on the Secrets
+  // page and a client ID is harmless there.
+  const [clientIdVariable, clientIdVault, clientSecret] = await Promise.all([
     resolveOne(names.id, context, resolvePublicStateVariable),
+    resolveOne(names.id, context, resolveVaultGithubToken),
     resolveOne(names.secret, context, resolveVaultGithubToken),
   ]);
+  const clientId = clientIdVariable ?? clientIdVault;
   if (!clientId || !clientSecret) return null;
 
   // Extra options (issuer/tenant …) are non-secret → /variables. All of a
@@ -83,11 +88,9 @@ export async function resolveProviderCredentials(
   if (extraSpec) {
     extra = {};
     for (const [option, variable] of Object.entries(extraSpec)) {
-      const value = await resolveOne(
-        variable,
-        context,
-        resolvePublicStateVariable,
-      );
+      const value =
+        (await resolveOne(variable, context, resolvePublicStateVariable)) ??
+        (await resolveOne(variable, context, resolveVaultGithubToken));
       if (!value) return null;
       extra[option] = value;
     }

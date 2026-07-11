@@ -12,13 +12,62 @@ import NextAuth from "next-auth";
 import type { Provider } from "next-auth/providers";
 
 import { parseClientBrandRepoCookie, CLIENT_BRAND_REPO_COOKIE } from "../client-brand-repo-cookie";
+import type { ClientBrandRepoContext } from "../client-brand-repo-cookie";
 import { defaultClientBrandRepoContext } from "../client-brand-default-repo";
-import { resolveVaultGithubToken } from "../vault/bootstrap";
+import { resolveBackgroundToken } from "../auth/background-token";
 import { PROVIDER_CATALOG, isSupportedProviderId } from "./catalog";
 import { resolveProviderCredentials } from "./credentials";
 import { deriveClientAuthSecret } from "./secret";
 
 export const CLIENT_AUTH_SESSION_COOKIE = "kody_client_session";
+
+/** Pull owner/repo out of a repo-qualified client path
+ *  (`/client/<owner>/<repo>/<brand>`), absolute or relative. */
+function contextFromClientPath(
+  value: string | null | undefined,
+): ClientBrandRepoContext | null {
+  if (!value) return null;
+  const match = /\/client\/([^/?#]+)\/([^/?#]+)\/[^/?#]+/.exec(value);
+  if (!match) return null;
+  return {
+    owner: decodeURIComponent(match[1]),
+    repo: decodeURIComponent(match[2]),
+  };
+}
+
+/** Derive the brand's repo from the auth request itself: the callback /
+ *  redirect target or the referring page — all carry the repo-qualified
+ *  client path. Fresh visitors have no dashboard cookie, so the URL is the
+ *  only reliable source. */
+async function requestClientContext(
+  req: Request | undefined,
+): Promise<ClientBrandRepoContext | null> {
+  if (!req) {
+    // `signIn()`/`auth()` outside the /api/auth handlers get no request —
+    // fall back to the ambient request headers (works in any request scope).
+    try {
+      const { headers } = await import("next/headers");
+      const ambient = await headers();
+      return (
+        contextFromClientPath(ambient.get("x-client-auth-redirect")) ??
+        contextFromClientPath(ambient.get("referer"))
+      );
+    } catch {
+      return null;
+    }
+  }
+  try {
+    const url = new URL(req.url);
+    return (
+      contextFromClientPath(url.searchParams.get("callbackUrl")) ??
+      contextFromClientPath(url.searchParams.get("redirectTo")) ??
+      contextFromClientPath(url.pathname) ??
+      contextFromClientPath(req.headers.get("referer"))
+    );
+  } catch {
+    return null;
+  }
+}
 
 type ProviderModule = {
   default: (options: Record<string, unknown>) => Provider;
@@ -63,20 +112,24 @@ async function loadProvider(
 
 export const { handlers, auth, signIn, signOut } = NextAuth(async (req) => {
   const cookieContext =
+    (await requestClientContext(req)) ??
     parseClientBrandRepoCookie(
       req?.cookies.get(CLIENT_BRAND_REPO_COOKIE)?.value,
-    ) ?? defaultClientBrandRepoContext();
-  // Authenticate credential reads with the repo's vault token (same as the
-  // page does) — unauthenticated reads share the 60-req/hr IP budget and
-  // silently drop every provider when it's drained.
+    ) ??
+    defaultClientBrandRepoContext();
+  // Authenticate credential reads with the repo's token (same as the page
+  // does) — app installation token first, vault fallback. The state repo
+  // may be private, so unauthenticated reads silently drop every provider.
   const repoContext = cookieContext
     ? {
         ...cookieContext,
         token:
-          (await resolveVaultGithubToken(
-            cookieContext.owner,
-            cookieContext.repo,
-          )) ?? undefined,
+          (
+            await resolveBackgroundToken(
+              cookieContext.owner,
+              cookieContext.repo,
+            )
+          )?.token ?? undefined,
       }
     : null;
   // Register every catalog provider whose credentials are configured for
