@@ -18,6 +18,10 @@
 
 import { NextRequest, NextResponse } from "next/server";
 import { getRequestAuth, requireKodyAuth } from "@dashboard/lib/auth";
+import {
+  clearGitHubContext,
+  setGitHubContext,
+} from "@dashboard/lib/github-client";
 import { rejectSurfaceScopedRequest } from "@kody-ade/kody-chat/platform/surface-scope";
 import {
   streamBrainChat,
@@ -117,8 +121,28 @@ export async function POST(req: NextRequest) {
 
   // First turn only: pull the dashboard's curated Context for the chat
   // audience. Cached 60s in-process; `null` when the repo has none.
-  const dashboardContext =
-    !isResume && body.includeContext ? await loadContextForPrompt() : null;
+  //
+  // Best-effort, scoped to the user's connected repo (mirrors brain-fly):
+  // without setGitHubContext the loader falls back to env-default owner/repo,
+  // injecting the wrong repo's Context; and a load failure must not 500 the
+  // whole first message. Degrade to no-context instead.
+  let dashboardContext: string | null = null;
+  if (!isResume && body.includeContext && headerAuth) {
+    setGitHubContext(
+      headerAuth.owner,
+      headerAuth.repo,
+      headerAuth.token,
+      headerAuth.storeRepoUrl,
+      headerAuth.storeRef,
+    );
+    try {
+      dashboardContext = await loadContextForPrompt();
+    } catch {
+      // Proceed without dashboard Context.
+    } finally {
+      clearGitHubContext();
+    }
+  }
 
   return streamBrainChat({
     brainUrl,
