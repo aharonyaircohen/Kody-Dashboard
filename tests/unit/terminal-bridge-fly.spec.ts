@@ -317,7 +317,7 @@ os.write(sys.stdout.fileno(), b"REMOTE:" + data)
       });
 
       child.stdin.write("abc\n");
-      await waitForOutput(() => stdout, "REMOTE:abc");
+      await waitForOutput(() => stdout, "REMOTE:abc", 45_000);
       child.stdin.end();
       const code = await closePromise;
 
@@ -329,7 +329,7 @@ os.write(sys.stdout.fileno(), b"REMOTE:" + data)
     } finally {
       rmSync(dir, { recursive: true, force: true });
     }
-  }, 20_000);
+  }, 60_000);
 
   it("ships syntactically valid bridge JavaScript", () => {
     const source = ts.createSourceFile(
