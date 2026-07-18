@@ -23,6 +23,8 @@ const ROUTE_FOR: Record<string, string> = {
   memory: "app/(chat-rail)/memory/page.tsx",
   "memory-detail": "app/(chat-rail)/memory/[id]/page.tsx",
   instructions: "app/(chat-rail)/instructions/page.tsx",
+  "view-renderers": "app/(chat-rail)/views/renderers/page.tsx",
+  "view-renderer-detail": "app/(chat-rail)/views/renderers/[slug]/page.tsx",
 };
 
 const PAGES_DIR = join(
