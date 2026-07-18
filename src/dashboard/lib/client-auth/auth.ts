@@ -147,6 +147,33 @@ export const { handlers, auth, signIn, signOut } = NextAuth(async (req) => {
     session: { strategy: "jwt" },
     trustHost: true,
     providers,
+    events: {
+      async signIn({ user, account }) {
+        const { emitSystemEvent } = await import("@dashboard/lib/events");
+        emitSystemEvent(
+          "auth.signed_in",
+          {
+            kind: "client",
+            ...(account?.provider ? { provider: account.provider } : {}),
+          },
+          {
+            userId: user.email
+              ? `client:${user.email.toLowerCase()}`
+              : null,
+            brand: cookieContext,
+            source: "server",
+          },
+        );
+      },
+      async signOut() {
+        const { emitSystemEvent } = await import("@dashboard/lib/events");
+        emitSystemEvent(
+          "auth.signed_out",
+          { kind: "client" },
+          { userId: null, brand: cookieContext, source: "server" },
+        );
+      },
+    },
     cookies: {
       sessionToken: { name: CLIENT_AUTH_SESSION_COOKIE },
     },

@@ -1,8 +1,8 @@
 // TEMPORARY debug endpoint — booleans only, no secret values. Remove after use.
 import { NextResponse } from "next/server";
-import { resolveBackgroundToken } from "@kody-chat/auth/background-token";
-import { resolveClientBrand } from "@kody-chat/client-brand";
-import { resolveConfiguredProviders } from "@kody-chat/client-auth/credentials";
+import { resolveBackgroundToken } from "@dashboard/lib/auth/background-token";
+import { resolveClientBrand } from "@dashboard/lib/client-brand";
+import { resolveConfiguredProviders } from "@dashboard/lib/client-auth/credentials";
 
 export const runtime = "nodejs";
 

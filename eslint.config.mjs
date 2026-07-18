@@ -15,25 +15,8 @@ import { CHAT_PLUGIN_DIRS } from "./src/dashboard/lib/chat/plugins/plugin-dirs.m
 // list drifts from the directories actually on disk.
 const CHAT = "./src/dashboard/lib/chat";
 const chatLayerZones = [
-  // core is the bottom layer: no platform/surface/plugins/legacy components.
-  { target: `${CHAT}/core`, from: `${CHAT}/surface`, message: "core must not import surface" },
-  { target: `${CHAT}/core`, from: `${CHAT}/plugins`, message: "core must not import plugins" },
-  { target: `${CHAT}/core`, from: `${CHAT}/platform`, message: "core must not import platform" },
-  { target: `${CHAT}/core`, from: "./src/dashboard/lib/components", message: "core must not import components" },
-  // platform sits above core only.
-  { target: `${CHAT}/platform`, from: `${CHAT}/surface`, message: "platform must not import surface" },
-  { target: `${CHAT}/platform`, from: `${CHAT}/plugins`, message: "platform must not import plugins" },
-  { target: `${CHAT}/platform`, from: "./src/dashboard/lib/components", message: "platform must not import components" },
-  // plugins may use platform + core utilities — but never the stream
-  // reducer. Lifecycle needs (message start/end, thinking, stream events)
-  // go through the ChatPlugin contract (platform/types.ts): add a hook to
-  // the manifest, don't wire into core internals.
-  {
-    target: `${CHAT}/plugins`,
-    from: `${CHAT}/core/kody-chat-reducer.ts`,
-    message: "plugins must not import the chat reducer — extend the ChatPlugin contract (platform/types.ts) with a lifecycle hook instead",
-  },
-  // plugins may use platform + core, never each other.
+  // core + platform migrated into @kody-ade/kody-chat; only plugins remain
+  // here. Plugins may use the package's platform + core, never each other.
   ...CHAT_PLUGIN_DIRS.map((dir) => ({
     target: `${CHAT}/plugins/${dir}`,
     from: `${CHAT}/plugins`,
@@ -115,43 +98,6 @@ export default [
       "import/no-restricted-paths": ["error", { zones: chatLayerZones }],
     },
   },
-  {
-    // KodyChat size RATCHET: the file lives outside the chat/** zone, so
-    // nothing else stops regrowth. Lower this cap with every phase-1.6
-    // extraction — never raise it. (Raw lines; currently 1,713 after the
-    // phase-1.6e surface-layout extraction to
-    // chat/surface/ChatSurfaceLayout.tsx.)
-    name: "kodychat-size-ratchet",
-    files: ["src/dashboard/lib/components/KodyChat.tsx"],
-    rules: {
-      "max-lines": ["error", { max: 1760, skipBlankLines: false, skipComments: false }],
-    },
-  },
-  {
-    // Layer zones, alias form. no-restricted-paths only sees resolvable
-    // relative imports; these blocks close the @dashboard/@ alias route.
-    name: "chat-core-alias-zones",
-    files: ["src/dashboard/lib/chat/core/**/*.ts", "src/dashboard/lib/chat/core/**/*.tsx"],
-    rules: {
-      "no-restricted-imports": ["error", { patterns: [
-        { group: ["@dashboard/lib/chat/surface*", "@/dashboard/lib/chat/surface*"], message: "core must not import surface" },
-        { group: ["@dashboard/lib/chat/plugins*", "@/dashboard/lib/chat/plugins*"], message: "core must not import plugins" },
-        { group: ["@dashboard/lib/chat/platform*", "@/dashboard/lib/chat/platform*"], message: "core must not import platform" },
-        { group: ["@dashboard/lib/components*", "@/dashboard/lib/components*"], message: "core must not import components" },
-      ]}],
-    },
-  },
-  {
-    name: "chat-platform-alias-zones",
-    files: ["src/dashboard/lib/chat/platform/**/*.ts", "src/dashboard/lib/chat/platform/**/*.tsx"],
-    rules: {
-      "no-restricted-imports": ["error", { patterns: [
-        { group: ["@dashboard/lib/chat/surface*", "@/dashboard/lib/chat/surface*"], message: "platform must not import surface" },
-        { group: ["@dashboard/lib/chat/plugins*", "@/dashboard/lib/chat/plugins*"], message: "platform must not import plugins" },
-        { group: ["@dashboard/lib/components*", "@/dashboard/lib/components*"], message: "platform must not import components" },
-      ]}],
-    },
-  },
   ...CHAT_PLUGIN_DIRS.map((dir) => ({
     name: `chat-plugin-${dir}-alias-zones`,
     files: [`src/dashboard/lib/chat/plugins/${dir}/**/*.ts`, `src/dashboard/lib/chat/plugins/${dir}/**/*.tsx`],
@@ -165,10 +111,7 @@ export default [
           message: `plugins must not import sibling plugins (${dir})`,
         },
         {
-          group: [
-            "@dashboard/lib/chat/core/kody-chat-reducer*",
-            "@/dashboard/lib/chat/core/kody-chat-reducer*",
-          ],
+          group: ["@kody-ade/kody-chat/core/kody-chat-reducer*"],
           message: "plugins must not import the chat reducer — extend the ChatPlugin contract (platform/types.ts) with a lifecycle hook instead",
         },
       ]}],

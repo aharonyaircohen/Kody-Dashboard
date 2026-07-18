@@ -65,7 +65,7 @@ through to `process.env` when the vault is missing or unconfigured.
 - Crypto: [src/dashboard/lib/vault/crypto.ts](src/dashboard/lib/vault/crypto.ts)
 - Store (read/write + 60s cache): [src/dashboard/lib/vault/store.ts](src/dashboard/lib/vault/store.ts)
 - API: [app/api/kody/secrets/route.ts](app/api/kody/secrets/route.ts), [app/api/kody/secrets/[name]/route.ts](app/api/kody/secrets/[name]/route.ts)
-- UI: [src/dashboard/lib/components/SecretsManager.tsx](src/dashboard/lib/components/SecretsManager.tsx)
+- UI: `SecretsManager.tsx` (lives in the `@kody-ade/kody-chat` package, served via `app/(chat-rail)/secrets/page.tsx`)
 
 Bootstrap: `pnpm vault:init` prints a fresh key. Paste into Vercel env
 **and** a password manager — losing the key means re-entering every
@@ -175,15 +175,15 @@ The legacy `/api/kody/chat` endpoint is deprecated and returns 410.
 ### Chat plugin rules (load-bearing)
 
 The chat **core + platform layers live in the `@kody-ade/kody-chat`
-package** (repo: https://github.com/aharonyaircohen/kody-chat, currently a
-`file:../kody-chat` tarball until the npm publish) — import them as
-`@kody-ade/kody-chat/platform[/*]` and `@kody-ade/kody-chat/core/*`.
+package** (repo: https://github.com/aharonyaircohen/kody-chat, consumed
+from npm) — import them as `@kody-ade/kody-chat/platform[/*]` and
+`@kody-ade/kody-chat/core/*`.
 Never re-create `src/dashboard/lib/chat/{core,platform}` here. The package
 imports shared host libs via the `@dashboard` alias; next.config.mjs +
 vitest.config.ts map that back into this repo so there is exactly ONE
 module instance of github-client / active-repo / chat-types. To update:
-edit in ../kody-chat, run its `pnpm test:gate`, `pnpm pack`, then
-reinstall here.
+edit in ../kody-chat, run its `pnpm test:gate`, publish, then bump the
+version here.
 
 Chat UI features are **plugins** under `src/dashboard/lib/chat/plugins/`
 built on the `ChatPlugin` contract (`@kody-ade/kody-chat/platform/types`):
