@@ -145,8 +145,12 @@ function AgencyArchitectInner() {
           <span className="text-white/80">config</span> (quality commands,
           aliases, access gate, model routing). Export it from one repo and
           import it into another to stand up the same team instantly.
-          Repo-specific state (memory, secrets, variables, default branch) stays
-          behind by design.
+Repo-specific state (memory, secrets, variables, default branch) stays
+behind by design.
+
+<p className="text-xs text-emerald-300/80" data-agency-qa-probe="director">
+  Agency Director QA probe: this preview is temporary.
+</p>
         </p>
 
         {/* Export */}
