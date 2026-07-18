@@ -149,10 +149,6 @@ function AgencyArchitectInner() {
           behind by design.
         </p>
 
-        <p className="text-xs text-emerald-300/80" data-agency-qa-probe="director">
-          Agency Director QA probe: this preview is temporary.
-        </p>
-
         {/* Export */}
         <Card className="border-white/[0.08] bg-white/[0.03]">
           <CardContent className="p-4 flex items-start justify-between gap-4">
