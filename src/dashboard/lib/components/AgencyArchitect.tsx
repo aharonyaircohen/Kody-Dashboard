@@ -148,6 +148,9 @@ function AgencyArchitectInner() {
           Repo-specific state (memory, secrets, variables, default branch) stays
           behind by design.
         </p>
+        <p className="text-xs text-emerald-300/80" data-agency-qa-probe="director">
+          Agency Director QA probe: this preview is temporary.
+        </p>
 
         {/* Export */}
         <Card className="border-white/[0.08] bg-white/[0.03]">
