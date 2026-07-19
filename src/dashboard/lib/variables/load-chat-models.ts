@@ -11,16 +11,22 @@
 import type { NextRequest } from "next/server";
 import { getVariable } from "./get-variable";
 import { VAR_LLM_MODELS, ChatModelsSchema, type ChatModel } from "./models";
+import { withBuiltInChatModels } from "@kody-ade/base/variables/models";
 
-export async function loadChatModels(req: NextRequest): Promise<ChatModel[]> {
+export async function loadChatModels(
+  req: NextRequest,
+  options: { includeBuiltIn?: boolean } = {},
+): Promise<ChatModel[]> {
+  const finalize = (models: ChatModel[]) =>
+    options.includeBuiltIn ? withBuiltInChatModels(models) : models;
   const raw = await getVariable(VAR_LLM_MODELS, { req });
-  if (!raw) return [];
+  if (!raw) return finalize([]);
   try {
     const parsed = JSON.parse(raw);
     const result = ChatModelsSchema.safeParse(parsed);
-    if (!result.success) return [];
-    return result.data;
+    if (!result.success) return finalize([]);
+    return finalize(result.data);
   } catch {
-    return [];
+    return finalize([]);
   }
 }
