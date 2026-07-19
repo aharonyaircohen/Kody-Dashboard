@@ -22,7 +22,7 @@ import { supportsVision } from "@kody-ade/kody-chat/core/vision-support";
 import {
   composeChatModelCatalog,
   KODY_OPENROUTER_FREE_CHAT_MODEL,
-} from "@dashboard/lib/variables/chat-model-catalog";
+} from "kody-chat-model-catalog";
 import { loadChatModels } from "@dashboard/lib/variables/load-chat-models";
 import {
   PROVIDER_PRESETS,
