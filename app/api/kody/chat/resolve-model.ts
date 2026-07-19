@@ -19,6 +19,10 @@ import { getEngineConfig } from "@dashboard/lib/engine/config";
 import { getSecret } from "@dashboard/lib/vault/get-secret";
 import { normalizeOpenAICompatibleRequestBody } from "@kody-ade/kody-chat/core/openai-compatible-request";
 import { supportsVision } from "@kody-ade/kody-chat/core/vision-support";
+import {
+  composeChatModelCatalog,
+  KODY_OPENROUTER_FREE_CHAT_MODEL,
+} from "@dashboard/lib/variables/chat-model-catalog";
 import { loadChatModels } from "@dashboard/lib/variables/load-chat-models";
 import {
   PROVIDER_PRESETS,
@@ -165,7 +169,10 @@ export async function resolveChatModel(
   modelId?: string,
   options: ResolveChatModelOptions = {},
 ): Promise<ResolvedChatModel | { error: NextResponse }> {
-  const availableModels = await loadChatModels(req, { includeBuiltIn: true });
+  const availableModels = composeChatModelCatalog(
+    await loadChatModels(req),
+    KODY_OPENROUTER_FREE_CHAT_MODEL,
+  );
   const selectedModel =
     pickModelById(availableModels, modelId) ??
     pickDefaultModel(availableModels) ??
